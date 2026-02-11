@@ -101,16 +101,14 @@ pub fn tryInteger(string: []const u8) Error!?u16 {
 
     // Check if anything follows prefix (also covers "" case)
     // Otherwise loop would be skipped and value assumed to be `0`
-    if (chars.peek() == null) {
+    if (chars.peek() == null)
         return endOfInteger(sign, prefix);
-    }
 
     var integer: Oversize = 0;
 
     while (chars.next()) |char| {
-        const digit = prefix.radix.parse_digit(char) orelse {
+        const digit = prefix.radix.parse_digit(char) orelse
             return endOfInteger(sign, prefix);
-        };
 
         integer = math.mul(Oversize, integer, @intFromEnum(prefix.radix)) catch
             return error.InvalidInteger;
@@ -153,9 +151,8 @@ fn takePrefix(chars: *CharIter) !union(enum) {
         } else false;
 
     // "0" or ""
-    const peeked = chars.peek() orelse {
+    const peeked = chars.peek() orelse
         return if (leading_zeros) .single_zero else .non_integer;
-    };
 
     const radix: Prefix.Radix, const next_char = switch (peeked) {
         'b', 'B' => .{ .binary, true },
@@ -205,10 +202,9 @@ fn endOfInteger(sign: ?Sign, prefix: Prefix) !?u16 {
     // a possibly-valid non-integer token)
     // Note that a leading decimal digit (`^[0-9]`) will lead to a pre-prefix
     // zero, or an implicit decimal radix
-    if (sign != null or prefix.leading_zeros or prefix.radix == .decimal) {
-        return error.InvalidInteger;
-    }
-    return null;
+    return if (sign != null or
+        prefix.leading_zeros or
+        prefix.radix == .decimal) error.InvalidInteger else null;
 }
 
 test takeSign {
@@ -222,7 +218,7 @@ test takeSign {
     };
     for (cases) |case| {
         const input, const expected_rest, const expected_result = case;
-        var chars = CharIter.new(input);
+        var chars: CharIter = .new(input);
         const result = takeSign(&chars);
         try testing.expect(std.mem.eql(u8, expected_rest, chars.string));
         try testing.expect(expected_result == result);
@@ -265,7 +261,7 @@ test takePrefix {
         const input, const expected_rest, const expected_result = case;
         log.info("INPUT:   \t\"{s}\"", .{input});
         log.info("EXPECTED:\t\"{s}\"\t{!}", .{ expected_rest, expected_result });
-        var chars = CharIter.new(input);
+        var chars: CharIter = .new(input);
         const result = takePrefix(&chars);
         log.info("ACTUAL:  \t\"{s}\"\t{!}", .{ chars.string, result });
         if (!std.meta.isError(result))

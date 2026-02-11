@@ -9,33 +9,26 @@ source: []const u8,
 index: usize,
 
 pub fn new(source: []const u8) Tokenizer {
-    return Tokenizer{
-        .source = source,
-        .index = 0,
-    };
+    return Tokenizer{ .source = source, .index = 0 };
 }
 
 pub fn next(tokenizer: *Tokenizer) ?Span {
     // Skip whitespace
     while (tokenizer.peekChar()) |char| {
-        if (!char.isWhitespace()) {
+        if (!char.isWhitespace())
             break;
-        }
         _ = tokenizer.takeChar();
     }
 
     const start = tokenizer.getIndex();
-    const first = tokenizer.takeChar() orelse {
+    const first = tokenizer.takeChar() orelse
         return null;
-    };
 
     assert(!first.isWhitespace());
-    if (first.value == ';') {
+    if (first.value == ';')
         return null;
-    }
-    if (first.isAtomic()) {
+    if (first.isAtomic())
         return .fromBounds(start, tokenizer.getIndex());
-    }
 
     if (first.value == '"') {
         // String literal
@@ -54,9 +47,8 @@ pub fn next(tokenizer: *Tokenizer) ?Span {
     } else {
         // Normal token
         while (tokenizer.peekChar()) |char| {
-            if (char.isWhitespace() or char.isAtomic()) {
+            if (char.isWhitespace() or char.isAtomic())
                 break;
-            }
             _ = tokenizer.takeChar();
         }
     }
@@ -65,20 +57,19 @@ pub fn next(tokenizer: *Tokenizer) ?Span {
 }
 
 fn peekChar(tokenizer: *Tokenizer) ?TokenChar {
-    if (tokenizer.isEnd()) {
+    if (tokenizer.isEnd())
         return null;
-    }
-    return TokenChar.from(tokenizer.source[tokenizer.index]);
+    return .from(tokenizer.source[tokenizer.index]);
 }
 
 fn takeChar(tokenizer: *Tokenizer) ?TokenChar {
-    const char = tokenizer.peekChar() orelse {
+    const char = tokenizer.peekChar() orelse
         return null;
-    };
     tokenizer.index += 1;
     return char;
 }
 
+// This is used to allow index to be calculated from a line span in the future.
 fn getIndex(tokenizer: *const Tokenizer) usize {
     return tokenizer.index;
 }
@@ -124,10 +115,7 @@ pub const LineIterator = struct {
     index: usize,
 
     pub fn new(source: []const u8) LineIterator {
-        return .{
-            .source = source,
-            .index = 0,
-        };
+        return .{ .source = source, .index = 0 };
     }
 
     pub fn next(iter: *LineIterator) ?Span {
@@ -143,9 +131,8 @@ pub const LineIterator = struct {
         iter.index += 2;
 
         assert(start <= end);
-        if (start == end) {
+        if (start == end)
             return null;
-        }
 
         return .fromBounds(start, end);
     }

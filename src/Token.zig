@@ -20,11 +20,13 @@ pub const Error = error{
 };
 
 pub fn from(span: Span, source: []const u8) !Token {
-    const kind = try Kind.from(span.resolve(source));
+    const kind: Kind = try .from(span.resolve(source));
     return .{ .kind = kind, .span = span };
 }
 
 pub const Kind = union(enum) {
+    // TODO: Use spans instead of slices
+    // spans can be relative to (contained by) `token.span`
     comma: void,
     register: u3,
     integer: u16,
@@ -94,25 +96,22 @@ pub const Kind = union(enum) {
             tryLabel,
         };
         inline for (parsers) |parser| {
-            if (try parser(string)) |kind| {
+            if (try parser(string)) |kind|
                 return kind;
-            }
         }
         return error.InvalidToken;
     }
 
     fn tryComma(string: []const u8) Error!?Kind {
-        if (std.mem.eql(u8, string, ",")) {
-            return .{ .comma = void{} };
-        } else {
-            return null;
-        }
+        return if (std.mem.eql(u8, string, ","))
+            .{ .comma = void{} }
+        else
+            null;
     }
 
     fn tryRegister(string: []const u8) Error!?Kind {
-        if (string.len != 2) {
+        if (string.len != 2)
             return null;
-        }
         switch (string[0]) {
             'r', 'R' => {},
             else => return null,
@@ -131,26 +130,22 @@ pub const Kind = union(enum) {
     }
 
     fn tryString(string: []const u8) Error!?Kind {
-        if (string.len < 2) {
+        if (string.len < 2)
             return null;
-        }
         const has_initial_quote = string[0] == '"';
         const has_final_quote = string[string.len - 1] == '"';
-        if (!has_initial_quote and !has_final_quote) {
+        if (!has_initial_quote and !has_final_quote)
             return null;
-        }
         assert(has_initial_quote and has_final_quote);
         return .{ .string = string[1 .. string.len - 1] };
     }
 
     fn tryDirective(string: []const u8) Error!?Kind {
-        if (string.len < 2 or string[0] != '.') {
+        if (string.len < 2 or string[0] != '.')
             return null;
-        }
         const rest = string[1..];
-        if (!isIdent(rest)) {
+        if (!isIdent(rest))
             return error.InvalidIdent;
-        }
         if (matchTagName(Directive, rest)) |directive| {
             return .{ .directive = directive };
         }
@@ -167,20 +162,17 @@ pub const Kind = union(enum) {
 
     fn tryLabel(string: []const u8) Error!?Kind {
         assert(string.len > 0);
-        if (!isIdent(string[0..1])) {
+        if (!isIdent(string[0..1]))
             return null;
-        }
-        if (!isIdent(string[1..])) {
+        if (!isIdent(string[1..]))
             return error.InvalidIdent;
-        }
         return .{ .label = string };
     }
 
     fn matchTagName(comptime T: type, string: []const u8) ?T {
         for (std.meta.tags(T)) |tag| {
-            if (std.ascii.eqlIgnoreCase(string, @tagName(tag))) {
+            if (std.ascii.eqlIgnoreCase(string, @tagName(tag)))
                 return tag;
-            }
         }
         return null;
     }
