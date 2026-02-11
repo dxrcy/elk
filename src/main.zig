@@ -5,6 +5,7 @@ const ArrayList = std.ArrayList;
 
 const Tokenizer = @import("Tokenizer.zig");
 const LineIterator = Tokenizer.LineIterator;
+const Span = @import("Span.zig");
 const Token = @import("Token.zig");
 
 pub fn main(init: std.process.Init) !void {
@@ -17,6 +18,8 @@ pub fn main(init: std.process.Init) !void {
 
     const source = try Io.Dir.cwd().readFileAlloc(io, path, gpa, .unlimited);
     defer gpa.free(source);
+
+    reporter.setSource(source);
 
     var lines: LineIterator = .new(source);
     while (lines.next()) |line| {
@@ -33,7 +36,7 @@ pub fn main(init: std.process.Init) !void {
                 std.debug.print("\t{f}\n", .{token.kind});
             } else |err| {
                 std.debug.print("\n", .{});
-                reporter.err(err);
+                reporter.err(err, line);
             }
         }
 
@@ -52,14 +55,18 @@ pub const Reporter = struct {
     file: Io.File,
     buffer: [BUFFER_SIZE]u8,
     writer: Io.File.Writer,
+
+    source: ?[]const u8,
+
     io: Io,
 
     pub fn new(io: Io) Reporter {
         return .{
-            .io = io,
             .file = undefined,
             .buffer = undefined,
             .writer = undefined,
+            .source = null,
+            .io = io,
         };
     }
 
@@ -68,11 +75,25 @@ pub const Reporter = struct {
         reporter.writer = reporter.file.writer(reporter.io, &reporter.buffer);
     }
 
-    pub fn err(reporter: *Reporter, code: Token.Error) void {
+    pub fn setSource(reporter: *Reporter, source: []const u8) void {
+        std.debug.assert(reporter.source == null);
+        reporter.source = source;
+    }
+
+    pub fn err(reporter: *Reporter, code: Token.Error, line: Span) void {
         reporter.print("\x1b[31m", .{});
         reporter.print("Error: {t}", .{code});
         reporter.print("\x1b[0m", .{});
         reporter.print("\n", .{});
+
+        const source = reporter.source orelse
+            unreachable;
+
+        reporter.print("\x1b[33m", .{});
+        reporter.print("Line: [{s}]", .{line.resolve(source)});
+        reporter.print("\x1b[0m", .{});
+        reporter.print("\n", .{});
+
         reporter.flush();
     }
 

@@ -142,7 +142,7 @@ pub const LineIterator = struct {
         const end = iter.index;
         iter.index += 2;
 
-        std.debug.assert(start <= end);
+        assert(start <= end);
         if (start == end) {
             return null;
         }
