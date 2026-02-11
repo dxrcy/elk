@@ -1,7 +1,6 @@
 const std = @import("std");
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
-const ArrayList = std.ArrayList;
 
 const Tokenizer = @import("Tokenizer.zig");
 const LineIterator = Tokenizer.LineIterator;
@@ -22,30 +21,77 @@ pub fn main(init: std.process.Init) !void {
 
     reporter.setSource(source);
 
+    var air: Air = .{
+        .lines = .empty,
+        .allocator = gpa,
+        .source = source,
+    };
+
+    defer {
+        air.lines.deinit(air.allocator);
+    }
+
     var lines: LineIterator = .new(source);
     while (lines.next()) |line| {
-        const line_str = line.resolve(source);
+        try air.parseLine(line, &reporter);
+    }
+}
+
+const ArrayList = std.ArrayList;
+
+const Air = struct {
+    lines: ArrayList(Line),
+    allocator: Allocator,
+    source: []const u8,
+
+    pub const Line = struct {
+        statement: Statement,
+        span: Span,
+
+        pub const Statement = union(enum) {
+            add: struct {
+                dest: Register,
+                src_a: Register,
+                src_b: RegisterOrImmediate,
+            },
+
+            lea: struct {
+                dest: Register,
+                src: Label,
+            },
+
+            trap: struct {
+                vect: u8,
+            },
+
+            pub const Register = u3;
+
+            pub const RegisterOrImmediate = union(enum) {
+                register: Register,
+                immediate: u5,
+            };
+
+            // TODO:
+            const Label = []const u8;
+        };
+    };
+
+    pub fn parseLine(air: *Air, line: Span, reporter: *Reporter) !void {
+        const line_str = line.resolve(air.source);
 
         std.debug.print("-" ** 20 ++ "\n", .{});
         std.debug.print("[{s}]\n", .{line_str});
 
         var tokens = Tokenizer.new(line_str);
-        while (tokens.next()) |span| {
-            const token_str = span.resolve(line_str);
-            std.debug.print("\t[{s}]", .{token_str});
 
-            const token = Token.from(span, line_str) catch |err| {
-                std.debug.print("\n", .{});
-                reporter.err(err, line, span);
-                continue;
-            };
+        const first = tokens.next() orelse
+            unreachable;
 
-            std.debug.print("\t{f}\n", .{token.kind});
-        }
+        std.debug.print("{s}\n", .{first.resolve(line_str)});
 
-        std.debug.print("\n", .{});
+        _ = reporter;
     }
-}
+};
 
 comptime {
     std.testing.refAllDecls(@This());
