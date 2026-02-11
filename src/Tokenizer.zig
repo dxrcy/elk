@@ -3,17 +3,19 @@ const Tokenizer = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 
-text: []const u8,
+const Span = @import("Span.zig");
+
+source: []const u8,
 index: usize,
 
-pub fn new(text: []const u8) Tokenizer {
+pub fn new(source: []const u8) Tokenizer {
     return Tokenizer{
-        .text = text,
+        .source = source,
         .index = 0,
     };
 }
 
-pub fn next(tokenizer: *Tokenizer) ?[]const u8 {
+pub fn next(tokenizer: *Tokenizer) ?Span {
     // Skip whitespace
     while (tokenizer.peekChar()) |char| {
         if (!char.isWhitespace()) {
@@ -32,7 +34,7 @@ pub fn next(tokenizer: *Tokenizer) ?[]const u8 {
         return null;
     }
     if (first.isAtomic()) {
-        return tokenizer.text[start..tokenizer.getIndex()];
+        return .fromBounds(start, tokenizer.getIndex());
     }
 
     if (first.value == '"') {
@@ -59,14 +61,14 @@ pub fn next(tokenizer: *Tokenizer) ?[]const u8 {
         }
     }
 
-    return tokenizer.text[start..tokenizer.getIndex()];
+    return .fromBounds(start, tokenizer.getIndex());
 }
 
 fn peekChar(tokenizer: *Tokenizer) ?TokenChar {
     if (tokenizer.isEnd()) {
         return null;
     }
-    return TokenChar.from(tokenizer.text[tokenizer.index]);
+    return TokenChar.from(tokenizer.source[tokenizer.index]);
 }
 
 fn takeChar(tokenizer: *Tokenizer) ?TokenChar {
@@ -82,7 +84,7 @@ fn getIndex(tokenizer: *const Tokenizer) usize {
 }
 
 fn isEnd(tokenizer: *const Tokenizer) bool {
-    return tokenizer.index >= tokenizer.text.len;
+    return tokenizer.index >= tokenizer.source.len;
 }
 
 const TokenChar = struct {

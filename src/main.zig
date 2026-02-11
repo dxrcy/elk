@@ -23,7 +23,8 @@ pub fn main(init: std.process.Init) !void {
         std.debug.print("[{s}]\n", .{line});
 
         var tokens = Tokenizer.new(line);
-        while (tokens.next()) |string| {
+        while (tokens.next()) |span| {
+            const string = span.resolve(line);
             std.debug.print("\t[{s}]", .{string});
             if (Token.from(string)) |token| {
                 std.debug.print("\t{f}\n", .{token});
