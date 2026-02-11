@@ -130,7 +130,7 @@ pub const LineIterator = struct {
         };
     }
 
-    pub fn next(iter: *LineIterator) ?[]const u8 {
+    pub fn next(iter: *LineIterator) ?Span {
         const start = iter.index;
 
         while (iter.index < iter.source.len and
@@ -147,6 +147,6 @@ pub const LineIterator = struct {
             return null;
         }
 
-        return iter.source[start..end];
+        return .fromBounds(start, end);
     }
 };

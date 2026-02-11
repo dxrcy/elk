@@ -15,19 +15,21 @@ pub fn main(init: std.process.Init) !void {
 
     const path = "hw.asm";
 
-    const text = try Io.Dir.cwd().readFileAlloc(io, path, gpa, .unlimited);
-    defer gpa.free(text);
+    const source = try Io.Dir.cwd().readFileAlloc(io, path, gpa, .unlimited);
+    defer gpa.free(source);
 
-    var lines: LineIterator = .new(text);
+    var lines: LineIterator = .new(source);
     while (lines.next()) |line| {
-        std.debug.print("-" ** 20 ++ "\n", .{});
-        std.debug.print("[{s}]\n", .{line});
+        const line_str = line.resolve(source);
 
-        var tokens = Tokenizer.new(line);
+        std.debug.print("-" ** 20 ++ "\n", .{});
+        std.debug.print("[{s}]\n", .{line_str});
+
+        var tokens = Tokenizer.new(line_str);
         while (tokens.next()) |span| {
-            const string = span.resolve(line);
+            const string = span.resolve(line_str);
             std.debug.print("\t[{s}]", .{string});
-            if (Token.from(span, line)) |token| {
+            if (Token.from(span, line_str)) |token| {
                 std.debug.print("\t{f}\n", .{token.kind});
             } else |err| {
                 std.debug.print("\n", .{});
