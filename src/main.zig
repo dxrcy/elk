@@ -4,6 +4,7 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 
 const Tokenizer = @import("Tokenizer.zig");
+const LineIterator = Tokenizer.LineIterator;
 const Token = @import("tokens.zig");
 
 pub fn main(init: std.process.Init) !void {
@@ -17,7 +18,7 @@ pub fn main(init: std.process.Init) !void {
     const text = try Io.Dir.cwd().readFileAlloc(io, path, gpa, .unlimited);
     defer gpa.free(text);
 
-    var lines = std.mem.tokenizeAny(u8, text, "\r\n");
+    var lines: LineIterator = .new(text);
     while (lines.next()) |line| {
         std.debug.print("-" ** 20 ++ "\n", .{});
         std.debug.print("[{s}]\n", .{line});

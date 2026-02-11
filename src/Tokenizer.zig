@@ -118,3 +118,35 @@ const TokenChar = struct {
         return char.kind() == .atomic;
     }
 };
+
+pub const LineIterator = struct {
+    source: []const u8,
+    index: usize,
+
+    pub fn new(source: []const u8) LineIterator {
+        return .{
+            .source = source,
+            .index = 0,
+        };
+    }
+
+    pub fn next(iter: *LineIterator) ?[]const u8 {
+        const start = iter.index;
+
+        while (iter.index < iter.source.len and
+            iter.source[iter.index] != '\n')
+        {
+            iter.index += 1;
+        }
+
+        const end = iter.index;
+        iter.index += 2;
+
+        std.debug.assert(start <= end);
+        if (start == end) {
+            return null;
+        }
+
+        return iter.source[start..end];
+    }
+};
