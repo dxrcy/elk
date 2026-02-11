@@ -27,7 +27,8 @@ pub fn from(span: Span, source: []const u8) !Token {
 pub const Kind = union(enum) {
     // TODO: Use spans instead of slices
     // spans can be relative to (contained by) `token.span`
-    comma: void,
+    newline,
+    comma,
     register: u3,
     integer: u16,
     string: []const u8,
@@ -87,7 +88,7 @@ pub const Kind = union(enum) {
     pub fn from(string: []const u8) Error!Kind {
         assert(string.len > 0);
         const parsers = [_]fn ([]const u8) Error!?Kind{
-            tryComma,
+            tryKeyword,
             tryRegister,
             tryInteger,
             tryString,
@@ -102,9 +103,11 @@ pub const Kind = union(enum) {
         return error.InvalidToken;
     }
 
-    fn tryComma(string: []const u8) Error!?Kind {
-        return if (std.mem.eql(u8, string, ","))
-            .{ .comma = void{} }
+    fn tryKeyword(string: []const u8) Error!?Kind {
+        return if (std.mem.eql(u8, string, "\n"))
+            .newline
+        else if (std.mem.eql(u8, string, ","))
+            .comma
         else
             null;
     }
@@ -190,6 +193,9 @@ pub const Kind = union(enum) {
 
     pub fn format(kind: Kind, writer: *Io.Writer) Io.Writer.Error!void {
         switch (kind) {
+            .newline => {
+                try writer.print("newline", .{});
+            },
             .comma => {
                 try writer.print("comma", .{});
             },

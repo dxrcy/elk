@@ -22,28 +22,18 @@ pub fn main(init: std.process.Init) !void {
 
     reporter.setSource(source);
 
-    var lines: LineIterator = .new(source);
-    while (lines.next()) |line| {
-        const line_str = line.resolve(source);
+    var tokens = Tokenizer.new(source);
+    while (tokens.next()) |span| {
+        const token_str = span.resolve(source);
+        std.debug.print("\t[{s}]", .{token_str});
 
-        std.debug.print("-" ** 20 ++ "\n", .{});
-        std.debug.print("[{s}]\n", .{line_str});
+        const token = Token.from(span, source) catch |err| {
+            std.debug.print("\n", .{});
+            reporter.err(err, span);
+            continue;
+        };
 
-        var tokens = Tokenizer.new(line_str);
-        while (tokens.next()) |span| {
-            const token_str = span.resolve(line_str);
-            std.debug.print("\t[{s}]", .{token_str});
-
-            const token = Token.from(span, line_str) catch |err| {
-                std.debug.print("\n", .{});
-                reporter.err(err, line, span);
-                continue;
-            };
-
-            std.debug.print("\t{f}\n", .{token.kind});
-        }
-
-        std.debug.print("\n", .{});
+        std.debug.print("\t{f}\n", .{token.kind});
     }
 }
 

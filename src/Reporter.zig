@@ -45,7 +45,6 @@ pub fn setSource(reporter: *Reporter, source: []const u8) void {
 pub fn err(
     reporter: *Reporter,
     code: Token.Error,
-    line: Span,
     token: Span,
 ) void {
     reporter.print("\x1b[31m", .{});
@@ -57,18 +56,10 @@ pub fn err(
         unreachable;
 
     reporter.print("\x1b[33m", .{});
-    reporter.print("  - Line:  ", .{});
-    reporter.print("\x1b[0m", .{});
-    reporter.print("\x1b[3m", .{});
-    reporter.print("{s}", .{std.mem.trim(u8, line.resolve(source), " ")});
-    reporter.print("\x1b[0m", .{});
-    reporter.print("\n", .{});
-
-    reporter.print("\x1b[33m", .{});
     reporter.print("  - Token: ", .{});
     reporter.print("\x1b[0m", .{});
     reporter.print("\x1b[3m", .{});
-    reporter.print("{s}", .{token.in(line).resolve(source)});
+    reporter.print("{s}", .{token.resolve(source)});
     reporter.print("\x1b[0m", .{});
     reporter.print("\n", .{});
 
