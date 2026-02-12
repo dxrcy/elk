@@ -25,6 +25,7 @@ pub fn main(init: std.process.Init) !void {
     var parser: Parser = .{
         .air = &air,
         .tokens = Tokenizer.new(source),
+        .current_label = null,
         .source = source,
         .reporter = &reporter,
     };
@@ -160,136 +161,150 @@ const assert = std.debug.assert;
 const Parser = struct {
     air: *Air,
     tokens: Tokenizer,
+    current_label: ?Span,
+
     source: []const u8,
     reporter: *Reporter,
 
     const Statement = Air.Line.Statement;
 
     pub fn parse(parser: *Parser) !void {
-        var current_label: ?Span = null;
-
         while (true) {
-            // TODO: Move loop contents to new methods
-            // Handle `error.Reported` from method return in this loop
-
-            const token = try nullIfReported(parser.nextToken()) orelse {
-                parser.discardTokensInLine();
-                continue;
-            } orelse
-                break;
-
-            switch (token.kind) {
-                .newline, .comma => continue,
-                else => {},
-            }
-
-            switch (token.kind) {
-                .label => {
-                    if (current_label != null) {
-                        parser.reporter.err(error.MultipleLabels, token.span);
-                        continue;
-                    }
-                    current_label = token.span;
+            const control =
+                try nullIfReported(parser.parseLine()) orelse {
+                    parser.discardTokensInLine();
                     continue;
+                };
+
+            switch (control) {
+                .@"continue" => continue,
+                .end_directive => break,
+                .eof => {
+                    parser.reporter.err(error.ExpectedEnd, .emptyAt(parser.source.len));
+                    break;
                 },
-
-                .instruction => |instruction| {
-                    const statement = try parser.parseInstruction(instruction) orelse
-                        continue;
-
-                    const span: Span = .fromBounds(
-                        token.span.offset,
-                        parser.tokens.index,
-                    );
-
-                    try parser.appendLine(&current_label, statement, span);
-
-                    continue; // TODO:
-                },
-
-                .directive => |directive| {
-                    switch (directive) {
-                        .orig => {
-                            const origin = try parser.expectTokenKind(.integer);
-                            if (parser.air.lines.items.len > 0) {
-                                parser.reporter.err(error.LateOrigin, origin.span);
-                                continue;
-                            }
-                            if (parser.air.origin != null) {
-                                parser.reporter.err(error.MultipleOrigins, origin.span);
-                                continue;
-                            }
-                            parser.air.origin = origin.value;
-                            continue;
-                        },
-
-                        .end => return,
-
-                        .stringz => {
-                            const string = try parser.expectTokenKind(.string);
-                            var is_escaped = false;
-                            for (string.value) |char| {
-                                if (!is_escaped and char == '\\') {
-                                    is_escaped = true;
-                                    continue;
-                                }
-                                const char_escaped: u8 =
-                                    if (!is_escaped) char else switch (char) {
-                                        '\\' => '\\',
-                                        '"' => '"',
-                                        'n' => '\n',
-                                        't' => '\t',
-                                        'r' => '\r',
-                                        else => {
-                                            parser.reporter.err(error.InvalidEscapeSequence, string.span);
-                                            is_escaped = false;
-                                            continue;
-                                        },
-                                    };
-                                is_escaped = false;
-                                try parser.appendLine(
-                                    &current_label,
-                                    .{ .raw_word = char_escaped },
-                                    string.span,
-                                );
-                            }
-
-                            continue; // TODO:
-                        },
-
-                        // TODO:
-                        else => {},
-                    }
-                },
-
-                // TODO:
-                else => {},
             }
-
-            std.debug.print("warning: unhandled {t:<10} {s}\n", .{
-                token.kind,
-                if (token.kind == .newline)
-                    ""
-                else
-                    token.span.resolve(parser.source),
-            });
         }
-
-        parser.reporter.err(error.ExpectedEnd, .emptyAt(parser.source.len));
     }
 
-    fn appendLine(
-        parser: *Parser,
-        current_label: *?Span,
-        statement: Statement,
-        span: Span,
-    ) !void {
+    // TODO: Rename
+    fn discardTokensInLine(parser: *Parser) void {
+        while (true) {
+            const token = try nullIfReported(parser.nextToken(&.{.comma})) orelse {
+                continue; // Ignore
+            } orelse
+                break;
+            if (token.kind == .newline)
+                break;
+        }
+    }
+
+    fn parseLine(parser: *Parser) !enum { @"continue", end_directive, eof } {
+        const token = try parser.nextToken(&.{ .comma, .newline }) orelse
+            return .eof;
+
+        switch (token.kind) {
+            .label => {
+                if (parser.current_label != null) {
+                    parser.reporter.err(error.MultipleLabels, token.span);
+                    return error.Reported;
+                }
+                parser.current_label = token.span;
+
+                return .@"continue"; // TODO:
+            },
+
+            .instruction => |instruction| {
+                const statement = try parser.parseInstruction(instruction) orelse
+                    return error.Reported;
+
+                const span: Span = .fromBounds(
+                    token.span.offset,
+                    parser.tokens.index,
+                );
+
+                try parser.appendLine(statement, span);
+
+                return .@"continue"; // TODO:
+            },
+
+            .directive => |directive| {
+                switch (directive) {
+                    .end => {
+                        return .end_directive;
+                    },
+
+                    .orig => {
+                        const origin = try parser.expectTokenKind(.integer);
+                        if (parser.air.lines.items.len > 0) {
+                            parser.reporter.err(error.LateOrigin, origin.span);
+                            return error.Reported;
+                        }
+                        if (parser.air.origin != null) {
+                            parser.reporter.err(error.MultipleOrigins, origin.span);
+                            return error.Reported;
+                        }
+                        parser.air.origin = origin.value;
+
+                        return .@"continue"; // TODO:
+                    },
+
+                    .stringz => {
+                        const string = try parser.expectTokenKind(.string);
+                        var is_escaped = false;
+                        for (string.value) |char| {
+                            if (!is_escaped and char == '\\') {
+                                is_escaped = true;
+                                continue;
+                            }
+                            const char_escaped: u8 =
+                                if (!is_escaped) char else switch (char) {
+                                    '\\' => '\\',
+                                    '"' => '"',
+                                    'n' => '\n',
+                                    't' => '\t',
+                                    'r' => '\r',
+                                    else => {
+                                        parser.reporter.err(error.InvalidEscapeSequence, string.span);
+                                        is_escaped = false;
+                                        continue;
+                                    },
+                                };
+                            is_escaped = false;
+                            try parser.appendLine(
+                                .{ .raw_word = char_escaped },
+                                string.span,
+                            );
+                        }
+
+                        return .@"continue"; // TODO:
+                    },
+
+                    else => {}, // TODO:
+                }
+            },
+
+            else => {}, // TODO:
+        }
+
+        std.debug.print("warning: unhandled {t:<10} {s}\n", .{
+            token.kind,
+            if (token.kind == .newline)
+                ""
+            else
+                token.span.resolve(parser.source),
+        });
+
+        return .@"continue";
+    }
+
+    fn appendLine(parser: *Parser, statement: Statement, span: Span) !void {
         try parser.air.lines.append(parser.air.allocator, .{
-            .label = current_label.*,
+            .label = parser.current_label,
             .statement = statement,
             .span = span,
         });
-        current_label.* = null;
+        parser.current_label = null;
     }
 
     fn parseInstruction(
@@ -318,8 +333,7 @@ const Parser = struct {
                         else => comptime unreachable,
                     };
 
-                    const token = try nullIfReported(parser.expectTokenKind(kind)) orelse
-                        return null;
+                    const token = try parser.expectTokenKind(kind);
                     @field(payload, field.name) = token.value;
                 }
 
@@ -338,23 +352,27 @@ const Parser = struct {
         return null;
     }
 
-    fn nextToken(parser: *Parser) error{Reported}!?Token {
-        while (true) {
+    fn nextToken(
+        parser: *Parser,
+        comptime skip: []const std.meta.Tag(Token.Kind),
+    ) error{Reported}!?Token {
+        token: while (true) {
             const span = parser.tokens.next() orelse
                 return null;
             const token = Token.from(span, parser.source) catch |err| {
                 parser.reporter.err(err, span);
                 return error.Reported;
             };
-            switch (token.kind) {
-                .comma => continue,
-                else => return token,
+            for (skip) |skip_kind| {
+                if (token.kind == skip_kind)
+                    continue :token;
             }
+            return token;
         }
     }
 
     fn expectToken(parser: *Parser) !Token {
-        const token = try parser.nextToken() orelse {
+        const token = try parser.nextToken(&.{.comma}) orelse {
             parser.reporter.err(error.UnexpectedEof, .emptyAt(parser.source.len));
             return error.Reported;
         };
@@ -425,18 +443,6 @@ const Parser = struct {
             else => @compileError("unsupported token kind `." ++ @tagName(kind) ++ "`"),
         };
     }
-
-    // TODO: Rename
-    fn discardTokensInLine(parser: *Parser) void {
-        while (true) {
-            const token = try nullIfReported(parser.nextToken()) orelse {
-                continue; // Ignore
-            } orelse
-                break;
-            if (token.kind == .newline)
-                break;
-        }
-    }
 };
 
 // TODO: Rename
@@ -450,8 +456,8 @@ fn nullIfReported(result: anytype) !?@typeInfo(@TypeOf(result)).error_union.payl
         };
     } else {
         return result catch |err| switch (err) {
-            error.Reported => return,
-            else => return null,
+            error.Reported => return null,
+            else => |err2| return err2,
         };
     }
 }
