@@ -149,7 +149,7 @@ const Parser = struct {
 
     pub fn parse(parser: *Parser) !void {
         while (true) {
-            const token = try convertReported(parser.nextToken()) orelse {
+            const token = try nullIfReported(parser.nextToken()) orelse {
                 parser.discardTokensInLine();
                 continue;
             } orelse
@@ -258,7 +258,7 @@ const Parser = struct {
                         else => comptime unreachable,
                     };
 
-                    const token = try convertReported(parser.expectTokenKind(kind)) orelse
+                    const token = try nullIfReported(parser.expectTokenKind(kind)) orelse
                         return null;
                     @field(payload, field.name) = token.value;
                 }
@@ -364,7 +364,7 @@ const Parser = struct {
     // TODO: Rename
     fn discardTokensInLine(parser: *Parser) void {
         while (true) {
-            const token = try convertReported(parser.nextToken()) orelse {
+            const token = try nullIfReported(parser.nextToken()) orelse {
                 continue; // Ignore
             } orelse
                 break;
@@ -375,7 +375,7 @@ const Parser = struct {
 };
 
 // TODO: Rename
-fn convertReported(result: anytype) !?@typeInfo(@TypeOf(result)).error_union.payload {
+fn nullIfReported(result: anytype) !?@typeInfo(@TypeOf(result)).error_union.payload {
     const error_union = @typeInfo(@TypeOf(result)).error_union;
     const error_set = @typeInfo(error_union.error_set).error_set.?;
 
