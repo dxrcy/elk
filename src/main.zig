@@ -45,6 +45,10 @@ pub fn main(init: std.process.Init) !void {
         }
         std.debug.print("\n", .{});
     }
+
+    if (reporter.summary() == .err) {
+        std.log.info("stop", .{});
+    }
 }
 
 comptime {
