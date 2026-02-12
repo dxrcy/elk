@@ -20,10 +20,7 @@ pub fn main(init: std.process.Init) !void {
 
     reporter.setSource(source);
 
-    var air: Air = .{
-        .lines = .empty,
-        .allocator = gpa,
-    };
+    var air: Air = .new(gpa);
 
     var parser: Parser = .{
         .air = &air,
@@ -59,6 +56,8 @@ pub fn main(init: std.process.Init) !void {
 const ArrayList = std.ArrayList;
 
 const Air = struct {
+    origin: ?u16,
+
     lines: ArrayList(Line),
     allocator: Allocator,
 
@@ -146,6 +145,14 @@ const Air = struct {
             }
         };
     };
+
+    pub fn new(allocator: Allocator) Air {
+        return .{
+            .origin = null,
+            .lines = .empty,
+            .allocator = allocator,
+        };
+    }
 };
 
 const assert = std.debug.assert;
@@ -162,6 +169,9 @@ const Parser = struct {
         var current_label: ?Span = null;
 
         while (true) {
+            // TODO: Move loop contents to new methods
+            // Handle `error.Reported` from method return in this loop
+
             const token = try nullIfReported(parser.nextToken()) orelse {
                 parser.discardTokensInLine();
                 continue;
@@ -199,6 +209,20 @@ const Parser = struct {
 
                 .directive => |directive| {
                     switch (directive) {
+                        .orig => {
+                            const origin = try parser.expectTokenKind(.integer);
+                            if (parser.air.lines.items.len > 0) {
+                                parser.reporter.err(error.LateOrigin, origin.span);
+                                continue;
+                            }
+                            if (parser.air.origin != null) {
+                                parser.reporter.err(error.MultipleOrigins, origin.span);
+                                continue;
+                            }
+                            parser.air.origin = origin.value;
+                            continue;
+                        },
+
                         .stringz => {
                             const string = try parser.expectTokenKind(.string);
                             var is_escaped = false;
@@ -370,6 +394,10 @@ const Parser = struct {
                 .string => |string| string,
                 else => null,
             },
+            .integer => switch (token.kind) {
+                .integer => |integer| integer,
+                else => null,
+            },
             else => comptime unreachable,
         };
         const value = value_opt orelse {
@@ -389,6 +417,7 @@ const Parser = struct {
             .register_or_immediate => Statement.RegisterOrImmediate,
             // TODO: Use span
             .string => []const u8,
+            .integer => u16,
             else => @compileError("unsupported token kind `." ++ @tagName(kind) ++ "`"),
         };
     }
