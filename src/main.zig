@@ -223,6 +223,8 @@ const Parser = struct {
                             continue;
                         },
 
+                        .end => return,
+
                         .stringz => {
                             const string = try parser.expectTokenKind(.string);
                             var is_escaped = false;
@@ -272,6 +274,8 @@ const Parser = struct {
                     token.span.resolve(parser.source),
             });
         }
+
+        parser.reporter.err(error.ExpectedEnd, .emptyAt(parser.source.len));
     }
 
     fn appendLine(
