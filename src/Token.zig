@@ -6,6 +6,7 @@ const assert = std.debug.assert;
 const testing = std.testing;
 
 const integers = @import("integers.zig");
+const Integer = integers.Integer;
 const Span = @import("Span.zig");
 
 // TODO: Rename, since "kind" might imply a tag with no data
@@ -31,7 +32,7 @@ pub const Kind = union(enum) {
     newline,
     comma,
     register: u3,
-    integer: u16,
+    integer: Integer(16),
     string: []const u8,
     directive: Directive,
     instruction: Instruction,

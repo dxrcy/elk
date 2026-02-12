@@ -3,14 +3,44 @@ const math = std.math;
 const testing = std.testing;
 const assert = std.debug.assert;
 
+// TODO: Add more variants
 const Error = error{InvalidInteger};
 
-/// Superset of (u16 UNION i16)
-const Oversize = i17;
-comptime {
-    _ = .{
-        @as(Oversize, std.math.minInt(u16)), @as(Oversize, std.math.maxInt(u16)),
-        @as(Oversize, std.math.minInt(i16)), @as(Oversize, std.math.maxInt(i16)),
+pub fn Integer(comptime bits: u16) type {
+    // TODO: Maybe should repr as
+    // struct {
+    //     is_signed: bool,
+    //     underlying: u16,
+    // }
+
+    return union(enum) {
+        unsigned: Unsigned,
+        signed: Signed,
+
+        const Unsigned = @Int(.unsigned, bits);
+        const Signed = @Int(.signed, bits);
+        const Oversize = @Int(.signed, bits + 1);
+
+        pub fn asUnsigned(integer: @This()) ?Unsigned {
+            return switch (integer) {
+                .unsigned => |unsigned| unsigned,
+                .signed => |signed| std.math.cast(Unsigned, signed),
+            };
+        }
+
+        // TODO: Rename (misleading)
+        pub fn castTo(integer: @This(), comptime T: type) ?T {
+            const info = @typeInfo(T).int;
+            assert(info.signedness == .unsigned);
+
+            return switch (integer) {
+                .unsigned => |unsigned| std.math.cast(T, unsigned),
+                .signed => |signed| @bitCast(
+                    std.math.cast(@Int(.signed, info.bits), signed) orelse
+                        return null,
+                ),
+            };
+        }
     };
 }
 
@@ -76,7 +106,7 @@ const CharIter = struct {
     }
 };
 
-pub fn tryInteger(string: []const u8) Error!?u16 {
+pub fn tryInteger(string: []const u8) Error!?Integer(16) {
     if (string.len == 0)
         return null;
 
@@ -86,7 +116,7 @@ pub fn tryInteger(string: []const u8) Error!?u16 {
 
     const prefix = switch (try takePrefix(&chars)) {
         .regular => |prefix| prefix,
-        .single_zero => return 0,
+        .single_zero => return .{ .unsigned = 0 },
         .non_integer => {
             // Initial sign always indicates an integer
             if (first_sign != null)
@@ -104,24 +134,26 @@ pub fn tryInteger(string: []const u8) Error!?u16 {
     if (chars.peek() == null)
         return endOfInteger(sign, prefix);
 
-    var integer: Oversize = 0;
+    var integer: Integer(16).Oversize = 0;
 
     while (chars.next()) |char| {
         const digit = prefix.radix.parse_digit(char) orelse
             return endOfInteger(sign, prefix);
 
-        integer = math.mul(Oversize, integer, @intFromEnum(prefix.radix)) catch
+        integer = math.mul(Integer(16).Oversize, integer, @intFromEnum(prefix.radix)) catch
             return error.InvalidInteger;
-        integer = math.add(Oversize, integer, digit) catch
+        integer = math.add(Integer(16).Oversize, integer, digit) catch
             return error.InvalidInteger;
     }
 
-    // Try to fit in u16/i16, then bitcast i16 to u16 for negative sign
-    return switch (sign orelse .positive) {
-        .positive => math.cast(u16, integer) orelse
+    // Try to fit in the appropriate `Integer` variant
+    // Always represent `0` as unsigned.
+    return if (sign == .negative and integer != 0) .{
+        .signed = math.cast(Integer(16).Signed, -1 * integer) orelse
             return error.InvalidInteger,
-        .negative => @bitCast(math.cast(i16, -1 * integer) orelse
-            return error.InvalidInteger),
+    } else .{
+        .unsigned = math.cast(Integer(16).Unsigned, integer) orelse
+            return error.InvalidInteger,
     };
 }
 
@@ -197,7 +229,7 @@ fn reconcileSigns(first_opt: ?Sign, second_opt: ?Sign) !?Sign {
     }
 }
 
-fn endOfInteger(sign: ?Sign, prefix: Prefix) !?u16 {
+fn endOfInteger(sign: ?Sign, prefix: Prefix) !?Integer(16) {
     // Any of these conditions indicate an invalid integer token (as opposed to
     // a possibly-valid non-integer token)
     // Note that a leading decimal digit (`^[0-9]`) will lead to a pre-prefix
@@ -275,7 +307,7 @@ test tryInteger {
 
     const cases = [_]struct {
         []const u8,
-        Error!?Oversize,
+        Error!?Integer(16),
     }{
         // Non-integer and invalid
         .{ "", null },
@@ -360,164 +392,152 @@ test tryInteger {
         .{ "++#4", error.InvalidInteger },
         .{ "+-#4", error.InvalidInteger },
         // Decimal
-        .{ "0", 0 },
-        .{ "00", 0 },
-        .{ "#0", 0 },
-        .{ "#00", 0 },
-        .{ "-#0", 0 },
-        .{ "+#0", 0 },
-        .{ "-#00", 0 },
-        .{ "#-0", 0 },
-        .{ "#+0", 0 },
-        .{ "#-00", 0 },
-        .{ "4", 4 },
-        .{ "+4", 4 },
-        .{ "4284", 4284 },
-        .{ "004284", 4284 },
-        .{ "#4", 4 },
-        .{ "#4284", 4284 },
-        .{ "#004284", 4284 },
-        .{ "-4", -4 },
-        .{ "+4", 4 },
-        .{ "-4284", -4284 },
-        .{ "-004284", -4284 },
-        .{ "-#4", -4 },
-        .{ "+#4", 4 },
-        .{ "-#4284", -4284 },
-        .{ "-#004284", -4284 },
-        .{ "#-4", -4 },
-        .{ "#+4", 4 },
-        .{ "#-4284", -4284 },
-        .{ "#-004284", -4284 },
-        .{ "-4", -4 },
-        .{ "+4", 4 },
-        .{ "-4284", -4284 },
-        .{ "-004284", -4284 },
-        .{ "-#4", -4 },
-        .{ "+#4", 4 },
-        .{ "-#4284", -4284 },
-        .{ "-#004284", -4284 },
+        .{ "0", .{ .unsigned = 0 } },
+        .{ "00", .{ .unsigned = 0 } },
+        .{ "#0", .{ .unsigned = 0 } },
+        .{ "#00", .{ .unsigned = 0 } },
+        .{ "-#0", .{ .unsigned = 0 } },
+        .{ "+#0", .{ .unsigned = 0 } },
+        .{ "-#00", .{ .unsigned = 0 } },
+        .{ "#-0", .{ .unsigned = 0 } },
+        .{ "#+0", .{ .unsigned = 0 } },
+        .{ "#-00", .{ .unsigned = 0 } },
+        .{ "4", .{ .unsigned = 4 } },
+        .{ "+4", .{ .unsigned = 4 } },
+        .{ "4284", .{ .unsigned = 4284 } },
+        .{ "004284", .{ .unsigned = 4284 } },
+        .{ "#4", .{ .unsigned = 4 } },
+        .{ "#4284", .{ .unsigned = 4284 } },
+        .{ "#004284", .{ .unsigned = 4284 } },
+        .{ "-4", .{ .signed = -4 } },
+        .{ "+4", .{ .unsigned = 4 } },
+        .{ "-4284", .{ .signed = -4284 } },
+        .{ "-004284", .{ .signed = -4284 } },
+        .{ "-#4", .{ .signed = -4 } },
+        .{ "+#4", .{ .unsigned = 4 } },
+        .{ "-#4284", .{ .signed = -4284 } },
+        .{ "-#004284", .{ .signed = -4284 } },
+        .{ "#-4", .{ .signed = -4 } },
+        .{ "#+4", .{ .unsigned = 4 } },
+        .{ "#-4284", .{ .signed = -4284 } },
+        .{ "#-004284", .{ .signed = -4284 } },
+        .{ "-4", .{ .signed = -4 } },
+        .{ "+4", .{ .unsigned = 4 } },
+        .{ "-4284", .{ .signed = -4284 } },
+        .{ "-004284", .{ .signed = -4284 } },
+        .{ "-#4", .{ .signed = -4 } },
+        .{ "+#4", .{ .unsigned = 4 } },
+        .{ "-#4284", .{ .signed = -4284 } },
+        .{ "-#004284", .{ .signed = -4284 } },
         // Hex
-        .{ "x0", 0x0 },
-        .{ "x00", 0x0 },
-        .{ "0x0", 0x0 },
-        .{ "0x00", 0x0 },
-        .{ "-x0", 0x0 },
-        .{ "+x0", 0x0 },
-        .{ "-x00", 0x0 },
-        .{ "0x-0", 0x0 },
-        .{ "0x-00", 0x0 },
-        .{ "-0x0", 0x0 },
-        .{ "-0x00", 0x0 },
-        .{ "x4", 0x4 },
-        .{ "x004", 0x4 },
-        .{ "x429", 0x429 },
-        .{ "0x4", 0x4 },
-        .{ "0x004", 0x4 },
-        .{ "0x429", 0x429 },
-        .{ "-x4", -0x4 },
-        .{ "+x4", 0x4 },
-        .{ "-x004", -0x4 },
-        .{ "-x429", -0x429 },
-        .{ "-0x4", -0x4 },
-        .{ "+0x4", 0x4 },
-        .{ "-0x004", -0x4 },
-        .{ "-0x429", -0x429 },
-        .{ "x-4", -0x4 },
-        .{ "x-004", -0x4 },
-        .{ "x+004", 0x4 },
-        .{ "x-429", -0x429 },
-        .{ "-0x4", -0x4 },
-        .{ "-0x004", -0x4 },
-        .{ "-0x4af", -0x4af },
-        .{ "+0x4af", 0x4af },
+        .{ "x0", .{ .unsigned = 0x0 } },
+        .{ "x00", .{ .unsigned = 0x0 } },
+        .{ "0x0", .{ .unsigned = 0x0 } },
+        .{ "0x00", .{ .unsigned = 0x0 } },
+        .{ "-x0", .{ .unsigned = 0x0 } },
+        .{ "+x0", .{ .unsigned = 0x0 } },
+        .{ "-x00", .{ .unsigned = 0x0 } },
+        .{ "0x-0", .{ .unsigned = 0x0 } },
+        .{ "0x-00", .{ .unsigned = 0x0 } },
+        .{ "-0x0", .{ .unsigned = 0x0 } },
+        .{ "-0x00", .{ .unsigned = 0x0 } },
+        .{ "x4", .{ .unsigned = 0x4 } },
+        .{ "x004", .{ .unsigned = 0x4 } },
+        .{ "x429", .{ .unsigned = 0x429 } },
+        .{ "0x4", .{ .unsigned = 0x4 } },
+        .{ "0x004", .{ .unsigned = 0x4 } },
+        .{ "0x429", .{ .unsigned = 0x429 } },
+        .{ "-x4", .{ .signed = -0x4 } },
+        .{ "+x4", .{ .unsigned = 0x4 } },
+        .{ "-x004", .{ .signed = -0x4 } },
+        .{ "-x429", .{ .signed = -0x429 } },
+        .{ "-0x4", .{ .signed = -0x4 } },
+        .{ "+0x4", .{ .unsigned = 0x4 } },
+        .{ "-0x004", .{ .signed = -0x4 } },
+        .{ "-0x429", .{ .signed = -0x429 } },
+        .{ "x-4", .{ .signed = -0x4 } },
+        .{ "x-004", .{ .signed = -0x4 } },
+        .{ "x+004", .{ .unsigned = 0x4 } },
+        .{ "x-429", .{ .signed = -0x429 } },
+        .{ "-0x4", .{ .signed = -0x4 } },
+        .{ "-0x004", .{ .signed = -0x4 } },
+        .{ "-0x4af", .{ .signed = -0x4af } },
+        .{ "+0x4af", .{ .unsigned = 0x4af } },
         // Octal
-        .{ "o0", 0x0 },
-        .{ "o00", 0x0 },
-        .{ "0o0", 0x0 },
-        .{ "0o00", 0x0 },
-        .{ "-o0", 0x0 },
-        .{ "-o00", 0x0 },
-        .{ "o-0", 0x0 },
-        .{ "o-00", 0x0 },
-        .{ "-0o0", 0x0 },
-        .{ "-0o00", 0x0 },
-        .{ "0o-0", 0x0 },
-        .{ "0o-00", 0x0 },
-        .{ "o4", 0x4 },
-        .{ "o004", 0x4 },
-        .{ "o427", 0x117 },
-        .{ "0o4", 0x4 },
-        .{ "0o004", 0x4 },
-        .{ "0o427", 0x117 },
-        .{ "-o4", -0x4 },
-        .{ "-o004", -0x4 },
-        .{ "-o427", -0x117 },
-        .{ "-0o4", -0x4 },
-        .{ "-0o004", -0x4 },
-        .{ "-0o427", -0x117 },
-        .{ "o-4", -0x4 },
-        .{ "o-004", -0x4 },
-        .{ "o-427", -0x117 },
-        .{ "0o-4", -0x4 },
-        .{ "0o-004", -0x4 },
-        .{ "0o-427", -0x117 },
+        .{ "o0", .{ .unsigned = 0x0 } },
+        .{ "o00", .{ .unsigned = 0x0 } },
+        .{ "0o0", .{ .unsigned = 0x0 } },
+        .{ "0o00", .{ .unsigned = 0x0 } },
+        .{ "-o0", .{ .unsigned = 0x0 } },
+        .{ "-o00", .{ .unsigned = 0x0 } },
+        .{ "o-0", .{ .unsigned = 0x0 } },
+        .{ "o-00", .{ .unsigned = 0x0 } },
+        .{ "-0o0", .{ .unsigned = 0x0 } },
+        .{ "-0o00", .{ .unsigned = 0x0 } },
+        .{ "0o-0", .{ .unsigned = 0x0 } },
+        .{ "0o-00", .{ .unsigned = 0x0 } },
+        .{ "o4", .{ .unsigned = 0x4 } },
+        .{ "o004", .{ .unsigned = 0x4 } },
+        .{ "o427", .{ .unsigned = 0x117 } },
+        .{ "0o4", .{ .unsigned = 0x4 } },
+        .{ "0o004", .{ .unsigned = 0x4 } },
+        .{ "0o427", .{ .unsigned = 0x117 } },
+        .{ "-o4", .{ .signed = -0x4 } },
+        .{ "-o004", .{ .signed = -0x4 } },
+        .{ "-o427", .{ .signed = -0x117 } },
+        .{ "-0o4", .{ .signed = -0x4 } },
+        .{ "-0o004", .{ .signed = -0x4 } },
+        .{ "-0o427", .{ .signed = -0x117 } },
+        .{ "o-4", .{ .signed = -0x4 } },
+        .{ "o-004", .{ .signed = -0x4 } },
+        .{ "o-427", .{ .signed = -0x117 } },
+        .{ "0o-4", .{ .signed = -0x4 } },
+        .{ "0o-004", .{ .signed = -0x4 } },
+        .{ "0o-427", .{ .signed = -0x117 } },
         // Binary
-        .{ "b0", 0b0 },
-        .{ "b00", 0b0 },
-        .{ "0b0", 0b0 },
-        .{ "0b00", 0b0 },
-        .{ "-b0", 0b0 },
-        .{ "-b00", 0b0 },
-        .{ "b-0", 0b0 },
-        .{ "b-00", 0b0 },
-        .{ "-0b0", 0b0 },
-        .{ "-0b00", 0b0 },
-        .{ "0b-0", 0b0 },
-        .{ "0b-00", 0b0 },
-        .{ "b1", 0b1 },
-        .{ "b101", 0b101 },
-        .{ "b00101", 0b101 },
-        .{ "0b1", 0b1 },
-        .{ "0b101", 0b101 },
-        .{ "0b00101", 0b101 },
-        .{ "-b1", -0b1 },
-        .{ "-b101", -0b101 },
-        .{ "-b00101", -0b101 },
-        .{ "b-1", -0b1 },
-        .{ "b-101", -0b101 },
-        .{ "b-00101", -0b101 },
-        .{ "-0b1", -0b1 },
-        .{ "-0b101", -0b101 },
-        .{ "-0b00101", -0b101 },
-        .{ "0b-1", -0b1 },
-        .{ "0b-101", -0b101 },
-        .{ "0b-00101", -0b101 },
+        .{ "b0", .{ .unsigned = 0b0 } },
+        .{ "b00", .{ .unsigned = 0b0 } },
+        .{ "0b0", .{ .unsigned = 0b0 } },
+        .{ "0b00", .{ .unsigned = 0b0 } },
+        .{ "-b0", .{ .unsigned = 0b0 } },
+        .{ "-b00", .{ .unsigned = 0b0 } },
+        .{ "b-0", .{ .unsigned = 0b0 } },
+        .{ "b-00", .{ .unsigned = 0b0 } },
+        .{ "-0b0", .{ .unsigned = 0b0 } },
+        .{ "-0b00", .{ .unsigned = 0b0 } },
+        .{ "0b-0", .{ .unsigned = 0b0 } },
+        .{ "0b-00", .{ .unsigned = 0b0 } },
+        .{ "b1", .{ .unsigned = 0b1 } },
+        .{ "b101", .{ .unsigned = 0b101 } },
+        .{ "b00101", .{ .unsigned = 0b101 } },
+        .{ "0b1", .{ .unsigned = 0b1 } },
+        .{ "0b101", .{ .unsigned = 0b101 } },
+        .{ "0b00101", .{ .unsigned = 0b101 } },
+        .{ "-b1", .{ .signed = -0b1 } },
+        .{ "-b101", .{ .signed = -0b101 } },
+        .{ "-b00101", .{ .signed = -0b101 } },
+        .{ "b-1", .{ .signed = -0b1 } },
+        .{ "b-101", .{ .signed = -0b101 } },
+        .{ "b-00101", .{ .signed = -0b101 } },
+        .{ "-0b1", .{ .signed = -0b1 } },
+        .{ "-0b101", .{ .signed = -0b101 } },
+        .{ "-0b00101", .{ .signed = -0b101 } },
+        .{ "0b-1", .{ .signed = -0b1 } },
+        .{ "0b-101", .{ .signed = -0b101 } },
+        .{ "0b-00101", .{ .signed = -0b101 } },
         // Bounds checking
-        .{ "0xffff", 0xffff },
-        .{ "65535", 0xffff },
+        .{ "0xffff", .{ .unsigned = 0xffff } },
+        .{ "65535", .{ .unsigned = 0xffff } },
         .{ "0x10000", error.InvalidInteger },
         .{ "65536", error.InvalidInteger },
-        .{ "-0x8000", -0x8000 },
-        .{ "32768", -0x8000 },
+        .{ "-0x8000", .{ .signed = -0x8000 } },
+        .{ "-32768", .{ .signed = -0x8000 } },
         .{ "-0x8001", error.InvalidInteger },
         .{ "-32769", error.InvalidInteger },
     };
 
     for (cases) |case| {
-        const input, const expected_result_oversize = case;
-
-        // Convert inner oversize int to u16 (bitcast if negative)
-        const expected_result: Error!?u16 =
-            if (expected_result_oversize) |optional| blk: {
-                if (optional) |payload| {
-                    break :blk if (payload >= 0)
-                        @intCast(payload)
-                    else
-                        @bitCast(@as(i16, @intCast(payload)));
-                } else break :blk null;
-            } else |err| err;
-
+        const input, const expected_result = case;
         log.info("INPUT:   \t\"{s}\"", .{input});
         log.info("EXPECTED:\t{!?}", .{expected_result});
         const result = tryInteger(input);

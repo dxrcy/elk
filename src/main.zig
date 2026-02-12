@@ -48,6 +48,8 @@ pub fn main(init: std.process.Init) !void {
 
 const ArrayList = std.ArrayList;
 
+const Integer = @import("integers.zig").Integer;
+
 const Air = struct {
     origin: ?u16,
 
@@ -65,7 +67,7 @@ const Air = struct {
             add: struct {
                 dest: Register,
                 src_a: Register,
-                src_b: RegisterOrImmediate,
+                src_b: RegImm5,
             },
 
             lea: struct {
@@ -80,7 +82,7 @@ const Air = struct {
             pub const Register = u3;
 
             // TODO: Rename
-            pub const RegisterOrImmediate = union(enum) {
+            pub const RegImm5 = union(enum) {
                 register: Register,
                 immediate: u5,
             };
@@ -109,7 +111,7 @@ const Air = struct {
                                 switch (field.type) {
                                     Register => try writer.print("Register = r{}", .{value}),
                                     Label => try writer.print("Label = \"{s}\"", .{value}),
-                                    RegisterOrImmediate => {
+                                    RegImm5 => {
                                         try writer.print("Reg/Imm = ", .{});
                                         switch (value) {
                                             .register => |register| try writer.print("r{}", .{register}),
@@ -241,7 +243,7 @@ const Parser = struct {
                     },
 
                     .orig => {
-                        const origin = try parser.expectTokenKind(.integer);
+                        const origin = try parser.expectTokenKind(.word);
                         if (parser.air.lines.items.len > 0) {
                             parser.reporter.err(error.LateOrigin, origin.span);
                             return error.Reported;
@@ -250,7 +252,10 @@ const Parser = struct {
                             parser.reporter.err(error.MultipleOrigins, origin.span);
                             return error.Reported;
                         }
-                        parser.air.origin = origin.value;
+                        parser.air.origin = origin.value.asUnsigned() orelse {
+                            parser.reporter.err(error.IntegerTooLarge, origin.span);
+                            return error.Reported;
+                        };
 
                         return .@"continue"; // TODO:
                     },
@@ -335,7 +340,7 @@ const Parser = struct {
                     const kind = switch (field.type) {
                         Statement.Register => .register,
                         Statement.Label => .label,
-                        Statement.RegisterOrImmediate => .register_or_immediate,
+                        Statement.RegImm5 => .reg_imm5,
                         else => comptime unreachable,
                     };
 
@@ -406,24 +411,33 @@ const Parser = struct {
                 .register => |register| register,
                 else => null,
             },
+            .reg_imm5 => switch (token.kind) {
+                .register => |register| .{ .register = register },
+                .integer => |integer| .{
+                    .immediate = integer.castTo(u5) orelse {
+                        parser.reporter.err(error.IntegerTooLarge, token.span);
+                        return error.Reported;
+                    },
+                },
+                else => null,
+            },
+            .imm5 => switch (token.kind) {
+                .integer => |integer| integer.castTo(u5) orelse {
+                    parser.reporter.err(error.IntegerTooLarge, token.span);
+                    return error.Reported;
+                },
+                else => null,
+            },
+            .word => switch (token.kind) {
+                .integer => |integer| integer,
+                else => null,
+            },
             .label => switch (token.kind) {
                 .label => |label| label,
                 else => null,
             },
-            .register_or_immediate => switch (token.kind) {
-                .register => |register| .{ .register = register },
-                // FIXME: Handle u16->u5 conversion fail
-                // Token.integer needs to remember ORIGINAL SOURCE sign to
-                // handle/avoid sign extension triggering conversion failure
-                .integer => |integer| .{ .immediate = @intCast(integer) },
-                else => null,
-            },
             .string => switch (token.kind) {
                 .string => |string| string,
-                else => null,
-            },
-            .integer => switch (token.kind) {
-                .integer => |integer| integer,
                 else => null,
             },
             else => comptime unreachable,
@@ -441,11 +455,12 @@ const Parser = struct {
     fn ExpectTokenKind(comptime kind: @EnumLiteral()) type {
         return switch (kind) {
             .register => Statement.Register,
-            .label => Statement.Label,
-            .register_or_immediate => Statement.RegisterOrImmediate,
+            .reg_imm5 => Statement.RegImm5,
+            .imm5 => u5,
+            .word => Integer(16),
             // TODO: Use span
+            .label => Statement.Label,
             .string => []const u8,
-            .integer => u16,
             else => @compileError("unsupported token kind `." ++ @tagName(kind) ++ "`"),
         };
     }
