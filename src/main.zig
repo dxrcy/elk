@@ -110,7 +110,7 @@ const Air = struct {
                                                 .immediate => |immediate| try writer.print("0x{x:02}", .{immediate}),
                                             }
                                         },
-                                        TrapVect => try writer.print("VECT", .{}),
+                                        TrapVect => try writer.print("Vect 0x{x:02}", .{value}),
                                         else => comptime unreachable,
                                     }
                                     std.debug.print("\n", .{});
@@ -151,14 +151,6 @@ const Parser = struct {
                 else => {},
             }
 
-            std.debug.print("{t:12} {s}\n", .{
-                token.kind,
-                if (token.kind == .newline)
-                    ""
-                else
-                    token.span.resolve(parser.source),
-            });
-
             switch (token.kind) {
                 .instruction => |instruction| {
                     const statement = try parser.parseInstruction(instruction) orelse
@@ -176,24 +168,35 @@ const Parser = struct {
                 },
 
                 // TODO:
-                else => {},
+                else => {
+                    std.debug.print("warning: unhandled {t:<10} {s}\n", .{
+                        token.kind,
+                        if (token.kind == .newline)
+                            ""
+                        else
+                            token.span.resolve(parser.source),
+                    });
+                },
             }
         }
     }
 
-    // TODO: Don't return `null` once all instructions implemented
     fn parseInstruction(
         parser: *Parser,
         instruction: Token.Kind.Instruction,
     ) !?Statement {
-        const RegularInstruction = enum {
-            add,
-            lea,
+        const regular_instructions = [_]Token.Kind.Instruction{
+            .add,
+            .lea,
+        };
+        const trap_instructions = [_]struct { Token.Kind.Instruction, Statement.TrapVect }{
+            .{ .puts, 0x22 },
+            .{ .halt, 0x25 },
         };
 
-        inline for (@typeInfo(RegularInstruction).@"enum".fields) |regular| {
-            if (std.mem.eql(u8, @tagName(instruction), regular.name)) {
-                const Payload = @FieldType(Statement, regular.name);
+        inline for (regular_instructions) |regular| {
+            if (instruction == regular) {
+                const Payload = @FieldType(Statement, @tagName(regular));
                 var payload: Payload = undefined;
 
                 inline for (@typeInfo(Payload).@"struct".fields) |field| {
@@ -208,11 +211,18 @@ const Parser = struct {
                     @field(payload, field.name) = value;
                 }
 
-                return @unionInit(Statement, regular.name, payload);
+                return @unionInit(Statement, @tagName(regular), payload);
             }
         }
 
-        // TODO:
+        inline for (trap_instructions) |pair| {
+            const trap, const vect = pair;
+            if (instruction == trap) {
+                return .{ .trap = .{ .vect = vect } };
+            }
+        }
+
+        // TODO: Replace with `unreachable` and to remove `?` from return type
         return null;
     }
 

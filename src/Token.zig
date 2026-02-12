@@ -49,7 +49,7 @@ pub const Kind = union(enum) {
         add,
         @"and",
         not,
-        // Branch / jump
+        // Branch
         br,
         brn,
         brz,
@@ -58,6 +58,7 @@ pub const Kind = union(enum) {
         brzp,
         brnp,
         brnzp,
+        // Jump
         jmp,
         ret,
         jsr,
