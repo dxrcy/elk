@@ -170,7 +170,7 @@ pub const Kind = union(enum) {
         assert(string.len > 0);
         if (!isIdent(string[0..1]))
             return null;
-        if (!isIdent(string[1..]))
+        if (!isIdent(string))
             return error.InvalidIdent;
         return .label;
     }
