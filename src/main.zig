@@ -20,19 +20,10 @@ pub fn main(init: std.process.Init) !void {
 
     reporter.setSource(source);
 
-    var air: Air = .new(gpa);
+    var air: Air = .init(gpa);
+    defer air.deinit();
 
-    var parser: Parser = .{
-        .air = &air,
-        .tokens = Tokenizer.new(source),
-        .current_label = null,
-        .source = source,
-        .reporter = &reporter,
-    };
-
-    defer {
-        air.lines.deinit(air.allocator);
-    }
+    var parser: Parser = .new(&air, source, &reporter);
 
     try parser.parse();
 
@@ -147,26 +138,40 @@ const Air = struct {
         };
     };
 
-    pub fn new(allocator: Allocator) Air {
+    pub fn init(allocator: Allocator) Air {
         return .{
             .origin = null,
             .lines = .empty,
             .allocator = allocator,
         };
     }
+
+    pub fn deinit(air: *Air) void {
+        air.lines.deinit(air.allocator);
+    }
 };
 
 const assert = std.debug.assert;
 
 const Parser = struct {
+    source: []const u8,
+    reporter: *Reporter,
+
     air: *Air,
     tokens: Tokenizer,
     current_label: ?Span,
 
-    source: []const u8,
-    reporter: *Reporter,
-
     const Statement = Air.Line.Statement;
+
+    pub fn new(air: *Air, source: []const u8, reporter: *Reporter) Parser {
+        return .{
+            .source = source,
+            .reporter = reporter,
+            .air = air,
+            .tokens = Tokenizer.new(source),
+            .current_label = null,
+        };
+    }
 
     pub fn parse(parser: *Parser) !void {
         while (true) {
@@ -446,6 +451,7 @@ const Parser = struct {
 };
 
 // TODO: Rename
+// TODO: Remove/inline if only used in 1-2 places
 fn nullIfReported(result: anytype) !?@typeInfo(@TypeOf(result)).error_union.payload {
     const error_union = @typeInfo(@TypeOf(result)).error_union;
     const error_set = @typeInfo(error_union.error_set).error_set.?;
