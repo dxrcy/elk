@@ -201,20 +201,22 @@ const Parser = struct {
 
     pub fn parse(parser: *Parser) !void {
         while (true) {
-            const control =
-                try nullIfReported(parser.parseLine()) orelse {
+            const control = parser.parseLine() catch |err| switch (err) {
+                error.Reported => {
                     parser.discardRestOfLine();
                     continue;
-                };
+                },
+                error.Eof => {
+                    parser.reporter.err(error.ExpectedEnd, .emptyAt(parser.source.len)) catch
+                        {}; // Ignore
+                    break;
+                },
+                error.OutOfMemory => |other| return other,
+            };
 
             switch (control) {
                 .@"continue" => continue,
-                // Any label on `.END` should have been reported by `parseLine`
-                .end_directive => break,
-                .eof => {
-                    parser.reporter.err(error.ExpectedEnd, .emptyAt(parser.source.len)) catch
-                        break;
-                },
+                .@"break" => break,
             }
         }
     }
@@ -230,9 +232,11 @@ const Parser = struct {
         }
     }
 
-    fn parseLine(parser: *Parser) !enum { @"continue", end_directive, eof } {
+    const Control = enum { @"continue", @"break" };
+
+    fn parseLine(parser: *Parser) !Control {
         const token = try parser.nextToken(&.{ .comma, .newline }) orelse
-            return .eof;
+            return error.Eof;
 
         switch (token.kind) {
             .label => {
@@ -241,10 +245,7 @@ const Parser = struct {
             },
 
             .directive => |directive| {
-                return switch (try parser.parseDirective(directive)) {
-                    .@"continue" => .@"continue",
-                    .end_directive => .end_directive,
-                };
+                return try parser.parseDirective(directive);
             },
 
             .instruction => |instruction| {
@@ -268,11 +269,11 @@ const Parser = struct {
     fn parseDirective(
         parser: *Parser,
         directive: Token.Kind.Directive,
-    ) !enum { @"continue", end_directive } {
+    ) !Control {
         switch (directive) {
             .end => {
                 parser.expectNoCurrentLabel();
-                return .end_directive;
+                return .@"break";
             },
 
             .orig => {
