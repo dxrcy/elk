@@ -295,12 +295,12 @@ const Parser = struct {
 
     fn expectToken(parser: *Parser) !Token {
         const token = try parser.nextToken() orelse {
-            parser.reporter.err(error.UnexpectedEof, .dummy);
+            parser.reporter.err(error.UnexpectedEof, .emptyAt(parser.source.len));
             return error.Reported;
         };
         switch (token.kind) {
             .newline => {
-                parser.reporter.err(error.UnexpectedEol, .dummy);
+                parser.reporter.err(error.UnexpectedEol, .emptyAt(token.span.offset));
                 return error.Reported;
             },
             .comma => unreachable,
@@ -341,7 +341,7 @@ const Parser = struct {
             else => comptime unreachable,
         };
         const value = value_opt orelse {
-            parser.reporter.err(error.UnexpectedTokenKind, .dummy);
+            parser.reporter.err(error.UnexpectedTokenKind, token.span);
             return error.Reported;
         };
         return .{
