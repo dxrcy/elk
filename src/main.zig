@@ -39,7 +39,7 @@ pub fn main(init: std.process.Init) !void {
             }
             if (!concise)
                 std.debug.print("[{s}]\n", .{line.span.resolve(source)});
-            std.debug.print("{f}", .{line.statement});
+            std.debug.print("{f}", .{line.statement.format(source)});
             was_raw_word = line.statement == .raw_word;
         }
         std.debug.print("\n", .{});
@@ -91,52 +91,64 @@ const Air = struct {
 
             const TrapVect = u8;
 
-            pub fn format(statement: Statement, writer: *Io.Writer) !void {
-                inline for (@typeInfo(Statement).@"union".fields) |tag| {
-                    if (std.mem.eql(u8, @tagName(statement), tag.name)) {
-                        const variant = @field(statement, tag.name);
+            pub fn format(statement: Statement, source: []const u8) Format {
+                return .{
+                    .statement = statement,
+                    .source = source,
+                };
+            }
 
-                        if (@typeInfo(tag.type) == .@"struct") {
-                            assert(statement != .raw_word);
+            pub const Format = struct {
+                statement: Statement,
+                source: []const u8,
 
-                            for (tag.name) |char| {
-                                try writer.print("{c}", .{std.ascii.toUpper(char)});
-                            }
-                            try writer.print(":\n", .{});
+                pub fn format(self: Format, writer: *Io.Writer) !void {
+                    inline for (@typeInfo(Statement).@"union".fields) |tag| {
+                        if (std.mem.eql(u8, @tagName(self.statement), tag.name)) {
+                            const variant = @field(self.statement, tag.name);
 
-                            inline for (@typeInfo(tag.type).@"struct".fields) |field| {
-                                try writer.print("{s:8}: ", .{field.name});
-                                const value = @field(variant, field.name);
-                                switch (field.type) {
-                                    Register => try writer.print("Register = r{}", .{value}),
-                                    Label => try writer.print("Label = \"{}\"", .{value}),
-                                    RegImm5 => {
-                                        try writer.print("Reg/Imm = ", .{});
-                                        switch (value) {
-                                            .register => |register| try writer.print("r{}", .{register}),
-                                            .immediate => |immediate| try writer.print("0x{x:02}", .{immediate}),
-                                        }
-                                    },
-                                    TrapVect => try writer.print("Vect = 0x{x:02}", .{value}),
-                                    else => comptime unreachable,
+                            if (@typeInfo(tag.type) == .@"struct") {
+                                assert(self.statement != .raw_word);
+
+                                for (tag.name) |char| {
+                                    try writer.print("{c}", .{std.ascii.toUpper(char)});
+                                }
+                                try writer.print(":\n", .{});
+
+                                inline for (@typeInfo(tag.type).@"struct".fields) |field| {
+                                    try writer.print("{s:8}: ", .{field.name});
+                                    const value = @field(variant, field.name);
+                                    switch (field.type) {
+                                        Register => try writer.print("Register = r{}", .{value}),
+                                        Label => try writer.print("Label = \"{s}\"", .{value.resolve(self.source)}),
+                                        RegImm5 => {
+                                            try writer.print("Reg/Imm = ", .{});
+                                            switch (value) {
+                                                .register => |register| try writer.print("r{}", .{register}),
+                                                .immediate => |immediate| try writer.print("0x{x:02}", .{immediate}),
+                                            }
+                                        },
+                                        TrapVect => try writer.print("Vect = 0x{x:02}", .{value}),
+                                        else => comptime unreachable,
+                                    }
+                                    try writer.print("\n", .{});
+                                }
+                            } else {
+                                assert(self.statement == .raw_word);
+
+                                try writer.print("    0x{x:04}", .{variant});
+                                if (variant > 0x7f) {
+                                    try writer.print(" (?)", .{});
+                                } else switch (@as(u8, @intCast(variant))) {
+                                    '\n' => try writer.print(" '\\n'", .{}),
+                                    else => |char| try writer.print(" '{c}'", .{char}),
                                 }
                                 try writer.print("\n", .{});
                             }
-                        } else {
-                            assert(statement == .raw_word);
-
-                            try writer.print("    0x{x:04}", .{variant});
-                            if (variant > 0x7f) {
-                                try writer.print(" (?)", .{});
-                            } else switch (@as(u8, @intCast(variant))) {
-                                '\n' => try writer.print(" '\\n'", .{}),
-                                else => |char| try writer.print(" '{c}'", .{char}),
-                            }
-                            try writer.print("\n", .{});
                         }
                     }
                 }
-            }
+            };
         };
     };
 
