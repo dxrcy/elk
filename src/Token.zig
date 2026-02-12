@@ -37,52 +37,52 @@ pub const Kind = union(enum) {
     label: []const u8,
 
     pub const Directive = enum {
-        ORIG,
-        END,
-        FILL,
-        BLKW,
-        STRINGZ,
+        orig,
+        end,
+        fill,
+        blkw,
+        stringz,
     };
 
     pub const Instruction = enum {
         // Arithmetic
-        ADD,
-        AND,
-        NOT,
+        add,
+        @"and",
+        not,
         // Branch / jump
-        BR,
-        BRN,
-        BRZ,
-        BRP,
-        BRNZ,
-        BRZP,
-        BRNP,
-        BRNZP,
-        JMP,
-        RET,
-        JSR,
-        JSRR,
+        br,
+        brn,
+        brz,
+        brp,
+        brnz,
+        brzp,
+        brnp,
+        brnzp,
+        jmp,
+        ret,
+        jsr,
+        jsrr,
         // Load / store
-        LD,
-        ST,
-        LDI,
-        STI,
-        LDR,
-        STR,
-        LEA,
+        ld,
+        st,
+        ldi,
+        sti,
+        ldr,
+        str,
+        lea,
         // Traps
-        TRAP,
-        GETC,
-        OUT,
-        PUTS,
-        IN,
-        PUTSP,
-        HALT,
+        trap,
+        getc,
+        out,
+        puts,
+        in,
+        putsp,
+        halt,
         // Extension traps
-        REG,
-        DEBUG,
+        reg,
+        debug,
         // Only used in 'supervisor' mode
-        RTI,
+        rti,
     };
 
     pub fn from(string: []const u8) Error!Kind {
@@ -191,6 +191,7 @@ pub const Kind = union(enum) {
         return true;
     }
 
+    // TODO: Remove
     pub fn format(kind: Kind, writer: *Io.Writer) Io.Writer.Error!void {
         switch (kind) {
             .newline => {

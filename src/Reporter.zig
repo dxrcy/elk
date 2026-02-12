@@ -44,7 +44,8 @@ pub fn setSource(reporter: *Reporter, source: []const u8) void {
 
 pub fn err(
     reporter: *Reporter,
-    code: Token.Error,
+    // TODO:
+    code: anyerror,
     token: Span,
 ) void {
     reporter.print("\x1b[31m", .{});

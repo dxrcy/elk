@@ -6,6 +6,8 @@ const assert = std.debug.assert;
 offset: usize,
 len: usize,
 
+pub const dummy: Span = .{ .offset = 0, .len = 0 };
+
 pub fn fromBounds(start: usize, end_: usize) Span {
     return .{ .offset = start, .len = end_ - start };
 }
