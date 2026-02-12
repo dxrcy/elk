@@ -258,7 +258,8 @@ const Parser = struct {
                         else => comptime unreachable,
                     };
 
-                    const token = try parser.expectTokenKind(kind);
+                    const token = try convertReported(parser.expectTokenKind(kind)) orelse
+                        return null;
                     @field(payload, field.name) = token.value;
                 }
 
