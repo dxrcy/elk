@@ -223,11 +223,11 @@ const Parser = struct {
 
     fn discardRestOfLine(parser: *Parser) void {
         while (true) {
-            const token = try nullIfReported(parser.nextToken(&.{.comma})) orelse {
-                continue; // Ignore
-            } orelse
-                break;
-            if (token.kind == .newline)
+            const token = parser.nextToken(&.{.comma}) catch |err| switch (err) {
+                // Ignore any other errors on this line
+                error.Reported => continue,
+            };
+            if (token == null or token.?.kind == .newline)
                 break;
         }
     }
@@ -488,24 +488,6 @@ const Parser = struct {
         };
     }
 };
-
-// TODO: Rename
-// TODO: Remove/inline if only used in 1-2 places
-fn nullIfReported(result: anytype) !?@typeInfo(@TypeOf(result)).error_union.payload {
-    const error_union = @typeInfo(@TypeOf(result)).error_union;
-    const error_set = @typeInfo(error_union.error_set).error_set.?;
-
-    if (error_set.len < 2) {
-        return result catch |err| switch (err) {
-            error.Reported => return null,
-        };
-    } else {
-        return result catch |err| switch (err) {
-            error.Reported => return null,
-            else => |err2| return err2,
-        };
-    }
-}
 
 comptime {
     std.testing.refAllDecls(@This());
