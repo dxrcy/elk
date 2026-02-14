@@ -28,7 +28,7 @@ pub fn main(init: std.process.Init) !void {
     if (false) //
     {
         var was_raw_word = false;
-        for (air.lines.items) |line| {
+        for (air.lines.items, 0..) |line, i| {
             const concise =
                 line.statement == .raw_word and
                 was_raw_word and
@@ -40,7 +40,7 @@ pub fn main(init: std.process.Init) !void {
             }
             if (!concise)
                 std.debug.print("[{s}]\n", .{line.span.resolve(source)});
-            std.debug.print("{f}", .{line.statement.format(&air, source)});
+            std.debug.print("{f}", .{line.statement.format(&air, source, i)});
             was_raw_word = line.statement == .raw_word;
         }
         std.debug.print("\n", .{});
@@ -51,7 +51,7 @@ pub fn main(init: std.process.Init) !void {
     // if (false) //
     {
         var was_raw_word = false;
-        for (air.lines.items) |line| {
+        for (air.lines.items, 0..) |line, i| {
             const concise =
                 line.statement == .raw_word and
                 was_raw_word and
@@ -63,7 +63,7 @@ pub fn main(init: std.process.Init) !void {
             }
             if (!concise)
                 std.debug.print("[{s}]\n", .{line.span.resolve(source)});
-            std.debug.print("{f}", .{line.statement.format(&air, source)});
+            std.debug.print("{f}", .{line.statement.format(&air, source, i)});
             was_raw_word = line.statement == .raw_word;
         }
         std.debug.print("\n", .{});

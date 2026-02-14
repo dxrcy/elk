@@ -28,7 +28,7 @@ pub const Line = struct {
 
         lea: struct {
             dest: Register,
-            src: Label,
+            src: Offset(9),
         },
 
         trap: struct {
@@ -43,21 +43,35 @@ pub const Line = struct {
             immediate: u5,
         };
 
-        pub const Label = union(enum) {
-            unresolved: Span,
-            index: u16,
-        };
+        pub fn Offset(comptime bits: u16) type {
+            return union(enum) {
+                // TODO: Replace 'redundant' span with void ?
+                unresolved: Span,
+                resolved: @Int(.signed, bits),
+            };
+        }
 
         pub const TrapVect = u8;
 
-        pub fn format(statement: Statement, air: *const Air, source: []const u8) Format {
-            return .{ .statement = statement, .air = air, .source = source };
+        pub fn format(
+            statement: Statement,
+            air: *const Air,
+            source: []const u8,
+            index: usize,
+        ) Format {
+            return .{
+                .statement = statement,
+                .air = air,
+                .source = source,
+                .index = index,
+            };
         }
 
         pub const Format = struct {
             statement: Statement,
             air: *const Air,
             source: []const u8,
+            index: usize,
 
             pub fn format(self: Format, writer: *std.Io.Writer) !void {
                 inline for (@typeInfo(Statement).@"union".fields) |tag| {
@@ -77,24 +91,31 @@ pub const Line = struct {
                                 const value = @field(variant, field.name);
                                 switch (field.type) {
                                     Register => try writer.print("Register = r{}", .{value}),
-                                    Label => {
-                                        try writer.print("Label = ", .{});
-                                        switch (value) {
-                                            .unresolved => |span| try writer.print("\"{s}\" (unresolved)", .{span.resolve(self.source)}),
-                                            .index => |index| {
-                                                if (self.air.lines.items[index].label) |label|
-                                                    try writer.print("\"{s}\"", .{label.resolve(self.source)})
-                                                else
-                                                    try writer.print("<INVALID>", .{});
-                                                try writer.print(" (0x{x:04})", .{index});
-                                            },
-                                        }
-                                    },
                                     RegImm5 => {
                                         try writer.print("Reg/Imm = ", .{});
                                         switch (value) {
                                             .register => |register| try writer.print("r{}", .{register}),
                                             .immediate => |immediate| try writer.print("0x{x:02}", .{immediate}),
+                                        }
+                                    },
+                                    Offset(9) => {
+                                        try writer.print("Label = ", .{});
+                                        switch (value) {
+                                            .unresolved => |span| try writer.print("\"{s}\" (unresolved)", .{span.resolve(self.source)}),
+                                            .resolved => |offset| {
+                                                const index: usize = @intCast(
+                                                    @as(isize, @intCast(self.index)) +
+                                                        @as(isize, @intCast(offset)),
+                                                );
+                                                if (self.air.lines.items[index].label) |label|
+                                                    try writer.print("\"{s}\"", .{label.resolve(self.source)})
+                                                else
+                                                    try writer.print("<INVALID>", .{});
+                                                try writer.print(" ({c}0x{x:04})", .{
+                                                    @as(u8, if (offset < 0) '-' else '+'),
+                                                    @abs(offset),
+                                                });
+                                            },
                                         }
                                     },
                                     TrapVect => try writer.print("Vect = 0x{x:02}", .{value}),

@@ -39,7 +39,7 @@ pub fn resolveLabels(parser: *Parser) void {
                         assert(line.statement != .raw_word);
                         inline for (payload.fields) |field| {
                             switch (field.type) {
-                                Statement.Label => {
+                                Statement.Offset(9) => {
                                     parser.resolveFieldLabel(
                                         &@field(
                                             @field(line.statement, variant.name),
@@ -60,7 +60,7 @@ pub fn resolveLabels(parser: *Parser) void {
     }
 }
 
-fn resolveFieldLabel(parser: *Parser, field: *Statement.Label) void {
+fn resolveFieldLabel(parser: *Parser, field: *Statement.Offset(9)) void {
     for (parser.air.lines.items, 0..) |*line, index| {
         const label = line.label orelse
             continue;
@@ -72,7 +72,7 @@ fn resolveFieldLabel(parser: *Parser, field: *Statement.Label) void {
         ))
             continue;
 
-        field.* = .{ .index = @intCast(index) };
+        field.* = .{ .resolved = @intCast(index) };
     }
 }
 
@@ -158,7 +158,7 @@ fn parseDirective(
             if (parser.current_label) |label| {
                 try parser.reporter.err(error.UnusedLabel, label);
             }
-            const origin = try parser.expectTokenType(Integer(16));
+            const origin = try parser.expectOperand(.word);
             if (parser.air.lines.items.len > 0) {
                 try parser.reporter.err(error.LateOrigin, origin.span);
             }
@@ -171,7 +171,7 @@ fn parseDirective(
         },
 
         .stringz => {
-            const string = try parser.expectTokenType([]const u8);
+            const string = try parser.expectOperand(.string);
             var is_escaped = false;
             for (string.value) |char| {
                 if (!is_escaped and char == '\\') {
@@ -228,7 +228,12 @@ fn parseInstruction(
             var payload: Payload = undefined;
 
             inline for (@typeInfo(Payload).@"struct".fields) |field| {
-                const token = try parser.expectTokenType(field.type);
+                const token = try parser.expectOperand(switch (field.type) {
+                    Statement.Register => .register,
+                    Statement.RegImm5 => .reg_imm5,
+                    Statement.Offset(9) => .offset9,
+                    else => comptime unreachable,
+                });
                 @field(payload, field.name) = token.value;
             }
 
@@ -294,51 +299,68 @@ fn expectToken(parser: *Parser) !Token {
     }
 }
 
-fn expectTokenType(parser: *Parser, comptime T: type) !struct {
+const Operand = enum {
+    register,
+    reg_imm5,
+    offset9,
+    word,
+    string,
+};
+
+fn OperandValue(comptime operand: Operand) type {
+    return switch (operand) {
+        .register => Statement.Register,
+        .reg_imm5 => Statement.RegImm5,
+        .offset9 => Statement.Offset(9),
+        .word => Integer(16),
+        .string => []const u8,
+    };
+}
+
+fn expectOperand(parser: *Parser, comptime operand: Operand) !struct {
     span: Span,
-    value: T,
+    value: OperandValue(operand),
 } {
     const token = try parser.expectToken();
     assert(token.kind != .comma);
-    const value_opt: ?T = switch (T) {
-        Statement.Register => switch (token.kind) {
-            .register => |register| register,
-            else => null,
-        },
-        Statement.RegImm5 => switch (token.kind) {
-            .register => |register| .{ .register = register },
-            .integer => |integer| .{
-                .immediate = integer.castTo(u5) orelse {
-                    try parser.reporter.err(error.IntegerTooLarge, token.span);
-                },
-            },
-            else => null,
-        },
-        u5 => switch (token.kind) {
-            .integer => |integer| integer.castTo(u5) orelse {
-                try parser.reporter.err(error.IntegerTooLarge, token.span);
-            },
-            else => null,
-        },
-        Integer(16) => switch (token.kind) {
-            .integer => |integer| integer,
-            else => null,
-        },
-        Statement.Label => switch (token.kind) {
-            .label => .{ .unresolved = token.span },
-            else => null,
-        },
-        []const u8 => switch (token.kind) {
-            .string => |string| string,
-            else => null,
-        },
-        else => @compileError("unsupported expected type for token `." ++ @typeName(T) ++ "`"),
-    };
-    const value = value_opt orelse {
-        try parser.reporter.err(error.UnexpectedTokenKind, token.span);
+    const value = convertOperand(operand, token.kind, token.span) catch |err| {
+        try parser.reporter.err(err, token.span);
     };
     return .{
         .span = token.span,
         .value = value,
+    };
+}
+
+// TODO: Rename
+fn convertOperand(
+    comptime operand: Operand,
+    kind: Token.Kind,
+    // TODO: Can remove this if `Statement.Label.unresolved` has type `void`
+    span: Span,
+) error{ UnexpectedTokenKind, IntegerTooLarge }!OperandValue(operand) {
+    return switch (operand) {
+        .register => switch (kind) {
+            .register => |register| register,
+            else => error.UnexpectedTokenKind,
+        },
+        .reg_imm5 => switch (kind) {
+            .register => |register| .{ .register = register },
+            .integer => |integer| .{ .immediate = try integer.castTo(u5) },
+            else => error.UnexpectedTokenKind,
+        },
+        .offset9 => switch (kind) {
+            .integer => |integer| .{ .resolved = try integer.castTo(i9) },
+            .label => .{ .unresolved = span },
+            else => error.UnexpectedTokenKind,
+        },
+        .word => switch (kind) {
+            .integer => |integer| integer,
+            else => error.UnexpectedTokenKind,
+        },
+        .string => switch (kind) {
+            .string => |string| string,
+            else => error.UnexpectedTokenKind,
+        },
     };
 }

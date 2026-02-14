@@ -29,15 +29,16 @@ pub fn Integer(comptime bits: u16) type {
         }
 
         // TODO: Rename (misleading)
-        pub fn castTo(integer: @This(), comptime T: type) ?T {
+        pub fn castTo(integer: @This(), comptime T: type) error{IntegerTooLarge}!T {
             const info = @typeInfo(T).int;
             assert(info.signedness == .unsigned);
 
             return switch (integer) {
-                .unsigned => |unsigned| std.math.cast(T, unsigned),
+                .unsigned => |unsigned| std.math.cast(T, unsigned) orelse
+                    return error.IntegerTooLarge,
                 .signed => |signed| @bitCast(
                     std.math.cast(@Int(.signed, info.bits), signed) orelse
-                        return null,
+                        return error.IntegerTooLarge,
                 ),
             };
         }
