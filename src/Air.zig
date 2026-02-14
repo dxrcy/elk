@@ -13,7 +13,15 @@ origin: ?u16,
 lines: ArrayList(Line),
 allocator: Allocator,
 
-// TODO: Somehow add spans to all operators ? (currently only `Offset9.unresolved`)
+pub fn OperandSpan(comptime K: type) type {
+    return struct {
+        span: Span,
+        value: K,
+
+        pub const Kind: type = K;
+    };
+}
+
 pub const Operand = enum {
     register,
     reg_imm5,
@@ -63,18 +71,18 @@ pub const Statement = union(enum) {
     raw_word: u16,
 
     add: struct {
-        dest: Operand.Register,
-        src_a: Operand.Register,
-        src_b: Operand.RegImm5,
+        dest: OperandSpan(Operand.Register),
+        src_a: OperandSpan(Operand.Register),
+        src_b: OperandSpan(Operand.RegImm5),
     },
 
     lea: struct {
-        dest: Operand.Register,
-        src: Operand.Offset9,
+        dest: OperandSpan(Operand.Register),
+        src: OperandSpan(Operand.Offset9),
     },
 
     trap: struct {
-        vect: Operand.TrapVect,
+        vect: OperandSpan(Operand.TrapVect),
     },
 
     pub fn format(
@@ -112,19 +120,19 @@ pub const Statement = union(enum) {
 
                         inline for (@typeInfo(tag.type).@"struct".fields) |field| {
                             try writer.print("{s:8}: ", .{field.name});
-                            const value = @field(variant, field.name);
-                            switch (field.type) {
-                                Operand.Register => try writer.print("Register = r{}", .{value.value}),
+                            const operand = @field(variant, field.name);
+                            switch (@field(field.type, "Kind")) {
+                                Operand.Register => try writer.print("Register = r{}", .{operand.value.value}),
                                 Operand.RegImm5 => {
                                     try writer.print("Reg/Imm = ", .{});
-                                    switch (value) {
+                                    switch (operand.value) {
                                         .register => |register| try writer.print("r{}", .{register}),
                                         .immediate => |immediate| try writer.print("0x{x:02}", .{immediate}),
                                     }
                                 },
                                 Operand.Offset9 => {
                                     try writer.print("Label = ", .{});
-                                    switch (value) {
+                                    switch (operand.value) {
                                         .unresolved => |span| try writer.print("\"{s}\" (unresolved)", .{span.view(self.source)}),
                                         .resolved => |offset| {
                                             const index: usize = @intCast(
@@ -142,7 +150,7 @@ pub const Statement = union(enum) {
                                         },
                                     }
                                 },
-                                Operand.TrapVect => try writer.print("Vect = 0x{x:02}", .{value}),
+                                Operand.TrapVect => try writer.print("Vect = 0x{x:02}", .{operand.value}),
                                 else => comptime unreachable,
                             }
                             try writer.print("\n", .{});

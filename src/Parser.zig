@@ -5,6 +5,7 @@ const assert = std.debug.assert;
 
 const Air = @import("Air.zig");
 const Operand = Air.Operand;
+const OperandSpan = Air.OperandSpan;
 const Statement = Air.Statement;
 const Tokenizer = @import("Tokenizer.zig");
 const Token = @import("Token.zig");
@@ -40,12 +41,12 @@ pub fn resolveLabels(parser: *Parser) void {
                         assert(line.statement != .raw_word);
                         inline for (payload.fields) |field| {
                             switch (field.type) {
-                                Operand.Offset9 => {
+                                OperandSpan(Operand.Offset9) => {
                                     parser.resolveFieldLabel(
                                         &@field(
                                             @field(line.statement, variant.name),
                                             field.name,
-                                        ),
+                                        ).value,
                                     );
                                 },
                                 else => {},
@@ -239,13 +240,13 @@ fn parseInstruction(
             var payload: Payload = undefined;
 
             inline for (@typeInfo(Payload).@"struct".fields) |field| {
-                const token = try parser.expectOperand(switch (field.type) {
+                const token = try parser.expectOperand(switch (field.type.Kind) {
                     Operand.Register => .register,
                     Operand.RegImm5 => .reg_imm5,
                     Operand.Offset9 => .offset9,
                     else => comptime unreachable,
                 });
-                @field(payload, field.name) = token.value;
+                @field(payload, field.name) = token;
             }
 
             return @unionInit(Statement, @tagName(regular), payload);
@@ -255,7 +256,15 @@ fn parseInstruction(
     inline for (trap_instructions) |pair| {
         const trap, const vect = pair;
         if (instruction == trap) {
-            return .{ .trap = .{ .vect = vect } };
+            return .{
+                .trap = .{
+                    .vect = .{
+                        // FIXME: Use real span
+                        .span = .{ .offset = 0, .len = 0 },
+                        .value = vect,
+                    },
+                },
+            };
         }
     }
 
@@ -310,10 +319,10 @@ fn expectToken(parser: *Parser) !Token {
     }
 }
 
-fn expectOperand(parser: *Parser, comptime operand: Operand) !struct {
-    span: Span,
-    value: operand.asType(),
-} {
+fn expectOperand(
+    parser: *Parser,
+    comptime operand: Operand,
+) !OperandSpan(operand.asType()) {
     const token = try parser.expectToken();
     assert(token.kind != .comma);
     const value = convertOperand(operand, token.kind, token.span) catch |err| {
