@@ -61,6 +61,7 @@ pub fn resolveLabels(parser: *Parser) void {
     }
 }
 
+// TODO: Use `anytype` for `field` and check if is an 'offset' operand
 fn resolveFieldLabel(parser: *Parser, field: *Operand.Offset9) void {
     const unresolved = switch (field.*) {
         .unresolved => |unresolved| unresolved,
@@ -79,7 +80,11 @@ fn resolveFieldLabel(parser: *Parser, field: *Operand.Offset9) void {
             continue;
 
         field.* = .{ .resolved = @intCast(index) };
+        return;
     }
+
+    parser.reporter.err(error.UndeclaredLabel, unresolved) catch
+        {}; // Continue line
 }
 
 pub fn parse(parser: *Parser) !void {

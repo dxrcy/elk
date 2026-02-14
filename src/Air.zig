@@ -13,6 +13,7 @@ origin: ?u16,
 lines: ArrayList(Line),
 allocator: Allocator,
 
+// TODO: Somehow add spans to all operators ? (currently only `Offset9.unresolved`)
 pub const Operand = enum {
     register,
     reg_imm5,
@@ -44,7 +45,6 @@ pub const Operand = enum {
     };
 
     pub const Offset9 = union(enum) {
-        // TODO: Replace 'redundant' span with void ?
         unresolved: Span,
         resolved: i9,
         pub const operand: Operand = .offset9;
