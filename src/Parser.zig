@@ -62,6 +62,11 @@ pub fn resolveLabels(parser: *Parser) void {
 }
 
 fn resolveFieldLabel(parser: *Parser, field: *Operand.Offset9) void {
+    const unresolved = switch (field.*) {
+        .unresolved => |unresolved| unresolved,
+        .resolved => return,
+    };
+
     for (parser.air.lines.items, 0..) |*line, index| {
         const label = line.label orelse
             continue;
@@ -69,7 +74,7 @@ fn resolveFieldLabel(parser: *Parser, field: *Operand.Offset9) void {
         if (!std.mem.eql(
             u8,
             label.resolve(parser.source),
-            field.unresolved.resolve(parser.source),
+            unresolved.resolve(parser.source),
         ))
             continue;
 
