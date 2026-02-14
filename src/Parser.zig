@@ -73,8 +73,8 @@ fn resolveFieldLabel(parser: *Parser, field: *Operand.Offset9) void {
         // TODO: should it be case insensitive ?
         if (!std.mem.eql(
             u8,
-            label.resolve(parser.source),
-            unresolved.resolve(parser.source),
+            label.view(parser.source),
+            unresolved.view(parser.source),
         ))
             continue;
 
@@ -143,7 +143,7 @@ fn parseLine(parser: *Parser) !Control {
 
         else => {
             // TODO:
-            std.log.warn("unhandled token: {s}", .{token.span.resolve(parser.source)});
+            std.log.warn("unhandled token: {s}", .{token.span.view(parser.source)});
         },
     }
     return .@"continue";

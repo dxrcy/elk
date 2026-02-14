@@ -36,10 +36,10 @@ pub fn main(init: std.process.Init) !void {
             if (!concise)
                 std.debug.print("\n", .{});
             if (line.label) |label| {
-                std.debug.print("\"{s}\" ", .{label.resolve(source)});
+                std.debug.print("\"{s}\" ", .{label.view(source)});
             }
             if (!concise)
-                std.debug.print("[{s}]\n", .{line.span.resolve(source)});
+                std.debug.print("[{s}]\n", .{line.span.view(source)});
             std.debug.print("{f}", .{line.statement.format(&air, source, i)});
             was_raw_word = line.statement == .raw_word;
         }
@@ -59,10 +59,10 @@ pub fn main(init: std.process.Init) !void {
             if (!concise)
                 std.debug.print("\n", .{});
             if (line.label) |label| {
-                std.debug.print("\"{s}\" ", .{label.resolve(source)});
+                std.debug.print("\"{s}\" ", .{label.view(source)});
             }
             if (!concise)
-                std.debug.print("[{s}]\n", .{line.span.resolve(source)});
+                std.debug.print("[{s}]\n", .{line.span.view(source)});
             std.debug.print("{f}", .{line.statement.format(&air, source, i)});
             was_raw_word = line.statement == .raw_word;
         }

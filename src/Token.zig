@@ -22,7 +22,7 @@ pub const Error = error{
 };
 
 pub fn from(span: Span, source: []const u8) !Token {
-    const kind: Kind = try .from(span.resolve(source));
+    const kind: Kind = try .from(span.view(source));
     return .{ .kind = kind, .span = span };
 }
 

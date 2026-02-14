@@ -67,7 +67,7 @@ pub fn err(
     reporter.print("  - Token: ", .{});
     reporter.print("\x1b[0m", .{});
     reporter.print("\x1b[3m", .{});
-    reporter.print("{s}", .{token.resolve(source)});
+    reporter.print("{s}", .{token.view(source)});
     reporter.print("\x1b[0m", .{});
     reporter.print("\n", .{});
 

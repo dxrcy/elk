@@ -124,14 +124,14 @@ pub const Line = struct {
                                     Operand.Offset9 => {
                                         try writer.print("Label = ", .{});
                                         switch (value) {
-                                            .unresolved => |span| try writer.print("\"{s}\" (unresolved)", .{span.resolve(self.source)}),
+                                            .unresolved => |span| try writer.print("\"{s}\" (unresolved)", .{span.view(self.source)}),
                                             .resolved => |offset| {
                                                 const index: usize = @intCast(
                                                     @as(isize, @intCast(self.index)) +
                                                         @as(isize, @intCast(offset)),
                                                 );
                                                 if (self.air.lines.items[index].label) |label|
-                                                    try writer.print("\"{s}\"", .{label.resolve(self.source)})
+                                                    try writer.print("\"{s}\"", .{label.view(self.source)})
                                                 else
                                                     try writer.print("<INVALID>", .{});
                                                 try writer.print(" ({c}0x{x:04})", .{
