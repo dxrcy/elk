@@ -200,12 +200,12 @@ pub const Statement = union(enum) {
                                         .resolved => |offset| {
                                             const index: usize = @intCast(
                                                 @as(isize, @intCast(self.index)) +
-                                                    @as(isize, @intCast(offset)),
+                                                    @as(isize, @intCast(offset)) + 1,
                                             );
                                             if (self.air.lines.items[index].label) |label|
                                                 try writer.print("\"{s}\"", .{label.view(self.source)})
                                             else
-                                                try writer.print("<INVALID>", .{});
+                                                try writer.print("<?>", .{});
                                             try writer.print(" ({c}0x{x:04})", .{
                                                 @as(u8, if (offset < 0) '-' else '+'),
                                                 @abs(offset),
