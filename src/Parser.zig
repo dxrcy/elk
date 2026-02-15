@@ -79,7 +79,7 @@ fn parseLine(parser: *Parser) !Control {
         },
 
         .instruction => |instruction| {
-            const statement = try parser.parseInstruction(instruction) orelse
+            const statement = try parser.parseInstruction(instruction, token.span) orelse
                 return error.Reported;
             const span: Span = .fromBounds(
                 token.span.offset,
@@ -170,13 +170,14 @@ fn parseDirective(
 fn parseInstruction(
     parser: *Parser,
     instruction: Token.Kind.Instruction,
+    span: Span,
 ) !?Statement {
     const regular_instructions = [_]Token.Kind.Instruction{
         .add,
         .lea,
         .jsr,
     };
-    const trap_instructions = [_]struct { Token.Kind.Instruction, Operand.TrapVect }{
+    const trap_aliases = [_]struct { Token.Kind.Instruction, Operand.TrapVect }{
         .{ .puts, 0x22 },
         .{ .halt, 0x25 },
     };
@@ -201,14 +202,14 @@ fn parseInstruction(
         }
     }
 
-    inline for (trap_instructions) |pair| {
-        const trap, const vect = pair;
-        if (instruction == trap) {
+    inline for (trap_aliases) |pair| {
+        const alias, const vect = pair;
+        if (instruction == alias) {
             return .{
                 .trap = .{
                     .vect = .{
-                        // FIXME: Use real span
-                        .span = .{ .offset = 0, .len = 0 },
+                        // Use alias span for operand
+                        .span = span,
                         .value = vect,
                     },
                 },
