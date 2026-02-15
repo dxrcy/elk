@@ -174,6 +174,7 @@ fn parseInstruction(
     const regular_instructions = [_]Token.Kind.Instruction{
         .add,
         .lea,
+        .jsr,
     };
     const trap_instructions = [_]struct { Token.Kind.Instruction, Operand.TrapVect }{
         .{ .puts, 0x22 },
