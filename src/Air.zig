@@ -23,35 +23,10 @@ pub fn OperandSpan(comptime K: type) type {
     };
 }
 
-pub const Operand = enum {
-    register,
-    reg_imm5,
-    offset6,
-    pc_offset9,
-    pc_offset11,
-    trap_vect,
-    word,
-    string,
-
-    // TODO: Rename
-    pub fn asType(comptime operand: Operand) type {
-        return switch (operand) {
-            .register => Register,
-            .reg_imm5 => RegImm5,
-            .offset6 => Offset6,
-            .pc_offset9 => PCOffset9,
-            .pc_offset11 => PCOffset11,
-            .trap_vect => TrapVect,
-            .word => Integer(16),
-            .string => []const u8,
-        };
-    }
-
+pub const Operand = struct {
     pub const Register = struct {
         // TODO: Rename to `inner` or something (and elsewhere)
         value: u3,
-
-        pub const operand: Operand = .register;
         pub fn bits(self: Register) u16 {
             return self.value;
         }
@@ -61,8 +36,6 @@ pub const Operand = enum {
     pub const RegImm5 = union(enum) {
         register: u3,
         immediate: u5,
-
-        pub const operand: Operand = .reg_imm5;
         pub fn bits(self: RegImm5) u16 {
             return switch (self) {
                 .register => |register| register,
@@ -73,8 +46,6 @@ pub const Operand = enum {
 
     pub const TrapVect = struct {
         value: u8,
-
-        pub const operand: Operand = .trap_vect;
         pub fn bits(self: TrapVect) u16 {
             return self.value;
         }
@@ -82,8 +53,6 @@ pub const Operand = enum {
 
     pub const Offset6 = struct {
         value: i6,
-
-        pub const operand: Operand = .offset6;
         pub fn bits(self: Offset6) u16 {
             return @as(u6, @bitCast(self.value));
         }
@@ -92,8 +61,6 @@ pub const Operand = enum {
     pub const PCOffset9 = union(enum) {
         unresolved,
         resolved: i9,
-
-        pub const operand: Operand = .pc_offset9;
         pub fn bits(self: PCOffset9) u16 {
             return @as(u9, @bitCast(self.resolved));
         }
@@ -102,8 +69,6 @@ pub const Operand = enum {
     pub const PCOffset11 = union(enum) {
         unresolved,
         resolved: i11,
-
-        pub const operand: Operand = .pc_offset11;
         pub fn bits(self: PCOffset11) u16 {
             return @as(u11, @bitCast(self.resolved));
         }
