@@ -11,9 +11,9 @@ pub fn main(init: std.process.Init) !void {
     var reporter = Reporter.new(io);
     try reporter.init();
 
-    const path = "hw.asm";
+    const asm_path = "hw.asm";
 
-    const source = try Io.Dir.cwd().readFileAlloc(io, path, gpa, .unlimited);
+    const source = try Io.Dir.cwd().readFileAlloc(io, asm_path, gpa, .unlimited);
     defer gpa.free(source);
 
     reporter.setSource(source);
@@ -69,18 +69,22 @@ pub fn main(init: std.process.Init) !void {
         std.debug.print("\n", .{});
     }
 
-    {
-        var buffer: [256]u8 = undefined;
-        var writer = std.Io.Writer.fixed(&buffer);
-
-        try air.emit(&writer);
-
-        std.debug.print("{x}\n", .{buffer[0..writer.end]});
-    }
-
-    if (reporter.summary() == .err) {
+    if (reporter.endSection() == .err) {
         std.log.info("stop", .{});
         return;
+    }
+
+    {
+        const bin_path = "hw.obj";
+
+        var file = try Io.Dir.cwd().createFile(io, bin_path, .{});
+        defer file.close(io);
+
+        var buffer: [512]u8 = undefined;
+        var writer = file.writer(io, &buffer);
+
+        try air.emit(&writer.interface);
+        try writer.flush();
     }
 }
 

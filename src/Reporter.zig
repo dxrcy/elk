@@ -90,7 +90,7 @@ pub fn err(
     return error.Reported;
 }
 
-pub fn summary(reporter: *Reporter) ?Level {
+pub fn endSection(reporter: *Reporter) ?Level {
     const count_err = reporter.count.get(.err);
     const count_warn = reporter.count.get(.warn);
 
