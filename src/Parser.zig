@@ -57,7 +57,7 @@ fn discardRestOfLine(parser: *Parser) void {
             // Ignore any other errors on this line
             error.Reported => continue,
         };
-        if (token == null or token.?.kind == .newline)
+        if (token == null or token.?.value == .newline)
             break;
     }
 }
@@ -68,7 +68,7 @@ fn parseLine(parser: *Parser) !Control {
     const token = try parser.nextToken(&.{ .comma, .newline }) orelse
         return error.Eof;
 
-    switch (token.kind) {
+    switch (token.value) {
         .label => {
             parser.expectNoCurrentLabel();
             parser.current_label = token.span;
@@ -98,7 +98,7 @@ fn parseLine(parser: *Parser) !Control {
 
 fn parseDirective(
     parser: *Parser,
-    directive: Token.Kind.Directive,
+    directive: Token.Value.Directive,
 ) !Control {
     switch (directive) {
         .end => {
@@ -169,10 +169,10 @@ fn parseDirective(
 
 fn parseInstruction(
     parser: *Parser,
-    instruction: Token.Kind.Instruction,
+    instruction: Token.Value.Instruction,
     span: Span,
 ) !?Statement {
-    const regular_instructions = [_]Token.Kind.Instruction{
+    const regular_instructions = [_]Token.Value.Instruction{
         .add,
         .lea,
         .jsr,
@@ -180,7 +180,7 @@ fn parseInstruction(
         .ldr,
         // TODO: Add rest.
     };
-    const trap_aliases = [_]struct { Token.Kind.Instruction, u8 }{
+    const trap_aliases = [_]struct { Token.Value.Instruction, u8 }{
         .{ .puts, 0x22 },
         .{ .halt, 0x25 },
         // TODO: Add rest.
@@ -239,7 +239,7 @@ fn appendLine(parser: *Parser, statement: Statement, span: Span) !void {
 
 fn nextToken(
     parser: *Parser,
-    comptime skip: []const std.meta.Tag(Token.Kind),
+    comptime skip: []const std.meta.Tag(Token.Value),
 ) error{Reported}!?Token {
     token: while (true) {
         const span = parser.tokens.next() orelse
@@ -248,7 +248,7 @@ fn nextToken(
             try parser.reporter.err(err, span);
         };
         for (skip) |skip_kind| {
-            if (token.kind == skip_kind)
+            if (token.value == skip_kind)
                 continue :token;
         }
         return token;
@@ -259,7 +259,7 @@ fn expectToken(parser: *Parser) !Token {
     const token = try parser.nextToken(&.{.comma}) orelse {
         try parser.reporter.err(error.UnexpectedEof, .emptyAt(parser.source.len));
     };
-    switch (token.kind) {
+    switch (token.value) {
         .newline => {
             try parser.reporter.err(error.UnexpectedEol, .emptyAt(token.span.offset));
         },
@@ -287,8 +287,8 @@ fn expectArgument(
     comptime argument: Argument,
 ) !OperandSpan(argument.asType()) {
     const token = try parser.expectToken();
-    assert(token.kind != .comma);
-    const value = convertArgument(argument, token.kind) catch |err| {
+    assert(token.value != .comma);
+    const value = convertArgument(argument, token.value) catch |err| {
         try parser.reporter.err(err, token.span);
     };
     return .{
@@ -299,42 +299,42 @@ fn expectArgument(
 
 fn convertArgument(
     comptime argument: Argument,
-    kind: Token.Kind,
+    value: Token.Value,
 ) error{ UnexpectedTokenKind, IntegerTooLarge }!argument.asType() {
     return switch (argument) {
-        .word => return switch (kind) {
+        .word => return switch (value) {
             .integer => |integer| integer,
             else => error.UnexpectedTokenKind,
         },
-        .string => return switch (kind) {
+        .string => return switch (value) {
             .string => |string| string,
             else => error.UnexpectedTokenKind,
         },
         .operand => |operand| switch (operand) {
-            Operand.Register => switch (kind) {
+            Operand.Register => switch (value) {
                 .register => |register| .{ .inner = register },
                 else => error.UnexpectedTokenKind,
             },
-            Operand.RegImm5 => switch (kind) {
+            Operand.RegImm5 => switch (value) {
                 .register => |register| .{ .register = register },
                 .integer => |integer| .{ .immediate = try integer.castTo(u5) },
                 else => error.UnexpectedTokenKind,
             },
-            Operand.Offset6 => switch (kind) {
+            Operand.Offset6 => switch (value) {
                 .integer => |integer| .{ .inner = try integer.castTo(i6) },
                 else => error.UnexpectedTokenKind,
             },
-            Operand.PCOffset9 => switch (kind) {
+            Operand.PCOffset9 => switch (value) {
                 .integer => |integer| .{ .resolved = try integer.castTo(i9) },
                 .label => .unresolved,
                 else => error.UnexpectedTokenKind,
             },
-            Operand.PCOffset11 => switch (kind) {
+            Operand.PCOffset11 => switch (value) {
                 .integer => |integer| .{ .resolved = try integer.castTo(i11) },
                 .label => .unresolved,
                 else => error.UnexpectedTokenKind,
             },
-            Operand.TrapVect => switch (kind) {
+            Operand.TrapVect => switch (value) {
                 .integer => |integer| .{ .inner = try integer.castTo(u8) },
                 else => error.UnexpectedTokenKind,
             },

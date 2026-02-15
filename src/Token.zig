@@ -9,9 +9,8 @@ const integers = @import("integers.zig");
 const Integer = integers.Integer;
 const Span = @import("Span.zig");
 
-// TODO: Rename, since "kind" might imply a tag with no data
-kind: Kind,
 span: Span,
+value: Value,
 
 pub const Error = error{
     InvalidInteger,
@@ -22,11 +21,11 @@ pub const Error = error{
 };
 
 pub fn from(span: Span, source: []const u8) !Token {
-    const kind: Kind = try .from(span.view(source));
-    return .{ .kind = kind, .span = span };
+    const value: Value = try .from(span.view(source));
+    return .{ .span = span, .value = value };
 }
 
-pub const Kind = union(enum) {
+pub const Value = union(enum) {
     newline,
     comma,
     register: u3,
@@ -87,9 +86,9 @@ pub const Kind = union(enum) {
         rti,
     };
 
-    pub fn from(string: []const u8) Error!Kind {
+    pub fn from(string: []const u8) Error!Value {
         assert(string.len > 0);
-        const parsers = [_]fn ([]const u8) Error!?Kind{
+        const parsers = [_]fn ([]const u8) Error!?Value{
             tryKeyword,
             tryRegister,
             tryInteger,
@@ -99,13 +98,13 @@ pub const Kind = union(enum) {
             tryLabel,
         };
         inline for (parsers) |parser| {
-            if (try parser(string)) |kind|
-                return kind;
+            if (try parser(string)) |value|
+                return value;
         }
         return error.InvalidToken;
     }
 
-    fn tryKeyword(string: []const u8) Error!?Kind {
+    fn tryKeyword(string: []const u8) Error!?Value {
         return if (std.mem.eql(u8, string, "\n"))
             .newline
         else if (std.mem.eql(u8, string, ","))
@@ -114,7 +113,7 @@ pub const Kind = union(enum) {
             null;
     }
 
-    fn tryRegister(string: []const u8) Error!?Kind {
+    fn tryRegister(string: []const u8) Error!?Value {
         if (string.len != 2)
             return null;
         switch (string[0]) {
@@ -128,13 +127,13 @@ pub const Kind = union(enum) {
         return .{ .register = register };
     }
 
-    fn tryInteger(string: []const u8) Error!?Kind {
+    fn tryInteger(string: []const u8) Error!?Value {
         const integer = try integers.tryInteger(string) orelse
             return null;
         return .{ .integer = integer };
     }
 
-    fn tryString(string: []const u8) Error!?Kind {
+    fn tryString(string: []const u8) Error!?Value {
         if (string.len < 2)
             return null;
         const has_initial_quote = string[0] == '"';
@@ -146,7 +145,7 @@ pub const Kind = union(enum) {
         return .{ .string = string[1 .. string.len - 1] };
     }
 
-    fn tryDirective(string: []const u8) Error!?Kind {
+    fn tryDirective(string: []const u8) Error!?Value {
         if (string.len < 2 or string[0] != '.')
             return null;
         const rest = string[1..];
@@ -158,7 +157,7 @@ pub const Kind = union(enum) {
         return error.InvalidDirective;
     }
 
-    fn tryInstruction(string: []const u8) Error!?Kind {
+    fn tryInstruction(string: []const u8) Error!?Value {
         assert(string.len > 0);
         if (matchTagName(Instruction, string)) |instruction| {
             return .{ .instruction = instruction };
@@ -166,7 +165,7 @@ pub const Kind = union(enum) {
         return null;
     }
 
-    fn tryLabel(string: []const u8) Error!?Kind {
+    fn tryLabel(string: []const u8) Error!?Value {
         assert(string.len > 0);
         if (!isIdent(string[0..1]))
             return null;
