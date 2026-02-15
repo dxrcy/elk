@@ -32,7 +32,7 @@ pub fn new(air: *Air, source: []const u8, reporter: *Reporter) Parser {
 pub fn resolveLabels(parser: *Parser) void {
     // Bruh.
     // TODO: Literally just do this manually.
-    for (parser.air.lines.items) |*line| {
+    for (parser.air.lines.items, 0..) |*line, index| {
         inline for (std.meta.tags(std.meta.Tag(Statement)), 0..) |tag, i| {
             if (tag == line.statement) {
                 const variant = @typeInfo(Statement).@"union".fields[i];
@@ -49,6 +49,7 @@ pub fn resolveLabels(parser: *Parser) void {
                                     parser.resolveFieldLabel(
                                         &operand.value,
                                         operand.span,
+                                        index,
                                     );
                                 },
                                 else => {},
@@ -69,13 +70,14 @@ fn resolveFieldLabel(
     parser: *Parser,
     field: *Operand.Offset9,
     span: Span,
+    index: usize,
 ) void {
     switch (field.*) {
         .unresolved => {},
         .resolved => return,
     }
 
-    for (parser.air.lines.items, 0..) |*line, index| {
+    for (parser.air.lines.items, 0..) |*line, label_index| {
         const label = line.label orelse
             continue;
         // TODO: should it be case insensitive ?
@@ -86,7 +88,18 @@ fn resolveFieldLabel(
         ))
             continue;
 
-        field.* = .{ .resolved = @intCast(index) };
+        // TODO: Derive from `field` type
+        const I = i9;
+
+        // FIXME: Catch overflows
+        const offset: I =
+            @intCast(
+                @as(isize, @intCast(label_index)) -
+                    @as(isize, @intCast(index)) -
+                    1, // PC is at N+1 when instruction N is interpreted
+            );
+
+        field.* = .{ .resolved = offset };
         return;
     }
 
