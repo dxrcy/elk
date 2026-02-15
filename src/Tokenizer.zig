@@ -118,7 +118,7 @@ const TokenChar = struct {
         const kind: Kind = switch (value) {
             ' ', '\t', '\r' => .whitespace,
             0x00...0x08, 0x0e...0x1f, 0x7f => .control,
-            '\n', ';', ',' => .atomic,
+            '\n', ';', ',', ':' => .atomic,
             else => .combining,
         };
         return TokenChar{

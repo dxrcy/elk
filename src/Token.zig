@@ -28,13 +28,16 @@ pub fn from(span: Span, source: []const u8) !Token {
 pub const Value = union(enum) {
     newline,
     comma,
+    colon,
+
+    directive: Directive,
+    instruction: Instruction,
+    label,
+
     register: u3,
     integer: Integer(16),
     /// Contained in `Token.span`.
     string: Span,
-    directive: Directive,
-    instruction: Instruction,
-    label,
 
     pub const Directive = enum {
         orig,
@@ -89,6 +92,7 @@ pub const Value = union(enum) {
     pub fn from(string: []const u8) Error!Value {
         assert(string.len > 0);
         const parsers = [_]fn ([]const u8) Error!?Value{
+            // Order is important
             tryKeyword,
             tryRegister,
             tryInteger,
@@ -109,6 +113,8 @@ pub const Value = union(enum) {
             .newline
         else if (std.mem.eql(u8, string, ","))
             .comma
+        else if (std.mem.eql(u8, string, ":"))
+            .colon
         else
             null;
     }

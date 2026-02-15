@@ -75,7 +75,7 @@ fn discardRestOfLine(parser: *Parser) void {
 const Control = enum { @"continue", @"break" };
 
 fn parseLine(parser: *Parser) !Control {
-    const token = try parser.nextToken(&.{ .comma, .newline }) orelse
+    const token = try parser.nextToken(&.{ .comma, .colon, .newline }) orelse
         return error.Eof;
 
     switch (token.value) {
@@ -100,7 +100,7 @@ fn parseLine(parser: *Parser) !Control {
 
         else => {
             // TODO:
-            std.log.warn("unhandled token: {s}", .{token.span.view(parser.source)});
+            std.log.warn("unhandled token: `{s}`", .{token.span.view(parser.source)});
         },
     }
     return .@"continue";
@@ -271,14 +271,14 @@ fn nextToken(
 }
 
 fn expectToken(parser: *Parser) !Token {
-    const token = try parser.nextToken(&.{.comma}) orelse {
+    const token = try parser.nextToken(&.{ .comma, .colon }) orelse {
         try parser.reporter.err(error.UnexpectedEof, .emptyAt(parser.source.len));
     };
     switch (token.value) {
         .newline => {
             try parser.reporter.err(error.UnexpectedEol, .emptyAt(token.span.offset));
         },
-        .comma => unreachable,
+        .comma, .colon => unreachable,
         else => return token,
     }
 }
@@ -302,7 +302,7 @@ fn expectArgument(
     comptime argument: Argument,
 ) !Operand.Spanned(argument.asType()) {
     const token = try parser.expectToken();
-    assert(token.value != .comma);
+    assert(token.value != .comma and token.value != .colon);
     const value = convertArgument(argument, token.value) catch |err| {
         try parser.reporter.err(err, token.span);
     };
