@@ -320,67 +320,38 @@ fn convertOperand(
 }
 
 pub fn resolveLabels(parser: *Parser) void {
-    // This is awful!
-    // TODO: Is there any way to make this better ???
     for (parser.air.lines.items, 0..) |*line, index| {
-        inline for (std.meta.tags(std.meta.Tag(Statement)), 0..) |tag, i| {
-            if (tag == line.statement) {
-                const variant = @typeInfo(Statement).@"union".fields[i];
-                switch (@typeInfo(variant.type)) {
-                    .@"struct" => |payload| {
-                        assert(line.statement != .raw_word);
-                        inline for (payload.fields) |field| {
-                            switch (field.type) {
-                                OperandSpan(Operand.Offset9),
-                                OperandSpan(Operand.Offset11),
-                                => {
-                                    const operand = &@field(
-                                        @field(line.statement, variant.name),
-                                        field.name,
-                                    );
-                                    parser.resolveFieldLabel(
-                                        &operand.value,
-                                        operand.span,
-                                        index,
-                                    );
-                                },
-                                else => {},
-                            }
-                        }
-                    },
-                    .int => assert(line.statement == .raw_word),
-                    else => unreachable,
-                }
-                break;
-            }
+        switch (line.statement) {
+            .jsr => |*instruction| parser.resolveFieldLabel(&instruction.dest, index),
+            .lea => |*instruction| parser.resolveFieldLabel(&instruction.src, index),
+            // TODO: Add rest.
+            else => {},
         }
     }
 }
 
-fn resolveFieldLabel(
-    parser: *Parser,
-    field: anytype,
-    span: Span,
-    index: usize,
-) void {
-    const Int = @FieldType(@TypeOf(field.*), "resolved");
+fn resolveFieldLabel(parser: *Parser, operand: anytype, index: usize) void {
+    // Check generic param
+    const Int = switch (@TypeOf(operand)) {
+        *OperandSpan(Operand.Offset9) => i9,
+        *OperandSpan(Operand.Offset11) => i11,
+        else => comptime unreachable,
+    };
 
-    switch (field.*) {
+    switch (operand.value) {
         .unresolved => {},
         .resolved => return,
     }
 
-    const definition = parser.findLabelDefinition(span.view(parser.source)) orelse {
-        parser.reporter.err(error.UndeclaredLabel, span) catch
+    const definition = parser.findLabelDefinition(operand.span.view(parser.source)) orelse {
+        parser.reporter.err(error.UndeclaredLabel, operand.span) catch
             return;
     };
-
     const offset = calculateOffset(Int, definition, index) orelse {
-        parser.reporter.err(error.OffsetTooLarge, span) catch
+        parser.reporter.err(error.OffsetTooLarge, operand.span) catch
             return;
     };
-
-    field.* = .{ .resolved = offset };
+    operand.value = .{ .resolved = offset };
 }
 
 fn findLabelDefinition(parser: *const Parser, reference: []const u8) ?usize {
