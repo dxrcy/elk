@@ -18,10 +18,10 @@ pub fn main(init: std.process.Init) !void {
 
     reporter.setSource(source);
 
-    var air: Air = .init(gpa);
-    defer air.deinit();
+    var air: Air = .init();
+    defer air.deinit(gpa);
 
-    var parser: Parser = .new(&air, source, &reporter);
+    var parser: Parser = .new(&air, source, &reporter, gpa);
 
     try parser.parse();
 
@@ -68,6 +68,8 @@ pub fn main(init: std.process.Init) !void {
         }
         std.debug.print("\n", .{});
     }
+
+    // if (true) return;
 
     if (reporter.endSection() == .err) {
         std.log.info("stop", .{});
