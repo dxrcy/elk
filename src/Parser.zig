@@ -197,8 +197,8 @@ fn parseInstruction(
                     Operand.RegImm5 => .reg_imm5,
                     Operand.TrapVect => .trap_vect,
                     Operand.Offset6 => .offset6,
-                    Operand.Offset9 => .offset9,
-                    Operand.Offset11 => .offset11,
+                    Operand.PCOffset9 => .pc_offset9,
+                    Operand.PCOffset11 => .pc_offset11,
                     else => comptime unreachable,
                 });
                 @field(payload, field.name) = token;
@@ -308,12 +308,12 @@ fn convertOperand(
             .integer => |integer| .{ .value = try integer.castTo(i6) },
             else => error.UnexpectedTokenKind,
         },
-        .offset9 => switch (kind) {
+        .pc_offset9 => switch (kind) {
             .integer => |integer| .{ .resolved = try integer.castTo(i9) },
             .label => .unresolved,
             else => error.UnexpectedTokenKind,
         },
-        .offset11 => switch (kind) {
+        .pc_offset11 => switch (kind) {
             .integer => |integer| .{ .resolved = try integer.castTo(i11) },
             .label => .unresolved,
             else => error.UnexpectedTokenKind,
@@ -347,8 +347,8 @@ pub fn resolveLabels(parser: *Parser) void {
 fn resolveFieldLabel(parser: *Parser, operand: anytype, index: usize) void {
     // Check generic param
     const Int = switch (@TypeOf(operand)) {
-        *OperandSpan(Operand.Offset9) => i9,
-        *OperandSpan(Operand.Offset11) => i11,
+        *OperandSpan(Operand.PCOffset9) => i9,
+        *OperandSpan(Operand.PCOffset11) => i11,
         else => comptime unreachable,
     };
 

@@ -27,8 +27,8 @@ pub const Operand = enum {
     register,
     reg_imm5,
     offset6,
-    offset9,
-    offset11,
+    pc_offset9,
+    pc_offset11,
     trap_vect,
     word,
     string,
@@ -39,8 +39,8 @@ pub const Operand = enum {
             .register => Register,
             .reg_imm5 => RegImm5,
             .offset6 => Offset6,
-            .offset9 => Offset9,
-            .offset11 => Offset11,
+            .pc_offset9 => PCOffset9,
+            .pc_offset11 => PCOffset11,
             .trap_vect => TrapVect,
             .word => Integer(16),
             .string => []const u8,
@@ -89,22 +89,22 @@ pub const Operand = enum {
         }
     };
 
-    pub const Offset9 = union(enum) {
+    pub const PCOffset9 = union(enum) {
         unresolved,
         resolved: i9,
 
-        pub const operand: Operand = .offset9;
-        pub fn bits(self: Offset9) u16 {
+        pub const operand: Operand = .pc_offset9;
+        pub fn bits(self: PCOffset9) u16 {
             return @as(u9, @bitCast(self.resolved));
         }
     };
 
-    pub const Offset11 = union(enum) {
+    pub const PCOffset11 = union(enum) {
         unresolved,
         resolved: i11,
 
-        pub const operand: Operand = .offset11;
-        pub fn bits(self: Offset11) u16 {
+        pub const operand: Operand = .pc_offset11;
+        pub fn bits(self: PCOffset11) u16 {
             return @as(u11, @bitCast(self.resolved));
         }
     };
@@ -126,7 +126,7 @@ pub const Statement = union(enum) {
     },
 
     jsr: struct {
-        dest: OperandSpan(Operand.Offset11),
+        dest: OperandSpan(Operand.PCOffset11),
     },
 
     ldr: struct {
@@ -137,7 +137,7 @@ pub const Statement = union(enum) {
 
     lea: struct {
         dest: OperandSpan(Operand.Register),
-        src: OperandSpan(Operand.Offset9),
+        src: OperandSpan(Operand.PCOffset9),
     },
 
     trap: struct {
@@ -191,10 +191,10 @@ pub const Statement = union(enum) {
                                 },
                                 Operand.TrapVect => try writer.print("Vect = 0x{x:02}", .{operand.value.value}),
                                 Operand.Offset6 => try writer.print("Offset6 = 0x{x:04}", .{operand.value.value}),
-                                Operand.Offset9,
-                                Operand.Offset11,
+                                Operand.PCOffset9,
+                                Operand.PCOffset11,
                                 => {
-                                    try writer.print("Label = ", .{});
+                                    try writer.print("PCOffset(9/11) = ", .{});
                                     switch (operand.value) {
                                         .unresolved => try writer.print("\"{s}\" (unresolved)", .{operand.span.view(self.source)}),
                                         .resolved => |offset| {
