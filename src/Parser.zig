@@ -111,7 +111,7 @@ fn parseDirective(
             if (parser.current_label) |label| {
                 try parser.reporter.err(error.UnusedLabel, label);
             }
-            const origin = try parser.expectOperand(.word);
+            const origin = try parser.expectArgument(.word);
             if (parser.air.lines.items.len > 0) {
                 try parser.reporter.err(error.LateOrigin, origin.span);
             }
@@ -124,7 +124,7 @@ fn parseDirective(
         },
 
         .stringz => {
-            const string = try parser.expectOperand(.string);
+            const string = try parser.expectArgument(.string);
             var is_escaped = false;
             for (string.value) |char| {
                 if (!is_escaped and char == '\\') {
@@ -192,15 +192,9 @@ fn parseInstruction(
             var payload: Payload = undefined;
 
             inline for (@typeInfo(Payload).@"struct".fields) |field| {
-                const token = try parser.expectOperand(switch (field.type.Kind) {
-                    Operand.Register => .register,
-                    Operand.RegImm5 => .reg_imm5,
-                    Operand.TrapVect => .trap_vect,
-                    Operand.Offset6 => .offset6,
-                    Operand.PCOffset9 => .pc_offset9,
-                    Operand.PCOffset11 => .pc_offset11,
-                    else => comptime unreachable,
-                });
+                const token = try parser.expectArgument(
+                    .{ .operand = field.type.Kind },
+                );
                 @field(payload, field.name) = token;
             }
 
@@ -274,13 +268,27 @@ fn expectToken(parser: *Parser) !Token {
     }
 }
 
-fn expectOperand(
+const Argument = union(enum) {
+    operand: type,
+    word,
+    string,
+
+    pub fn asType(comptime argument: Argument) type {
+        return switch (argument) {
+            .operand => |operand| operand,
+            .word => Integer(16),
+            .string => []const u8,
+        };
+    }
+};
+
+fn expectArgument(
     parser: *Parser,
-    comptime operand: Operand,
-) !OperandSpan(operand.asType()) {
+    comptime argument: Argument,
+) !OperandSpan(argument.asType()) {
     const token = try parser.expectToken();
     assert(token.kind != .comma);
-    const value = convertOperand(operand, token.kind) catch |err| {
+    const value = convertArgument(argument, token.kind) catch |err| {
         try parser.reporter.err(err, token.span);
     };
     return .{
@@ -290,45 +298,48 @@ fn expectOperand(
 }
 
 // TODO: Rename
-fn convertOperand(
-    comptime operand: Operand,
+fn convertArgument(
+    comptime argument: Argument,
     kind: Token.Kind,
-) error{ UnexpectedTokenKind, IntegerTooLarge }!operand.asType() {
-    return switch (operand) {
-        .register => switch (kind) {
-            .register => |register| .{ .value = register },
-            else => error.UnexpectedTokenKind,
-        },
-        .reg_imm5 => switch (kind) {
-            .register => |register| .{ .register = register },
-            .integer => |integer| .{ .immediate = try integer.castTo(u5) },
-            else => error.UnexpectedTokenKind,
-        },
-        .offset6 => switch (kind) {
-            .integer => |integer| .{ .value = try integer.castTo(i6) },
-            else => error.UnexpectedTokenKind,
-        },
-        .pc_offset9 => switch (kind) {
-            .integer => |integer| .{ .resolved = try integer.castTo(i9) },
-            .label => .unresolved,
-            else => error.UnexpectedTokenKind,
-        },
-        .pc_offset11 => switch (kind) {
-            .integer => |integer| .{ .resolved = try integer.castTo(i11) },
-            .label => .unresolved,
-            else => error.UnexpectedTokenKind,
-        },
-        .trap_vect => switch (kind) {
-            .integer => |integer| .{ .value = try integer.castTo(u8) },
-            else => error.UnexpectedTokenKind,
-        },
-        .word => switch (kind) {
+) error{ UnexpectedTokenKind, IntegerTooLarge }!argument.asType() {
+    return switch (argument) {
+        .word => return switch (kind) {
             .integer => |integer| integer,
             else => error.UnexpectedTokenKind,
         },
-        .string => switch (kind) {
+        .string => return switch (kind) {
             .string => |string| string,
             else => error.UnexpectedTokenKind,
+        },
+        .operand => |operand| switch (operand) {
+            Operand.Register => switch (kind) {
+                .register => |register| .{ .value = register },
+                else => error.UnexpectedTokenKind,
+            },
+            Operand.RegImm5 => switch (kind) {
+                .register => |register| .{ .register = register },
+                .integer => |integer| .{ .immediate = try integer.castTo(u5) },
+                else => error.UnexpectedTokenKind,
+            },
+            Operand.Offset6 => switch (kind) {
+                .integer => |integer| .{ .value = try integer.castTo(i6) },
+                else => error.UnexpectedTokenKind,
+            },
+            Operand.PCOffset9 => switch (kind) {
+                .integer => |integer| .{ .resolved = try integer.castTo(i9) },
+                .label => .unresolved,
+                else => error.UnexpectedTokenKind,
+            },
+            Operand.PCOffset11 => switch (kind) {
+                .integer => |integer| .{ .resolved = try integer.castTo(i11) },
+                .label => .unresolved,
+                else => error.UnexpectedTokenKind,
+            },
+            Operand.TrapVect => switch (kind) {
+                .integer => |integer| .{ .value = try integer.castTo(u8) },
+                else => error.UnexpectedTokenKind,
+            },
+            else => comptime unreachable,
         },
     };
 }
