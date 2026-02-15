@@ -1,6 +1,7 @@
 const Parser = @This();
 
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
 const Air = @import("Air.zig");
@@ -14,15 +15,25 @@ const Reporter = @import("Reporter.zig");
 
 source: []const u8,
 reporter: *Reporter,
+
 air: *Air,
+/// Used for `air`.
+allocator: Allocator,
+
 tokens: Tokenizer,
 current_label: ?Span,
 
-pub fn new(air: *Air, source: []const u8, reporter: *Reporter) Parser {
+pub fn new(
+    air: *Air,
+    source: []const u8,
+    reporter: *Reporter,
+    allocator: Allocator,
+) Parser {
     return .{
         .source = source,
         .reporter = reporter,
         .air = air,
+        .allocator = allocator,
         .tokens = Tokenizer.new(source),
         .current_label = null,
     };
@@ -228,7 +239,7 @@ fn expectNoCurrentLabel(parser: *Parser) void {
 }
 
 fn appendLine(parser: *Parser, statement: Statement, span: Span) !void {
-    try parser.air.lines.append(parser.air.allocator, .{
+    try parser.air.lines.append(parser.allocator, .{
         .label = parser.current_label,
         .statement = statement,
         .span = span,

@@ -10,9 +10,7 @@ const Span = @import("Span.zig");
 const Integer = @import("integers.zig").Integer;
 
 origin: ?u16,
-
 lines: ArrayList(Line),
-allocator: Allocator,
 
 pub const Operand = struct {
     // Shorthand
@@ -206,16 +204,15 @@ pub const Statement = union(enum) {
     };
 };
 
-pub fn init(allocator: Allocator) Air {
+pub fn init() Air {
     return .{
         .origin = null,
         .lines = .empty,
-        .allocator = allocator,
     };
 }
 
-pub fn deinit(air: *Air) void {
-    air.lines.deinit(air.allocator);
+pub fn deinit(air: *Air, allocator: Allocator) void {
+    air.lines.deinit(allocator);
 }
 
 pub fn emit(air: *const Air, writer: *Io.Writer) !void {
