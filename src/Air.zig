@@ -59,7 +59,8 @@ pub const Operand = enum {
         pub const operand: Operand = .reg_imm5;
         pub fn bits(self: RegImm5) u16 {
             return switch (self) {
-                inline else => |inner| inner,
+                .register => |register| register,
+                .immediate => |immediate| 0b100000 + @as(u16, immediate),
             };
         }
     };
