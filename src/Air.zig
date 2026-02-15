@@ -129,6 +129,12 @@ pub const Statement = union(enum) {
         dest: OperandSpan(Operand.Offset11),
     },
 
+    ldr: struct {
+        dest: OperandSpan(Operand.Register),
+        src: OperandSpan(Operand.Register),
+        offset: OperandSpan(Operand.Offset6),
+    },
+
     lea: struct {
         dest: OperandSpan(Operand.Register),
         src: OperandSpan(Operand.Offset9),
@@ -266,6 +272,13 @@ fn encode(statement: Statement) u16 {
         .jsr => |operands| {
             var raw: u16 = 0x4800;
             raw |= operands.dest.value.bits();
+            return raw;
+        },
+        .ldr => |operands| {
+            var raw: u16 = 0xa000;
+            raw |= operands.dest.value.bits() << 9;
+            raw |= operands.src.value.bits() << 6;
+            raw |= operands.offset.value.bits();
             return raw;
         },
         .lea => |operands| {

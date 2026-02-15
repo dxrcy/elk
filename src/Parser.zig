@@ -177,6 +177,7 @@ fn parseInstruction(
         .lea,
         .jsr,
         .trap,
+        .ldr,
         // TODO: Add rest.
     };
     const trap_aliases = [_]struct { Token.Kind.Instruction, u8 }{
