@@ -220,7 +220,7 @@ fn encode(statement: Statement) u16 {
         .add => |operands| {
             var raw: u16 = 0x1000;
             raw |= operands.dest.value.bits() << 9;
-            raw |= operands.src_b.value.bits() << 6;
+            raw |= operands.src_a.value.bits() << 6;
             raw |= operands.src_b.value.bits();
             return raw;
         },
