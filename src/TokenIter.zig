@@ -87,16 +87,8 @@ pub fn nextMatching(tokens: *TokenIter, comptime match: TokenTag) ?Token {
     return token;
 }
 
-// TODO: Implement with `nextIfMatches`
 pub fn discardOptional(tokens: *TokenIter, comptime discard: TokenTag) void {
-    const token = tokens.peekAny() catch |err| switch (err) {
-        // These can be handled by next token request
-        error.InvalidTokenPeeked, error.Eof => return,
-    };
-    if (token.value == discard) {
-        assert(tokens.peeked != null);
-        tokens.peeked = null;
-    }
+    _ = nextMatching(tokens, discard);
 }
 
 pub fn discardRemainingLine(tokens: *TokenIter) void {
