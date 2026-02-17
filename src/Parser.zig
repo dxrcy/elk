@@ -94,11 +94,11 @@ fn parseLine(parser: *Parser) InnerError!Control {
         .instruction => |instruction| {
             const statement = try parser.parseInstruction(instruction, token.span) orelse
                 return error.Reported;
-            try parser.tokens.expectEol();
             const span: Span = .fromBounds(
                 token.span.offset,
                 parser.tokens.getIndex(),
             );
+            try parser.tokens.expectEol();
             try parser.appendLine(statement, span);
         },
 
