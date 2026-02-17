@@ -30,7 +30,8 @@ pub fn new(source: []const u8, reporter: *Reporter) TokenIter {
 }
 
 pub fn getIndex(tokens: *const TokenIter) usize {
-    // FIXME: This doesn't work when a token is peeked
+    // TODO: We might need to support this assertion being false
+    assert(tokens.peeked == null);
     return tokens.lexer.index;
 }
 
