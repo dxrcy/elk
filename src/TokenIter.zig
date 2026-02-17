@@ -74,11 +74,21 @@ pub fn nextExcluding(
     comptime unreachable;
 }
 
-pub fn discardOptional(
-    tokens: *TokenIter,
-    // This can become a slice if necessary
-    comptime discard: TokenTag,
-) void {
+// TODO: Rename
+pub fn nextMatching(tokens: *TokenIter, comptime match: TokenTag) ?Token {
+    const token = tokens.peekAny() catch |err| switch (err) {
+        // These can be handled by next token request
+        error.InvalidTokenPeeked, error.Eof => return null,
+    };
+    if (token.value != match)
+        return null;
+    assert(tokens.peeked != null);
+    tokens.peeked = null;
+    return token;
+}
+
+// TODO: Implement with `nextIfMatches`
+pub fn discardOptional(tokens: *TokenIter, comptime discard: TokenTag) void {
     const token = tokens.peekAny() catch |err| switch (err) {
         // These can be handled by next token request
         error.InvalidTokenPeeked, error.Eof => return,
@@ -99,6 +109,16 @@ pub fn discardRemainingLine(tokens: *TokenIter) void {
         if (token.value == .newline)
             break;
     }
+}
+
+pub fn expectEol(tokens: *TokenIter) error{Reported}!void {
+    const token = tokens.nextAny() catch |err| switch (err) {
+        error.Reported => return error.Reported,
+        // These can be handled by next token request
+        error.Eof => return,
+    };
+    if (token.value != .newline)
+        try tokens.reporter.err(error.UnexpectedToken, token.span);
 }
 
 pub fn expectArgument(

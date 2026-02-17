@@ -76,15 +76,25 @@ fn parseLine(parser: *Parser) InnerError!Control {
             parser.ensureNoCurrentLabel();
             parser.current_label = token.span;
             parser.tokens.discardOptional(.colon);
+
+            // Disallow two labels on same line
+            // This should also be checked when the second label is parsed, but
+            // this reports a more appropriate message
+            if (parser.tokens.nextMatching(.label)) |label| {
+                try parser.reporter.err(error.UnexpectedLabel, label.span);
+            }
         },
 
         .directive => |directive| {
-            return try parser.parseDirective(directive);
+            const control = try parser.parseDirective(directive);
+            try parser.tokens.expectEol();
+            return control;
         },
 
         .instruction => |instruction| {
             const statement = try parser.parseInstruction(instruction, token.span) orelse
                 return error.Reported;
+            try parser.tokens.expectEol();
             const span: Span = .fromBounds(
                 token.span.offset,
                 parser.tokens.getIndex(),
@@ -93,8 +103,7 @@ fn parseLine(parser: *Parser) InnerError!Control {
         },
 
         else => {
-            // TODO:
-            std.log.warn("unhandled token: `{s}`", .{token.span.view(parser.source)});
+            try parser.reporter.err(error.UnexpectedTokenKind, token.span);
         },
     }
     return .@"continue";
@@ -125,9 +134,6 @@ fn parseDirective(
 
         .orig => {
             parser.ensureNoCurrentLabel();
-            if (parser.current_label) |label| {
-                try parser.reporter.err(error.UnusedLabel, label);
-            }
             const origin = try parser.tokens.expectArgument(.word);
             if (parser.air.lines.items.len > 0) {
                 try parser.reporter.err(error.LateOrigin, origin.span);
@@ -246,7 +252,7 @@ fn parseInstruction(
 
 fn ensureNoCurrentLabel(parser: *Parser) void {
     if (parser.current_label) |label| {
-        parser.reporter.err(error.UnusedLabel, label) catch
+        parser.reporter.err(error.UselessLabel, label) catch
             {}; // Ignore; caller can continue parsing line
     }
 }
