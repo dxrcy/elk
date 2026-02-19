@@ -20,14 +20,21 @@ io: Io,
 
 mode: Mode,
 
-// TODO: Rename to `Policy`
+const Level = enum { err, warn };
+
 pub const Mode = enum {
     strict,
     normal,
     quiet,
-};
 
-const Level = enum { err, warn };
+    fn standardResponse(mode: Mode) Response {
+        return switch (mode) {
+            .strict => .major,
+            .normal => .minor,
+            .quiet => .pass,
+        };
+    }
+};
 
 pub const Diagnostic = union(enum) {
     missing_origin: struct {
@@ -74,12 +81,22 @@ pub const Diagnostic = union(enum) {
     unexpected_token_kind: struct {
         token: Token,
     },
+    unexpected_token: struct {
+        token: Token,
+    },
     unexpected_negative_integer: struct {
         integer: Span,
     },
     invalid_string_escape: struct {
         string: Span,
         sequence: Span,
+    },
+    multiline_string: struct {
+        string: Span,
+    },
+    nonstandard_integer_radix: struct {
+        integer: Span,
+        radix: @import("integers.zig").Radix,
     },
 };
 
@@ -112,32 +129,26 @@ pub const Response = enum {
     }
 };
 
-// TODO: Move to a method of Response / Mode ?
-fn standardResponse(mode: Mode) Response {
-    return switch (mode) {
-        .strict => .major,
-        .normal => .minor,
-        .quiet => .pass,
-    };
-}
-
 // TODO: For a "nicer" api, we can split `diag` into `tag, payload` and use `@unionInit`
 pub fn report(reporter: *Reporter, diag: Diagnostic) Response {
     const response: Response = switch (diag) {
-        .missing_origin => standardResponse(reporter.mode),
+        .missing_origin => reporter.mode.standardResponse(),
         .multiple_origins => .fatal,
         .late_origin => .fatal,
-        .missing_end => standardResponse(reporter.mode),
-        .duplicate_label => .major,
+        .missing_end => reporter.mode.standardResponse(),
+        .duplicate_label => .fatal,
         .unexpected_label => .major,
-        .shadowed_label => standardResponse(reporter.mode),
-        .useless_label => standardResponse(reporter.mode),
-        .eof_label => standardResponse(reporter.mode),
+        .shadowed_label => reporter.mode.standardResponse(),
+        .useless_label => reporter.mode.standardResponse(),
+        .eof_label => reporter.mode.standardResponse(),
         .undeclared_label => .fatal,
         .offset_too_large => .fatal,
         .unexpected_token_kind => .fatal,
+        .unexpected_token => .fatal,
         .unexpected_negative_integer => .fatal,
-        .invalid_string_escape => standardResponse(reporter.mode),
+        .invalid_string_escape => reporter.mode.standardResponse(),
+        .multiline_string => reporter.mode.standardResponse(),
+        .nonstandard_integer_radix => reporter.mode.standardResponse(),
     };
 
     const level: Level = switch (response) {
@@ -218,18 +229,14 @@ pub fn report(reporter: *Reporter, diag: Diagnostic) Response {
             );
         },
         .unexpected_token_kind => |info| {
-            const kind = switch (info.token.value) {
-                .newline => "newline",
-                .comma => "comma `,`",
-                .colon => "colon `:`",
-                .register => "register",
-                .integer => "integer literal",
-                .string => "string literal",
-                .instruction, .label, .directive => unreachable,
-            };
-            ctx.printTitle("Unexpected {s} token", .{kind});
+            ctx.printTitle("Unexpected {s}", .{tokenKind(info.token)});
             ctx.deepen().printSourceNote("Token:", info.token.span);
             ctx.deepen().printNote("Expected label, instruction, or directive");
+        },
+        .unexpected_token => |info| {
+            ctx.printTitle("Unexpected {s}", .{tokenKind(info.token)});
+            ctx.deepen().printSourceNote("Token:", info.token.span);
+            ctx.deepen().printNote("Expected end of line");
         },
         .unexpected_negative_integer => |info| {
             ctx.printTitle("Integer operand cannot be negative", .{});
@@ -240,12 +247,34 @@ pub fn report(reporter: *Reporter, diag: Diagnostic) Response {
             ctx.deepen().printSourceNote("String: ", info.string);
             ctx.deepen().printSourceNote("Erroneous escape sequence: ", info.sequence);
         },
+        .multiline_string => |info| {
+            ctx.printTitle("String covers multiple lines", .{});
+            ctx.deepen().printSourceNote("String: ", info.string);
+        },
+        .nonstandard_integer_radix => |info| {
+            ctx.printTitle("Integer uses nonstandard radix '{t}'", .{info.radix});
+            ctx.deepen().printSourceNote("Integer: ", info.integer);
+        },
     }
 
     reporter.flush();
 
     assert(response != .pass);
     return response;
+}
+
+fn tokenKind(token: Token) []const u8 {
+    return switch (token.value) {
+        .newline => "newline",
+        .comma => "comma `,`",
+        .colon => "colon `:`",
+        .directive => "directive",
+        .instruction => "instruction",
+        .label => "label",
+        .register => "register",
+        .integer => "integer literal",
+        .string => "string literal",
+    };
 }
 
 // TODO: Rename?

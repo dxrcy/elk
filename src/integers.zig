@@ -78,7 +78,7 @@ const Prefix = struct {
     leading_zeros: bool,
 };
 
-const Radix = enum(u8) {
+pub const Radix = enum(u8) {
     binary = 2,
     octal = 8,
     decimal = 10,

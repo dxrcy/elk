@@ -75,13 +75,19 @@ fn ensureSupported(tokens: *const TokenIter, token: Token) error{Reported}!void 
     switch (token.value) {
         .string => |string| {
             const value = string.in(token.span).view(tokens.source);
-            if (std.mem.containsAtLeast(u8, value, 1, "\n"))
-                try tokens.reporter.reportOld(.extension, error.MultilineString, token.span);
+            if (std.mem.containsAtLeast(u8, value, 1, "\n")) {
+                try tokens.reporter.report(.{ .multiline_string = .{
+                    .string = token.span,
+                } }).handle();
+            }
         },
         .integer => |integer| {
             if (integer.radix) |radix| switch (radix) {
                 .binary, .octal => {
-                    try tokens.reporter.reportOld(.extension, error.ExtensionRadix, token.span);
+                    try tokens.reporter.report(.{ .nonstandard_integer_radix = .{
+                        .integer = token.span,
+                        .radix = radix,
+                    } }).handle();
                 },
                 else => {},
             };
@@ -152,8 +158,11 @@ pub fn expectEol(tokens: *TokenIter) error{Reported}!void {
         // These can be handled by next token request
         error.Eof => return,
     };
-    if (token.value != .newline)
-        try tokens.reporter.err(error.UnexpectedToken, token.span);
+    if (token.value != .newline) {
+        try tokens.reporter.report(.{ .unexpected_token = .{
+            .token = token,
+        } }).abort();
+    }
 }
 
 pub fn expectArgument(
