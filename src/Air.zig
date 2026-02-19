@@ -108,9 +108,17 @@ pub const Statement = union(enum) {
         src_a: Operand.Register,
         src_b: Operand.RegImm5,
     },
+    @"and": struct {
+        dest: Operand.Register,
+        src_a: Operand.Register,
+        src_b: Operand.RegImm5,
+    },
     br: struct {
         condition: Operand.ConditionMask,
         dest: Operand.PCOffset9,
+    },
+    jmp: struct {
+        dest: Operand.Register,
     },
     jsr: struct {
         dest: Operand.PCOffset11,
@@ -255,10 +263,22 @@ fn encode(statement: Statement) u16 {
             raw |= operands.src_b.value.bits();
             return raw;
         },
+        .@"and" => |operands| {
+            var raw: u16 = 0x5000;
+            raw |= operands.dest.value.bits() << 9;
+            raw |= operands.src_a.value.bits() << 6;
+            raw |= operands.src_b.value.bits();
+            return raw;
+        },
         .br => |operands| {
             var raw: u16 = 0x0000;
             raw |= operands.condition.value.bits() << 9;
             raw |= operands.dest.value.bits();
+            return raw;
+        },
+        .jmp => |operands| {
+            var raw: u16 = 0xc000;
+            raw |= operands.dest.value.bits() << 6;
             return raw;
         },
         .jsr => |operands| {

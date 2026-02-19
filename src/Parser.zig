@@ -202,10 +202,12 @@ fn parseInstruction(
 ) InnerError!?Statement {
     const regular_instructions = [_]Token.Value.Instruction{
         .add,
-        .lea,
+        .@"and",
+        .jmp,
         .jsr,
-        .trap,
         .ldr,
+        .lea,
+        .trap,
         // TODO: Add rest.
     };
     const branch_instructions = [_]struct { Token.Value.Instruction, Operand.Value.ConditionMask }{
