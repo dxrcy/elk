@@ -140,7 +140,9 @@ fn parseLine(parser: *Parser) InnerError!Control {
         },
 
         else => {
-            try parser.reporter.err(error.UnexpectedTokenKind, token.span);
+            try parser.reporter.report(.{ .unexpected_token_kind = .{
+                .token = token,
+            } }).abort();
         },
     }
     return .@"continue";
@@ -212,14 +214,22 @@ fn parseDirective(
             }
 
             const origin = try parser.tokens.expectArgument(.word);
-            if (parser.air.lines.items.len > 0) {
-                try parser.reporter.err(error.LateOrigin, origin.span);
-            }
             if (parser.air.origin != null) {
-                try parser.reporter.err(error.MultipleOrigins, origin.span);
+                try parser.reporter.report(.{ .multiple_origins = .{
+                    .existing = origin.span,
+                    .new = origin.span,
+                } }).abort();
+            }
+            if (parser.air.lines.items.len > 0) {
+                try parser.reporter.report(.{ .late_origin = .{
+                    .origin = origin.span,
+                    .first_token = parser.air.getFirstSpan(),
+                } }).abort();
             }
             parser.air.origin = origin.value.castToUnsigned() orelse {
-                try parser.reporter.err(error.IntegerTooLarge, origin.span);
+                try parser.reporter.report(.{ .unexpected_negative_integer = .{
+                    .integer = origin.span,
+                } }).abort();
             };
         },
 

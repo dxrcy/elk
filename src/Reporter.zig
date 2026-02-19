@@ -33,6 +33,14 @@ pub const Diagnostic = union(enum) {
     missing_origin: struct {
         first_token: ?Span,
     },
+    multiple_origins: struct {
+        existing: Span,
+        new: Span,
+    },
+    late_origin: struct {
+        origin: Span,
+        first_token: ?Span,
+    },
     missing_end: struct {
         last_token: ?Span,
     },
@@ -55,6 +63,12 @@ pub const Diagnostic = union(enum) {
     },
     eof_label: struct {
         label: Span,
+    },
+    unexpected_token_kind: struct {
+        token: Token,
+    },
+    unexpected_negative_integer: struct {
+        integer: Span,
     },
 };
 
@@ -100,12 +114,16 @@ fn standardResponse(mode: Mode) Response {
 pub fn report(reporter: *Reporter, diag: Diagnostic) Response {
     const response: Response = switch (diag) {
         .missing_origin => standardResponse(reporter.mode),
+        .multiple_origins => .fatal,
+        .late_origin => .fatal,
         .missing_end => standardResponse(reporter.mode),
         .duplicate_label => .major,
         .unexpected_label => .major,
         .shadowed_label => standardResponse(reporter.mode),
         .useless_label => standardResponse(reporter.mode),
         .eof_label => standardResponse(reporter.mode),
+        .unexpected_token_kind => .fatal,
+        .unexpected_negative_integer => .fatal,
     };
 
     const level: Level = switch (response) {
@@ -122,46 +140,77 @@ pub fn report(reporter: *Reporter, diag: Diagnostic) Response {
 
     switch (diag) {
         .missing_origin => |info| {
-            ctx.printTitle("Missing .ORIG directive");
-            ctx.deepen().printNote(
+            ctx.printTitle("Missing .ORIG directive", .{});
+            ctx.deepen().printSourceNote(
                 "Origin should be declared before any instructions:",
                 info.first_token orelse .firstCharOf(source),
             );
         },
+        .multiple_origins => |info| {
+            ctx.printTitle("Multiple .ORIG directives", .{});
+            ctx.deepen().printSourceNote("First declared here:", info.existing);
+            ctx.deepen().printSourceNote("Tried to redeclare here:", info.new);
+        },
+        .late_origin => |info| {
+            ctx.printTitle("Origin declared after statements", .{});
+            ctx.deepen().printSourceNote("Origin declared here:", info.origin);
+            ctx.deepen().printSourceNote(
+                "Origin must be declared at start of file",
+                info.first_token orelse .firstCharOf(source),
+            );
+        },
         .missing_end => |info| {
-            ctx.printTitle("Missing .END directive");
-            ctx.deepen().printNote(
+            ctx.printTitle("Missing .END directive", .{});
+            ctx.deepen().printSourceNote(
                 "End should be declared after included all instructions:",
                 info.last_token orelse .lastCharOf(source),
             );
         },
         .duplicate_label => |info| {
-            ctx.printTitle("Label already declared");
-            ctx.deepen().printNote("Label is first declared here:", info.existing);
-            ctx.deepen().printNote("Tried to redeclare here:", info.new);
+            ctx.printTitle("Label already declared", .{});
+            ctx.deepen().printSourceNote("Label is first declared here:", info.existing);
+            ctx.deepen().printSourceNote("Tried to redeclare here:", info.new);
         },
         .unexpected_label => |info| {
-            ctx.printTitle("Multiple labels cannot be declared on the same line");
-            ctx.deepen().printNote("First label declared here:", info.existing);
-            ctx.deepen().printNote("Another label declared on the same line:", info.new);
+            ctx.printTitle("Multiple labels cannot be declared on the same line", .{});
+            ctx.deepen().printSourceNote("First label declared here:", info.existing);
+            ctx.deepen().printSourceNote("Another label declared on the same line:", info.new);
         },
         .shadowed_label => |info| {
-            ctx.printTitle("Shadowed label has no use:");
-            ctx.deepen().printNote("First label declared here:", info.existing);
-            ctx.deepen().printNote("Another label declared in the same position:", info.new);
+            ctx.printTitle("Shadowed label has no use", .{});
+            ctx.deepen().printSourceNote("First label declared here:", info.existing);
+            ctx.deepen().printSourceNote("Another label declared in the same position:", info.new);
         },
         .useless_label => |info| {
-            ctx.printTitle("Label is useless in this position");
-            ctx.deepen().printNote("Label declared here:", info.label);
-            ctx.deepen().printNote("Token cannot be annotated with label", info.token);
+            ctx.printTitle("Label is useless in this position", .{});
+            ctx.deepen().printSourceNote("Label declared here:", info.label);
+            ctx.deepen().printSourceNote("Token cannot be annotated with label", info.token);
         },
         .eof_label => |info| {
-            ctx.printTitle("Label is useless in this position");
-            ctx.deepen().printNote("Label declared here:", info.label);
-            ctx.deepen().printNote(
+            ctx.printTitle("Label is useless in this position", .{});
+            ctx.deepen().printSourceNote("Label declared here:", info.label);
+            ctx.deepen().printSourceNote(
                 "Label is not followed by any token",
-                .{ .offset = source.len - 2, .len = 2 },
+                .lastCharOf(source),
             );
+        },
+        .unexpected_token_kind => |info| {
+            const kind = switch (info.token.value) {
+                .newline => "newline",
+                .comma => "comma `,`",
+                .colon => "colon `:`",
+                .register => "register",
+                .integer => "integer literal",
+                .string => "string literal",
+                .instruction, .label, .directive => unreachable,
+            };
+            ctx.printTitle("Unexpected {s} token", .{kind});
+            ctx.deepen().printSourceNote("Token:", info.token.span);
+            ctx.deepen().printNote("Expected label, instruction, or directive");
+        },
+        .unexpected_negative_integer => |info| {
+            ctx.printTitle("Integer operand cannot be negative", .{});
+            ctx.deepen().printSourceNote("Operand: ", info.integer);
         },
     }
 
@@ -190,7 +239,11 @@ const Ctx = struct {
             ctx.print(" " ** 4, .{});
     }
 
-    fn printTitle(ctx: *const Ctx, title: []const u8) void {
+    fn printTitle(
+        ctx: *const Ctx,
+        comptime fmt: []const u8,
+        args: anytype,
+    ) void {
         ctx.printDepth();
         switch (ctx.level) {
             .err => {
@@ -206,18 +259,21 @@ const Ctx = struct {
                 ctx.print("\x1b[0m", .{});
             },
         }
-        ctx.print("{s}", .{title});
+        ctx.print(fmt, args);
         ctx.print("\n", .{});
     }
 
-    fn printNote(ctx: Ctx, note: []const u8, span: Span) void {
+    fn printNote(ctx: Ctx, note: []const u8) void {
         ctx.printDepth();
         ctx.print("\x1b[36m", .{});
         ctx.print("Note: ", .{});
         ctx.print("\x1b[0m", .{});
         ctx.print("{s}", .{note});
         ctx.print("\n", .{});
+    }
 
+    fn printSourceNote(ctx: Ctx, note: []const u8, span: Span) void {
+        ctx.printNote(note);
         ctx.deepen().printSource(span);
     }
 
