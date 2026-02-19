@@ -74,10 +74,14 @@ fn parseLine(parser: *Parser) InnerError!Control {
     switch (token.value) {
         .label => {
             parser.ensureNoCurrentLabel();
-            parser.current_label = token.span;
-            parser.tokens.discardOptional(.colon);
 
-            // TODO: CHECK LABEL NAME DOES NOT ALREADY EXIST
+            if (parser.getExistingLabel(token.span.view(parser.source))) |existing_label| {
+                try parser.reporter.err(error.DuplicateLabel, existing_label);
+            } else {
+                parser.current_label = token.span;
+            }
+
+            parser.tokens.discardOptional(.colon);
 
             // Disallow two labels on same line
             // This should also be checked when the second label is parsed, but
@@ -325,6 +329,17 @@ fn ensureNoCurrentLabel(parser: *Parser) void {
         parser.reporter.err(error.UselessLabel, label) catch
             {}; // Ignore; caller can continue parsing line
     }
+}
+
+fn getExistingLabel(parser: *const Parser, new_label: []const u8) ?Span {
+    for (parser.air.lines.items) |line| {
+        const existing_label = line.label orelse
+            continue;
+        if (std.mem.eql(u8, existing_label.view(parser.source), new_label)) {
+            return existing_label;
+        }
+    }
+    return null;
 }
 
 pub fn resolveLabels(parser: *Parser) void {
