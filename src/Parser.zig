@@ -47,6 +47,8 @@ const InnerError = error{
 };
 
 pub fn parse(parser: *Parser) error{OutOfMemory}!void {
+    var missing_end = false;
+
     while (true) {
         const control = parser.parseLine() catch |err| switch (err) {
             error.Reported => {
@@ -54,11 +56,7 @@ pub fn parse(parser: *Parser) error{OutOfMemory}!void {
                 continue;
             },
             error.Eof => {
-                // Move to end of `parse`, so that missing_end appears after
-                // missing_origin
-                parser.reporter.report(.{ .missing_end = .{
-                    .last_token = parser.tokens.latest,
-                } }).proceed();
+                missing_end = true; // Report at end of function
                 break;
             },
             error.OutOfMemory => |other| return other,
@@ -80,6 +78,12 @@ pub fn parse(parser: *Parser) error{OutOfMemory}!void {
     if (parser.current_label) |existing| {
         parser.reporter.report(.{ .eof_label = .{
             .label = existing,
+        } }).proceed();
+    }
+
+    if (missing_end) {
+        parser.reporter.report(.{ .missing_end = .{
+            .last_token = parser.tokens.latest,
         } }).proceed();
     }
 }

@@ -131,7 +131,7 @@ pub fn report(reporter: *Reporter, diag: Diagnostic) Response {
         .missing_end => |info| {
             ctx.printTitle("Missing .END directive");
             ctx.deepen().printNote(
-                "End should be declared after included instructions:",
+                "End should be declared after included all instructions:",
                 info.last_token orelse
                     // -1, then -1 in case of trailing newline
                     .{ .offset = source.len - 2, .len = 2 },
