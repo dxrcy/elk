@@ -214,7 +214,7 @@ pub const Operand = struct {
                 return switch (self) {
                     .register => |register| register,
                     .immediate => |immediate| 0b100000 +
-                        @as(u16, immediate.bitcastToUnsigned()),
+                        @as(u16, immediate.underlying),
                 };
             }
         };
@@ -229,7 +229,7 @@ pub const Operand = struct {
         pub const Offset6 = struct {
             inner: Integer(6),
             pub fn bits(self: @This()) u16 {
-                return @as(u6, self.inner.bitcastToUnsigned());
+                return @as(u6, self.inner.underlying);
             }
         };
 

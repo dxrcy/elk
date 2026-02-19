@@ -1,5 +1,6 @@
 const std = @import("std");
 const math = std.math;
+const Signedness = std.builtin.Signedness;
 const testing = std.testing;
 const assert = std.debug.assert;
 
@@ -10,39 +11,39 @@ pub fn SourceInt(comptime bits: u16) type {
     return struct {
         const Self = @This();
 
+        /// Do not use without considering `signedness`.
         underlying: Unsigned,
-        signedness: std.builtin.Signedness,
+        signedness: Signedness,
         radix: ?Radix,
 
         const Unsigned = @Int(.unsigned, bits);
         const Signed = @Int(.signed, bits);
         const Oversize = @Int(.signed, bits + 1);
 
-        pub fn bitcastToUnsigned(integer: Self) Unsigned {
+        fn asUnsigned(integer: Self) Unsigned {
+            assert(integer.signedness == .unsigned);
             return integer.underlying;
+        }
+
+        fn asSigned(integer: Self) Signed {
+            assert(integer.signedness == .signed);
+            return @as(Signed, @bitCast(integer.underlying));
         }
 
         pub fn castToUnsigned(integer: Self) ?Unsigned {
             return switch (integer.signedness) {
-                .unsigned => integer.underlying,
-                .signed => math.cast(
-                    Unsigned,
-                    @as(Signed, @bitCast(integer.underlying)),
-                ),
+                .unsigned => integer.asUnsigned(),
+                .signed => math.cast(Unsigned, integer.asSigned()),
             };
         }
 
         pub fn castToSmaller(integer: Self, comptime T: type) error{IntegerTooLarge}!T {
             assert(@typeInfo(T).int.bits < bits);
             return switch (integer.signedness) {
-                .unsigned => math.cast(T, integer.underlying) orelse
-                    return error.IntegerTooLarge,
-                .signed => math.cast(
-                    T,
-                    @as(Signed, @bitCast(integer.underlying)),
-                ) orelse
-                    return error.IntegerTooLarge,
-            };
+                .unsigned => math.cast(T, integer.asUnsigned()),
+                .signed => math.cast(T, integer.asSigned()),
+            } orelse
+                return error.IntegerTooLarge;
         }
 
         pub fn shrink(
@@ -51,17 +52,10 @@ pub fn SourceInt(comptime bits: u16) type {
         ) error{IntegerTooLarge}!SourceInt(new_bits) {
             assert(new_bits < bits);
             const underlying = switch (integer.signedness) {
-                .unsigned => math.cast(
-                    SourceInt(new_bits).Unsigned,
-                    integer.underlying,
-                ) orelse
-                    return error.IntegerTooLarge,
-                .signed => math.cast(
-                    SourceInt(new_bits).Unsigned,
-                    @as(Signed, @bitCast(integer.underlying)),
-                ) orelse
-                    return error.IntegerTooLarge,
-            };
+                .unsigned => math.cast(SourceInt(new_bits).Unsigned, integer.asUnsigned()),
+                .signed => math.cast(SourceInt(new_bits).Unsigned, integer.asSigned()),
+            } orelse
+                return error.IntegerTooLarge;
             return .{
                 .underlying = underlying,
                 .signedness = integer.signedness,
@@ -70,6 +64,8 @@ pub fn SourceInt(comptime bits: u16) type {
         }
     };
 }
+
+const Word = SourceInt(16);
 
 const Sign = enum(i2) {
     negative = -1,
@@ -135,14 +131,13 @@ const CharIter = struct {
     }
 };
 
-pub fn tryInteger(string: []const u8) Error!?SourceInt(16) {
+pub fn tryInteger(string: []const u8) Error!?Word {
     if (string.len == 0)
         return null;
 
     var chars = CharIter.new(string);
 
     const first_sign = takeSign(&chars);
-
     const prefix = switch (try takePrefix(&chars)) {
         .regular => |prefix| prefix,
         .single_zero => return .{
@@ -159,7 +154,6 @@ pub fn tryInteger(string: []const u8) Error!?SourceInt(16) {
     };
 
     const second_sign = takeSign(&chars);
-
     const sign = try reconcileSigns(first_sign, second_sign);
 
     // Check if anything follows prefix (also covers "" case)
@@ -167,30 +161,44 @@ pub fn tryInteger(string: []const u8) Error!?SourceInt(16) {
     if (chars.peek() == null)
         return endOfInteger(sign, prefix);
 
-    var integer: SourceInt(16).Oversize = 0;
+    var oversize: Word.Oversize = 0;
 
     while (chars.next()) |char| {
         const digit = prefix.radix.parse_digit(char) orelse
             return endOfInteger(sign, prefix);
-
-        integer = math.mul(SourceInt(16).Oversize, integer, @intFromEnum(prefix.radix)) catch
-            return error.InvalidInteger;
-        integer = math.add(SourceInt(16).Oversize, integer, digit) catch
+        appendDigit(&oversize, prefix.radix, digit) catch
             return error.InvalidInteger;
     }
 
-    // Try to fit in the appropriate `Integer` variant
+    return try makeWord(oversize, sign, prefix.radix);
+}
+
+fn appendDigit(
+    oversize: *Word.Oversize,
+    radix: Radix,
+    digit: u8,
+) error{Overflow}!void {
+    oversize.* = try math.mul(Word.Oversize, oversize.*, @intFromEnum(radix));
+    oversize.* = try math.add(Word.Oversize, oversize.*, digit);
+}
+
+fn makeWord(oversize: Word.Oversize, sign: ?Sign, radix: Radix) Error!Word {
     // Always represent `0` as unsigned.
-    return if (sign == .negative and integer != 0) .{
-        .underlying = @bitCast(math.cast(SourceInt(16).Signed, -1 * integer) orelse
+    const signedness: Signedness =
+        if (sign == .negative and oversize != 0) .signed else .unsigned;
+
+    // Try to fit in the appropriate `SourceInt` variant
+    const underlying: Word.Unsigned = switch (signedness) {
+        .unsigned => @bitCast(math.cast(Word.Unsigned, oversize) orelse
             return error.InvalidInteger),
-        .signedness = .signed,
-        .radix = prefix.radix,
-    } else .{
-        .underlying = math.cast(SourceInt(16).Unsigned, integer) orelse
-            return error.InvalidInteger,
-        .signedness = .unsigned,
-        .radix = prefix.radix,
+        .signed => @bitCast(math.cast(Word.Signed, -1 * oversize) orelse
+            return error.InvalidInteger),
+    };
+
+    return .{
+        .underlying = underlying,
+        .signedness = signedness,
+        .radix = radix,
     };
 }
 
@@ -266,7 +274,7 @@ fn reconcileSigns(first_opt: ?Sign, second_opt: ?Sign) !?Sign {
     }
 }
 
-fn endOfInteger(sign: ?Sign, prefix: Prefix) !?SourceInt(16) {
+fn endOfInteger(sign: ?Sign, prefix: Prefix) !?Word {
     // Any of these conditions indicate an invalid integer token (as opposed to
     // a possibly-valid non-integer token)
     // Note that a leading decimal digit (`^[0-9]`) will lead to a pre-prefix
@@ -344,7 +352,7 @@ test tryInteger {
 
     const cases = [_]struct {
         []const u8,
-        Error!?SourceInt(16),
+        Error!?Word,
     }{
         // Non-integer and invalid
         .{ "", null },

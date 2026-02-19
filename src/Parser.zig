@@ -186,7 +186,7 @@ fn parseDirective(
         .fill => {
             const word = try parser.tokens.expectArgument(.word);
             try parser.appendLine(
-                .{ .raw_word = word.value.bitcastToUnsigned() },
+                .{ .raw_word = word.value.underlying },
                 word.span,
             );
         },
@@ -196,7 +196,7 @@ fn parseDirective(
             try parser.appendLineNTimes(
                 .{ .raw_word = 0x00 },
                 size.span,
-                size.value.bitcastToUnsigned(),
+                size.value.underlying,
             );
         },
 
