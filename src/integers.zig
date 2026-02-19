@@ -73,7 +73,7 @@ const Sign = enum(i2) {
 };
 
 const Prefix = struct {
-    radix: Radix,
+    radix: ?Radix,
     leading_zeros: bool,
 };
 
@@ -140,10 +140,8 @@ pub fn tryInteger(string: []const u8) Error!?Word {
     const first_sign = takeSign(&chars);
     const prefix = switch (try takePrefix(&chars)) {
         .regular => |prefix| prefix,
-        .single_zero => return .{
-            .underlying = 0,
-            .signedness = .unsigned,
-            .radix = .default,
+        .single_zero => {
+            return try makeWord(0, null, null);
         },
         .non_integer => {
             // Initial sign always indicates an integer
@@ -162,11 +160,12 @@ pub fn tryInteger(string: []const u8) Error!?Word {
         return endOfInteger(sign, prefix);
 
     var oversize: Word.Oversize = 0;
+    const real_radix = prefix.radix orelse Radix.default;
 
     while (chars.next()) |char| {
-        const digit = prefix.radix.parse_digit(char) orelse
+        const digit = real_radix.parse_digit(char) orelse
             return endOfInteger(sign, prefix);
-        appendDigit(&oversize, prefix.radix, digit) catch
+        appendDigit(&oversize, real_radix, digit) catch
             return error.InvalidInteger;
     }
 
@@ -182,7 +181,7 @@ fn appendDigit(
     oversize.* = try math.add(Word.Oversize, oversize.*, digit);
 }
 
-fn makeWord(oversize: Word.Oversize, sign: ?Sign, radix: Radix) Error!Word {
+fn makeWord(oversize: Word.Oversize, sign: ?Sign, radix: ?Radix) Error!Word {
     // Always represent `0` as unsigned.
     const signedness: Signedness =
         if (sign == .negative and oversize != 0) .signed else .unsigned;
@@ -231,7 +230,7 @@ fn takePrefix(chars: *CharIter) !union(enum) {
     const peeked = chars.peek() orelse
         return if (leading_zeros) .single_zero else .non_integer;
 
-    const radix: Radix, const next_char = switch (peeked) {
+    const radix: ?Radix, const next_char = switch (peeked) {
         'b', 'B' => .{ .binary, true },
         'o', 'O' => .{ .octal, true },
         'x', 'X' => .{ .hex, true },
@@ -242,7 +241,7 @@ fn takePrefix(chars: *CharIter) !union(enum) {
             .{ .decimal, true },
 
         // No prefix, caller can handle this character
-        '0'...'9' => .{ .default, false },
+        '0'...'9' => .{ null, false },
 
         // Disallow "0-..." and "0+..." as well as "--...", "-+...", etc.
         // Caller should have already consumed any sign character before
