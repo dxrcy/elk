@@ -84,14 +84,16 @@ pub fn report(reporter: *Reporter, diag: Diagnostic) Response {
 
     reporter.count.getPtr(level).* += 1;
 
+    const ctx: Ctx = .{ .reporter = reporter, .level = level };
+
     switch (diag) {
         .missing_origin => {
-            reporter.printTitle("Missing .ORIG directive", level, 0);
+            ctx.printTitle("Missing .ORIG directive");
         },
         .duplicate_label => |info| {
-            reporter.printTitle("Label already declared", level, 0);
-            reporter.printNote("First declared here:", info.existing, level, 1);
-            reporter.printNote("Tried to redeclare here:", info.new, level, 1);
+            ctx.printTitle("Label already declared");
+            ctx.deepen().printNote("First declared here:", info.existing);
+            ctx.deepen().printNote("Tried to redeclare here:", info.new);
         },
     }
 
@@ -101,53 +103,98 @@ pub fn report(reporter: *Reporter, diag: Diagnostic) Response {
     return response;
 }
 
-fn printTitle(
+// TODO: Rename?
+const Ctx = struct {
     reporter: *Reporter,
-    title: []const u8,
     level: Level,
-    depth: usize,
-) void {
-    reporter.printDepth(depth);
-    switch (level) {
-        .err => {
-            reporter.print("\x1b[31m", .{});
-            reporter.print("Error: ", .{});
-            reporter.print("\x1b[0m", .{});
-        },
-        .warn => {
-            reporter.print("\x1b[33m", .{});
-            reporter.print("Warning: ", .{});
-            reporter.print("\x1b[0m", .{});
-        },
+    depth: usize = 0,
+
+    // TODO: Rename
+    pub fn deepen(ctx: Ctx) Ctx {
+        var new_ctx = ctx;
+        new_ctx.depth += 1;
+        return new_ctx;
     }
-    reporter.print("{s}", .{title});
-    reporter.print("\n", .{});
-}
 
-fn printNote(
-    reporter: *Reporter,
-    note: []const u8,
-    span: Span,
-    level: Level,
-    depth: usize,
-) void {
-    _ = level;
-
-    reporter.print("  " ** 1, .{});
-    reporter.print("\x1b[36m", .{});
-    reporter.print("Note: ", .{});
-    reporter.print("\x1b[0m", .{});
-    reporter.print("{s}", .{note});
-    reporter.print("\n", .{});
-
-    reporter.printContext(span, depth + 1);
-}
-
-fn printDepth(reporter: *Reporter, depth: usize) void {
-    for (0..depth) |_| {
-        reporter.print("  ", .{});
+    fn printDepth(ctx: Ctx) void {
+        for (0..ctx.depth) |_|
+            ctx.print("  ", .{});
     }
-}
+
+    fn printTitle(ctx: *const Ctx, title: []const u8) void {
+        ctx.printDepth();
+
+        switch (ctx.level) {
+            .err => {
+                ctx.print("\x1b[31m", .{});
+                ctx.print("Error: ", .{});
+                ctx.print("\x1b[0m", .{});
+            },
+            .warn => {
+                ctx.print("\x1b[33m", .{});
+                ctx.print("Warning: ", .{});
+                ctx.print("\x1b[0m", .{});
+            },
+        }
+        ctx.print("{s}", .{title});
+        ctx.print("\n", .{});
+    }
+
+    fn printNote(ctx: Ctx, note: []const u8, span: Span) void {
+        ctx.print("  " ** 1, .{});
+        ctx.print("\x1b[36m", .{});
+        ctx.print("Note: ", .{});
+        ctx.print("\x1b[0m", .{});
+        ctx.print("{s}", .{note});
+        ctx.print("\n", .{});
+
+        ctx.deepen().printSource(span);
+    }
+
+    fn printSource(ctx: Ctx, span: Span) void {
+        const source = ctx.reporter.source orelse
+            unreachable;
+
+        const lines = span.getContainingLines(source);
+        var iter = std.mem.splitScalar(u8, lines.view(source), '\n');
+        while (iter.next()) |line_string| {
+            const line = Span.fromSlice(line_string, source);
+
+            ctx.printDepth();
+            ctx.print("\x1b[36m", .{});
+            ctx.print("| ", .{});
+            ctx.print("\x1b[0m", .{});
+            ctx.print("\x1b[3m", .{});
+            ctx.print("{s}", .{line_string});
+            ctx.print("\x1b[0m", .{});
+            ctx.print("\n", .{});
+
+            if (std.mem.trim(u8, line_string, &std.ascii.whitespace).len == 0) {
+                continue;
+            }
+
+            ctx.printDepth();
+            ctx.print("\x1b[36m", .{});
+            ctx.print("| ", .{});
+            for (0..line_string.len) |i| {
+                const index = line.offset + i;
+                if (index >= span.offset and index < span.end()) {
+                    ctx.print("^", .{});
+                } else {
+                    ctx.print(" ", .{});
+                }
+            }
+            ctx.print("\x1b[0m", .{});
+            ctx.print("\n", .{});
+        }
+    }
+
+    fn print(ctx: Ctx, comptime fmt: []const u8, args: anytype) void {
+        // TODO: Once this is the only callsite for `Reporter.print`, we can
+        // inline it here and remove the reporter method.
+        ctx.reporter.print(fmt, args);
+    }
+};
 
 pub fn new(io: Io) Reporter {
     return .{
@@ -191,7 +238,7 @@ pub fn err(
     reporter.print("\x1b[0m", .{});
     reporter.print("\n", .{});
 
-    reporter.printContext(token, 0);
+    reporter.printContextOld(token);
 
     reporter.flush();
     return error.Reported;
@@ -212,7 +259,7 @@ pub fn warn(
     reporter.print("\x1b[0m", .{});
     reporter.print("\n", .{});
 
-    reporter.printContext(token, 0);
+    reporter.printContextOld(token);
 
     reporter.flush();
 }
@@ -243,7 +290,7 @@ pub fn reportOld(
     }
 }
 
-fn printContext(reporter: *Reporter, span: Span, depth: usize) void {
+fn printContextOld(reporter: *Reporter, span: Span) void {
     const source = reporter.source orelse
         unreachable;
 
@@ -252,7 +299,6 @@ fn printContext(reporter: *Reporter, span: Span, depth: usize) void {
     while (iter.next()) |line_string| {
         const line = Span.fromSlice(line_string, source);
 
-        reporter.printDepth(depth);
         reporter.print("\x1b[36m", .{});
         reporter.print("  | ", .{});
         reporter.print("\x1b[0m", .{});
@@ -265,7 +311,6 @@ fn printContext(reporter: *Reporter, span: Span, depth: usize) void {
             continue;
         }
 
-        reporter.printDepth(depth);
         reporter.print("\x1b[36m", .{});
         reporter.print("  | ", .{});
         for (0..line_string.len) |i| {
