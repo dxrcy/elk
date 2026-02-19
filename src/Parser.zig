@@ -208,6 +208,16 @@ fn parseInstruction(
         .ldr,
         // TODO: Add rest.
     };
+    const branch_instructions = [_]struct { Token.Value.Instruction, Operand.Value.ConditionMask }{
+        .{ .brn, .n },
+        .{ .brz, .z },
+        .{ .brp, .p },
+        .{ .brnz, .nz },
+        .{ .brzp, .zp },
+        .{ .brnp, .np },
+        .{ .br, .nzp },
+        .{ .brnzp, .nzp },
+    };
     const trap_aliases = [_]struct { Token.Value.Instruction, u8 }{
         .{ .puts, 0x22 },
         .{ .halt, 0x25 },
@@ -222,13 +232,32 @@ fn parseInstruction(
             inline for (@typeInfo(Payload).@"struct".fields) |field| {
                 parser.tokens.discardOptional(.comma);
 
-                const token = try parser.tokens.expectArgument(
+                const operand = try parser.tokens.expectArgument(
                     .{ .operand = @FieldType(field.type, "value") },
                 );
-                @field(payload, field.name) = token;
+                @field(payload, field.name) = operand;
             }
 
             return @unionInit(Statement, @tagName(regular), payload);
+        }
+    }
+
+    inline for (branch_instructions) |pair| {
+        const alias, const condition = pair;
+        if (instruction == alias) {
+            const dest = try parser.tokens.expectArgument(
+                .{ .operand = Operand.Value.PCOffset9 },
+            );
+
+            return .{
+                .br = .{
+                    .condition = .{
+                        .span = span, // Use instruction span for operand
+                        .value = condition,
+                    },
+                    .dest = dest,
+                },
+            };
         }
     }
 
@@ -260,6 +289,7 @@ fn ensureNoCurrentLabel(parser: *Parser) void {
 pub fn resolveLabels(parser: *Parser) void {
     for (parser.air.lines.items, 0..) |*line, index| {
         switch (line.statement) {
+            .br => |*instruction| parser.resolveFieldLabel(&instruction.dest, index),
             .jsr => |*instruction| parser.resolveFieldLabel(&instruction.dest, index),
             .lea => |*instruction| parser.resolveFieldLabel(&instruction.src, index),
             // TODO: Add rest.

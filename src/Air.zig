@@ -20,6 +20,7 @@ pub const Operand = struct {
     pub const Offset6 = Spanned(Value.Offset6);
     pub const PCOffset9 = Spanned(Value.PCOffset9);
     pub const PCOffset11 = Spanned(Value.PCOffset11);
+    pub const ConditionMask = Spanned(Value.ConditionMask);
 
     pub fn Spanned(comptime K: type) type {
         return struct {
@@ -76,6 +77,20 @@ pub const Operand = struct {
                 return @as(u11, @bitCast(self.resolved));
             }
         };
+
+        // TODO: Rename ?
+        pub const ConditionMask = enum(u3) {
+            n = 0b100,
+            z = 0b010,
+            p = 0b001,
+            nz = 0b110,
+            zp = 0b011,
+            np = 0b101,
+            nzp = 0b111,
+            pub fn bits(self: @This()) u16 {
+                return @intFromEnum(self);
+            }
+        };
     };
 };
 
@@ -93,22 +108,22 @@ pub const Statement = union(enum) {
         src_a: Operand.Register,
         src_b: Operand.RegImm5,
     },
-
+    br: struct {
+        condition: Operand.ConditionMask,
+        dest: Operand.PCOffset9,
+    },
     jsr: struct {
         dest: Operand.PCOffset11,
     },
-
     ldr: struct {
         dest: Operand.Register,
         src: Operand.Register,
         offset: Operand.Offset6,
     },
-
     lea: struct {
         dest: Operand.Register,
         src: Operand.PCOffset9,
     },
-
     trap: struct {
         vect: Operand.TrapVect,
     },
@@ -182,6 +197,9 @@ pub const Statement = union(enum) {
                                         },
                                     }
                                 },
+                                Operand.Value.ConditionMask => {
+                                    try writer.print("ConditionMask = 0b{b:03}", .{operand.value.bits()});
+                                },
                                 else => comptime unreachable,
                             }
                             try writer.print("\n", .{});
@@ -235,6 +253,12 @@ fn encode(statement: Statement) u16 {
             raw |= operands.dest.value.bits() << 9;
             raw |= operands.src_a.value.bits() << 6;
             raw |= operands.src_b.value.bits();
+            return raw;
+        },
+        .br => |operands| {
+            var raw: u16 = 0x0000;
+            raw |= operands.condition.value.bits() << 9;
+            raw |= operands.dest.value.bits();
             return raw;
         },
         .jsr => |operands| {
