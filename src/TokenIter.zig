@@ -41,6 +41,8 @@ fn getNextSpan(tokens: *TokenIter) error{Eof}!Span {
         return error.Eof;
 }
 
+/// Note that token may **not** be supported in the current mode; use
+/// `ensureSupported` before using.
 fn nextAny(tokens: *TokenIter) error{ Reported, Eof }!Token {
     const span = try tokens.getNextSpan();
     tokens.peeked = null;
@@ -51,6 +53,8 @@ fn nextAny(tokens: *TokenIter) error{ Reported, Eof }!Token {
 }
 
 /// Does **not** report failure to parse token.
+/// Note that token may **not** be supported in the current mode; use
+/// `ensureSupported` before using.
 fn peekAny(tokens: *TokenIter) error{ InvalidTokenPeeked, Eof }!Token {
     const span = try tokens.getNextSpan();
     tokens.peeked = span;
@@ -59,8 +63,6 @@ fn peekAny(tokens: *TokenIter) error{ InvalidTokenPeeked, Eof }!Token {
         return error.InvalidTokenPeeked;
 }
 
-// TODO: Rename for sure
-// TODO: Add note to nextAny/peekAny
 fn ensureSupported(tokens: *const TokenIter, token: Token) error{Reported}!void {
     switch (token.value) {
         .string => |string| {
