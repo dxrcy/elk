@@ -54,6 +54,8 @@ pub fn parse(parser: *Parser) error{OutOfMemory}!void {
                 continue;
             },
             error.Eof => {
+                // Move to end of `parse`, so that missing_end appears after
+                // missing_origin
                 parser.reporter.report(.{ .missing_end = .{
                     .last_token = parser.tokens.latest,
                 } }).proceed();
@@ -74,6 +76,12 @@ pub fn parse(parser: *Parser) error{OutOfMemory}!void {
         } }).proceed();
         parser.air.origin = 0x3000;
     }
+
+    if (parser.current_label) |existing| {
+        parser.reporter.report(.{ .eof_label = .{
+            .label = existing,
+        } }).proceed();
+    }
 }
 
 fn parseLine(parser: *Parser) InnerError!Control {
@@ -81,7 +89,12 @@ fn parseLine(parser: *Parser) InnerError!Control {
 
     switch (token.value) {
         .label => {
-            parser.ensureNoCurrentLabel();
+            if (parser.current_label) |existing| {
+                parser.reporter.report(.{ .shadowed_label = .{
+                    .existing = existing,
+                    .new = token.span,
+                } }).proceed();
+            }
 
             if (parser.getExistingLabel(token.span.view(parser.source))) |existing_label| {
                 try parser.reporter.report(.{ .duplicate_label = .{
@@ -98,12 +111,15 @@ fn parseLine(parser: *Parser) InnerError!Control {
             // This should also be checked when the second label is parsed, but
             // this reports a more appropriate message
             if (try parser.tokens.nextMatching(.label)) |label| {
-                try parser.reporter.err(error.UnexpectedLabel, label.span);
+                parser.reporter.report(.{ .unexpected_label = .{
+                    .existing = token.span,
+                    .new = label.span,
+                } }).proceed(); // May be followed by a (valid) instruction
             }
         },
 
         .directive => |directive| {
-            const control = try parser.parseDirective(directive);
+            const control = try parser.parseDirective(directive, token.span);
             try parser.tokens.expectEol();
             return control;
         },
@@ -169,15 +185,28 @@ fn appendLineNTimes(
 fn parseDirective(
     parser: *Parser,
     directive: Token.Value.Directive,
+    span: Span,
 ) InnerError!Control {
     switch (directive) {
         .end => {
-            parser.ensureNoCurrentLabel();
+            if (parser.current_label) |label| {
+                parser.reporter.report(.{ .useless_label = .{
+                    .label = label,
+                    .token = span,
+                } }).proceed();
+            }
             return .@"break";
         },
 
         .orig => {
-            parser.ensureNoCurrentLabel();
+            // FIXME: This should technically be removed I think ??
+            if (parser.current_label) |label| {
+                parser.reporter.report(.{ .useless_label = .{
+                    .label = label,
+                    .token = span,
+                } }).proceed();
+            }
+
             const origin = try parser.tokens.expectArgument(.word);
             if (parser.air.lines.items.len > 0) {
                 try parser.reporter.err(error.LateOrigin, origin.span);
@@ -332,13 +361,6 @@ fn parseInstruction(
                 .vect = .{ .span = span, .value = .{ .inner = vect } },
             } };
         },
-    }
-}
-
-fn ensureNoCurrentLabel(parser: *Parser) void {
-    if (parser.current_label) |label| {
-        parser.reporter.reportOld(.standard, error.UselessLabel, label) catch
-            {};
     }
 }
 

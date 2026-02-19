@@ -40,6 +40,22 @@ pub const Diagnostic = union(enum) {
         existing: Span,
         new: Span,
     },
+    // TODO: Rename
+    unexpected_label: struct {
+        existing: Span,
+        new: Span,
+    },
+    shadowed_label: struct {
+        existing: Span,
+        new: Span,
+    },
+    useless_label: struct {
+        label: Span,
+        token: Span,
+    },
+    eof_label: struct {
+        label: Span,
+    },
 };
 
 pub const Response = enum {
@@ -71,20 +87,25 @@ pub const Response = enum {
     }
 };
 
+// TODO: Move to a method of Response / Mode ?
+fn standardResponse(mode: Mode) Response {
+    return switch (mode) {
+        .strict => .major,
+        .normal => .minor,
+        .quiet => .pass,
+    };
+}
+
 // TODO: For a "nicer" api, we can split `diag` into `tag, payload` and use `@unionInit`
 pub fn report(reporter: *Reporter, diag: Diagnostic) Response {
     const response: Response = switch (diag) {
-        .missing_origin => switch (reporter.mode) {
-            .strict => .major,
-            .normal => .minor,
-            .quiet => .pass,
-        },
-        .missing_end => switch (reporter.mode) {
-            .strict => .major,
-            .normal => .minor,
-            .quiet => .pass,
-        },
+        .missing_origin => standardResponse(reporter.mode),
+        .missing_end => standardResponse(reporter.mode),
         .duplicate_label => .major,
+        .unexpected_label => .major,
+        .shadowed_label => standardResponse(reporter.mode),
+        .useless_label => standardResponse(reporter.mode),
+        .eof_label => standardResponse(reporter.mode),
     };
 
     const level: Level = switch (response) {
@@ -118,8 +139,31 @@ pub fn report(reporter: *Reporter, diag: Diagnostic) Response {
         },
         .duplicate_label => |info| {
             ctx.printTitle("Label already declared");
-            ctx.deepen().printNote("First declared here:", info.existing);
+            ctx.deepen().printNote("Label is first declared here:", info.existing);
             ctx.deepen().printNote("Tried to redeclare here:", info.new);
+        },
+        .unexpected_label => |info| {
+            ctx.printTitle("Multiple labels cannot be declared on the same line");
+            ctx.deepen().printNote("First label declared here:", info.existing);
+            ctx.deepen().printNote("Another label declared on the same line:", info.new);
+        },
+        .shadowed_label => |info| {
+            ctx.printTitle("Shadowed label has no use:");
+            ctx.deepen().printNote("First label declared here:", info.existing);
+            ctx.deepen().printNote("Another label declared in the same position:", info.new);
+        },
+        .useless_label => |info| {
+            ctx.printTitle("Label is useless in this position");
+            ctx.deepen().printNote("Label declared here:", info.label);
+            ctx.deepen().printNote("Token cannot be annotated with label", info.token);
+        },
+        .eof_label => |info| {
+            ctx.printTitle("Label is useless in this position");
+            ctx.deepen().printNote("Label declared here:", info.label);
+            ctx.deepen().printNote(
+                "Label is not followed by any token",
+                .{ .offset = source.len - 2, .len = 2 },
+            );
         },
     }
 
