@@ -77,6 +77,8 @@ fn parseLine(parser: *Parser) InnerError!Control {
             parser.current_label = token.span;
             parser.tokens.discardOptional(.colon);
 
+            // TODO: CHECK LABEL NAME DOES NOT ALREADY EXIST
+
             // Disallow two labels on same line
             // This should also be checked when the second label is parsed, but
             // this reports a more appropriate message
@@ -122,6 +124,33 @@ fn appendLine(
     parser.current_label = null;
 }
 
+/// Note that the current label is only applied to the *first* statement in the
+/// sequence.
+/// Equivalent to calling `appendLine` `n` times, but only resizes once at most.
+fn appendLineNTimes(
+    parser: *Parser,
+    statement: Statement,
+    span: Span,
+    n: usize,
+) error{OutOfMemory}!void {
+    assert(n > 0);
+
+    try parser.air.lines.ensureUnusedCapacity(parser.allocator, n);
+
+    parser.air.lines.appendAssumeCapacity(.{
+        .label = parser.current_label,
+        .statement = statement,
+        .span = span,
+    });
+    parser.current_label = null;
+
+    parser.air.lines.appendNTimesAssumeCapacity(.{
+        .label = null,
+        .statement = statement,
+        .span = span,
+    }, n - 1);
+}
+
 fn parseDirective(
     parser: *Parser,
     directive: Token.Value.Directive,
@@ -156,12 +185,11 @@ fn parseDirective(
 
         .blkw => {
             const size = try parser.tokens.expectArgument(.word);
-            for (0..size.value.bitcastToUnsigned()) |_| {
-                try parser.appendLine(
-                    .{ .raw_word = 0x00 },
-                    size.span,
-                );
-            }
+            try parser.appendLineNTimes(
+                .{ .raw_word = 0x00 },
+                size.span,
+                size.value.bitcastToUnsigned(),
+            );
         },
 
         .stringz => {
