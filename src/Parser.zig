@@ -276,16 +276,16 @@ fn parseInstruction(
                 .rti => parser.reporter.warn(error.InterruptInstruction, span),
                 else => {},
             }
-            const Payload = @FieldType(Statement, @tagName(regular));
-            var payload: Payload = undefined;
-            inline for (@typeInfo(Payload).@"struct".fields) |field| {
+            const Operands = @FieldType(Statement, @tagName(regular));
+            var operands: Operands = undefined;
+            inline for (@typeInfo(Operands).@"struct".fields) |field| {
                 parser.tokens.discardOptional(.comma);
                 const operand = try parser.tokens.expectArgument(
                     .{ .operand = @FieldType(field.type, "value") },
                 );
-                @field(payload, field.name) = operand;
+                @field(operands, field.name) = operand;
             }
-            return @unionInit(Statement, @tagName(regular), payload);
+            return @unionInit(Statement, @tagName(regular), operands);
         },
 
         inline // Branch instructions
