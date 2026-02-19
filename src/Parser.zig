@@ -65,6 +65,11 @@ pub fn parse(parser: *Parser) error{OutOfMemory}!void {
             .@"break" => break,
         }
     }
+
+    if (parser.air.origin == null) {
+        parser.reporter.warn(error.MissingOrigin, .emptyAt(0));
+        parser.air.origin = 0x3000;
+    }
 }
 
 fn parseLine(parser: *Parser) InnerError!Control {
