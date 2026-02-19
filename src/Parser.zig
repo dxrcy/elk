@@ -54,7 +54,8 @@ pub fn parse(parser: *Parser) error{OutOfMemory}!void {
                 continue;
             },
             error.Eof => {
-                parser.reporter.warn(error.ExpectedEnd, .emptyAt(parser.source.len));
+                parser.reporter.report(.extension, error.ExpectedEnd, .emptyAt(parser.source.len)) catch
+                    {};
                 break;
             },
             error.OutOfMemory => |other| return other,
@@ -67,7 +68,8 @@ pub fn parse(parser: *Parser) error{OutOfMemory}!void {
     }
 
     if (parser.air.origin == null) {
-        parser.reporter.warn(error.MissingOrigin, .emptyAt(0));
+        parser.reporter.report(.extension, error.MissingOrigin, .emptyAt(0)) catch
+            {};
         parser.air.origin = 0x3000;
     }
 }
@@ -268,10 +270,6 @@ fn parseInstruction(
         .str,
         .trap,
         => |regular| {
-            switch (regular) {
-                .rti => parser.reporter.warn(error.InterruptInstruction, span),
-                else => {},
-            }
             const Operands = @FieldType(Statement, @tagName(regular));
             var operands: Operands = undefined;
             inline for (@typeInfo(Operands).@"struct".fields) |field| {
@@ -334,7 +332,8 @@ fn parseInstruction(
 
 fn ensureNoCurrentLabel(parser: *Parser) void {
     if (parser.current_label) |label| {
-        parser.reporter.warn(error.UselessLabel, label);
+        parser.reporter.report(.standard, error.UselessLabel, label) catch
+            {};
     }
 }
 

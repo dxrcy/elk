@@ -18,6 +18,14 @@ writer: Io.File.Writer,
 source: ?[]const u8,
 io: Io,
 
+mode: Mode,
+
+pub const Mode = enum {
+    strict,
+    normal,
+    quiet,
+};
+
 const Level = enum { err, warn };
 
 // TODO:
@@ -33,6 +41,7 @@ pub fn new(io: Io) Reporter {
         .buffer = undefined,
         .writer = undefined,
         .source = null,
+        .mode = .normal,
         .io = io,
     };
 }
@@ -45,6 +54,10 @@ pub fn init(reporter: *Reporter) !void {
 pub fn setSource(reporter: *Reporter, source: []const u8) void {
     assert(reporter.source == null);
     reporter.source = source;
+}
+
+pub fn setMode(reporter: *Reporter, mode: Mode) void {
+    reporter.mode = mode;
 }
 
 pub fn err(
@@ -71,7 +84,6 @@ pub fn err(
 
 pub fn warn(
     reporter: *Reporter,
-    // TODO:
     code: anyerror,
     token: Span,
 ) void {
@@ -88,6 +100,32 @@ pub fn warn(
     reporter.printContext(token);
 
     reporter.flush();
+}
+
+pub const Category = enum {
+    standard,
+    extension,
+};
+
+// TODO: Rename
+pub fn report(
+    reporter: *Reporter,
+    category: Category,
+    code: anyerror,
+    token: Span,
+) error{Reported}!void {
+    switch (category) {
+        .standard => switch (reporter.mode) {
+            .strict => try reporter.err(code, token),
+            .normal => reporter.warn(code, token),
+            .quiet => {},
+        },
+        .extension => switch (reporter.mode) {
+            .strict => try reporter.err(code, token),
+            .normal => reporter.warn(code, token),
+            .quiet => {},
+        },
+    }
 }
 
 fn printContext(reporter: *Reporter, span: Span) void {
