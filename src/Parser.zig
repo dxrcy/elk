@@ -68,7 +68,9 @@ pub fn parse(parser: *Parser) error{OutOfMemory}!void {
     }
 
     if (parser.air.origin == null) {
-        parser.reporter.report(.missing_origin).proceed();
+        parser.reporter.report(.{ .missing_origin = .{
+            .first_token = parser.air.getFirstToken(),
+        } }).proceed();
         parser.air.origin = 0x3000;
     }
 }

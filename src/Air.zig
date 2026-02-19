@@ -278,6 +278,13 @@ pub fn deinit(air: *Air, allocator: Allocator) void {
     air.lines.deinit(allocator);
 }
 
+pub fn getFirstToken(air: *const Air) ?Span {
+    if (air.lines.items.len == 0)
+        return null;
+    return air.lines.items[0].label orelse
+        air.lines.items[0].span;
+}
+
 pub fn emit(air: *const Air, writer: *Io.Writer) !void {
     try writer.writeInt(u16, air.origin.?, .big);
 

@@ -30,7 +30,9 @@ pub const Mode = enum {
 const Level = enum { err, warn };
 
 pub const Diagnostic = union(enum) {
-    missing_origin,
+    missing_origin: struct {
+        first_token: ?Span,
+    },
     duplicate_label: struct {
         existing: Span,
         new: Span,
@@ -66,6 +68,7 @@ pub const Response = enum {
     }
 };
 
+// TODO: For a "nicer" api, we can split `diag` into `tag, payload` and use `@unionInit`
 pub fn report(reporter: *Reporter, diag: Diagnostic) Response {
     const response: Response = switch (diag) {
         .missing_origin => switch (reporter.mode) {
@@ -87,8 +90,12 @@ pub fn report(reporter: *Reporter, diag: Diagnostic) Response {
     const ctx: Ctx = .{ .reporter = reporter, .level = level };
 
     switch (diag) {
-        .missing_origin => {
+        .missing_origin => |info| {
             ctx.printTitle("Missing .ORIG directive");
+            ctx.deepen().printNote(
+                "Origin should be declared at start of file:",
+                info.first_token orelse .{ .offset = 0, .len = 1 },
+            );
         },
         .duplicate_label => |info| {
             ctx.printTitle("Label already declared");
@@ -108,6 +115,7 @@ const Ctx = struct {
     reporter: *Reporter,
     level: Level,
     depth: usize = 0,
+    // TODO: Add color/style fields
 
     // TODO: Rename
     pub fn deepen(ctx: Ctx) Ctx {
@@ -118,20 +126,21 @@ const Ctx = struct {
 
     fn printDepth(ctx: Ctx) void {
         for (0..ctx.depth) |_|
-            ctx.print("  ", .{});
+            ctx.print(" " ** 4, .{});
     }
 
     fn printTitle(ctx: *const Ctx, title: []const u8) void {
         ctx.printDepth();
-
         switch (ctx.level) {
             .err => {
                 ctx.print("\x1b[31m", .{});
+                ctx.print("\x1b[1m", .{});
                 ctx.print("Error: ", .{});
                 ctx.print("\x1b[0m", .{});
             },
             .warn => {
                 ctx.print("\x1b[33m", .{});
+                ctx.print("\x1b[1m", .{});
                 ctx.print("Warning: ", .{});
                 ctx.print("\x1b[0m", .{});
             },
@@ -141,7 +150,7 @@ const Ctx = struct {
     }
 
     fn printNote(ctx: Ctx, note: []const u8, span: Span) void {
-        ctx.print("  " ** 1, .{});
+        ctx.printDepth();
         ctx.print("\x1b[36m", .{});
         ctx.print("Note: ", .{});
         ctx.print("\x1b[0m", .{});
@@ -160,6 +169,7 @@ const Ctx = struct {
         while (iter.next()) |line_string| {
             const line = Span.fromSlice(line_string, source);
 
+            // TODO: Print line numbers
             ctx.printDepth();
             ctx.print("\x1b[36m", .{});
             ctx.print("| ", .{});
@@ -222,6 +232,7 @@ pub fn setMode(reporter: *Reporter, mode: Mode) void {
     reporter.mode = mode;
 }
 
+// TODO: REMOVE
 pub fn err(
     reporter: *Reporter,
     // TODO:
@@ -244,6 +255,7 @@ pub fn err(
     return error.Reported;
 }
 
+// TODO: REMOVE
 pub fn warn(
     reporter: *Reporter,
     code: anyerror,
@@ -263,13 +275,13 @@ pub fn warn(
 
     reporter.flush();
 }
-
+// TODO: REMOVE
 pub const Category = enum {
     standard,
     extension,
 };
 
-// TODO: Rename
+// TODO: REMOVE
 pub fn reportOld(
     reporter: *Reporter,
     category: Category,
@@ -290,6 +302,7 @@ pub fn reportOld(
     }
 }
 
+// TODO: REMOVE
 fn printContextOld(reporter: *Reporter, span: Span) void {
     const source = reporter.source orelse
         unreachable;
