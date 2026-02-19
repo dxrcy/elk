@@ -66,6 +66,7 @@ pub const Operand = struct {
             unresolved,
             resolved: i9,
             pub fn bits(self: @This()) u16 {
+                assert(self == .resolved);
                 return @as(u9, @bitCast(self.resolved));
             }
         };
@@ -74,6 +75,7 @@ pub const Operand = struct {
             unresolved,
             resolved: i11,
             pub fn bits(self: @This()) u16 {
+                assert(self == .resolved);
                 return @as(u11, @bitCast(self.resolved));
             }
         };
@@ -129,6 +131,14 @@ pub const Statement = union(enum) {
     jsrr: struct {
         base: Operand.Register,
     },
+    ld: struct {
+        dest: Operand.Register,
+        src: Operand.PCOffset9,
+    },
+    ldi: struct {
+        dest: Operand.Register,
+        src: Operand.PCOffset9,
+    },
     ldr: struct {
         dest: Operand.Register,
         src: Operand.Register,
@@ -137,6 +147,10 @@ pub const Statement = union(enum) {
     lea: struct {
         dest: Operand.Register,
         src: Operand.PCOffset9,
+    },
+    not: struct {
+        dest: Operand.Register,
+        src: Operand.Register,
     },
     trap: struct {
         vect: Operand.TrapVect,
@@ -297,8 +311,20 @@ fn encode(statement: Statement) u16 {
             raw |= operands.base.value.bits() << 6;
             return raw;
         },
-        .ldr => |operands| {
+        .ld => |operands| {
+            var raw: u16 = 0x2000;
+            raw |= operands.dest.value.bits() << 9;
+            raw |= operands.src.value.bits();
+            return raw;
+        },
+        .ldi => |operands| {
             var raw: u16 = 0xa000;
+            raw |= operands.dest.value.bits() << 9;
+            raw |= operands.src.value.bits();
+            return raw;
+        },
+        .ldr => |operands| {
+            var raw: u16 = 0x6000;
             raw |= operands.dest.value.bits() << 9;
             raw |= operands.src.value.bits() << 6;
             raw |= operands.offset.value.bits();
@@ -308,6 +334,13 @@ fn encode(statement: Statement) u16 {
             var raw: u16 = 0xe000;
             raw |= operands.dest.value.bits() << 9;
             raw |= operands.src.value.bits();
+            return raw;
+        },
+        .not => |operands| {
+            var raw: u16 = 0x9000;
+            raw |= operands.dest.value.bits() << 9;
+            raw |= operands.src.value.bits() << 6;
+            raw |= 0b111111;
             return raw;
         },
         .trap => |operands| {

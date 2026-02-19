@@ -207,7 +207,12 @@ fn parseInstruction(
         .jmp,
         .jsr,
         .jsrr,
+        .ld,
+        .ldi,
+        .ldr,
         .lea,
+        .not,
+        .trap,
         => |regular| {
             const Payload = @FieldType(Statement, @tagName(regular));
             var payload: Payload = undefined;
@@ -255,10 +260,6 @@ fn parseInstruction(
             } };
         },
 
-        // .jsr => {
-        //     unreachable;
-        // },
-
         // TODO: Remove when all instructions/aliases are added above
         else => {
             std.debug.panic("unimplemented instruction `{t}`", .{instruction});
@@ -278,6 +279,7 @@ pub fn resolveLabels(parser: *Parser) void {
         switch (line.statement) {
             .br => |*instruction| parser.resolveFieldLabel(&instruction.dest, index),
             .jsr => |*instruction| parser.resolveFieldLabel(&instruction.dest, index),
+            .ld => |*instruction| parser.resolveFieldLabel(&instruction.src, index),
             .lea => |*instruction| parser.resolveFieldLabel(&instruction.src, index),
             // TODO: Add rest.
             else => {},
