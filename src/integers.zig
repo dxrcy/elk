@@ -15,6 +15,7 @@ pub fn SourceInt(comptime bits: u16) type {
         underlying: Unsigned,
         signedness: Signedness,
         radix: ?Radix,
+        // TODO: Add field for whether integer uses 'extension' syntax. Eg. `x-1`
 
         const Unsigned = @Int(.unsigned, bits);
         const Signed = @Int(.signed, bits);

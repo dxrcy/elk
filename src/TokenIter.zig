@@ -63,7 +63,20 @@ fn peekAny(tokens: *TokenIter) error{ InvalidTokenPeeked, Eof }!Token {
 // TODO: Add note to nextAny/peekAny
 fn ensureSupported(tokens: *const TokenIter, token: Token) error{Reported}!void {
     switch (token.value) {
-        // TODO:
+        .string => |string| {
+            const value = string.in(token.span).view(tokens.source);
+            if (std.mem.containsAtLeast(u8, value, 1, "\n")) {
+                tokens.reporter.warn(error.MultilineString, token.span);
+            }
+        },
+        .integer => |integer| {
+            if (integer.radix) |radix| switch (radix) {
+                .binary, .octal => {
+                    tokens.reporter.warn(error.ExtensionRadix, token.span);
+                },
+                else => {},
+            };
+        },
         else => {},
     }
 }
