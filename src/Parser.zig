@@ -265,8 +265,17 @@ fn parseInstruction(
         .ldr,
         .lea,
         .not,
+        .ret,
+        .rti,
+        .st,
+        .sti,
+        .str,
         .trap,
         => |regular| {
+            switch (regular) {
+                .rti => parser.reporter.warn(error.InterruptInstruction, span),
+                else => {},
+            }
             const Payload = @FieldType(Statement, @tagName(regular));
             var payload: Payload = undefined;
             inline for (@typeInfo(Payload).@"struct".fields) |field| {
@@ -324,11 +333,6 @@ fn parseInstruction(
                 .vect = .{ .span = span, .value = .{ .inner = vect } },
             } };
         },
-
-        // TODO: Remove when all instructions/aliases are added above
-        else => {
-            std.debug.panic("unimplemented instruction `{t}`", .{instruction});
-        },
     }
 }
 
@@ -352,11 +356,13 @@ fn getExistingLabel(parser: *const Parser, new_label: []const u8) ?Span {
 pub fn resolveLabels(parser: *Parser) void {
     for (parser.air.lines.items, 0..) |*line, index| {
         switch (line.statement) {
-            .br => |*instruction| parser.resolveFieldLabel(&instruction.dest, index),
-            .jsr => |*instruction| parser.resolveFieldLabel(&instruction.dest, index),
-            .ld => |*instruction| parser.resolveFieldLabel(&instruction.src, index),
-            .lea => |*instruction| parser.resolveFieldLabel(&instruction.src, index),
-            // TODO: Add rest.
+            .br => |*operands| parser.resolveFieldLabel(&operands.dest, index),
+            .jsr => |*operands| parser.resolveFieldLabel(&operands.dest, index),
+            .ld => |*operands| parser.resolveFieldLabel(&operands.src, index),
+            .ldi => |*operands| parser.resolveFieldLabel(&operands.src, index),
+            .lea => |*operands| parser.resolveFieldLabel(&operands.src, index),
+            .st => |*operands| parser.resolveFieldLabel(&operands.dest, index),
+            .sti => |*operands| parser.resolveFieldLabel(&operands.dest, index),
             else => {},
         }
     }

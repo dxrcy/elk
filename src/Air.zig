@@ -152,6 +152,21 @@ pub const Statement = union(enum) {
         dest: Operand.Register,
         src: Operand.Register,
     },
+    ret: struct {},
+    rti: struct {},
+    st: struct {
+        src: Operand.Register,
+        dest: Operand.PCOffset9,
+    },
+    sti: struct {
+        src: Operand.Register,
+        dest: Operand.PCOffset9,
+    },
+    str: struct {
+        src: Operand.Register,
+        dest: Operand.Register,
+        offset: Operand.Offset6,
+    },
     trap: struct {
         vect: Operand.TrapVect,
     },
@@ -341,6 +356,31 @@ fn encode(statement: Statement) u16 {
             raw |= operands.dest.value.bits() << 9;
             raw |= operands.src.value.bits() << 6;
             raw |= 0b111111;
+            return raw;
+        },
+        .ret => {
+            return 0xc1c0;
+        },
+        .rti => {
+            return 0x8000;
+        },
+        .st => |operands| {
+            var raw: u16 = 0x3000;
+            raw |= operands.dest.value.bits() << 9;
+            raw |= operands.src.value.bits();
+            return raw;
+        },
+        .sti => |operands| {
+            var raw: u16 = 0xB000;
+            raw |= operands.dest.value.bits() << 9;
+            raw |= operands.src.value.bits();
+            return raw;
+        },
+        .str => |operands| {
+            var raw: u16 = 0x7000;
+            raw |= operands.dest.value.bits() << 9;
+            raw |= operands.src.value.bits() << 6;
+            raw |= operands.offset.value.bits();
             return raw;
         },
         .trap => |operands| {
