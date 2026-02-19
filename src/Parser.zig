@@ -54,8 +54,7 @@ pub fn parse(parser: *Parser) error{OutOfMemory}!void {
                 continue;
             },
             error.Eof => {
-                parser.reporter.err(error.ExpectedEnd, .emptyAt(parser.source.len)) catch
-                    {}; // Ignore
+                parser.reporter.warn(error.ExpectedEnd, .emptyAt(parser.source.len));
                 break;
             },
             error.OutOfMemory => |other| return other,
@@ -330,8 +329,7 @@ fn parseInstruction(
 
 fn ensureNoCurrentLabel(parser: *Parser) void {
     if (parser.current_label) |label| {
-        parser.reporter.err(error.UselessLabel, label) catch
-            {}; // Ignore; caller can continue parsing line
+        parser.reporter.warn(error.UselessLabel, label);
     }
 }
 
