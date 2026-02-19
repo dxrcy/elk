@@ -77,47 +77,66 @@ test getWholeLine {
     const source = lines[0] ++ "\n" ++ lines[1] ++ "\n" ++ lines[2] ++ "\n" ++ lines[3];
     comptime assert(source.len == 15);
 
-    const cases = [_]struct { Span, usize, bool }{
-        .{ .{ .offset = 0, .len = 0 }, 0, false },
-        .{ .{ .offset = 1, .len = 0 }, 0, false },
-        .{ .{ .offset = 4, .len = 0 }, 0, false },
-        .{ .{ .offset = 5, .len = 0 }, 0, false },
-        .{ .{ .offset = 0, .len = 1 }, 0, false },
-        .{ .{ .offset = 1, .len = 1 }, 0, false },
-        .{ .{ .offset = 4, .len = 1 }, 0, false },
-        .{ .{ .offset = 0, .len = 5 }, 0, false },
-        .{ .{ .offset = 5, .len = 1 }, 0, true },
-        .{ .{ .offset = 6, .len = 0 }, 1, false },
-        .{ .{ .offset = 8, .len = 0 }, 1, false },
-        .{ .{ .offset = 9, .len = 0 }, 1, false },
-        .{ .{ .offset = 6, .len = 1 }, 1, false },
-        .{ .{ .offset = 8, .len = 1 }, 1, false },
-        .{ .{ .offset = 6, .len = 3 }, 1, false },
-        .{ .{ .offset = 9, .len = 1 }, 1, true },
-        .{ .{ .offset = 10, .len = 0 }, 2, false },
-        .{ .{ .offset = 10, .len = 1 }, 2, true },
-        .{ .{ .offset = 11, .len = 0 }, 3, false },
-        .{ .{ .offset = 12, .len = 0 }, 3, false },
-        .{ .{ .offset = 14, .len = 0 }, 3, false },
-        .{ .{ .offset = 11, .len = 1 }, 3, false },
-        .{ .{ .offset = 12, .len = 1 }, 3, false },
-        .{ .{ .offset = 11, .len = 4 }, 3, false },
-        .{ .{ .offset = 15, .len = 0 }, 3, false }, // emptyAt(source.len)
+    const cases = [_]struct { Span, ?[]const u8 }{
+        // Single-line spans
+        .{ .{ .offset = 0, .len = 0 }, lines[0] },
+        .{ .{ .offset = 1, .len = 0 }, lines[0] },
+        .{ .{ .offset = 4, .len = 0 }, lines[0] },
+        .{ .{ .offset = 5, .len = 0 }, lines[0] },
+        .{ .{ .offset = 5, .len = 1 }, lines[0] },
+        .{ .{ .offset = 0, .len = 1 }, lines[0] },
+        .{ .{ .offset = 1, .len = 1 }, lines[0] },
+        .{ .{ .offset = 4, .len = 1 }, lines[0] },
+        .{ .{ .offset = 0, .len = 5 }, lines[0] },
+        .{ .{ .offset = 6, .len = 0 }, lines[1] },
+        .{ .{ .offset = 8, .len = 0 }, lines[1] },
+        .{ .{ .offset = 9, .len = 0 }, lines[1] },
+        .{ .{ .offset = 9, .len = 1 }, lines[1] },
+        .{ .{ .offset = 6, .len = 1 }, lines[1] },
+        .{ .{ .offset = 8, .len = 1 }, lines[1] },
+        .{ .{ .offset = 6, .len = 3 }, lines[1] },
+        .{ .{ .offset = 10, .len = 0 }, lines[2] },
+        .{ .{ .offset = 10, .len = 1 }, lines[2] },
+        .{ .{ .offset = 11, .len = 0 }, lines[3] },
+        .{ .{ .offset = 12, .len = 0 }, lines[3] },
+        .{ .{ .offset = 14, .len = 0 }, lines[3] },
+        .{ .{ .offset = 11, .len = 1 }, lines[3] },
+        .{ .{ .offset = 12, .len = 1 }, lines[3] },
+        .{ .{ .offset = 11, .len = 4 }, lines[3] },
+        .{ .{ .offset = 15, .len = 0 }, lines[3] }, // emptyAt(source.len)
+        // Newline spans ("\n")
+        .{ .{ .offset = 5, .len = 1 }, lines[0] },
+        .{ .{ .offset = 9, .len = 1 }, lines[1] },
+        .{ .{ .offset = 10, .len = 1 }, lines[2] },
+        // Multiline spans
+        .{ .{ .offset = 0, .len = 6 }, null },
+        .{ .{ .offset = 4, .len = 2 }, null },
+        .{ .{ .offset = 5, .len = 2 }, null },
+        .{ .{ .offset = 6, .len = 4 }, null },
+        .{ .{ .offset = 7, .len = 3 }, null },
+        .{ .{ .offset = 7, .len = 4 }, null },
+        .{ .{ .offset = 8, .len = 2 }, null },
+        .{ .{ .offset = 9, .len = 2 }, null },
+        .{ .{ .offset = 10, .len = 2 }, null },
+        .{ .{ .offset = 0, .len = 15 }, null },
     };
 
     for (cases) |case| {
-        const input, const expected_index, const is_newline = case;
+        const input, const expected_opt = case;
         const input_string = input.view(source);
-        const expected_string = lines[expected_index];
         log.info("INPUT:   \t\"{s}\"", .{input_string});
         log.info("INPUT:   \t{}", .{input});
-        try expect(std.mem.eql(u8, input_string, "\n") == is_newline);
-        log.info("EXPECTED:\t\"{s}\"", .{expected_string});
-        const actual = input.getWholeLine(source);
-        const actual_string = actual.view(source);
-        log.info("ACTUAL:  \t\"{s}\"", .{actual_string});
-        log.info("ACTUAL:  \t{}", .{actual});
-        try expect(actual.end() <= source.len); // <= is intended
-        try expect(std.mem.eql(u8, actual_string, expected_string));
+        log.info("EXPECTED:\t\"{?s}\"", .{expected_opt});
+        const actual_opt = input.getWholeLine(source);
+        log.info("ACTUAL:  \t\"{?s}\"", .{if (actual_opt) |actual| actual.view(source) else null});
+        log.info("ACTUAL:  \t{?}", .{actual_opt});
+        if (expected_opt) |expected_string| {
+            const actual = actual_opt orelse return error.TestUnexpectedResult;
+            const actual_string = actual.view(source);
+            try expect(actual.end() <= source.len); // <= is intended
+            try expect(std.mem.eql(u8, actual_string, expected_string));
+        } else {
+            try expect(actual_opt == null);
+        }
     }
 }
