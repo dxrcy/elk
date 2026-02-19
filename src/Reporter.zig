@@ -63,21 +63,19 @@ pub fn err(
     const source = reporter.source orelse
         unreachable;
 
-    const line_opt = token.getWholeLine(source);
-
-    reporter.print("\x1b[33m", .{});
-    reporter.print("  -  Line: ", .{});
-    reporter.print("\x1b[0m", .{});
-    if (line_opt) |line| {
-        const line_string = std.mem.trim(u8, line.view(source), " \t\r");
-        reporter.print("\x1b[3m", .{});
-        reporter.print("{s}", .{line_string});
-        reporter.print("\x1b[0m", .{});
-    } else {
-        // TODO: Handle this better
-        reporter.print("<multiline token>", .{});
+    {
+        const lines = token.getContainingLines(source);
+        var iter = std.mem.splitScalar(u8, lines.view(source), '\n');
+        while (iter.next()) |line| {
+            reporter.print("\x1b[33m", .{});
+            reporter.print("  | ", .{});
+            reporter.print("\x1b[0m", .{});
+            reporter.print("\x1b[3m", .{});
+            reporter.print("{s}", .{line});
+            reporter.print("\x1b[0m", .{});
+            reporter.print("\n", .{});
+        }
     }
-    reporter.print("\n", .{});
 
     const string = token.view(source);
 
@@ -95,7 +93,7 @@ pub fn err(
     }
     reporter.print("\n", .{});
 
-    reporter.print("\n", .{});
+    // reporter.print("\n", .{});
 
     reporter.flush();
 
