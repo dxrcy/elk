@@ -200,6 +200,10 @@ fn parseDirective(
             const string = try parser.tokens.expectArgument(.string);
             const string_value = string.value.in(string.span).view(parser.source);
 
+            if (std.mem.containsAtLeast(u8, string_value, 1, "\n")) {
+                parser.reporter.warn(error.MultilineString, string.span);
+            }
+
             var is_escaped = false;
             for (string_value) |char| {
                 if (!is_escaped and char == '\\') {
