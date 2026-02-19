@@ -10,6 +10,7 @@ const Span = @import("Span.zig");
 const BUFFER_SIZE = 1024;
 
 count: std.EnumArray(Level, usize),
+mode: Mode,
 
 file: Io.File,
 buffer: [BUFFER_SIZE]u8,
@@ -17,8 +18,6 @@ writer: Io.File.Writer,
 
 source: ?[]const u8,
 io: Io,
-
-mode: Mode,
 
 const Level = enum { err, warn };
 
@@ -135,6 +134,61 @@ pub const Response = enum {
     }
 };
 
+pub fn new(io: Io) Reporter {
+    return .{
+        .count = .initFill(0),
+        .mode = .normal,
+        .file = undefined,
+        .buffer = undefined,
+        .writer = undefined,
+        .source = null,
+        .io = io,
+    };
+}
+
+pub fn init(reporter: *Reporter) !void {
+    reporter.file = std.Io.File.stderr();
+    reporter.writer = reporter.file.writer(reporter.io, &reporter.buffer);
+}
+
+pub fn setSource(reporter: *Reporter, source: []const u8) void {
+    assert(reporter.source == null);
+    reporter.source = source;
+}
+
+pub fn setMode(reporter: *Reporter, mode: Mode) void {
+    reporter.mode = mode;
+}
+
+pub fn endSection(reporter: *Reporter) ?Level {
+    const count_err = reporter.count.get(.err);
+    const count_warn = reporter.count.get(.warn);
+
+    const ctx: Ctx = .new(reporter, .warn);
+
+    if (count_err > 0) {
+        ctx.print("\x1b[31m", .{});
+        ctx.print("{} errors", .{count_err});
+        ctx.print("\x1b[0m", .{});
+        ctx.print("\n", .{});
+    }
+
+    if (count_warn > 0) {
+        ctx.print("\x1b[33m", .{});
+        ctx.print("{} warnings", .{count_warn});
+        ctx.print("\x1b[0m", .{});
+        ctx.print("\n", .{});
+    }
+
+    ctx.flush();
+
+    if (count_err > 0)
+        return .err;
+    if (count_warn > 0)
+        return .warn;
+    return null;
+}
+
 // TODO: For a "nicer" api, we can split `diag` into `tag, payload` and use `@unionInit`
 pub fn report(reporter: *Reporter, diag: Diagnostic) Response {
     const response: Response = switch (diag) {
@@ -167,7 +221,7 @@ pub fn report(reporter: *Reporter, diag: Diagnostic) Response {
 
     reporter.count.getPtr(level).* += 1;
 
-    const ctx: Ctx = .{ .reporter = reporter, .level = level };
+    const ctx: Ctx = .new(reporter, level);
     const source = reporter.source orelse
         unreachable;
 
@@ -270,7 +324,7 @@ pub fn report(reporter: *Reporter, diag: Diagnostic) Response {
         },
     }
 
-    reporter.flush();
+    ctx.flush();
 
     assert(response != .pass);
     return response;
@@ -290,12 +344,29 @@ fn tokenKind(token: Token) []const u8 {
     };
 }
 
-// TODO: Rename?
 const Ctx = struct {
     reporter: *Reporter,
-    level: Level,
-    depth: usize = 0,
+    level: ?Level,
+    depth: usize,
     // TODO: Add color/style fields
+
+    pub fn new(reporter: *Reporter, level: ?Level) Ctx {
+        return .{
+            .reporter = reporter,
+            .level = level,
+            .depth = 0,
+        };
+    }
+
+    pub fn print(ctx: Ctx, comptime fmt: []const u8, args: anytype) void {
+        ctx.reporter.writer.interface.print(fmt, args) catch
+            std.debug.panic("failed to write to reporter file", .{});
+    }
+
+    pub fn flush(ctx: Ctx) void {
+        ctx.reporter.writer.interface.flush() catch
+            std.debug.panic("failed to flush reporter file", .{});
+    }
 
     // TODO: Rename
     pub fn deepen(ctx: Ctx) Ctx {
@@ -309,13 +380,15 @@ const Ctx = struct {
             ctx.print(" " ** 4, .{});
     }
 
-    fn printTitle(
+    pub fn printTitle(
         ctx: *const Ctx,
         comptime fmt: []const u8,
         args: anytype,
     ) void {
+        const level = ctx.level orelse
+            unreachable;
         ctx.printDepth();
-        switch (ctx.level) {
+        switch (level) {
             .err => {
                 ctx.print("\x1b[31m", .{});
                 ctx.print("\x1b[1m", .{});
@@ -333,7 +406,7 @@ const Ctx = struct {
         ctx.print("\n", .{});
     }
 
-    fn printNote(ctx: Ctx, note: []const u8) void {
+    pub fn printNote(ctx: Ctx, note: []const u8) void {
         ctx.printDepth();
         ctx.print("\x1b[36m", .{});
         ctx.print("Note: ", .{});
@@ -342,7 +415,7 @@ const Ctx = struct {
         ctx.print("\n", .{});
     }
 
-    fn printSourceNote(ctx: Ctx, note: []const u8, span: Span) void {
+    pub fn printSourceNote(ctx: Ctx, note: []const u8, span: Span) void {
         ctx.printNote(note);
         ctx.deepen().printSource(span);
     }
@@ -385,180 +458,4 @@ const Ctx = struct {
             ctx.print("\n", .{});
         }
     }
-
-    fn print(ctx: Ctx, comptime fmt: []const u8, args: anytype) void {
-        // TODO: Once this is the only callsite for `Reporter.print`, we can
-        // inline it here and remove the reporter method.
-        ctx.reporter.print(fmt, args);
-    }
 };
-
-pub fn new(io: Io) Reporter {
-    return .{
-        .count = .initFill(0),
-        .file = undefined,
-        .buffer = undefined,
-        .writer = undefined,
-        .source = null,
-        .mode = .normal,
-        .io = io,
-    };
-}
-
-pub fn init(reporter: *Reporter) !void {
-    reporter.file = std.Io.File.stderr();
-    reporter.writer = reporter.file.writer(reporter.io, &reporter.buffer);
-}
-
-pub fn setSource(reporter: *Reporter, source: []const u8) void {
-    assert(reporter.source == null);
-    reporter.source = source;
-}
-
-pub fn setMode(reporter: *Reporter, mode: Mode) void {
-    reporter.mode = mode;
-}
-
-// TODO: REMOVE
-pub fn err(
-    reporter: *Reporter,
-    // TODO:
-    code: anyerror,
-    token: Span,
-) error{Reported}!noreturn {
-    reporter.count.getPtr(.err).* += 1;
-
-    reporter.print("\x1b[31m", .{});
-    reporter.print("\x1b[1m", .{});
-    reporter.print("Error:", .{});
-    reporter.print("\x1b[22m", .{});
-    reporter.print(" {t}", .{code});
-    reporter.print("\x1b[0m", .{});
-    reporter.print("\n", .{});
-
-    reporter.printContextOld(token);
-
-    reporter.flush();
-    return error.Reported;
-}
-
-// TODO: REMOVE
-pub fn warn(
-    reporter: *Reporter,
-    code: anyerror,
-    token: Span,
-) void {
-    reporter.count.getPtr(.warn).* += 1;
-
-    reporter.print("\x1b[33m", .{});
-    reporter.print("\x1b[1m", .{});
-    reporter.print("Warning:", .{});
-    reporter.print("\x1b[22m", .{});
-    reporter.print(" {t}", .{code});
-    reporter.print("\x1b[0m", .{});
-    reporter.print("\n", .{});
-
-    reporter.printContextOld(token);
-
-    reporter.flush();
-}
-// TODO: REMOVE
-pub const Category = enum {
-    standard,
-    extension,
-};
-
-// TODO: REMOVE
-pub fn reportOld(
-    reporter: *Reporter,
-    category: Category,
-    code: anyerror,
-    token: Span,
-) error{Reported}!void {
-    switch (category) {
-        .standard => switch (reporter.mode) {
-            .strict => try reporter.err(code, token),
-            .normal => reporter.warn(code, token),
-            .quiet => {},
-        },
-        .extension => switch (reporter.mode) {
-            .strict => try reporter.err(code, token),
-            .normal => reporter.warn(code, token),
-            .quiet => {},
-        },
-    }
-}
-
-// TODO: REMOVE
-fn printContextOld(reporter: *Reporter, span: Span) void {
-    const source = reporter.source orelse
-        unreachable;
-
-    const lines = span.getContainingLines(source);
-    var iter = std.mem.splitScalar(u8, lines.view(source), '\n');
-    while (iter.next()) |line_string| {
-        const line = Span.fromSlice(line_string, source);
-
-        reporter.print("\x1b[36m", .{});
-        reporter.print("  | ", .{});
-        reporter.print("\x1b[0m", .{});
-        reporter.print("\x1b[3m", .{});
-        reporter.print("{s}", .{line_string});
-        reporter.print("\x1b[0m", .{});
-        reporter.print("\n", .{});
-
-        if (std.mem.trim(u8, line_string, &std.ascii.whitespace).len == 0) {
-            continue;
-        }
-
-        reporter.print("\x1b[36m", .{});
-        reporter.print("  | ", .{});
-        for (0..line_string.len) |i| {
-            const index = line.offset + i;
-            if (index >= span.offset and index < span.end()) {
-                reporter.print("^", .{});
-            } else {
-                reporter.print(" ", .{});
-            }
-        }
-        reporter.print("\x1b[0m", .{});
-        reporter.print("\n", .{});
-    }
-}
-
-pub fn endSection(reporter: *Reporter) ?Level {
-    const count_err = reporter.count.get(.err);
-    const count_warn = reporter.count.get(.warn);
-
-    if (count_err > 0) {
-        reporter.print("\x1b[31m", .{});
-        reporter.print("{} errors", .{count_err});
-        reporter.print("\x1b[0m", .{});
-        reporter.print("\n", .{});
-    }
-
-    if (count_warn > 0) {
-        reporter.print("\x1b[33m", .{});
-        reporter.print("{} warnings", .{count_warn});
-        reporter.print("\x1b[0m", .{});
-        reporter.print("\n", .{});
-    }
-
-    reporter.flush();
-
-    if (count_err > 0)
-        return .err;
-    if (count_warn > 0)
-        return .warn;
-    return null;
-}
-
-fn print(reporter: *Reporter, comptime fmt: []const u8, args: anytype) void {
-    reporter.writer.interface.print(fmt, args) catch
-        std.debug.panic("failed to write to reporter file", .{});
-}
-
-fn flush(reporter: *Reporter) void {
-    reporter.writer.interface.flush() catch
-        std.debug.panic("failed to flush reporter file", .{});
-}
