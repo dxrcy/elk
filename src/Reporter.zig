@@ -56,15 +56,38 @@ pub fn err(
     reporter.count.getPtr(.err).* += 1;
 
     reporter.print("\x1b[31m", .{});
-    reporter.print("Error: {t}", .{code});
+    reporter.print("\x1b[1m", .{});
+    reporter.print("Error:", .{});
+    reporter.print("\x1b[22m", .{});
+    reporter.print(" {t}", .{code});
     reporter.print("\x1b[0m", .{});
     reporter.print("\n", .{});
 
     reporter.printContext(token);
 
     reporter.flush();
-
     return error.Reported;
+}
+
+pub fn warn(
+    reporter: *Reporter,
+    // TODO:
+    code: anyerror,
+    token: Span,
+) void {
+    reporter.count.getPtr(.warn).* += 1;
+
+    reporter.print("\x1b[33m", .{});
+    reporter.print("\x1b[1m", .{});
+    reporter.print("Warning:", .{});
+    reporter.print("\x1b[22m", .{});
+    reporter.print(" {t}", .{code});
+    reporter.print("\x1b[0m", .{});
+    reporter.print("\n", .{});
+
+    reporter.printContext(token);
+
+    reporter.flush();
 }
 
 fn printContext(reporter: *Reporter, span: Span) void {
@@ -76,7 +99,7 @@ fn printContext(reporter: *Reporter, span: Span) void {
     while (iter.next()) |line_string| {
         const line = Span.fromSlice(line_string, source);
 
-        reporter.print("\x1b[33m", .{});
+        reporter.print("\x1b[36m", .{});
         reporter.print("  | ", .{});
         reporter.print("\x1b[0m", .{});
         reporter.print("\x1b[3m", .{});
@@ -88,7 +111,7 @@ fn printContext(reporter: *Reporter, span: Span) void {
             continue;
         }
 
-        reporter.print("\x1b[33m", .{});
+        reporter.print("\x1b[36m", .{});
         reporter.print("  | ", .{});
         for (0..line_string.len) |i| {
             const index = line.offset + i;
