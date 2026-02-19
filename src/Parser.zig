@@ -206,6 +206,7 @@ fn parseInstruction(
         .@"and",
         .jmp,
         .jsr,
+        .jsrr,
         .lea,
         => |regular| {
             const Payload = @FieldType(Statement, @tagName(regular));
@@ -253,6 +254,10 @@ fn parseInstruction(
                 .vect = .{ .span = span, .value = .{ .inner = vect } },
             } };
         },
+
+        // .jsr => {
+        //     unreachable;
+        // },
 
         // TODO: Remove when all instructions/aliases are added above
         else => {

@@ -100,6 +100,9 @@ pub const Line = struct {
     span: Span,
 };
 
+/// Note that some instructions (`Statement` variants) share the same 4-bit
+/// opcode, eg. `jsr` and `jsrr`, which are distinguished by the 5th-highest
+/// bit.
 pub const Statement = union(enum) {
     raw_word: u16,
 
@@ -122,6 +125,9 @@ pub const Statement = union(enum) {
     },
     jsr: struct {
         dest: Operand.PCOffset11,
+    },
+    jsrr: struct {
+        base: Operand.Register,
     },
     ldr: struct {
         dest: Operand.Register,
@@ -284,6 +290,11 @@ fn encode(statement: Statement) u16 {
         .jsr => |operands| {
             var raw: u16 = 0x4800;
             raw |= operands.dest.value.bits();
+            return raw;
+        },
+        .jsrr => |operands| {
+            var raw: u16 = 0x4000;
+            raw |= operands.base.value.bits() << 6;
             return raw;
         },
         .ldr => |operands| {
