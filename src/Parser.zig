@@ -55,7 +55,7 @@ pub fn parse(parser: *Parser) error{OutOfMemory}!void {
             },
             error.Eof => {
                 parser.reporter.report(.{ .missing_end = .{
-                    .last_token = null,
+                    .last_token = parser.tokens.latest,
                 } }).proceed();
                 break;
             },

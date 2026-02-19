@@ -14,6 +14,8 @@ lexer: Lexer,
 // Peek+peek or peek+next will parse same span as token multiple times, but this
 // is okay as it avoids storing an error union.
 peeked: ?Span,
+/// Updated by `parseToken`.
+latest: ?Span,
 
 source: []const u8,
 reporter: *Reporter,
@@ -26,6 +28,7 @@ pub fn new(source: []const u8, reporter: *Reporter) TokenIter {
         .reporter = reporter,
         .lexer = Lexer.new(source),
         .peeked = null,
+        .latest = null,
     };
 }
 
@@ -41,13 +44,19 @@ fn getNextSpan(tokens: *TokenIter) error{Eof}!Span {
         return error.Eof;
 }
 
+fn parseToken(tokens: *TokenIter, span: Span) Token.Error!Token {
+    const token = try Token.from(span, tokens.source);
+    if (token.value != .newline)
+        tokens.latest = token.span;
+    return token;
+}
+
 /// Note that token may **not** be supported in the current mode; use
 /// `ensureSupported` before using.
 fn nextAny(tokens: *TokenIter) error{ Reported, Eof }!Token {
     const span = try tokens.getNextSpan();
     tokens.peeked = null;
-
-    return Token.from(span, tokens.source) catch |err| {
+    return tokens.parseToken(span) catch |err| {
         try tokens.reporter.err(err, span);
     };
 }
@@ -58,8 +67,7 @@ fn nextAny(tokens: *TokenIter) error{ Reported, Eof }!Token {
 fn peekAny(tokens: *TokenIter) error{ InvalidTokenPeeked, Eof }!Token {
     const span = try tokens.getNextSpan();
     tokens.peeked = span;
-
-    return Token.from(span, tokens.source) catch
+    return tokens.parseToken(span) catch
         return error.InvalidTokenPeeked;
 }
 
