@@ -247,12 +247,24 @@ fn parseInstruction(
         },
 
         inline // Trap aliases
+        .getc,
+        .out,
         .puts,
+        .in,
+        .putsp,
         .halt,
+        // .putn,
+        .reg,
         => |alias| {
             const vect: u8 = switch (alias) {
+                .getc => 0x20,
+                .out => 0x21,
                 .puts => 0x22,
+                .in => 0x23,
+                .putsp => 0x24,
                 .halt => 0x25,
+                // .putn => 0x26,
+                .reg => 0x27,
                 else => comptime unreachable,
             };
             return .{ .trap = .{
