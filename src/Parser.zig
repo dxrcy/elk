@@ -154,6 +154,16 @@ fn parseDirective(
             );
         },
 
+        .blkw => {
+            const size = try parser.tokens.expectArgument(.word);
+            for (0..size.value.bitcastToUnsigned()) |_| {
+                try parser.appendLine(
+                    .{ .raw_word = 0x00 },
+                    size.span,
+                );
+            }
+        },
+
         .stringz => {
             const string = try parser.tokens.expectArgument(.string);
             const string_value = string.value.in(string.span).view(parser.source);
@@ -192,11 +202,6 @@ fn parseDirective(
                 .{ .raw_word = 0x0000 },
                 string.span,
             );
-        },
-
-        else => {
-            // TODO:
-            std.log.warn("unimplemented directive: {t}", .{directive});
         },
     }
 
