@@ -71,21 +71,21 @@ pub fn parse(parser: *Parser) error{OutOfMemory}!void {
     }
 
     if (parser.origin == null) {
-        parser.reporter.report(.{ .missing_origin = .{
+        parser.reporter.report(.missing_origin, .{
             .first_token = parser.air.getFirstSpan(),
-        } }).proceed();
+        }).proceed();
     }
 
     if (parser.current_label) |existing| {
-        parser.reporter.report(.{ .eof_label = .{
+        parser.reporter.report(.eof_label, .{
             .label = existing,
-        } }).proceed();
+        }).proceed();
     }
 
     if (missing_end) {
-        parser.reporter.report(.{ .missing_end = .{
+        parser.reporter.report(.missing_end, .{
             .last_token = parser.tokens.latest,
-        } }).proceed();
+        }).proceed();
     }
 }
 
@@ -95,17 +95,17 @@ fn parseLine(parser: *Parser) InnerError!Control {
     switch (token.value) {
         .label => {
             if (parser.current_label) |existing| {
-                parser.reporter.report(.{ .shadowed_label = .{
+                parser.reporter.report(.shadowed_label, .{
                     .existing = existing,
                     .new = token.span,
-                } }).proceed();
+                }).proceed();
             }
 
             if (parser.getExistingLabel(token.span.view(parser.source))) |existing_label| {
-                try parser.reporter.report(.{ .duplicate_label = .{
+                try parser.reporter.report(.duplicate_label, .{
                     .existing = existing_label,
                     .new = token.span,
-                } }).abort();
+                }).abort();
             } else {
                 parser.current_label = token.span;
             }
@@ -116,10 +116,10 @@ fn parseLine(parser: *Parser) InnerError!Control {
             // This should also be checked when the second label is parsed, but
             // this reports a more appropriate message
             if (try parser.tokens.nextMatching(.label)) |label| {
-                parser.reporter.report(.{ .unexpected_label = .{
+                parser.reporter.report(.unexpected_label, .{
                     .existing = token.span,
                     .new = label.span,
-                } }).proceed(); // May be followed by a (valid) instruction
+                }).proceed(); // May be followed by a (valid) instruction
             }
         },
 
@@ -141,9 +141,9 @@ fn parseLine(parser: *Parser) InnerError!Control {
         },
 
         else => {
-            try parser.reporter.report(.{ .unexpected_token_kind = .{
+            try parser.reporter.report(.unexpected_token_kind, .{
                 .token = token,
-            } }).abort();
+            }).abort();
         },
     }
     return .@"continue";
@@ -197,10 +197,10 @@ fn parseDirective(
     switch (directive) {
         .end => {
             if (parser.current_label) |label| {
-                parser.reporter.report(.{ .useless_label = .{
+                parser.reporter.report(.useless_label, .{
                     .label = label,
                     .token = span,
-                } }).proceed();
+                }).proceed();
             }
             return .@"break";
         },
@@ -208,31 +208,31 @@ fn parseDirective(
         .orig => {
             // FIXME: This should technically be removed I think ??
             if (parser.current_label) |label| {
-                parser.reporter.report(.{ .useless_label = .{
+                parser.reporter.report(.useless_label, .{
                     .label = label,
                     .token = span,
-                } }).proceed();
+                }).proceed();
             }
 
             const origin = try parser.tokens.expectArgument(.word);
             if (parser.origin) |existing| {
-                try parser.reporter.report(.{ .multiple_origins = .{
+                try parser.reporter.report(.multiple_origins, .{
                     .existing = existing,
                     .new = origin.span,
-                } }).abort();
+                }).abort();
             }
             parser.air.origin = origin.value.castToUnsigned() orelse {
-                try parser.reporter.report(.{ .unexpected_negative_integer = .{
+                try parser.reporter.report(.unexpected_negative_integer, .{
                     .integer = origin.span,
-                } }).abort();
+                }).abort();
             };
             parser.origin = origin.span;
 
             if (parser.air.lines.items.len > 0) {
-                try parser.reporter.report(.{ .late_origin = .{
+                try parser.reporter.report(.late_origin, .{
                     .origin = origin.span,
                     .first_token = parser.air.getFirstSpan(),
-                } }).abort();
+                }).abort();
             }
         },
 
@@ -272,13 +272,13 @@ fn parseDirective(
                         't' => '\t',
                         'r' => '\r',
                         else => {
-                            try parser.reporter.report(.{ .invalid_string_escape = .{
+                            try parser.reporter.report(.invalid_string_escape, .{
                                 .string = string.span,
                                 .sequence = .{
                                     .offset = contents.offset + i - 1,
                                     .len = 2,
                                 },
-                            } }).handle();
+                            }).handle();
                             is_escaped = false;
                             continue;
                         },
@@ -432,16 +432,16 @@ fn resolveFieldLabel(
     }
 
     const definition = parser.findLabelDefinition(operand.span.view(parser.source)) orelse {
-        try parser.reporter.report(.{ .undeclared_label = .{
+        try parser.reporter.report(.undeclared_label, .{
             .label = operand.span,
-        } }).abort();
+        }).abort();
     };
     const offset = calculateOffset(Int, definition, index) orelse {
-        try parser.reporter.report(.{ .offset_too_large = .{
+        try parser.reporter.report(.offset_too_large, .{
             .reference = operand.span,
             .definition = parser.air.lines.items[definition].label orelse
                 unreachable,
-        } }).abort();
+        }).abort();
     };
     operand.value = .{ .resolved = offset };
 }

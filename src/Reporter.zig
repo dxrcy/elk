@@ -189,8 +189,15 @@ pub fn endSection(reporter: *Reporter) ?Level {
     return null;
 }
 
-// TODO: For a "nicer" api, we can split `diag` into `tag, payload` and use `@unionInit`
-pub fn report(reporter: *Reporter, diag: Diagnostic) Response {
+pub fn report(
+    reporter: *Reporter,
+    comptime tag: std.meta.Tag(Diagnostic),
+    info: @FieldType(Diagnostic, @tagName(tag)),
+) Response {
+    return reporter.reportInner(@unionInit(Diagnostic, @tagName(tag), info));
+}
+
+fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
     const response: Response = switch (diag) {
         .missing_origin => reporter.mode.standardResponse(),
         .multiple_origins => .fatal,

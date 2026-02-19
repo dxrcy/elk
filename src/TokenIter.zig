@@ -57,10 +57,10 @@ fn nextAny(tokens: *TokenIter) error{ Reported, Eof }!Token {
     const span = try tokens.getNextSpan();
     tokens.peeked = null;
     return tokens.parseToken(span) catch |err| {
-        try tokens.reporter.report(.{ .generic = .{
+        try tokens.reporter.report(.generic, .{
             .code = err,
             .span = span,
-        } }).abort();
+        }).abort();
     };
 }
 
@@ -79,18 +79,18 @@ fn ensureSupported(tokens: *const TokenIter, token: Token) error{Reported}!void 
         .string => |string| {
             const value = string.in(token.span).view(tokens.source);
             if (std.mem.containsAtLeast(u8, value, 1, "\n")) {
-                try tokens.reporter.report(.{ .multiline_string = .{
+                try tokens.reporter.report(.multiline_string, .{
                     .string = token.span,
-                } }).handle();
+                }).handle();
             }
         },
         .integer => |integer| {
             if (integer.radix) |radix| switch (radix) {
                 .binary, .octal => {
-                    try tokens.reporter.report(.{ .nonstandard_integer_radix = .{
+                    try tokens.reporter.report(.nonstandard_integer_radix, .{
                         .integer = token.span,
                         .radix = radix,
-                    } }).handle();
+                    }).handle();
                 },
                 else => {},
             };
@@ -162,9 +162,9 @@ pub fn expectEol(tokens: *TokenIter) error{Reported}!void {
         error.Eof => return,
     };
     if (token.value != .newline) {
-        try tokens.reporter.report(.{ .unexpected_token = .{
+        try tokens.reporter.report(.unexpected_token, .{
             .token = token,
-        } }).abort();
+        }).abort();
     }
 }
 
@@ -174,10 +174,10 @@ pub fn expectArgument(
 ) error{ Reported, Eof }!Operand.Spanned(argument.Value()) {
     const token = try tokens.nextAny();
     const value = argument.convert(token.value) catch |err| {
-        try tokens.reporter.report(.{ .generic = .{
+        try tokens.reporter.report(.generic, .{
             .code = err,
             .span = token.span,
-        } }).abort();
+        }).abort();
     };
     try tokens.ensureSupported(token);
     return .{ .span = token.span, .value = value };
