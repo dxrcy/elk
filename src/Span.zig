@@ -32,14 +32,19 @@ pub fn view(span: Span, source: []const u8) []const u8 {
     return source[span.offset..][0..span.len];
 }
 
-pub fn getWholeLine(span: Span, source: []const u8) Span {
+// TODO: Support multiline tokens (extension multiline strings),
+// Return span of all lines containing token, and caller can use an iterator to
+// split lines,
+// Or return iterator of all line spans containing token.
+pub fn getWholeLine(span: Span, source: []const u8) ?Span {
     assert(span.end() <= source.len);
     { // Newlines may only be present for newline token "\n"
         const newlines = std.mem.countScalar(u8, span.view(source), '\n');
         switch (newlines) {
             0 => {},
-            1 => assert(span.len == 1),
-            else => unreachable,
+            // TODO: Handle these cases better (see function comment)
+            1 => if (span.len > 1) return null,
+            else => return null,
         }
     }
 
