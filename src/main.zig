@@ -17,9 +17,11 @@ pub fn main(init: std.process.Init) !u8 {
     defer gpa.free(source);
 
     const strictness: Reporter.Strictness = .normal;
+    const verbosity: Reporter.Verbosity = .quiet;
 
     reporter.setSource(source);
     reporter.setStrictness(strictness);
+    reporter.setVerbosity(verbosity);
 
     var air: Air = .init();
     defer air.deinit(gpa);

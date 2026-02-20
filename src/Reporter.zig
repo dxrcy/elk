@@ -9,14 +9,16 @@ const Span = @import("Span.zig");
 
 const BUFFER_SIZE = 1024;
 
-count: std.EnumArray(Level, usize),
+// TODO: Group as `Options`
 strictness: Strictness,
+verbosity: Verbosity,
+
+source: ?[]const u8,
+count: std.EnumArray(Level, usize),
 
 file: Io.File,
 buffer: [BUFFER_SIZE]u8,
 writer: Io.File.Writer,
-
-source: ?[]const u8,
 io: Io,
 
 const Level = enum { err, warn };
@@ -34,6 +36,12 @@ pub const Strictness = enum {
             .relaxed => .pass,
         };
     }
+};
+
+pub const Verbosity = enum {
+    verbose,
+    normal,
+    quiet,
 };
 
 pub const Diagnostic = union(enum) {
@@ -152,12 +160,13 @@ pub const Response = enum {
 
 pub fn new(io: Io) Reporter {
     return .{
-        .count = .initFill(0),
         .strictness = .normal,
+        .verbosity = .normal,
+        .source = null,
+        .count = .initFill(0),
         .file = undefined,
         .buffer = undefined,
         .writer = undefined,
-        .source = null,
         .io = io,
     };
 }
@@ -174,6 +183,9 @@ pub fn setSource(reporter: *Reporter, source: []const u8) void {
 
 pub fn setStrictness(reporter: *Reporter, strictness: Strictness) void {
     reporter.strictness = strictness;
+}
+pub fn setVerbosity(reporter: *Reporter, verbosity: Verbosity) void {
+    reporter.verbosity = verbosity;
 }
 
 pub fn endSection(reporter: *Reporter) ?Level {
@@ -377,7 +389,13 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
         },
     }
 
-    ctx.print("\n", .{});
+    switch (ctx.reporter.verbosity) {
+        .verbose, .normal => {
+            ctx.print("\n", .{});
+        },
+        .quiet => {},
+    }
+
     ctx.flush();
 
     assert(response != .pass);
@@ -475,11 +493,23 @@ const Ctx = struct {
                 ctx.print("\x1b[0m", .{});
             },
         }
+
         ctx.print(fmt, args);
-        ctx.print("\n", .{});
+
+        switch (ctx.reporter.verbosity) {
+            .verbose, .normal => {
+                ctx.print("\n", .{});
+            },
+            .quiet => {},
+        }
     }
 
     pub fn printNote(ctx: Ctx, comptime fmt: []const u8, args: anytype) void {
+        switch (ctx.reporter.verbosity) {
+            .verbose, .normal => {},
+            .quiet => return,
+        }
+
         ctx.printDepth();
         ctx.print("\x1b[36m", .{});
         ctx.print("Note: ", .{});
@@ -501,6 +531,16 @@ const Ctx = struct {
     fn printSource(ctx: Ctx, span: Span) void {
         const source = ctx.reporter.source orelse
             unreachable;
+
+        switch (ctx.reporter.verbosity) {
+            .verbose, .normal => {},
+            .quiet => {
+                const line_number = span.getLineNumber(source);
+                ctx.print(" (Line {})", .{line_number});
+                ctx.print("\n", .{});
+                return;
+            },
+        }
 
         const lines = span.getSurroundingLines(source);
         var iter = std.mem.splitScalar(u8, lines.view(source), '\n');
