@@ -87,6 +87,10 @@ pub const Diagnostic = union(enum) {
     unexpected_negative_integer: struct {
         integer: Span,
     },
+    integer_too_large: struct {
+        integer: Token,
+        bits: u16,
+    },
     invalid_string_escape: struct {
         string: Span,
         sequence: Span,
@@ -214,6 +218,7 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
         .unexpected_token_kind => .fatal,
         .unexpected_token => .fatal,
         .unexpected_negative_integer => .fatal,
+        .integer_too_large => .fatal,
         .invalid_string_escape => reporter.mode.standardResponse(),
         .multiline_string => reporter.mode.standardResponse(),
         .nonstandard_integer_radix => reporter.mode.standardResponse(),
@@ -315,6 +320,14 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
         .unexpected_negative_integer => |info| {
             ctx.printTitle("Integer operand cannot be negative", .{});
             ctx.deepen().printSourceNote("Operand: ", .{}, info.integer);
+        },
+        .integer_too_large => |info| {
+            ctx.printTitle("Integer operand is too large", .{});
+            ctx.deepen().printSourceNote("Operand: ", .{}, info.integer.span);
+            ctx.deepen().printNote("Value cannot be represented in {} bits", .{
+                // info.integer.value.asOversize(),
+                info.bits,
+            });
         },
         .invalid_string_escape => |info| {
             ctx.printTitle("Invalid escape sequence", .{});

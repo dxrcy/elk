@@ -229,7 +229,16 @@ pub const Argument = union(enum) {
 
                 Operand.Value.RegImm5 => switch (value) {
                     .register => |register| .{ .register = register },
-                    .integer => |integer| .{ .immediate = try integer.shrink(5) },
+                    .integer => |integer| .{
+                        .immediate = integer.shrink(5) catch |err| switch (err) {
+                            error.IntegerTooLarge => {
+                                try reporter.report(.integer_too_large, .{
+                                    .integer = token,
+                                    .bits = 5,
+                                }).abort();
+                            },
+                        },
+                    },
                     else => try unexpected(reporter, token, &.{ .register, .integer }),
                 },
 
