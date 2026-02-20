@@ -15,7 +15,8 @@ value: Value,
 pub const Error = error{
     InvalidInteger,
     InvalidDirective,
-    InvalidIdent,
+    UnknownDirective,
+    InvalidLabel,
     InvalidToken,
     UnmatchedQuote,
 };
@@ -156,11 +157,11 @@ pub const Value = union(enum) {
             return null;
         const rest = string[1..];
         if (!isIdent(rest))
-            return error.InvalidIdent;
+            return error.InvalidDirective;
         if (matchTagName(Directive, rest)) |directive| {
             return .{ .directive = directive };
         }
-        return error.InvalidDirective;
+        return error.UnknownDirective;
     }
 
     fn tryInstruction(string: []const u8) Error!?Value {
@@ -176,7 +177,7 @@ pub const Value = union(enum) {
         if (!isIdent(string[0..1]))
             return null;
         if (!isIdent(string))
-            return error.InvalidIdent;
+            return error.InvalidLabel;
         return .label;
     }
 

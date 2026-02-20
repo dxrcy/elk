@@ -57,10 +57,35 @@ fn nextAny(tokens: *TokenIter) error{ Reported, Eof }!Token {
     const span = try tokens.getNextSpan();
     tokens.peeked = null;
     return tokens.parseToken(span) catch |err| {
-        try tokens.reporter.report(.generic_debug, .{
-            .code = err,
-            .span = span,
-        }).abort();
+        switch (err) {
+            inline error.InvalidLabel,
+            error.InvalidDirective,
+            error.InvalidToken,
+            // TODO: integer parsing should return specific errors
+            error.InvalidInteger,
+            => |err2| {
+                try tokens.reporter.report(.invalid_token, .{
+                    .token = span,
+                    .kind = switch (err2) {
+                        error.InvalidLabel => .label,
+                        error.InvalidDirective => .directive,
+                        error.InvalidInteger => .integer,
+                        error.InvalidToken => null,
+                        else => comptime unreachable,
+                    },
+                }).abort();
+            },
+            error.UnknownDirective => {
+                try tokens.reporter.report(.unknown_directive, .{
+                    .directive = span,
+                }).abort();
+            },
+            error.UnmatchedQuote => {
+                try tokens.reporter.report(.unmatched_quote, .{
+                    .string = span,
+                }).abort();
+            },
+        }
     };
 }
 

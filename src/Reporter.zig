@@ -84,6 +84,17 @@ pub const Diagnostic = union(enum) {
     unexpected_token: struct {
         token: Token,
     },
+    invalid_token: struct {
+        token: Span,
+        // TODO: Rename
+        kind: ?TokenKinds.Kind,
+    },
+    unknown_directive: struct {
+        directive: Span,
+    },
+    unmatched_quote: struct {
+        string: Span,
+    },
     unexpected_negative_integer: struct {
         integer: Span,
     },
@@ -216,6 +227,9 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
         .offset_too_large => .fatal,
         .unexpected_token_kind => .fatal,
         .unexpected_token => .fatal,
+        .invalid_token => .fatal,
+        .unknown_directive => .fatal,
+        .unmatched_quote => .fatal,
         .unexpected_negative_integer => .fatal,
         .integer_too_large => .fatal,
         .invalid_string_escape => reporter.mode.standardResponse(),
@@ -316,6 +330,23 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
             ctx.deepen().printSourceNote("Token:", .{}, info.token.span);
             ctx.deepen().printNote("Expected end of line", .{});
         },
+        .invalid_token => |info| {
+            ctx.printTitle("Invalid token", .{});
+            ctx.deepen().printSourceNote("Token:", .{}, info.token);
+            if (info.kind) |kind|
+                ctx.deepen().printNote("Cannot parse as {s}", .{TokenKinds.name(kind)})
+            else
+                ctx.deepen().printNote("Cannot parse as any valid token", .{});
+        },
+        .unknown_directive => |info| {
+            ctx.printTitle("Directive is not supported", .{});
+            ctx.deepen().printSourceNote("Tried to use directive here:", .{}, info.directive);
+        },
+        .unmatched_quote => |info| {
+            ctx.printTitle("String literal does not end with quote `\"`", .{});
+            ctx.deepen().printSourceNote("String is used here:", .{}, info.string);
+            ctx.deepen().printNote("Strings do not automatically stop at end of line", .{});
+        },
         .unexpected_negative_integer => |info| {
             ctx.printTitle("Integer operand cannot be negative", .{});
             ctx.deepen().printSourceNote("Operand: ", .{}, info.integer);
@@ -323,10 +354,7 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
         .integer_too_large => |info| {
             ctx.printTitle("Integer operand is too large", .{});
             ctx.deepen().printSourceNote("Operand: ", .{}, info.integer);
-            ctx.deepen().printNote("Value cannot be represented in {} bits", .{
-                // info.integer.value.asOversize(),
-                info.bits,
-            });
+            ctx.deepen().printNote("Value cannot be represented in {} bits", .{info.bits});
         },
         .invalid_string_escape => |info| {
             ctx.printTitle("Invalid escape sequence", .{});
