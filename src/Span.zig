@@ -49,6 +49,13 @@ pub fn view(span: Span, source: []const u8) []const u8 {
     return source[span.offset..][0..span.len];
 }
 
+pub fn overlaps(lhs: Span, rhs: Span) bool {
+    return (lhs.offset >= rhs.end() and
+        lhs.end() <= rhs.offset) or
+        (lhs.offset <= rhs.end() and
+            lhs.end() >= rhs.offset);
+}
+
 pub fn containsIndex(span: Span, index: usize) bool {
     return index >= span.offset and index < span.end();
 }
@@ -60,6 +67,15 @@ pub fn getLineNumber(span: Span, source: []const u8) usize {
             count += 1;
     }
     return count;
+}
+
+pub fn getSurroundingLines(span: Span, source: []const u8) Span {
+    const containing = span.getContainingLines(source);
+    const widened: Span = .fromBounds(
+        containing.offset -| 1,
+        @min(containing.end() + "\n".len + 1, source.len),
+    );
+    return widened.getContainingLines(source);
 }
 
 pub fn getContainingLines(span: Span, source: []const u8) Span {

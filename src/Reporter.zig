@@ -501,7 +501,7 @@ const Ctx = struct {
         const source = ctx.reporter.source orelse
             unreachable;
 
-        const lines = span.getContainingLines(source);
+        const lines = span.getSurroundingLines(source);
         var iter = std.mem.splitScalar(u8, lines.view(source), '\n');
         while (iter.next()) |line_string| {
             const line = Span.fromSlice(line_string, source);
@@ -532,7 +532,9 @@ const Ctx = struct {
             ctx.print("\x1b[0m", .{});
             ctx.print("\n", .{});
 
-            if (std.mem.trim(u8, line_string, &std.ascii.whitespace).len == 0) {
+            if (!line.overlaps(span) or
+                std.mem.trim(u8, line_string, &std.ascii.whitespace).len == 0)
+            {
                 continue;
             }
 
