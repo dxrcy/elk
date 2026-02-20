@@ -580,7 +580,9 @@ const Ctx = struct {
             ctx.print("\x1b[36m", .{});
             for (0..line_string.len) |i| {
                 const index = line.offset + i;
-                if (span.containsIndex(index))
+                if (span.containsIndex(index) or
+                    // Still highlight first character if len==0
+                    span.offset == index)
                     ctx.print("^", .{})
                 else
                     ctx.print(" ", .{});
