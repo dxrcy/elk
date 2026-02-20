@@ -20,7 +20,7 @@ latest: ?Span,
 source: []const u8,
 reporter: *Reporter,
 
-const TokenTag = std.meta.Tag(Token.Value);
+const TokenKind = std.meta.Tag(Token.Value);
 
 pub fn new(source: []const u8, reporter: *Reporter) TokenIter {
     return .{
@@ -57,7 +57,7 @@ fn nextAny(tokens: *TokenIter) error{ Reported, Eof }!Token {
     const span = try tokens.getNextSpan();
     tokens.peeked = null;
     return tokens.parseToken(span) catch |err| {
-        try tokens.reporter.report(.generic, .{
+        try tokens.reporter.report(.generic_debug, .{
             .code = err,
             .span = span,
         }).abort();
@@ -101,7 +101,7 @@ fn ensureSupported(tokens: *const TokenIter, token: Token) error{Reported}!void 
 
 pub fn nextExcluding(
     tokens: *TokenIter,
-    comptime discards: []const TokenTag,
+    comptime discards: []const TokenKind,
 ) error{ Reported, Eof }!Token {
     token: while (true) {
         const token = try tokens.nextAny();
@@ -118,7 +118,7 @@ pub fn nextExcluding(
 // TODO: Rename
 pub fn nextMatching(
     tokens: *TokenIter,
-    comptime match: TokenTag,
+    comptime match: TokenKind,
 ) error{Reported}!?Token {
     const token = tokens.peekAny() catch |err| switch (err) {
         // These can be handled by next token request
@@ -132,7 +132,7 @@ pub fn nextMatching(
     return token;
 }
 
-pub fn discardOptional(tokens: *TokenIter, comptime discard: TokenTag) void {
+pub fn discardOptional(tokens: *TokenIter, comptime discard: TokenKind) void {
     _ = nextMatching(tokens, discard) catch |err| switch (err) {
         // We are discarding this token regardless
         error.Reported => {},
@@ -196,65 +196,62 @@ pub const Argument = union(enum) {
         token: Token,
         reporter: *Reporter,
     ) error{Reported}!argument.Value() {
-        // TODO: Remove
-        const value = token.value;
-
         return switch (argument) {
-            .word => return switch (value) {
+            .word => return switch (token.value) {
                 .integer => |integer| integer,
                 else => try unexpected(reporter, token, &.{.integer}),
             },
 
-            .string => return switch (value) {
+            .string => return switch (token.value) {
                 .string => |string| string,
                 else => try unexpected(reporter, token, &.{.string}),
             },
 
             .operand => |operand| switch (operand) {
-                Operand.Value.Register => switch (value) {
+                Operand.Value.Register => switch (token.value) {
                     .register => |register| .{ .inner = register },
                     else => try unexpected(reporter, token, &.{.register}),
                 },
 
-                Operand.Value.RegImm5 => switch (value) {
+                Operand.Value.RegImm5 => switch (token.value) {
                     .register => |register| .{ .register = register },
                     .integer => |integer| .{
                         // TODO: Allow +1 bit for unsigned literals, which will
                         // be later bitcast to negative. Warn for this!
                         // Same with Offset6, but probably not with PCOffset*
-                        .immediate = try shrink(reporter, token, integer, i5),
+                        .immediate = try shrink(reporter, token.span, integer, i5),
                     },
                     else => try unexpected(reporter, token, &.{ .register, .integer }),
                 },
 
-                Operand.Value.Offset6 => switch (value) {
+                Operand.Value.Offset6 => switch (token.value) {
                     .integer => |integer| .{
-                        .inner = try shrink(reporter, token, integer, i6),
+                        .inner = try shrink(reporter, token.span, integer, i6),
                     },
                     else => try unexpected(reporter, token, &.{.integer}),
                 },
 
-                Operand.Value.PCOffset9 => switch (value) {
+                Operand.Value.PCOffset9 => switch (token.value) {
                     // TODO: Integer literals here may be non-standard; warn
                     .integer => |integer| .{
-                        .resolved = try shrink(reporter, token, integer, i9),
+                        .resolved = try shrink(reporter, token.span, integer, i9),
                     },
                     .label => .unresolved,
                     else => try unexpected(reporter, token, &.{ .label, .integer }),
                 },
 
-                Operand.Value.PCOffset11 => switch (value) {
+                Operand.Value.PCOffset11 => switch (token.value) {
                     // TODO: Integer literals here may be non-standard; warn
                     .integer => |integer| .{
-                        .resolved = try shrink(reporter, token, integer, i11),
+                        .resolved = try shrink(reporter, token.span, integer, i11),
                     },
                     .label => .unresolved,
                     else => try unexpected(reporter, token, &.{ .label, .integer }),
                 },
 
-                Operand.Value.TrapVect => switch (value) {
+                Operand.Value.TrapVect => switch (token.value) {
                     .integer => |integer| .{
-                        .inner = try shrink(reporter, token, integer, u8),
+                        .inner = try shrink(reporter, token.span, integer, u8),
                     },
                     else => try unexpected(reporter, token, &.{.integer}),
                 },
@@ -267,14 +264,14 @@ pub const Argument = union(enum) {
 
 fn shrink(
     reporter: *Reporter,
-    token: Token,
+    span: Span,
     integer: SourceInt(16),
     comptime T: type,
 ) error{Reported}!T {
     return integer.castToSmaller(T) catch |err| switch (err) {
         error.IntegerTooLarge => {
             try reporter.report(.integer_too_large, .{
-                .integer = token,
+                .integer = span,
                 .bits = @typeInfo(T).int.bits,
             }).abort();
         },
@@ -284,7 +281,7 @@ fn shrink(
 fn unexpected(
     reporter: *Reporter,
     token: Token,
-    expected: []const Reporter.TokenKinds.Kind,
+    expected: []const TokenKind,
 ) error{Reported}!noreturn {
     try reporter.report(.unexpected_token_kind, .{
         .token = token,

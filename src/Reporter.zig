@@ -88,7 +88,7 @@ pub const Diagnostic = union(enum) {
         integer: Span,
     },
     integer_too_large: struct {
-        integer: Token,
+        integer: Span,
         bits: u16,
     },
     invalid_string_escape: struct {
@@ -103,8 +103,7 @@ pub const Diagnostic = union(enum) {
         radix: @import("integers.zig").Radix,
     },
 
-    // TODO:
-    generic: struct {
+    generic_debug: struct {
         code: anyerror,
         span: Span,
     },
@@ -223,7 +222,7 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
         .multiline_string => reporter.mode.standardResponse(),
         .nonstandard_integer_radix => reporter.mode.standardResponse(),
 
-        .generic => .fatal,
+        .generic_debug => .fatal,
     };
 
     const level: Level = switch (response) {
@@ -323,7 +322,7 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
         },
         .integer_too_large => |info| {
             ctx.printTitle("Integer operand is too large", .{});
-            ctx.deepen().printSourceNote("Operand: ", .{}, info.integer.span);
+            ctx.deepen().printSourceNote("Operand: ", .{}, info.integer);
             ctx.deepen().printNote("Value cannot be represented in {} bits", .{
                 // info.integer.value.asOversize(),
                 info.bits,
@@ -343,7 +342,7 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
             ctx.deepen().printSourceNote("Integer: ", .{}, info.integer);
         },
 
-        .generic => |info| {
+        .generic_debug => |info| {
             ctx.printTitle("Generic error: '{t}'", .{info.code});
             ctx.deepen().printSourceNote("Token: ", .{}, info.span);
         },
@@ -355,10 +354,10 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
     return response;
 }
 
-pub const TokenKinds = struct {
+const TokenKinds = struct {
     kinds: []const Kind,
 
-    pub const Kind = std.meta.Tag(Token.Value);
+    const Kind = std.meta.Tag(Token.Value);
 
     pub fn format(self: *const @This(), writer: *Io.Writer) !void {
         for (self.kinds, 0..) |kind, i| {

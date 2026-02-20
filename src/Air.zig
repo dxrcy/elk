@@ -199,6 +199,7 @@ pub const Operand = struct {
 
     pub const Value = struct {
         pub const Register = struct {
+            // TODO: Rename
             inner: u3,
             pub fn bits(self: @This()) u16 {
                 return self.inner;
@@ -219,6 +220,7 @@ pub const Operand = struct {
         };
 
         pub const TrapVect = struct {
+            // TODO: Rename
             inner: u8,
             pub fn bits(self: @This()) u16 {
                 return self.inner;
@@ -226,6 +228,7 @@ pub const Operand = struct {
         };
 
         pub const Offset6 = struct {
+            // TODO: Rename `immediate`
             inner: i6,
             pub fn bits(self: @This()) u16 {
                 return @as(u6, @bitCast(self.inner));
