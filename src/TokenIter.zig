@@ -230,20 +230,15 @@ pub const Argument = union(enum) {
                 Operand.Value.RegImm5 => switch (value) {
                     .register => |register| .{ .register = register },
                     .integer => |integer| .{
-                        .immediate = integer.shrink(5) catch |err| switch (err) {
-                            error.IntegerTooLarge => {
-                                try reporter.report(.integer_too_large, .{
-                                    .integer = token,
-                                    .bits = 5,
-                                }).abort();
-                            },
-                        },
+                        .immediate = try integer.castToSmaller(i5),
                     },
                     else => try unexpected(reporter, token, &.{ .register, .integer }),
                 },
 
                 Operand.Value.Offset6 => switch (value) {
-                    .integer => |integer| .{ .inner = try integer.shrink(6) },
+                    .integer => |integer| .{
+                        .inner = try integer.castToSmaller(i6),
+                    },
                     else => try unexpected(reporter, token, &.{.integer}),
                 },
 

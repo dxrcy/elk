@@ -7,7 +7,6 @@ const ArrayList = std.ArrayList;
 const assert = std.debug.assert;
 
 const Span = @import("Span.zig");
-const Integer = @import("integers.zig").SourceInt;
 
 origin: u16,
 lines: ArrayList(Line),
@@ -209,12 +208,12 @@ pub const Operand = struct {
         pub const RegImm5 = union(enum) {
             // TODO: Use `Register`
             register: u3,
-            immediate: Integer(5),
+            immediate: i5,
             pub fn bits(self: @This()) u16 {
                 return switch (self) {
                     .register => |register| register,
                     .immediate => |immediate| 0b100000 +
-                        @as(u16, immediate.underlying),
+                        @as(u16, @as(u5, @bitCast(immediate))),
                 };
             }
         };
@@ -227,9 +226,9 @@ pub const Operand = struct {
         };
 
         pub const Offset6 = struct {
-            inner: Integer(6),
+            inner: i6,
             pub fn bits(self: @This()) u16 {
-                return @as(u6, self.inner.underlying);
+                return @as(u6, @bitCast(self.inner));
             }
         };
 

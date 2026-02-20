@@ -46,23 +46,6 @@ pub fn SourceInt(comptime bits: u16) type {
             } orelse
                 return error.IntegerTooLarge;
         }
-
-        pub fn shrink(
-            integer: Self,
-            comptime new_bits: u16,
-        ) error{IntegerTooLarge}!SourceInt(new_bits) {
-            assert(new_bits < bits);
-            const underlying = switch (integer.signedness) {
-                .unsigned => math.cast(SourceInt(new_bits).Unsigned, integer.asUnsigned()),
-                .signed => math.cast(SourceInt(new_bits).Unsigned, integer.asSigned()),
-            } orelse
-                return error.IntegerTooLarge;
-            return .{
-                .underlying = underlying,
-                .signedness = integer.signedness,
-                .radix = integer.radix,
-            };
-        }
     };
 }
 
