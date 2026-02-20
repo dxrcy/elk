@@ -173,7 +173,8 @@ pub fn expectArgument(
     comptime argument: Argument,
 ) error{ Reported, Eof }!Operand.Spanned(argument.Value()) {
     const token = try tokens.nextAny();
-    const value = argument.convert(token.value) catch |err| {
+    const value = argument.convert(token, tokens.reporter) catch |err| {
+        // TODO: Remove
         try tokens.reporter.report(.generic, .{
             .code = err,
             .span = token.span,
@@ -197,53 +198,78 @@ pub const Argument = union(enum) {
     }
 
     const ConvertError = error{
-        UnexpectedTokenKind,
         IntegerTooLarge,
+        Reported,
     };
 
     fn convert(
         comptime argument: Argument,
-        value: Token.Value,
+        token: Token,
+        reporter: *Reporter,
     ) ConvertError!argument.Value() {
+        // TODO: Remove
+        const value = token.value;
+
         return switch (argument) {
             .word => return switch (value) {
                 .integer => |integer| integer,
-                else => error.UnexpectedTokenKind,
+                else => try unexpected(reporter, token, &.{.integer}),
             },
+
             .string => return switch (value) {
                 .string => |string| string,
-                else => error.UnexpectedTokenKind,
+                else => try unexpected(reporter, token, &.{.string}),
             },
+
             .operand => |operand| switch (operand) {
                 Operand.Value.Register => switch (value) {
                     .register => |register| .{ .inner = register },
-                    else => error.UnexpectedTokenKind,
+                    else => try unexpected(reporter, token, &.{.register}),
                 },
+
                 Operand.Value.RegImm5 => switch (value) {
                     .register => |register| .{ .register = register },
                     .integer => |integer| .{ .immediate = try integer.shrink(5) },
-                    else => error.UnexpectedTokenKind,
+                    else => try unexpected(reporter, token, &.{ .register, .integer }),
                 },
+
                 Operand.Value.Offset6 => switch (value) {
                     .integer => |integer| .{ .inner = try integer.shrink(6) },
-                    else => error.UnexpectedTokenKind,
+                    else => try unexpected(reporter, token, &.{.integer}),
                 },
+
                 Operand.Value.PCOffset9 => switch (value) {
+                    // TODO: Integer literals here may be non-standard; warn
                     .integer => |integer| .{ .resolved = try integer.castToSmaller(i9) },
                     .label => .unresolved,
-                    else => error.UnexpectedTokenKind,
+                    else => try unexpected(reporter, token, &.{ .label, .integer }),
                 },
+
                 Operand.Value.PCOffset11 => switch (value) {
+                    // TODO: Integer literals here may be non-standard; warn
                     .integer => |integer| .{ .resolved = try integer.castToSmaller(i11) },
                     .label => .unresolved,
-                    else => error.UnexpectedTokenKind,
+                    else => try unexpected(reporter, token, &.{ .label, .integer }),
                 },
+
                 Operand.Value.TrapVect => switch (value) {
                     .integer => |integer| .{ .inner = try integer.castToSmaller(u8) },
-                    else => error.UnexpectedTokenKind,
+                    else => try unexpected(reporter, token, &.{.integer}),
                 },
+
                 else => comptime unreachable,
             },
         };
     }
 };
+
+fn unexpected(
+    reporter: *Reporter,
+    token: Token,
+    expected: []const Reporter.TokenKinds.Kind,
+) error{Reported}!noreturn {
+    try reporter.report(.unexpected_token_kind, .{
+        .token = token,
+        .expected = expected,
+    }).abort();
+}

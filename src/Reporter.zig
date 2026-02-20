@@ -342,17 +342,19 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
     return response;
 }
 
-const TokenKinds = struct {
+pub const TokenKinds = struct {
     kinds: []const Kind,
 
-    const Kind = std.meta.Tag(Token.Value);
+    pub const Kind = std.meta.Tag(Token.Value);
 
     pub fn format(self: *const @This(), writer: *Io.Writer) !void {
         for (self.kinds, 0..) |kind, i| {
-            if (i + 1 >= self.kinds.len)
-                try writer.print(", or ", .{})
-            else if (i > 0)
-                try writer.print(", ", .{});
+            if (i > 0) {
+                if (i + 1 >= self.kinds.len)
+                    try writer.print(", or ", .{})
+                else
+                    try writer.print(", ", .{});
+            }
 
             try writer.print("{s}", .{name(kind)});
         }
