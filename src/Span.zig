@@ -49,6 +49,10 @@ pub fn view(span: Span, source: []const u8) []const u8 {
     return source[span.offset..][0..span.len];
 }
 
+pub fn containsIndex(span: Span, index: usize) bool {
+    return index >= span.offset and index < span.end();
+}
+
 pub fn getLineNumber(span: Span, source: []const u8) usize {
     var count: usize = 1;
     for (source[0..span.offset]) |char| {

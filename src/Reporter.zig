@@ -255,19 +255,19 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
         .missing_origin => |info| {
             ctx.printTitle("Missing .ORIG directive", .{});
             ctx.deepen().printSourceNote(
-                "Origin should be declared before any instructions:",
+                "Origin should be declared before any instructions",
                 .{},
                 info.first_token orelse .firstCharOf(source),
             );
         },
         .multiple_origins => |info| {
             ctx.printTitle("Multiple .ORIG directives", .{});
-            ctx.deepen().printSourceNote("First declared here:", .{}, info.existing);
-            ctx.deepen().printSourceNote("Tried to redeclare here:", .{}, info.new);
+            ctx.deepen().printSourceNote("First declared here", .{}, info.existing);
+            ctx.deepen().printSourceNote("Tried to redeclare here", .{}, info.new);
         },
         .late_origin => |info| {
             ctx.printTitle("Origin declared after statements", .{});
-            ctx.deepen().printSourceNote("Origin declared here:", .{}, info.origin);
+            ctx.deepen().printSourceNote("Origin declared here", .{}, info.origin);
             ctx.deepen().printSourceNote(
                 "Origin must be declared at start of file",
                 .{},
@@ -277,43 +277,43 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
         .missing_end => |info| {
             ctx.printTitle("Missing .END directive", .{});
             ctx.deepen().printSourceNote(
-                "End should be declared after included all instructions:",
+                "End should be declared after included all instructions",
                 .{},
                 info.last_token orelse .lastCharOf(source),
             );
         },
         .duplicate_label => |info| {
             ctx.printTitle("Label already declared", .{});
-            ctx.deepen().printSourceNote("Label is first declared here:", .{}, info.existing);
-            ctx.deepen().printSourceNote("Tried to redeclare here:", .{}, info.new);
+            ctx.deepen().printSourceNote("Label is first declared here", .{}, info.existing);
+            ctx.deepen().printSourceNote("Tried to redeclare here", .{}, info.new);
         },
         .unexpected_label => |info| {
             ctx.printTitle("Multiple labels cannot be declared on the same line", .{});
-            ctx.deepen().printSourceNote("First label declared here:", .{}, info.existing);
-            ctx.deepen().printSourceNote("Another label declared on the same line:", .{}, info.new);
+            ctx.deepen().printSourceNote("First label declared here", .{}, info.existing);
+            ctx.deepen().printSourceNote("Another label declared on the same line", .{}, info.new);
         },
         .shadowed_label => |info| {
             ctx.printTitle("Shadowed label has no use", .{});
-            ctx.deepen().printSourceNote("First label declared here:", .{}, info.existing);
-            ctx.deepen().printSourceNote("Another label declared in the same position:", .{}, info.new);
+            ctx.deepen().printSourceNote("First label declared here", .{}, info.existing);
+            ctx.deepen().printSourceNote("Another label declared in the same position", .{}, info.new);
         },
         .useless_label => |info| {
             ctx.printTitle("Label is useless in this position", .{});
-            ctx.deepen().printSourceNote("Label declared here:", .{}, info.label);
+            ctx.deepen().printSourceNote("Label declared here", .{}, info.label);
             ctx.deepen().printSourceNote("Token cannot be annotated with label", .{}, info.token);
         },
         .undeclared_label => |info| {
             ctx.printTitle("Label is not declared", .{});
-            ctx.deepen().printSourceNote("Label used here:", .{}, info.label);
+            ctx.deepen().printSourceNote("Label used here", .{}, info.label);
         },
         .offset_too_large => |info| {
             ctx.printTitle("Label offset is too large", .{});
-            ctx.deepen().printSourceNote("Label declared here:", .{}, info.definition);
-            ctx.deepen().printSourceNote("Label used here:", .{}, info.reference);
+            ctx.deepen().printSourceNote("Label declared here", .{}, info.definition);
+            ctx.deepen().printSourceNote("Label used here", .{}, info.reference);
         },
         .eof_label => |info| {
             ctx.printTitle("Label is useless in this position", .{});
-            ctx.deepen().printSourceNote("Label declared here:", .{}, info.label);
+            ctx.deepen().printSourceNote("Label declared here", .{}, info.label);
             ctx.deepen().printSourceNote(
                 "Label is not followed by any token",
                 .{},
@@ -322,17 +322,17 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
         },
         .unexpected_token_kind => |info| {
             ctx.printTitle("Unexpected {s}", .{TokenKinds.name(info.token.value)});
-            ctx.deepen().printSourceNote("Token:", .{}, info.token.span);
+            ctx.deepen().printSourceNote("Token", .{}, info.token.span);
             ctx.deepen().printNote("Expected {f}", .{TokenKinds{ .kinds = info.expected }});
         },
         .unexpected_token => |info| {
             ctx.printTitle("Unexpected {s}", .{TokenKinds.name(info.token.value)});
-            ctx.deepen().printSourceNote("Token:", .{}, info.token.span);
+            ctx.deepen().printSourceNote("Token", .{}, info.token.span);
             ctx.deepen().printNote("Expected end of line", .{});
         },
         .invalid_token => |info| {
             ctx.printTitle("Invalid token", .{});
-            ctx.deepen().printSourceNote("Token:", .{}, info.token);
+            ctx.deepen().printSourceNote("Token", .{}, info.token);
             if (info.kind) |kind|
                 ctx.deepen().printNote("Cannot parse as {s}", .{TokenKinds.name(kind)})
             else
@@ -340,42 +340,43 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
         },
         .unknown_directive => |info| {
             ctx.printTitle("Directive is not supported", .{});
-            ctx.deepen().printSourceNote("Tried to use directive here:", .{}, info.directive);
+            ctx.deepen().printSourceNote("Tried to use directive here", .{}, info.directive);
         },
         .unmatched_quote => |info| {
             ctx.printTitle("String literal does not end with quote `\"`", .{});
-            ctx.deepen().printSourceNote("String is used here:", .{}, info.string);
+            ctx.deepen().printSourceNote("String is used here", .{}, info.string);
             ctx.deepen().printNote("Strings do not automatically stop at end of line", .{});
         },
         .unexpected_negative_integer => |info| {
             ctx.printTitle("Integer operand cannot be negative", .{});
-            ctx.deepen().printSourceNote("Operand: ", .{}, info.integer);
+            ctx.deepen().printSourceNote("Operand ", .{}, info.integer);
         },
         .integer_too_large => |info| {
             ctx.printTitle("Integer operand is too large", .{});
-            ctx.deepen().printSourceNote("Operand: ", .{}, info.integer);
+            ctx.deepen().printSourceNote("Operand ", .{}, info.integer);
             ctx.deepen().printNote("Value cannot be represented in {} bits", .{info.bits});
         },
         .invalid_string_escape => |info| {
             ctx.printTitle("Invalid escape sequence", .{});
-            ctx.deepen().printSourceNote("String: ", .{}, info.string);
-            ctx.deepen().printSourceNote("Erroneous escape sequence: ", .{}, info.sequence);
+            ctx.deepen().printSourceNote("String ", .{}, info.string);
+            ctx.deepen().printSourceNote("Erroneous escape sequence ", .{}, info.sequence);
         },
         .multiline_string => |info| {
             ctx.printTitle("String covers multiple lines", .{});
-            ctx.deepen().printSourceNote("String: ", .{}, info.string);
+            ctx.deepen().printSourceNote("String ", .{}, info.string);
         },
         .nonstandard_integer_radix => |info| {
             ctx.printTitle("Integer uses nonstandard radix '{t}'", .{info.radix});
-            ctx.deepen().printSourceNote("Integer: ", .{}, info.integer);
+            ctx.deepen().printSourceNote("Integer ", .{}, info.integer);
         },
 
         .generic_debug => |info| {
-            ctx.printTitle("Generic error: '{t}'", .{info.code});
-            ctx.deepen().printSourceNote("Token: ", .{}, info.span);
+            ctx.printTitle("Generic error '{t}'", .{info.code});
+            ctx.deepen().printSourceNote("Token ", .{}, info.span);
         },
     }
 
+    ctx.print("\n", .{});
     ctx.flush();
 
     assert(response != .pass);
@@ -492,7 +493,7 @@ const Ctx = struct {
         args: anytype,
         span: Span,
     ) void {
-        ctx.printNote(fmt, args);
+        ctx.printNote(fmt ++ ": ", args);
         ctx.printSource(span);
     }
 
@@ -507,12 +508,27 @@ const Ctx = struct {
             const line_number = line.getLineNumber(source);
 
             ctx.printDepth();
-            ctx.print("\x1b[36m", .{});
+            ctx.print("\x1b[2m", .{});
             ctx.print("{:3} ", .{line_number});
             ctx.print("| ", .{});
             ctx.print("\x1b[0m", .{});
             ctx.print("\x1b[3m", .{});
-            ctx.print("{s}", .{line_string});
+            ctx.print("\x1b[2m", .{});
+
+            {
+                var was_in_span = false;
+                for (line_string, 0..) |char, i| {
+                    const index = line.offset + i;
+                    const in_span = span.containsIndex(index);
+                    if (in_span and !was_in_span)
+                        ctx.print("\x1b[22m", .{})
+                    else if (!in_span and was_in_span)
+                        ctx.print("\x1b[2m", .{});
+                    ctx.print("{c}", .{char});
+                    was_in_span = in_span;
+                }
+            }
+
             ctx.print("\x1b[0m", .{});
             ctx.print("\n", .{});
 
@@ -521,15 +537,16 @@ const Ctx = struct {
             }
 
             ctx.printDepth();
-            ctx.print("\x1b[36m", .{});
+            ctx.print("\x1b[2m", .{});
             ctx.print("    | ", .{});
+            ctx.print("\x1b[22m", .{});
+            ctx.print("\x1b[36m", .{});
             for (0..line_string.len) |i| {
                 const index = line.offset + i;
-                if (index >= span.offset and index < span.end()) {
-                    ctx.print("^", .{});
-                } else {
+                if (span.containsIndex(index))
+                    ctx.print("^", .{})
+                else
                     ctx.print(" ", .{});
-                }
             }
             ctx.print("\x1b[0m", .{});
             ctx.print("\n", .{});
