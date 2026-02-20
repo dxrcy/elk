@@ -10,7 +10,7 @@ const Span = @import("Span.zig");
 const BUFFER_SIZE = 1024;
 
 count: std.EnumArray(Level, usize),
-mode: Mode,
+strictness: Strictness,
 
 file: Io.File,
 buffer: [BUFFER_SIZE]u8,
@@ -21,16 +21,17 @@ io: Io,
 
 const Level = enum { err, warn };
 
-pub const Mode = enum {
+// TODO: Rename
+pub const Strictness = enum {
     strict,
     normal,
-    quiet,
+    relaxed,
 
-    fn standardResponse(mode: Mode) Response {
-        return switch (mode) {
+    fn standardResponse(strictness: Strictness) Response {
+        return switch (strictness) {
             .strict => .major,
             .normal => .minor,
-            .quiet => .pass,
+            .relaxed => .pass,
         };
     }
 };
@@ -152,7 +153,7 @@ pub const Response = enum {
 pub fn new(io: Io) Reporter {
     return .{
         .count = .initFill(0),
-        .mode = .normal,
+        .strictness = .normal,
         .file = undefined,
         .buffer = undefined,
         .writer = undefined,
@@ -171,8 +172,8 @@ pub fn setSource(reporter: *Reporter, source: []const u8) void {
     reporter.source = source;
 }
 
-pub fn setMode(reporter: *Reporter, mode: Mode) void {
-    reporter.mode = mode;
+pub fn setStrictness(reporter: *Reporter, strictness: Strictness) void {
+    reporter.strictness = strictness;
 }
 
 pub fn endSection(reporter: *Reporter) ?Level {
@@ -214,15 +215,15 @@ pub fn report(
 
 fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
     const response: Response = switch (diag) {
-        .missing_origin => reporter.mode.standardResponse(),
+        .missing_origin => reporter.strictness.standardResponse(),
         .multiple_origins => .fatal,
         .late_origin => .fatal,
-        .missing_end => reporter.mode.standardResponse(),
+        .missing_end => reporter.strictness.standardResponse(),
         .duplicate_label => .fatal,
         .unexpected_label => .major,
-        .shadowed_label => reporter.mode.standardResponse(),
-        .useless_label => reporter.mode.standardResponse(),
-        .eof_label => reporter.mode.standardResponse(),
+        .shadowed_label => reporter.strictness.standardResponse(),
+        .useless_label => reporter.strictness.standardResponse(),
+        .eof_label => reporter.strictness.standardResponse(),
         .undeclared_label => .fatal,
         .offset_too_large => .fatal,
         .unexpected_token_kind => .fatal,
@@ -232,9 +233,9 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
         .unmatched_quote => .fatal,
         .unexpected_negative_integer => .fatal,
         .integer_too_large => .fatal,
-        .invalid_string_escape => reporter.mode.standardResponse(),
-        .multiline_string => reporter.mode.standardResponse(),
-        .nonstandard_integer_radix => reporter.mode.standardResponse(),
+        .invalid_string_escape => reporter.strictness.standardResponse(),
+        .multiline_string => reporter.strictness.standardResponse(),
+        .nonstandard_integer_radix => reporter.strictness.standardResponse(),
 
         .generic_debug => .fatal,
     };
