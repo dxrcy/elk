@@ -7,7 +7,7 @@ const Operand = @import("Air.zig").Operand;
 const Lexer = @import("Lexer.zig");
 const Token = @import("Token.zig");
 const Span = @import("Span.zig");
-const Integer = @import("integers.zig").SourceInt;
+const SourceInt = @import("integers.zig").SourceInt;
 const Reporter = @import("Reporter.zig");
 
 lexer: Lexer,
@@ -192,7 +192,7 @@ pub const Argument = union(enum) {
     fn Value(comptime argument: Argument) type {
         return switch (argument) {
             .operand => |operand| operand,
-            .word => Integer(16),
+            .word => SourceInt(16),
             .string => Span,
         };
     }
