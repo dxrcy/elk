@@ -27,49 +27,7 @@ pub fn main(init: std.process.Init) !u8 {
 
     try parser.parse();
 
-    if (false) //
-    {
-        var was_raw_word = false;
-        for (air.lines.items, 0..) |line, i| {
-            const concise =
-                line.statement == .raw_word and
-                was_raw_word and
-                line.label == null;
-            if (!concise)
-                std.debug.print("\n", .{});
-            if (line.label) |label| {
-                std.debug.print("\"{s}\" ", .{label.view(source)});
-            }
-            if (!concise)
-                std.debug.print("[{s}]\n", .{line.span.view(source)});
-            std.debug.print("{f}", .{line.statement.format(&air, source, i)});
-            was_raw_word = line.statement == .raw_word;
-        }
-        std.debug.print("\n", .{});
-    }
-
     parser.resolveLabels();
-
-    if (false) //
-    {
-        var was_raw_word = false;
-        for (air.lines.items, 0..) |line, i| {
-            const concise =
-                line.statement == .raw_word and
-                was_raw_word and
-                line.label == null;
-            if (!concise)
-                std.debug.print("\n", .{});
-            if (line.label) |label| {
-                std.debug.print("\"{s}\" ", .{label.view(source)});
-            }
-            if (!concise)
-                std.debug.print("[{s}]\n", .{line.span.view(source)});
-            std.debug.print("{f}", .{line.statement.format(&air, source, i)});
-            was_raw_word = line.statement == .raw_word;
-        }
-        std.debug.print("\n", .{});
-    }
 
     // if (true) return;
 
