@@ -366,45 +366,45 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
         },
         .unexpected_negative_integer => |info| {
             ctx.printTitle("Integer operand cannot be negative", .{});
-            ctx.deepen().printSourceNote("Operand ", .{}, info.integer);
+            ctx.deepen().printSourceNote("Operand", .{}, info.integer);
         },
         .malformed_integer => |info| {
             ctx.printTitle("Malformed integer operand", .{});
-            ctx.deepen().printSourceNote("Operand ", .{}, info.integer);
+            ctx.deepen().printSourceNote("Operand", .{}, info.integer);
             ctx.deepen().printNote("Integer token is not in an valid form", .{});
         },
         .expected_digit => |info| {
             ctx.printTitle("Expected digit in integer operand", .{});
-            ctx.deepen().printSourceNote("Operand ", .{}, info.integer);
+            ctx.deepen().printSourceNote("Operand", .{}, info.integer);
             ctx.deepen().printNote("Integer token ended unexpectedly", .{});
         },
         .invalid_digit => |info| {
             ctx.printTitle("Invalid digit in integer operand", .{});
-            ctx.deepen().printSourceNote("Operand ", .{}, info.integer);
+            ctx.deepen().printSourceNote("Operand", .{}, info.integer);
             ctx.deepen().printNote("Integer token contains a character which is not valid in the base", .{});
         },
         .integer_too_large => |info| {
             ctx.printTitle("Integer operand is too large", .{});
-            ctx.deepen().printSourceNote("Operand ", .{}, info.integer);
+            ctx.deepen().printSourceNote("Operand", .{}, info.integer);
             ctx.deepen().printNote("Value cannot be represented in {} bits", .{info.bits});
         },
         .invalid_string_escape => |info| {
             ctx.printTitle("Invalid escape sequence", .{});
-            ctx.deepen().printSourceNote("String ", .{}, info.string);
-            ctx.deepen().printSourceNote("Erroneous escape sequence ", .{}, info.sequence);
+            ctx.deepen().printSourceNote("String", .{}, info.string);
+            ctx.deepen().printSourceNote("Erroneous escape sequence", .{}, info.sequence);
         },
         .multiline_string => |info| {
             ctx.printTitle("String covers multiple lines", .{});
-            ctx.deepen().printSourceNote("String ", .{}, info.string);
+            ctx.deepen().printSourceNote("String", .{}, info.string);
         },
         .nonstandard_integer_radix => |info| {
             ctx.printTitle("Integer uses nonstandard base '{t}'", .{info.radix});
-            ctx.deepen().printSourceNote("Integer ", .{}, info.integer);
+            ctx.deepen().printSourceNote("Integer", .{}, info.integer);
         },
 
         .generic_debug => |info| {
             ctx.printTitle("Generic error '{t}'", .{info.code});
-            ctx.deepen().printSourceNote("Token ", .{}, info.span);
+            ctx.deepen().printSourceNote("Token", .{}, info.span);
         },
     }
 
