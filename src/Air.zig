@@ -33,6 +33,10 @@ pub const Statement = union(enum) {
         src_a: Operand.Register,
         src_b: Operand.RegImm5,
     },
+    not: struct {
+        dest: Operand.Register,
+        src: Operand.Register,
+    },
     br: struct {
         condition: Operand.ConditionMask,
         dest: Operand.PCOffset9,
@@ -40,11 +44,16 @@ pub const Statement = union(enum) {
     jmp: struct {
         base: Operand.Register,
     },
+    ret: struct {},
     jsr: struct {
         dest: Operand.PCOffset11,
     },
     jsrr: struct {
         base: Operand.Register,
+    },
+    lea: struct {
+        dest: Operand.Register,
+        src: Operand.PCOffset9,
     },
     ld: struct {
         dest: Operand.Register,
@@ -59,16 +68,6 @@ pub const Statement = union(enum) {
         src: Operand.Register,
         offset: Operand.Offset6,
     },
-    lea: struct {
-        dest: Operand.Register,
-        src: Operand.PCOffset9,
-    },
-    not: struct {
-        dest: Operand.Register,
-        src: Operand.Register,
-    },
-    ret: struct {},
-    rti: struct {},
     st: struct {
         src: Operand.Register,
         dest: Operand.PCOffset9,
@@ -85,6 +84,7 @@ pub const Statement = union(enum) {
     trap: struct {
         vect: Operand.TrapVect,
     },
+    rti: struct {},
 };
 
 pub const Operand = struct {
@@ -219,6 +219,13 @@ fn encode(statement: Statement) u16 {
             raw |= operands.src_b.value.bits();
             return raw;
         },
+        .not => |operands| {
+            var raw: u16 = 0x9000;
+            raw |= operands.dest.value.bits() << 9;
+            raw |= operands.src.value.bits() << 6;
+            raw |= 0b111111;
+            return raw;
+        },
         .br => |operands| {
             var raw: u16 = 0x0000;
             raw |= operands.condition.value.bits() << 9;
@@ -230,6 +237,9 @@ fn encode(statement: Statement) u16 {
             raw |= operands.base.value.bits() << 6;
             return raw;
         },
+        .ret => {
+            return 0xc1c0;
+        },
         .jsr => |operands| {
             var raw: u16 = 0x4800;
             raw |= operands.dest.value.bits();
@@ -238,6 +248,12 @@ fn encode(statement: Statement) u16 {
         .jsrr => |operands| {
             var raw: u16 = 0x4000;
             raw |= operands.base.value.bits() << 6;
+            return raw;
+        },
+        .lea => |operands| {
+            var raw: u16 = 0xe000;
+            raw |= operands.dest.value.bits() << 9;
+            raw |= operands.src.value.bits();
             return raw;
         },
         .ld => |operands| {
@@ -258,25 +274,6 @@ fn encode(statement: Statement) u16 {
             raw |= operands.src.value.bits() << 6;
             raw |= operands.offset.value.bits();
             return raw;
-        },
-        .lea => |operands| {
-            var raw: u16 = 0xe000;
-            raw |= operands.dest.value.bits() << 9;
-            raw |= operands.src.value.bits();
-            return raw;
-        },
-        .not => |operands| {
-            var raw: u16 = 0x9000;
-            raw |= operands.dest.value.bits() << 9;
-            raw |= operands.src.value.bits() << 6;
-            raw |= 0b111111;
-            return raw;
-        },
-        .ret => {
-            return 0xc1c0;
-        },
-        .rti => {
-            return 0x8000;
         },
         .st => |operands| {
             var raw: u16 = 0x3000;
@@ -301,6 +298,9 @@ fn encode(statement: Statement) u16 {
             var raw: u16 = 0xf000;
             raw |= operands.vect.value.bits();
             return raw;
+        },
+        .rti => {
+            return 0x8000;
         },
     }
 }

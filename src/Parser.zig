@@ -312,20 +312,20 @@ fn parseInstruction(
         inline // Automatic parsing for 'regular' instructions
         .add,
         .@"and",
+        .not,
         .jmp,
+        .ret,
         .jsr,
         .jsrr,
+        .lea,
         .ld,
         .ldi,
         .ldr,
-        .lea,
-        .not,
-        .ret,
-        .rti,
         .st,
         .sti,
         .str,
         .trap,
+        .rti,
         => |regular| {
             const Operands = @FieldType(Statement, @tagName(regular));
             var operands: Operands = undefined;

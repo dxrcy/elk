@@ -68,13 +68,13 @@ pub const Value = union(enum) {
         jsr,
         jsrr,
         // Load / store
+        lea,
         ld,
         st,
         ldi,
         sti,
         ldr,
         str,
-        lea,
         // Traps
         trap,
         getc,
