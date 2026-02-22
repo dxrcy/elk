@@ -58,18 +58,28 @@ fn nextAny(tokens: *TokenIter) error{ Reported, Eof }!Token {
     tokens.peeked = null;
     return tokens.parseToken(span) catch |err| {
         switch (err) {
+
+            // TODO: Handle with specific branches
+            error.InvalidDigit,
+            error.MalformedInteger,
+            error.ExpectedDigit,
+            error.IntegerTooLarge,
+            => {
+                try tokens.reporter.report(.generic_debug, .{
+                    .code = err,
+                    .span = span,
+                }).abort();
+            },
+
             inline error.InvalidLabel,
             error.InvalidDirective,
             error.InvalidToken,
-            // TODO: integer parsing should return specific errors
-            error.InvalidInteger,
             => |err2| {
                 try tokens.reporter.report(.invalid_token, .{
                     .token = span,
                     .kind = switch (err2) {
                         error.InvalidLabel => .label,
                         error.InvalidDirective => .directive,
-                        error.InvalidInteger => .integer,
                         error.InvalidToken => null,
                         else => comptime unreachable,
                     },

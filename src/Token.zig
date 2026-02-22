@@ -12,14 +12,15 @@ const Span = @import("Span.zig");
 span: Span,
 value: Value,
 
-pub const Error = error{
-    InvalidInteger,
-    InvalidDirective,
-    UnknownDirective,
-    InvalidLabel,
-    InvalidToken,
-    UnmatchedQuote,
-};
+pub const Error =
+    integers.Error ||
+    error{
+        InvalidDirective,
+        UnknownDirective,
+        InvalidLabel,
+        InvalidToken,
+        UnmatchedQuote,
+    };
 
 pub fn from(span: Span, source: []const u8) Error!Token {
     const value: Value = try .from(span.view(source));

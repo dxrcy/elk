@@ -4,8 +4,12 @@ const Signedness = std.builtin.Signedness;
 const testing = std.testing;
 const assert = std.debug.assert;
 
-// TODO: Add more variants
-const Error = error{InvalidInteger};
+pub const Error = error{
+    InvalidDigit,
+    MalformedInteger,
+    ExpectedDigit,
+    IntegerTooLarge,
+};
 
 pub fn SourceInt(comptime bits: u16) type {
     return struct {
@@ -130,7 +134,13 @@ pub fn tryInteger(string: []const u8) Error!?Word {
         .non_integer => {
             // Initial sign always indicates an integer
             if (first_sign != null)
-                return error.InvalidInteger;
+                return error.InvalidDigit;
+            return null;
+        },
+        .empty => {
+            // Initial sign always indicates an integer
+            if (first_sign != null)
+                return error.ExpectedDigit;
             return null;
         },
     };
@@ -141,16 +151,16 @@ pub fn tryInteger(string: []const u8) Error!?Word {
     // Check if anything follows prefix (also covers "" case)
     // Otherwise loop would be skipped and value assumed to be `0`
     if (chars.peek() == null)
-        return endOfInteger(sign, prefix);
+        return endOfInteger(sign, prefix, null);
 
     var oversize: Word.Oversize = 0;
     const real_radix = prefix.radix orelse Radix.default;
 
     while (chars.next()) |char| {
         const digit = real_radix.parse_digit(char) orelse
-            return endOfInteger(sign, prefix);
+            return endOfInteger(sign, prefix, char);
         appendDigit(&oversize, real_radix, digit) catch
-            return error.InvalidInteger;
+            return error.IntegerTooLarge;
     }
 
     return try makeWord(oversize, sign, prefix.radix);
@@ -173,9 +183,9 @@ fn makeWord(oversize: Word.Oversize, sign: ?Sign, radix: ?Radix) Error!Word {
     // Try to fit in the appropriate `SourceInt` variant
     const underlying: Word.Unsigned = switch (signedness) {
         .unsigned => @bitCast(math.cast(Word.Unsigned, oversize) orelse
-            return error.InvalidInteger),
+            return error.IntegerTooLarge),
         .signed => @bitCast(math.cast(Word.Signed, -1 * oversize) orelse
-            return error.InvalidInteger),
+            return error.IntegerTooLarge),
     };
 
     return .{
@@ -201,6 +211,7 @@ fn takePrefix(chars: *CharIter) !union(enum) {
     regular: Prefix,
     single_zero,
     non_integer,
+    empty,
 } {
     // Only take ONE leading zero here
     // Caller can disallow "00x..." etc.
@@ -212,7 +223,7 @@ fn takePrefix(chars: *CharIter) !union(enum) {
 
     // "0" or ""
     const peeked = chars.peek() orelse
-        return if (leading_zeros) .single_zero else .non_integer;
+        return if (leading_zeros) .single_zero else .empty;
 
     const radix: ?Radix, const next_char = switch (peeked) {
         'b', 'B' => .{ .binary, true },
@@ -220,7 +231,7 @@ fn takePrefix(chars: *CharIter) !union(enum) {
         'x', 'X' => .{ .hex, true },
 
         '#' => if (leading_zeros)
-            return error.InvalidInteger // Disallow "0#..."
+            return error.MalformedInteger // Disallow "0#..."
         else
             .{ .decimal, true },
 
@@ -228,13 +239,12 @@ fn takePrefix(chars: *CharIter) !union(enum) {
         '0'...'9' => .{ null, false },
 
         // Disallow "0-..." and "0+..." as well as "--...", "-+...", etc.
-        // Caller should have already consumed any sign character before
-        // prefix.
-        '-', '+' => return error.InvalidInteger,
+        // Caller should have already consumed any sign character before prefix.
+        '-', '+' => return error.MalformedInteger,
 
         else => return if (leading_zeros)
             // Leading zero always indicates an integer
-            error.InvalidInteger
+            error.InvalidDigit
         else
             .non_integer,
     };
@@ -251,23 +261,25 @@ fn takePrefix(chars: *CharIter) !union(enum) {
 fn reconcileSigns(first_opt: ?Sign, second_opt: ?Sign) !?Sign {
     if (first_opt) |first| {
         // Disallow multiple sign characters: "-x-...", "++...", etc
-        return if (second_opt) |_| error.InvalidInteger else first;
+        return if (second_opt) |_| error.MalformedInteger else first;
     } else {
         return if (second_opt) |second| second else null;
     }
 }
 
-fn endOfInteger(sign: ?Sign, prefix: Prefix) !?Word {
+fn endOfInteger(sign: ?Sign, prefix: Prefix, char: ?u8) !?Word {
     // Any of these conditions indicate an invalid integer token (as opposed to
     // a possibly-valid non-integer token)
     // Note that a leading decimal digit (`^[0-9]`) will lead to a pre-prefix
     // zero, or an implicit decimal radix
-    return if (sign != null or
+    if (sign != null or
         prefix.leading_zeros or
         (prefix.radix orelse .decimal) == .decimal)
-        error.InvalidInteger
-    else
-        null;
+    {
+        return if (char == null) error.ExpectedDigit else error.InvalidDigit;
+    } else {
+        return null;
+    }
 }
 
 test takeSign {
