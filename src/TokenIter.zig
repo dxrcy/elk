@@ -226,7 +226,7 @@ pub const Argument = union(enum) {
     word,
     string,
 
-    fn Value(comptime argument: Argument) type {
+    pub fn Value(comptime argument: Argument) type {
         return switch (argument) {
             .operand => |operand| operand,
             .word => SourceInt(16),
@@ -234,7 +234,7 @@ pub const Argument = union(enum) {
         };
     }
 
-    fn convert(
+    pub fn convert(
         comptime argument: Argument,
         token: Token,
         reporter: *Reporter,
@@ -303,31 +303,31 @@ pub const Argument = union(enum) {
             },
         };
     }
+
+    fn shrink(
+        reporter: *Reporter,
+        span: Span,
+        integer: SourceInt(16),
+        comptime T: type,
+    ) error{Reported}!T {
+        return integer.castToSmaller(T) catch |err| switch (err) {
+            error.IntegerTooLarge => {
+                try reporter.report(.integer_too_large, .{
+                    .integer = span,
+                    .bits = @typeInfo(T).int.bits,
+                }).abort();
+            },
+        };
+    }
+
+    fn unexpected(
+        reporter: *Reporter,
+        token: Token,
+        expected: []const TokenKind,
+    ) error{Reported}!noreturn {
+        try reporter.report(.unexpected_token_kind, .{
+            .token = token,
+            .expected = expected,
+        }).abort();
+    }
 };
-
-fn shrink(
-    reporter: *Reporter,
-    span: Span,
-    integer: SourceInt(16),
-    comptime T: type,
-) error{Reported}!T {
-    return integer.castToSmaller(T) catch |err| switch (err) {
-        error.IntegerTooLarge => {
-            try reporter.report(.integer_too_large, .{
-                .integer = span,
-                .bits = @typeInfo(T).int.bits,
-            }).abort();
-        },
-    };
-}
-
-fn unexpected(
-    reporter: *Reporter,
-    token: Token,
-    expected: []const TokenKind,
-) error{Reported}!noreturn {
-    try reporter.report(.unexpected_token_kind, .{
-        .token = token,
-        .expected = expected,
-    }).abort();
-}
