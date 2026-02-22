@@ -381,7 +381,7 @@ fn parseInstruction(
                 else => comptime unreachable,
             };
             return .{ .trap = .{
-                .vect = .{ .span = span, .value = .{ .inner = vect } },
+                .vect = .{ .span = span, .value = .{ .immediate = vect } },
             } };
         },
     }

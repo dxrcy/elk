@@ -249,9 +249,16 @@ pub const Argument = union(enum) {
                     else => try unexpected(reporter, token, &.{ .register, .integer }),
                 },
 
+                Operand.Value.TrapVect => switch (token.value) {
+                    .integer => |integer| .{
+                        .immediate = try shrink(reporter, token.span, integer, u8),
+                    },
+                    else => try unexpected(reporter, token, &.{.integer}),
+                },
+
                 Operand.Value.Offset6 => switch (token.value) {
                     .integer => |integer| .{
-                        .inner = try shrink(reporter, token.span, integer, i6),
+                        .immediate = try shrink(reporter, token.span, integer, i6),
                     },
                     else => try unexpected(reporter, token, &.{.integer}),
                 },
@@ -272,13 +279,6 @@ pub const Argument = union(enum) {
                     },
                     .label => .unresolved,
                     else => try unexpected(reporter, token, &.{ .label, .integer }),
-                },
-
-                Operand.Value.TrapVect => switch (token.value) {
-                    .integer => |integer| .{
-                        .inner = try shrink(reporter, token.span, integer, u8),
-                    },
-                    else => try unexpected(reporter, token, &.{.integer}),
                 },
 
                 else => comptime unreachable,

@@ -220,18 +220,16 @@ pub const Operand = struct {
         };
 
         pub const TrapVect = struct {
-            // TODO: Rename
-            inner: u8,
+            immediate: u8,
             pub fn bits(self: @This()) u16 {
-                return self.inner;
+                return self.immediate;
             }
         };
 
         pub const Offset6 = struct {
-            // TODO: Rename `immediate`
-            inner: i6,
+            immediate: i6,
             pub fn bits(self: @This()) u16 {
-                return @as(u6, @bitCast(self.inner));
+                return @as(u6, @bitCast(self.immediate));
             }
         };
 
