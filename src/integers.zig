@@ -15,11 +15,25 @@ pub fn SourceInt(comptime bits: u16) type {
     return struct {
         const Self = @This();
 
+        pub const Form = union(enum) {
+            bare,
+            only_radix: Radix,
+            sign_radix: Radix,
+            sign_zero_radix: Radix,
+            radix_sign: Radix,
+
+            pub fn getRadix(form: Form) ?Radix {
+                return switch (form) {
+                    .bare => null,
+                    inline else => |radix| radix,
+                };
+            }
+        };
+
         /// Do not use without considering `signedness`.
         underlying: Unsigned,
         signedness: Signedness,
-        radix: ?Radix,
-        // TODO: Add field for whether integer uses 'extension' syntax. Eg. `x-1`
+        form: Form,
 
         const Unsigned = @Int(.unsigned, bits);
         const Signed = @Int(.signed, bits);
@@ -175,7 +189,7 @@ fn appendDigit(
     oversize.* = try math.add(Word.Oversize, oversize.*, digit);
 }
 
-fn makeWord(oversize: Word.Oversize, sign: ?Sign, radix: ?Radix) Error!Word {
+fn makeWord(oversize: Word.Oversize, sign: ?Sign, radix_opt: ?Radix) Error!Word {
     // Always represent `0` as unsigned.
     const signedness: Signedness =
         if (sign == .negative and oversize != 0) .signed else .unsigned;
@@ -188,10 +202,15 @@ fn makeWord(oversize: Word.Oversize, sign: ?Sign, radix: ?Radix) Error!Word {
             return error.IntegerTooLarge),
     };
 
+    const form: Word.Form = if (radix_opt) |radix|
+        .{ .only_radix = radix }
+    else
+        .bare;
+
     return .{
         .underlying = underlying,
         .signedness = signedness,
-        .radix = radix,
+        .form = form,
     };
 }
 

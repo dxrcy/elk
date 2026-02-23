@@ -129,7 +129,7 @@ fn ensureSupported(tokens: *const TokenIter, token: Token) error{Reported}!void 
             }
         },
         .integer => |integer| {
-            if (integer.radix) |radix| switch (radix) {
+            if (integer.form.getRadix()) |radix| switch (radix) {
                 .binary, .octal => {
                     try tokens.reporter.report(.nonstandard_integer_radix, .{
                         .integer = token.span,
