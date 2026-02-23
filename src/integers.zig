@@ -15,10 +15,8 @@ pub fn SourceInt(comptime bits: u16) type {
     return struct {
         const Self = @This();
 
-        /// Do not use without considering `signedness`.
+        /// Do not use without considering `signedness()`.
         underlying: Unsigned,
-        // TODO: Redundant, if can use `form.sign` ??
-        signedness: Signedness,
         form: Form,
 
         const Unsigned = @Int(.unsigned, bits);
@@ -46,11 +44,11 @@ pub fn SourceInt(comptime bits: u16) type {
 
         fn from(oversize: Oversize, form: Form) Error!Self {
             // Always represent `0` as unsigned.
-            const signedness: Signedness =
+            const signedness_: Signedness =
                 if (form.signValue() == .negative and oversize != 0) .signed else .unsigned;
 
             // Try to fit in the appropriate `SourceInt` variant
-            const underlying: Unsigned = switch (signedness) {
+            const underlying: Unsigned = switch (signedness_) {
                 .unsigned => @bitCast(math.cast(Unsigned, oversize) orelse
                     return error.IntegerTooLarge),
                 .signed => @bitCast(math.cast(Signed, -1 * oversize) orelse
@@ -59,23 +57,30 @@ pub fn SourceInt(comptime bits: u16) type {
 
             return .{
                 .underlying = underlying,
-                .signedness = signedness,
                 .form = form,
             };
         }
 
+        // TODO: Use `Sign` instead of `Signedness`
+        fn signedness(integer: Self) Signedness {
+            return switch (integer.form.signValue() orelse .positive) {
+                .positive => .unsigned,
+                .negative => .signed,
+            };
+        }
+
         fn asUnsigned(integer: Self) Unsigned {
-            assert(integer.signedness == .unsigned);
+            assert(integer.signedness() == .unsigned);
             return integer.underlying;
         }
 
         fn asSigned(integer: Self) Signed {
-            assert(integer.signedness == .signed);
+            assert(integer.signedness() == .signed);
             return @as(Signed, @bitCast(integer.underlying));
         }
 
         pub fn castToUnsigned(integer: Self) ?Unsigned {
-            return switch (integer.signedness) {
+            return switch (integer.signedness()) {
                 .unsigned => integer.asUnsigned(),
                 .signed => math.cast(Unsigned, integer.asSigned()),
             };
@@ -83,7 +88,7 @@ pub fn SourceInt(comptime bits: u16) type {
 
         pub fn castToSmaller(integer: Self, comptime T: type) error{IntegerTooLarge}!T {
             assert(@typeInfo(T).int.bits < bits);
-            return switch (integer.signedness) {
+            return switch (integer.signedness()) {
                 .unsigned => math.cast(T, integer.asUnsigned()),
                 .signed => math.cast(T, integer.asSigned()),
             } orelse
