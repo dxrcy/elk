@@ -28,7 +28,9 @@ pub fn SourceInt(comptime bits: u16) type {
         pub const Form = struct {
             radix: ?Radix,
             sign: ?SignInfo,
-            leading_zero: bool,
+            /// Pre-radix leading zero (or any leading zero, if `radix==null`).
+            /// Not affected by post-radix leading zeros.
+            zero: bool,
 
             // TODO: Rename
             const SignInfo = struct {
@@ -99,7 +101,7 @@ pub const Sign = enum(i2) {
 
 const Prefix = struct {
     radix: ?Radix,
-    leading_zeros: bool,
+    zero: bool,
 };
 
 pub const Radix = enum(u8) {
@@ -172,7 +174,7 @@ pub fn tryInteger(string: []const u8) Error!?Word {
             return try Word.from(0, .{
                 .radix = null,
                 .sign = null,
-                .leading_zero = false,
+                .zero = false,
             });
         },
         .non_integer => {
@@ -195,7 +197,7 @@ pub fn tryInteger(string: []const u8) Error!?Word {
     const form: Word.Form = .{
         .radix = prefix.radix,
         .sign = sign,
-        .leading_zero = prefix.leading_zeros,
+        .zero = prefix.zero,
     };
 
     // Check if anything follows prefix (also covers "" case)
@@ -245,8 +247,7 @@ fn takePrefix(chars: *CharIter) !union(enum) {
 } {
     // Only take ONE leading zero here
     // Caller can disallow "00x..." etc.
-    // TODO: Rename to `zero` in ALL places
-    const leading_zeros =
+    const zero =
         if (chars.peek() == '0') blk: {
             _ = chars.next();
             break :blk true;
@@ -254,14 +255,14 @@ fn takePrefix(chars: *CharIter) !union(enum) {
 
     // "0" or ""
     const peeked = chars.peek() orelse
-        return if (leading_zeros) .single_zero else .empty;
+        return if (zero) .single_zero else .empty;
 
     const radix: ?Radix, const next_char = switch (peeked) {
         'b', 'B' => .{ .binary, true },
         'o', 'O' => .{ .octal, true },
         'x', 'X' => .{ .hex, true },
 
-        '#' => if (leading_zeros)
+        '#' => if (zero)
             return error.MalformedInteger // Disallow "0#..."
         else
             .{ .decimal, true },
@@ -273,7 +274,7 @@ fn takePrefix(chars: *CharIter) !union(enum) {
         // Caller should have already consumed any sign character before prefix.
         '-', '+' => return error.MalformedInteger,
 
-        else => return if (leading_zeros)
+        else => return if (zero)
             // Leading zero always indicates an integer
             error.InvalidDigit
         else
@@ -285,7 +286,7 @@ fn takePrefix(chars: *CharIter) !union(enum) {
 
     return .{ .regular = .{
         .radix = radix,
-        .leading_zeros = leading_zeros,
+        .zero = zero,
     } };
 }
 
@@ -310,7 +311,7 @@ fn endOfInteger(form: Word.Form, char: ?u8) !?Word {
     // Note that a leading decimal digit (`^[0-9]`) will lead to a pre-prefix
     // zero, or an implicit decimal radix
     if (form.signValue() != null or
-        form.leading_zero or
+        form.zero or
         (form.radix orelse .decimal) == .decimal)
     {
         return if (char == null) error.ExpectedDigit else error.InvalidDigit;
