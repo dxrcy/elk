@@ -10,6 +10,8 @@ pub const Error = error{
     IntegerTooLarge,
 };
 
+const Word = SourceInt(16);
+
 pub fn SourceInt(comptime bits: u16) type {
     return struct {
         const Self = @This();
@@ -75,8 +77,6 @@ pub fn SourceInt(comptime bits: u16) type {
     };
 }
 
-const Word = SourceInt(16);
-
 pub const Form = struct {
     radix: ?Radix,
     sign: ?SignInfo,
@@ -117,15 +117,30 @@ pub const Form = struct {
         }
     };
 
+    pub const Sign = enum(i2) {
+        negative = -1,
+        positive = 1,
+    };
+
     // TODO: Rename
     pub const SignInfo = struct {
         value: Sign,
         position: enum { pre_radix, post_radix },
-    };
 
-    pub const Sign = enum(i2) {
-        negative = -1,
-        positive = 1,
+        fn from(pre_radix: ?Form.Sign, post_radix: ?Form.Sign) !?Form.SignInfo {
+            if (pre_radix) |first| {
+                if (post_radix) |_|
+                    // Disallow multiple sign characters: "-x-...", "++...", etc
+                    return error.MalformedInteger
+                else
+                    return .{ .value = first, .position = .pre_radix };
+            } else {
+                if (post_radix) |second|
+                    return .{ .value = second, .position = .post_radix }
+                else
+                    return null;
+            }
+        }
     };
 
     pub fn signValue(form: Form) ?Sign {
@@ -194,7 +209,7 @@ pub fn tryInteger(string: []const u8) Error!?Word {
     };
 
     const second_sign = takeSign(&chars);
-    const sign = try reconcileSigns(first_sign, second_sign);
+    const sign = try Form.SignInfo.from(first_sign, second_sign);
 
     const form: Form = .{
         .radix = prefix.radix,
@@ -227,6 +242,21 @@ fn appendDigit(
 ) error{Overflow}!void {
     oversize.* = try math.mul(Word.Oversize, oversize.*, @intFromEnum(radix));
     oversize.* = try math.add(Word.Oversize, oversize.*, digit);
+}
+
+fn endOfInteger(form: Form, char: ?u8) !?Word {
+    // Any of these conditions indicate an invalid integer token (as opposed to
+    // a possibly-valid non-integer token)
+    // Note that a leading decimal digit (`^[0-9]`) will lead to a pre-prefix
+    // zero, or an implicit decimal radix
+    if (form.signValue() != null or
+        form.zero or
+        (form.radix orelse .decimal) == .decimal)
+    {
+        return if (char == null) error.ExpectedDigit else error.InvalidDigit;
+    } else {
+        return null;
+    }
 }
 
 fn takeSign(chars: *CharIter) ?Form.Sign {
@@ -290,36 +320,6 @@ fn takePrefix(chars: *CharIter) !union(enum) {
         .radix = radix,
         .zero = zero,
     } };
-}
-
-fn reconcileSigns(first_opt: ?Form.Sign, second_opt: ?Form.Sign) !?Form.SignInfo {
-    if (first_opt) |first| {
-        if (second_opt) |_|
-            // Disallow multiple sign characters: "-x-...", "++...", etc
-            return error.MalformedInteger
-        else
-            return .{ .value = first, .position = .pre_radix };
-    } else {
-        if (second_opt) |second|
-            return .{ .value = second, .position = .post_radix }
-        else
-            return null;
-    }
-}
-
-fn endOfInteger(form: Form, char: ?u8) !?Word {
-    // Any of these conditions indicate an invalid integer token (as opposed to
-    // a possibly-valid non-integer token)
-    // Note that a leading decimal digit (`^[0-9]`) will lead to a pre-prefix
-    // zero, or an implicit decimal radix
-    if (form.signValue() != null or
-        form.zero or
-        (form.radix orelse .decimal) == .decimal)
-    {
-        return if (char == null) error.ExpectedDigit else error.InvalidDigit;
-    } else {
-        return null;
-    }
 }
 
 test takeSign {
