@@ -129,7 +129,7 @@ pub const Diagnostic = union(enum) {
     },
     nonstandard_integer_radix: struct {
         integer: Span,
-        radix: @import("integers.zig").Radix,
+        radix: @import("integers.zig").Form.Radix,
     },
 
     generic_debug: struct {

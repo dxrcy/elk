@@ -43,7 +43,7 @@ pub fn SourceInt(comptime bits: u16) type {
             };
         }
 
-        fn getSign(integer: Self) Sign {
+        fn getSign(integer: Self) Form.Sign {
             return integer.form.signValue() orelse .positive;
         }
 
@@ -84,10 +84,48 @@ pub const Form = struct {
     /// Not affected by post-radix leading zeros.
     zero: bool,
 
+    pub const Radix = enum(u8) {
+        binary = 2,
+        octal = 8,
+        decimal = 10,
+        hex = 16,
+
+        pub const default: Radix = .decimal;
+
+        pub fn parse_digit(radix: Radix, char: u8) ?u8 {
+            return switch (radix) {
+                .binary => switch (char) {
+                    '0' => 0,
+                    '1' => 1,
+                    else => null,
+                },
+                .octal => switch (char) {
+                    '0'...'7' => char - '0',
+                    else => null,
+                },
+                .decimal => switch (char) {
+                    '0'...'9' => char - '0',
+                    else => null,
+                },
+                .hex => switch (char) {
+                    '0'...'9' => char - '0',
+                    'A'...'F' => char - 'A' + 10,
+                    'a'...'f' => char - 'a' + 10,
+                    else => null,
+                },
+            };
+        }
+    };
+
     // TODO: Rename
     pub const SignInfo = struct {
         value: Sign,
         position: enum { pre_radix, post_radix },
+    };
+
+    pub const Sign = enum(i2) {
+        negative = -1,
+        positive = 1,
     };
 
     pub fn signValue(form: Form) ?Sign {
@@ -96,47 +134,9 @@ pub const Form = struct {
     }
 };
 
-pub const Sign = enum(i2) {
-    negative = -1,
-    positive = 1,
-};
-
 const Prefix = struct {
-    radix: ?Radix,
+    radix: ?Form.Radix,
     zero: bool,
-};
-
-pub const Radix = enum(u8) {
-    binary = 2,
-    octal = 8,
-    decimal = 10,
-    hex = 16,
-
-    pub const default: Radix = .decimal;
-
-    pub fn parse_digit(radix: Radix, char: u8) ?u8 {
-        return switch (radix) {
-            .binary => switch (char) {
-                '0' => 0,
-                '1' => 1,
-                else => null,
-            },
-            .octal => switch (char) {
-                '0'...'7' => char - '0',
-                else => null,
-            },
-            .decimal => switch (char) {
-                '0'...'9' => char - '0',
-                else => null,
-            },
-            .hex => switch (char) {
-                '0'...'9' => char - '0',
-                'A'...'F' => char - 'A' + 10,
-                'a'...'f' => char - 'a' + 10,
-                else => null,
-            },
-        };
-    }
 };
 
 const CharIter = struct {
@@ -208,7 +208,7 @@ pub fn tryInteger(string: []const u8) Error!?Word {
         return endOfInteger(form, null);
 
     var oversize: Word.Oversize = 0;
-    const real_radix = prefix.radix orelse Radix.default;
+    const real_radix = prefix.radix orelse Form.Radix.default;
 
     while (chars.next()) |char| {
         const digit = real_radix.parse_digit(char) orelse
@@ -222,17 +222,17 @@ pub fn tryInteger(string: []const u8) Error!?Word {
 
 fn appendDigit(
     oversize: *Word.Oversize,
-    radix: Radix,
+    radix: Form.Radix,
     digit: u8,
 ) error{Overflow}!void {
     oversize.* = try math.mul(Word.Oversize, oversize.*, @intFromEnum(radix));
     oversize.* = try math.add(Word.Oversize, oversize.*, digit);
 }
 
-fn takeSign(chars: *CharIter) ?Sign {
+fn takeSign(chars: *CharIter) ?Form.Sign {
     const char = chars.peek() orelse
         return null;
-    const sign: Sign = switch (char) {
+    const sign: Form.Sign = switch (char) {
         '+' => .positive,
         '-' => .negative,
         else => return null,
@@ -259,7 +259,7 @@ fn takePrefix(chars: *CharIter) !union(enum) {
     const peeked = chars.peek() orelse
         return if (zero) .single_zero else .empty;
 
-    const radix: ?Radix, const next_char = switch (peeked) {
+    const radix: ?Form.Radix, const next_char = switch (peeked) {
         'b', 'B' => .{ .binary, true },
         'o', 'O' => .{ .octal, true },
         'x', 'X' => .{ .hex, true },
@@ -292,7 +292,7 @@ fn takePrefix(chars: *CharIter) !union(enum) {
     } };
 }
 
-fn reconcileSigns(first_opt: ?Sign, second_opt: ?Sign) !?Form.SignInfo {
+fn reconcileSigns(first_opt: ?Form.Sign, second_opt: ?Form.Sign) !?Form.SignInfo {
     if (first_opt) |first| {
         if (second_opt) |_|
             // Disallow multiple sign characters: "-x-...", "++...", etc
@@ -323,7 +323,7 @@ fn endOfInteger(form: Form, char: ?u8) !?Word {
 }
 
 test takeSign {
-    const cases = [_]struct { []const u8, []const u8, ?Sign }{
+    const cases = [_]struct { []const u8, []const u8, ?Form.Sign }{
         .{ "", "", null },
         .{ "123", "123", null },
         .{ "-", "", .negative },
