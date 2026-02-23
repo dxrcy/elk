@@ -160,6 +160,14 @@ pub const Response = enum {
             .minor, .pass => unreachable,
         };
     }
+    pub fn collect(response: Response, result: *error{Reported}!void) void {
+        return switch (response) {
+            .fatal, .major => {
+                result.* = error.Reported;
+            },
+            .minor, .pass => {},
+        };
+    }
     pub fn handle(response: Response) error{Reported}!void {
         return switch (response) {
             .fatal, .major => error.Reported,
