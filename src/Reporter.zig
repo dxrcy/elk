@@ -29,14 +29,6 @@ pub const Options = struct {
         strict,
         normal,
         relaxed,
-
-        fn standardResponse(strictness: Strictness) Response {
-            return switch (strictness) {
-                .strict => .major,
-                .normal => .minor,
-                .relaxed => .pass,
-            };
-        }
     };
 
     pub const Verbosity = enum {
@@ -58,7 +50,15 @@ pub const Options = struct {
         } = .{},
     };
 
-    fn standardResponse(
+    fn strictnessResponse(options: Options) Response {
+        return switch (options.strictness) {
+            .strict => .major,
+            .normal => .minor,
+            .relaxed => .pass,
+        };
+    }
+
+    fn featureResponse(
         options: Options,
         comptime category: std.meta.FieldEnum(Features),
         comptime feature: std.meta.FieldEnum(@FieldType(Features, @tagName(category))),
@@ -66,11 +66,7 @@ pub const Options = struct {
         const enabled = @field(@field(options.features, @tagName(category)), @tagName(feature));
         if (enabled)
             return .pass;
-        return switch (options.strictness) {
-            .strict => .major,
-            .normal => .minor,
-            .relaxed => .pass,
-        };
+        return options.strictnessResponse();
     }
 };
 
@@ -277,15 +273,15 @@ pub fn report(
 
 fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
     const response: Response = switch (diag) {
-        .missing_origin => reporter.options.standardResponse(.extension, .implicit_origin),
+        .missing_origin => reporter.options.featureResponse(.extension, .implicit_origin),
         .multiple_origins => .fatal,
         .late_origin => .fatal,
-        .missing_end => reporter.options.standardResponse(.extension, .implicit_end),
+        .missing_end => reporter.options.featureResponse(.extension, .implicit_end),
         .duplicate_label => .fatal,
         .unexpected_label => .major,
-        .shadowed_label => reporter.options.strictness.standardResponse(),
-        .useless_label => reporter.options.strictness.standardResponse(),
-        .eof_label => reporter.options.strictness.standardResponse(),
+        .shadowed_label => reporter.options.strictnessResponse(),
+        .useless_label => reporter.options.strictnessResponse(),
+        .eof_label => reporter.options.strictnessResponse(),
         .undeclared_label => .fatal,
         .offset_too_large => .fatal,
         .unexpected_token_kind => .fatal,
@@ -298,11 +294,11 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
         .expected_digit => .fatal,
         .invalid_digit => .fatal,
         .integer_too_large => .fatal,
-        .invalid_string_escape => reporter.options.strictness.standardResponse(),
-        .multiline_string => reporter.options.standardResponse(.extension, .multiline_strings),
-        .nonstandard_integer_radix => reporter.options.standardResponse(.extension, .more_integer_radixes),
-        .nonstandard_integer_form => reporter.options.standardResponse(.extension, .more_integer_forms),
-        .undesirable_integer_form => reporter.options.standardResponse(.style, .allow_undesirable_integer_forms),
+        .invalid_string_escape => reporter.options.strictnessResponse(),
+        .multiline_string => reporter.options.featureResponse(.extension, .multiline_strings),
+        .nonstandard_integer_radix => reporter.options.featureResponse(.extension, .more_integer_radixes),
+        .nonstandard_integer_form => reporter.options.featureResponse(.extension, .more_integer_forms),
+        .undesirable_integer_form => reporter.options.featureResponse(.style, .allow_undesirable_integer_forms),
 
         .generic_debug => .fatal,
     };
