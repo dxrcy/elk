@@ -46,15 +46,21 @@ pub const Options = struct {
     };
 
     pub const Features = struct {
-        extension_implicit_origin: bool = true,
-        extension_implicit_end: bool = true,
-        extension_string_multiline: bool = true,
-        extension_integer_radix: bool = true,
-        extension_integer_syntax: bool = true,
+        extension: struct {
+            implicit_origin: bool = true,
+            implicit_end: bool = true,
+            string_multiline: bool = true,
+            integer_radix: bool = true,
+            integer_syntax: bool = true,
+        } = .{},
     };
 
-    fn standardResponse(options: Options, comptime feature: @EnumLiteral()) Response {
-        const enabled = @field(options.features, @tagName(feature));
+    fn standardResponse(
+        options: Options,
+        comptime category: @EnumLiteral(),
+        comptime feature: @EnumLiteral(),
+    ) Response {
+        const enabled = @field(@field(options.features, @tagName(category)), @tagName(feature));
         if (enabled)
             return .pass;
         return switch (options.strictness) {
@@ -262,10 +268,10 @@ pub fn report(
 
 fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
     const response: Response = switch (diag) {
-        .missing_origin => reporter.options.standardResponse(.extension_implicit_origin),
+        .missing_origin => reporter.options.standardResponse(.extension, .implicit_origin),
         .multiple_origins => .fatal,
         .late_origin => .fatal,
-        .missing_end => reporter.options.standardResponse(.extension_implicit_end),
+        .missing_end => reporter.options.standardResponse(.extension, .implicit_end),
         .duplicate_label => .fatal,
         .unexpected_label => .major,
         .shadowed_label => reporter.options.strictness.standardResponse(),
@@ -284,9 +290,9 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
         .invalid_digit => .fatal,
         .integer_too_large => .fatal,
         .invalid_string_escape => reporter.options.strictness.standardResponse(),
-        .multiline_string => reporter.options.standardResponse(.extension_string_multiline),
-        .nonstandard_integer_radix => reporter.options.standardResponse(.extension_integer_radix),
-        .nonstandard_integer_form => reporter.options.standardResponse(.extension_integer_syntax),
+        .multiline_string => reporter.options.standardResponse(.extension, .string_multiline),
+        .nonstandard_integer_radix => reporter.options.standardResponse(.extension, .integer_radix),
+        .nonstandard_integer_form => reporter.options.standardResponse(.extension, .integer_syntax),
 
         .generic_debug => .fatal,
     };
