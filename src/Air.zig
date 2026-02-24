@@ -7,6 +7,7 @@ const ArrayList = std.ArrayList;
 const assert = std.debug.assert;
 
 const Span = @import("Span.zig");
+const Runtime = @import("Runtime.zig");
 
 origin: u16,
 lines: ArrayList(Line),
@@ -189,12 +190,18 @@ pub fn getFirstSpan(air: *const Air) ?Span {
         air.lines.items[0].span;
 }
 
-pub fn emit(air: *const Air, writer: *Io.Writer) !void {
+pub fn emitWriter(air: *const Air, writer: *Io.Writer) !void {
     try writer.writeInt(u16, air.origin, .big);
-
     for (air.lines.items) |line| {
         const raw = encode(line.statement);
         try writer.writeInt(u16, raw, .big);
+    }
+}
+
+pub fn emitMemory(air: *const Air, memory: *[Runtime.MEMORY_SIZE]u16) !void {
+    for (air.lines.items, 0..) |line, i| {
+        const raw = encode(line.statement);
+        memory[air.origin + i] = raw;
     }
 }
 

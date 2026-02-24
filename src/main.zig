@@ -3,6 +3,7 @@ const Io = std.Io;
 
 const Air = @import("Air.zig");
 const Parser = @import("Parser.zig");
+const Runtime = @import("Runtime.zig");
 const Reporter = @import("Reporter.zig");
 
 pub fn main(init: std.process.Init) !u8 {
@@ -29,13 +30,21 @@ pub fn main(init: std.process.Init) !u8 {
 
     parser.resolveLabels();
 
-    // if (true) return;
-
-    // if (false) //
     {
         if (reporter.endSection() == .err) {
             std.log.info("stop", .{});
             return 1;
+        }
+    }
+
+    {
+        const runtime = try Runtime.init(gpa);
+        defer runtime.deinit(gpa);
+
+        try air.emitMemory(runtime.memory);
+
+        for (runtime.memory[air.origin..][0..20]) |raw| {
+            std.debug.print("0x{x:04}\n", .{raw});
         }
     }
 
@@ -48,7 +57,7 @@ pub fn main(init: std.process.Init) !u8 {
         var buffer: [512]u8 = undefined;
         var writer = file.writer(io, &buffer);
 
-        try air.emit(&writer.interface);
+        try air.emitWriter(&writer.interface);
         try writer.flush();
     }
 
