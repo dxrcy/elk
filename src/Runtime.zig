@@ -85,13 +85,13 @@ pub fn run(runtime: *Runtime) Error!void {
         // TODO:
         switch (opcode) {
             inline .add, .@"and" => |arith_opcode| {
-                const dest_reg = bitmask.apply(.reg_a, instr);
-                const src_reg = bitmask.apply(.reg_b, instr);
+                const dest_reg = bitmask.apply(.reg_high, instr);
+                const src_reg = bitmask.apply(.reg_mid, instr);
 
                 const rhs = if (bitmask.apply(.flag_add_and, instr) == 0) blk: {
                     if (bitmask.apply(.padding_add_and, instr) != 0)
-                        std.log.warn("invalid padding for `{t}`", .{arith_opcode});
-                    const rhs_reg = bitmask.apply(.reg_c, instr);
+                        std.log.warn("invalid padding for {t}", .{arith_opcode});
+                    const rhs_reg = bitmask.apply(.reg_low, instr);
                     break :blk runtime.registers[rhs_reg];
                 } else bitmask.apply(.imm_5, instr);
 
@@ -105,10 +105,10 @@ pub fn run(runtime: *Runtime) Error!void {
             },
 
             .not => {
-                const dest_reg = bitmask.apply(.reg_a, instr);
-                const src_reg = bitmask.apply(.reg_b, instr);
+                const dest_reg = bitmask.apply(.reg_high, instr);
+                const src_reg = bitmask.apply(.reg_mid, instr);
                 if (bitmask.apply(.padding_not, instr) != 0b11111)
-                    std.log.warn("invalid padding for `not`", .{});
+                    std.log.warn("invalid padding for not", .{});
                 runtime.setRegister(dest_reg, ~runtime.registers[src_reg]);
             },
 
@@ -116,7 +116,7 @@ pub fn run(runtime: *Runtime) Error!void {
                 const mask: u3 = bitmask.apply(.condition_mask, instr);
                 // Cannot have NO flags. `BR` is assembled as `BRnzp`
                 if (mask == 0b000) {
-                    std.log.warn("invalid condition mask for `br*`", .{});
+                    std.log.warn("invalid condition mask for br[nzp]", .{});
                     continue;
                 }
                 const pc_offset = bitmask.apply(.pc_offset_9, instr);
@@ -125,8 +125,16 @@ pub fn run(runtime: *Runtime) Error!void {
                 }
             },
 
+            .jmp_ret => {
+                const base_reg = bitmask.apply(.reg_mid, instr);
+                if (bitmask.apply(.padding_jmp_ret_high, instr) != 0 or
+                    bitmask.apply(.padding_jmp_ret_low, instr) != 0)
+                    std.log.warn("invalid padding for jmp/ret", .{});
+                runtime.pc = runtime.registers[base_reg];
+            },
+
             .lea => {
-                const dest_reg = bitmask.apply(.reg_a, instr);
+                const dest_reg = bitmask.apply(.reg_high, instr);
                 const pc_offset = bitmask.apply(.pc_offset_9, instr);
                 runtime.setRegister(dest_reg, runtime.pc +% pc_offset);
             },
@@ -190,10 +198,12 @@ const bitmask = struct {
         pub const flag_add_and: Mask = .new(5, 5);
         pub const padding_add_and: Mask = .new(3, 4);
         pub const padding_not: Mask = .new(0, 5);
+        pub const padding_jmp_ret_high: Mask = .new(9, 11);
+        pub const padding_jmp_ret_low: Mask = .new(0, 5);
         // Operands
-        pub const reg_a: Mask = .new(9, 11);
-        pub const reg_b: Mask = .new(6, 8);
-        pub const reg_c: Mask = .new(0, 2);
+        pub const reg_high: Mask = .new(9, 11);
+        pub const reg_mid: Mask = .new(6, 8);
+        pub const reg_low: Mask = .new(0, 2);
         pub const imm_5: Mask = .new(0, 4);
         pub const trap_vect: Mask = .new(0, 8);
         pub const pc_offset_9: Mask = .new(0, 8);
