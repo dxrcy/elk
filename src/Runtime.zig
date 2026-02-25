@@ -67,46 +67,6 @@ const TrapVect = enum(u8) {
     _,
 };
 
-const bitmask = struct {
-    pub const Mask = struct {
-        lowest: u4,
-        highest: u4,
-
-        pub const opcode: Mask = .new(12, 15);
-        pub const reg_a: Mask = .new(9, 11);
-        pub const trap_vect: Mask = .new(0, 8);
-        pub const pc_offset_9: Mask = .new(0, 8);
-
-        fn new(lowest: u4, highest: u4) Mask {
-            return .{ .lowest = lowest, .highest = highest };
-        }
-    };
-
-    pub fn apply(comptime mask: Mask, word: u16) @Int(
-        .unsigned,
-        mask.highest - mask.lowest + 1,
-    ) {
-        assert(mask.lowest <= mask.highest);
-        return @truncate(word >> mask.lowest);
-    }
-
-    pub fn applySigned(comptime mask: Mask, word: u16) @Int(
-        .signed,
-        mask.highest - mask.lowest + 1,
-    ) {
-        // TODO:
-        _ = word;
-        unreachable;
-    }
-
-    fn signExtend(value: u16, size: u4) i16 {
-        if (value >> (size - 1) & 0b1) {
-            return value | (~0 << size);
-        }
-        return value;
-    }
-};
-
 pub fn run(runtime: *Runtime) Error!void {
     while (true) {
         // TODO: Check pc in bounds
@@ -124,11 +84,23 @@ pub fn run(runtime: *Runtime) Error!void {
 
         // TODO:
         switch (opcode) {
+            .add => {
+                const dest_reg = bitmask.apply(.reg_a, instr);
+                const src_reg = bitmask.apply(.reg_b, instr);
+                const rhs =
+                    if (bitmask.apply(.new(5, 5), instr) == 0)
+                        runtime.registers[bitmask.apply(.reg_c, instr)]
+                    else
+                        bitmask.apply(.imm_5, instr);
+                // TODO: Handle overflow, and elsewhere
+                // Extract addition as method
+                runtime.setRegister(dest_reg, runtime.registers[src_reg] + rhs);
+            },
+
             .lea => {
                 const dest_reg = bitmask.apply(.reg_a, instr);
                 const pc_offset = bitmask.apply(.pc_offset_9, instr);
-                // TODO: Handle overflow ???
-                runtime.registers[dest_reg] = runtime.pc + pc_offset;
+                runtime.setRegister(dest_reg, runtime.pc + pc_offset);
             },
 
             .trap => {
@@ -167,3 +139,52 @@ pub fn run(runtime: *Runtime) Error!void {
         }
     }
 }
+
+fn setRegister(runtime: *Runtime, register: u3, value: u16) void {
+    runtime.registers[register] = value;
+    // TODO: Set condition
+}
+
+const bitmask = struct {
+    pub const Mask = struct {
+        lowest: u4,
+        highest: u4,
+
+        pub const opcode: Mask = .new(12, 15);
+        // TODO: Rename `reg_a`, `reg_b`, `reg_c`
+        pub const reg_a: Mask = .new(9, 11);
+        pub const reg_b: Mask = .new(6, 8);
+        pub const reg_c: Mask = .new(0, 2);
+        pub const imm_5: Mask = .new(0, 4);
+        pub const trap_vect: Mask = .new(0, 8);
+        pub const pc_offset_9: Mask = .new(0, 8);
+
+        fn new(lowest: u4, highest: u4) Mask {
+            return .{ .lowest = lowest, .highest = highest };
+        }
+    };
+
+    pub fn apply(comptime mask: Mask, word: u16) @Int(
+        .unsigned,
+        mask.highest - mask.lowest + 1,
+    ) {
+        assert(mask.lowest <= mask.highest);
+        return @truncate(word >> mask.lowest);
+    }
+
+    pub fn applySigned(comptime mask: Mask, word: u16) @Int(
+        .signed,
+        mask.highest - mask.lowest + 1,
+    ) {
+        // TODO:
+        _ = word;
+        unreachable;
+    }
+
+    fn signExtend(value: u16, size: u4) i16 {
+        if (value >> (size - 1) & 0b1) {
+            return value | (~0 << size);
+        }
+        return value;
+    }
+};
