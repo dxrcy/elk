@@ -87,20 +87,17 @@ pub fn run(runtime: *Runtime) Error!void {
             .add => {
                 const dest_reg = bitmask.apply(.reg_a, instr);
                 const src_reg = bitmask.apply(.reg_b, instr);
-                const rhs =
-                    if (bitmask.apply(.new(5, 5), instr) == 0)
-                        runtime.registers[bitmask.apply(.reg_c, instr)]
-                    else
-                        bitmask.apply(.imm_5, instr);
-                // TODO: Handle overflow, and elsewhere
-                // Extract addition as method
-                runtime.setRegister(dest_reg, runtime.registers[src_reg] + rhs);
+                const rhs = if (bitmask.apply(.arith_flag, instr) == 0)
+                    runtime.registers[bitmask.apply(.reg_c, instr)]
+                else
+                    bitmask.apply(.imm_5, instr);
+                runtime.setRegister(dest_reg, runtime.registers[src_reg] +% rhs);
             },
 
             .lea => {
                 const dest_reg = bitmask.apply(.reg_a, instr);
                 const pc_offset = bitmask.apply(.pc_offset_9, instr);
-                runtime.setRegister(dest_reg, runtime.pc + pc_offset);
+                runtime.setRegister(dest_reg, runtime.pc +% pc_offset);
             },
 
             .trap => {
@@ -150,8 +147,10 @@ const bitmask = struct {
         lowest: u4,
         highest: u4,
 
+        // Instruction metadata
         pub const opcode: Mask = .new(12, 15);
-        // TODO: Rename `reg_a`, `reg_b`, `reg_c`
+        pub const arith_flag: Mask = .new(5, 5);
+        // Operands
         pub const reg_a: Mask = .new(9, 11);
         pub const reg_b: Mask = .new(6, 8);
         pub const reg_c: Mask = .new(0, 2);
