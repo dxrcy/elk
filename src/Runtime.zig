@@ -87,11 +87,14 @@ pub fn run(runtime: *Runtime) Error!void {
             inline .add, .@"and" => |arith_opcode| {
                 const dest_reg = bitmask.apply(.reg_a, instr);
                 const src_reg = bitmask.apply(.reg_b, instr);
-                const rhs = if (bitmask.apply(.flag_add_and, instr) == 0)
-                    // TODO: Check padding
-                    runtime.registers[bitmask.apply(.reg_c, instr)]
-                else
-                    bitmask.apply(.imm_5, instr);
+
+                const rhs = if (bitmask.apply(.flag_add_and, instr) == 0) blk: {
+                    if (bitmask.apply(.padding_add_and, instr) != 0)
+                        std.log.warn("invalid padding for `{t}`", .{arith_opcode});
+                    const rhs_reg = bitmask.apply(.reg_c, instr);
+                    break :blk runtime.registers[rhs_reg];
+                } else bitmask.apply(.imm_5, instr);
+
                 const lhs = runtime.registers[src_reg];
                 const result = switch (arith_opcode) {
                     .add => lhs +% rhs,
@@ -105,7 +108,7 @@ pub fn run(runtime: *Runtime) Error!void {
                 const dest_reg = bitmask.apply(.reg_a, instr);
                 const src_reg = bitmask.apply(.reg_b, instr);
                 if (bitmask.apply(.padding_not, instr) != 0b11111)
-                    std.log.warn("invalid padding for NOT", .{});
+                    std.log.warn("invalid padding for `not`", .{});
                 runtime.setRegister(dest_reg, ~runtime.registers[src_reg]);
             },
 
@@ -172,6 +175,7 @@ const bitmask = struct {
         // Instruction metadata
         pub const opcode: Mask = .new(12, 15);
         pub const flag_add_and: Mask = .new(5, 5);
+        pub const padding_add_and: Mask = .new(3, 4);
         pub const padding_not: Mask = .new(0, 5);
         // Operands
         pub const reg_a: Mask = .new(9, 11);
