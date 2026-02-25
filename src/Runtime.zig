@@ -136,6 +136,17 @@ pub fn run(runtime: *Runtime) Error!void {
                 std.log.info("trap 0x{x:02}", .{trap_vect});
 
                 switch (trap_vect) {
+                    .puts => {
+                        var i: usize = runtime.registers[0];
+                        while (true) : (i += 1) {
+                            const word: u8 = @truncate(runtime.memory[i]);
+                            if (word == 0x00)
+                                break;
+                            // TODO: Print to output object
+                            std.debug.print("{c}", .{word});
+                        }
+                    },
+
                     .halt => {
                         break;
                     },
