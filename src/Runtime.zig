@@ -1,6 +1,7 @@
 const Runtime = @This();
 
 const std = @import("std");
+const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
@@ -11,13 +12,16 @@ registers: [8]u16,
 pc: u16,
 condition: Condition,
 
+newline: bool,
+io: Io,
+
 const Condition = enum(u3) {
     negative = 0b100,
     zero = 0b010,
     positive = 0b001,
 };
 
-pub fn init(allocator: Allocator) !Runtime {
+pub fn init(io: Io, allocator: Allocator) !Runtime {
     const buffer = try allocator.alloc(u16, MEMORY_SIZE);
     @memset(buffer, 0x0000);
 
@@ -26,6 +30,8 @@ pub fn init(allocator: Allocator) !Runtime {
         .registers = @splat(0x0000),
         .pc = 0x0000,
         .condition = .zero,
+        .newline = true,
+        .io = io,
     };
 }
 
@@ -33,14 +39,15 @@ pub fn deinit(runtime: Runtime, allocator: Allocator) void {
     defer allocator.free(runtime.memory);
 }
 
-// TODO:
-pub const Error = error{
-    IncorrectPadding,
-    InvalidOperand,
-    UnsupportedTrap,
-    UnsupportedRti,
-    ReservedOpcode,
-};
+pub const Error =
+    Io.Writer.Error ||
+    error{
+        IncorrectPadding,
+        InvalidOperand,
+        UnsupportedTrap,
+        UnsupportedRti,
+        ReservedOpcode,
+    };
 
 const Opcode = enum(u4) {
     add = 0x1,
@@ -72,6 +79,30 @@ const TrapVect = enum(u8) {
     reg = 0x27,
     _,
 };
+
+pub fn ensureNewline(runtime: *Runtime) Io.Writer.Error!void {
+    if (!runtime.newline)
+        try runtime.writeChar('\n');
+}
+
+fn writeChar(runtime: *Runtime, char: u8) Io.Writer.Error!void {
+    var writer = Io.File.stdout().writer(runtime.io, &.{});
+    try writer.interface.writeByte(char);
+    try writer.interface.flush();
+    runtime.newline = char == '\n';
+}
+
+fn setRegister(runtime: *Runtime, register: u3, value: u16) void {
+    runtime.registers[register] = value;
+
+    runtime.condition =
+        if (value < 0)
+            .negative
+        else if (value == 0)
+            .zero
+        else
+            .positive;
+}
 
 pub fn run(runtime: *Runtime) Error!void {
     while (true) {
@@ -212,8 +243,7 @@ pub fn run(runtime: *Runtime) Error!void {
                             const word: u8 = @truncate(runtime.memory[i]);
                             if (word == 0x00)
                                 break;
-                            // TODO: Print to output object
-                            std.debug.print("{c}", .{word});
+                            try runtime.writeChar(word);
                         }
                     },
 
@@ -238,18 +268,6 @@ pub fn run(runtime: *Runtime) Error!void {
             .reserved => return error.ReservedOpcode,
         }
     }
-}
-
-fn setRegister(runtime: *Runtime, register: u3, value: u16) void {
-    runtime.registers[register] = value;
-
-    runtime.condition =
-        if (value < 0)
-            .negative
-        else if (value == 0)
-            .zero
-        else
-            .positive;
 }
 
 const bitmask = struct {

@@ -51,14 +51,19 @@ pub fn main(init: std.process.Init) !u8 {
     }
 
     {
-        var runtime = try Runtime.init(gpa);
+        var runtime = try Runtime.init(io, gpa);
         defer runtime.deinit(gpa);
 
         try air.emitRuntime(&runtime);
 
-        runtime.run() catch |err| {
-            std.log.err("runtime threw exception: {t}", .{err});
+        runtime.run() catch |err| switch (err) {
+            error.WriteFailed => |err2| return err2,
+            else => |err2| {
+                std.log.err("runtime threw exception: {t}", .{err2});
+            },
         };
+
+        try runtime.ensureNewline();
     }
 
     return 0;
