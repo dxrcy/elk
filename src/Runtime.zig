@@ -133,6 +133,22 @@ pub fn run(runtime: *Runtime) Error!void {
                 runtime.pc = runtime.registers[base_reg];
             },
 
+            .jsr_jsrr => {
+                runtime.registers[7] = runtime.pc;
+                if (bitmask.apply(.flag_jsr_jsrr, instr) == 0) {
+                    // JSR
+                    const pc_offset = bitmask.applySext(.pc_offset_11, instr);
+                    runtime.pc +%= pc_offset;
+                } else {
+                    // JSRR
+                    if (bitmask.apply(.padding_jsrr_high, instr) != 0 or
+                        bitmask.apply(.padding_jsrr_low, instr) != 0)
+                        std.log.warn("invalid padding for jsrr", .{});
+                    const base_reg = bitmask.apply(.reg_mid, instr);
+                    runtime.pc = runtime.registers[base_reg];
+                }
+            },
+
             .lea => {
                 const dest_reg = bitmask.apply(.reg_high, instr);
                 const pc_offset = bitmask.applySext(.pc_offset_9, instr);
@@ -193,13 +209,18 @@ const bitmask = struct {
         lowest: u4,
         highest: u4,
 
+        // TODO: Move constants elsewhere
+
         // Instruction metadata
         pub const opcode: Mask = .new(12, 15);
         pub const flag_add_and: Mask = .new(5, 5);
+        pub const flag_jsr_jsrr: Mask = .new(11, 11);
         pub const padding_add_and: Mask = .new(3, 4);
         pub const padding_not: Mask = .new(0, 5);
         pub const padding_jmp_ret_high: Mask = .new(9, 11);
         pub const padding_jmp_ret_low: Mask = .new(0, 5);
+        pub const padding_jsrr_high: Mask = .new(9, 11);
+        pub const padding_jsrr_low: Mask = .new(0, 5);
         // Operands
         pub const reg_high: Mask = .new(9, 11);
         pub const reg_mid: Mask = .new(6, 8);
@@ -207,6 +228,7 @@ const bitmask = struct {
         pub const imm_5: Mask = .new(0, 4);
         pub const trap_vect: Mask = .new(0, 8);
         pub const pc_offset_9: Mask = .new(0, 8);
+        pub const pc_offset_11: Mask = .new(0, 10);
         pub const condition_mask: Mask = .new(9, 11);
 
         fn new(lowest: u4, highest: u4) Mask {
