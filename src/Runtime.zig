@@ -273,7 +273,11 @@ pub fn run(runtime: *Runtime) Error!void {
 
                         try runtime.ensureNewline();
 
-                        var tty = try Tty.enableRawMode();
+                        // TODO: Move to field of runtime
+                        // TODO: Lazy-initialize
+                        var tty = try Tty.new();
+
+                        try tty.enableRawMode();
 
                         // TODO: Extract as method
                         var reader = Io.File.stdin().reader(runtime.io, &.{});
@@ -314,26 +318,47 @@ pub fn run(runtime: *Runtime) Error!void {
 const Tty = struct {
     const HANDLE = posix.STDIN_FILENO;
 
-    /// `null` if `handle` is not a terminal.
-    termios: ?posix.termios,
+    state: union(enum) {
+        /// Original `termios` state.
+        modified: posix.termios,
+        /// Original (and current) `termios` state.
+        unmodified: posix.termios,
+        not_a_tty,
+    },
 
-    pub fn enableRawMode() error{TermiosFailed}!Tty {
+    pub fn new() error{TermiosFailed}!Tty {
         const termios = posix.tcgetattr(HANDLE) catch |err| switch (err) {
-            error.NotATerminal => return .{ .termios = null },
+            error.NotATerminal => return .{ .state = .not_a_tty },
             error.Unexpected => return error.TermiosFailed,
         };
+        return .{ .state = .{ .unmodified = termios } };
+    }
 
-        var termios_raw = termios;
-        termios_raw.lflag.ICANON = false;
-        termios_raw.lflag.ECHO = false;
-        try setTermios(termios);
-
-        return .{ .termios = termios_raw };
+    pub fn enableRawMode(tty: *Tty) error{TermiosFailed}!void {
+        const termios = switch (tty.state) {
+            .modified => unreachable,
+            .unmodified => |termios| termios,
+            .not_a_tty => return,
+        };
+        try setTermios(applyRawMode(termios));
+        tty.state = .{ .modified = termios };
     }
 
     pub fn disableRawMode(tty: *Tty) error{TermiosFailed}!void {
-        if (tty.termios) |termios|
-            try setTermios(termios);
+        const termios = switch (tty.state) {
+            .modified => |termios| termios,
+            .unmodified => unreachable,
+            .not_a_tty => return,
+        };
+        try setTermios(termios);
+        tty.state = .{ .unmodified = termios };
+    }
+
+    fn applyRawMode(termios: posix.termios) posix.termios {
+        var termios_raw = termios;
+        termios_raw.lflag.ICANON = false;
+        termios_raw.lflag.ECHO = false;
+        return termios_raw;
     }
 
     fn setTermios(termios: posix.termios) error{TermiosFailed}!void {
