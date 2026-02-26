@@ -40,15 +40,21 @@ pub fn deinit(runtime: Runtime, allocator: Allocator) void {
     defer allocator.free(runtime.memory);
 }
 
-pub const Error =
-    Io.Writer.Error ||
-    error{
-        IncorrectPadding,
-        InvalidOperand,
-        UnsupportedTrap,
-        UnsupportedRti,
-        ReservedOpcode,
-    };
+pub const Error = RuntimeError || IoError;
+
+const RuntimeError = error{
+    IncorrectPadding,
+    InvalidOperand,
+    UnsupportedTrap,
+    UnsupportedRti,
+    ReservedOpcode,
+};
+
+const IoError = error{
+    WriteFailed,
+    ReadFailed,
+    TermiosFailed,
+};
 
 const Opcode = enum(u4) {
     add = 0x1,
@@ -268,23 +274,24 @@ pub fn run(runtime: *Runtime) Error!void {
                         try runtime.ensureNewline();
 
                         // TODO: Extract as method
+                        // TODO: If not a tty, continue without raw mode
                         const termios_original = posix.tcgetattr(posix.STDIN_FILENO) catch
-                            unreachable; // TODO:
+                            return error.TermiosFailed;
                         var termios = termios_original;
                         termios.lflag.ICANON = false;
                         termios.lflag.ECHO = false;
                         posix.tcsetattr(posix.STDIN_FILENO, .NOW, termios) catch
-                            unreachable; // TODO:
+                            return error.TermiosFailed;
 
                         // TODO: Extract as method
                         var reader = Io.File.stdin().reader(runtime.io, &.{});
                         var char: u8 = undefined;
                         reader.interface.readSliceAll(@ptrCast(&char)) catch
-                            unreachable; // TODO:
+                            return error.ReadFailed;
 
                         // TODO: Extract as method
                         posix.tcsetattr(posix.STDIN_FILENO, .NOW, termios_original) catch
-                            unreachable; // TODO:
+                            return error.TermiosFailed;
 
                         try runtime.writeChar(char);
                         try runtime.ensureNewline();

@@ -57,7 +57,10 @@ pub fn main(init: std.process.Init) !u8 {
         try air.emitRuntime(&runtime);
 
         runtime.run() catch |err| switch (err) {
-            error.WriteFailed => |err2| return err2,
+            error.WriteFailed,
+            error.ReadFailed,
+            error.TermiosFailed,
+            => |err2| return err2,
             else => |err2| {
                 std.log.err("runtime threw exception: {t}", .{err2});
             },
