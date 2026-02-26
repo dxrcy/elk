@@ -1,6 +1,7 @@
 const Runtime = @This();
 
 const std = @import("std");
+const posix = std.posix;
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
@@ -256,6 +257,38 @@ pub fn run(runtime: *Runtime) Error!void {
                                 break;
                             try runtime.writeChar(words[1]);
                         }
+                    },
+
+                    .in => {
+                        try runtime.ensureNewline();
+
+                        // TODO: Write to stdout
+                        std.debug.print("Input> ", .{});
+
+                        try runtime.ensureNewline();
+
+                        // TODO: Extract as method
+                        const termios_original = posix.tcgetattr(posix.STDIN_FILENO) catch
+                            unreachable; // TODO:
+                        var termios = termios_original;
+                        termios.lflag.ICANON = false;
+                        termios.lflag.ECHO = false;
+                        posix.tcsetattr(posix.STDIN_FILENO, .NOW, termios) catch
+                            unreachable; // TODO:
+
+                        // TODO: Extract as method
+                        var reader = Io.File.stdin().reader(runtime.io, &.{});
+                        var char: u8 = undefined;
+                        reader.interface.readSliceAll(@ptrCast(&char)) catch
+                            unreachable; // TODO:
+
+                        // TODO: Extract as method
+                        posix.tcsetattr(posix.STDIN_FILENO, .NOW, termios_original) catch
+                            unreachable; // TODO:
+
+                        try runtime.writeChar(char);
+                        try runtime.ensureNewline();
+                        runtime.registers[0] = char;
                     },
 
                     .halt => {
