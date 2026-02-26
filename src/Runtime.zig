@@ -34,7 +34,13 @@ pub fn deinit(runtime: Runtime, allocator: Allocator) void {
 }
 
 // TODO:
-pub const Error = error{};
+pub const Error = error{
+    IncorrectPadding,
+    InvalidOperand,
+    UnsupportedTrap,
+    UnsupportedRti,
+    ReservedOpcode,
+};
 
 const Opcode = enum(u4) {
     add = 0x1,
@@ -74,13 +80,8 @@ pub fn run(runtime: *Runtime) Error!void {
         const instr = runtime.memory[runtime.pc];
         runtime.pc += 1;
 
-        std.log.debug("instruction: 0x{x:04}", .{instr});
-        std.log.debug("registers: {any}", .{runtime.registers});
-
         // Conversion cannot fail
         const opcode: Opcode = @enumFromInt(bitmask.opcode.apply(instr));
-
-        std.log.info("{t}", .{opcode});
 
         switch (opcode) {
             inline .add, .@"and" => |arith_opcode| {
@@ -91,7 +92,7 @@ pub fn run(runtime: *Runtime) Error!void {
                 const rhs = rhs: switch (bitmask.flag.add_and.apply(instr)) {
                     0 => { // Register
                         if (bitmask.padding.add_and.apply(instr) != 0)
-                            std.log.warn("invalid padding for {t}", .{arith_opcode});
+                            return error.IncorrectPadding;
                         const rhs_reg = bitmask.operand.reg_low.apply(instr);
                         break :rhs runtime.registers[rhs_reg];
                     },
@@ -111,7 +112,7 @@ pub fn run(runtime: *Runtime) Error!void {
                 const dest_reg = bitmask.operand.reg_high.apply(instr);
                 const src_reg = bitmask.operand.reg_mid.apply(instr);
                 if (bitmask.padding.not.apply(instr) != 0b11111)
-                    std.log.warn("invalid padding for not", .{});
+                    return error.IncorrectPadding;
                 runtime.setRegister(dest_reg, ~runtime.registers[src_reg]);
             },
 
@@ -119,8 +120,7 @@ pub fn run(runtime: *Runtime) Error!void {
                 const mask: u3 = bitmask.operand.condition_mask.apply(instr);
                 // Cannot have NO flags. `BR` is assembled as `BRnzp`
                 if (mask == 0b000) {
-                    std.log.warn("invalid condition mask for br[nzp]", .{});
-                    continue;
+                    return error.InvalidOperand;
                 }
                 const pc_offset = bitmask.operand.pc_offset_9.applySext(instr);
                 if (@intFromEnum(runtime.condition) & mask != 0)
@@ -131,7 +131,7 @@ pub fn run(runtime: *Runtime) Error!void {
                 const base_reg = bitmask.operand.reg_mid.apply(instr);
                 if (bitmask.padding.jmp_ret_high.apply(instr) != 0 or
                     bitmask.padding.jmp_ret_low.apply(instr) != 0)
-                    std.log.warn("invalid padding for jmp/ret", .{});
+                    return error.IncorrectPadding;
                 runtime.pc = runtime.registers[base_reg];
             },
 
@@ -145,7 +145,7 @@ pub fn run(runtime: *Runtime) Error!void {
                     1 => { // JSRR
                         if (bitmask.padding.jsrr_high.apply(instr) != 0 or
                             bitmask.padding.jsrr_low.apply(instr) != 0)
-                            std.log.warn("invalid padding for jsrr", .{});
+                            return error.IncorrectPadding;
                         const base_reg = bitmask.operand.reg_mid.apply(instr);
                         runtime.pc = runtime.registers[base_reg];
                     },
@@ -204,7 +204,6 @@ pub fn run(runtime: *Runtime) Error!void {
 
             .trap => {
                 const trap_vect: TrapVect = @enumFromInt(bitmask.operand.trap_vect.apply(instr));
-                std.log.info("trap 0x{x:02}", .{trap_vect});
 
                 switch (trap_vect) {
                     .puts => {
@@ -222,21 +221,21 @@ pub fn run(runtime: *Runtime) Error!void {
                         break;
                     },
 
-                    _ => {
-                        std.log.err("unsupported trap vector: 0x{x:02}", .{trap_vect});
-                    },
                     else => {
+                        // TODO:
                         std.log.warn("unimplemented trap vector: {t}", .{trap_vect});
+                    },
+
+                    _ => {
+                        return error.UnsupportedTrap;
                     },
                 }
             },
 
-            .rti => {
-                std.log.warn("encountered unsupported instruction rti", .{});
-            },
-            .reserved => {
-                std.log.warn("encountered instruction with reserved opcode 0x{x}", .{opcode});
-            },
+            .rti => return error.UnsupportedRti,
+
+            // TODO: Support lace stack extension (behind feature flag)
+            .reserved => return error.ReservedOpcode,
         }
     }
 }

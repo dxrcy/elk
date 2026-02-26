@@ -56,7 +56,9 @@ pub fn main(init: std.process.Init) !u8 {
 
         try air.emitRuntime(&runtime);
 
-        try runtime.run();
+        runtime.run() catch |err| {
+            std.log.err("runtime threw exception: {t}", .{err});
+        };
     }
 
     return 0;
