@@ -93,7 +93,7 @@ pub fn run(runtime: *Runtime) Error!void {
                         std.log.warn("invalid padding for {t}", .{arith_opcode});
                     const rhs_reg = bitmask.apply(.reg_low, instr);
                     break :blk runtime.registers[rhs_reg];
-                } else bitmask.apply(.imm_5, instr);
+                } else bitmask.applySext(.imm_5, instr);
 
                 const lhs = runtime.registers[src_reg];
                 const result = switch (arith_opcode) {
@@ -119,7 +119,7 @@ pub fn run(runtime: *Runtime) Error!void {
                     std.log.warn("invalid condition mask for br[nzp]", .{});
                     continue;
                 }
-                const pc_offset = bitmask.apply(.pc_offset_9, instr);
+                const pc_offset = bitmask.applySext(.pc_offset_9, instr);
                 if (@intFromEnum(runtime.condition) & mask != 0) {
                     runtime.pc +%= pc_offset;
                 }
@@ -135,7 +135,7 @@ pub fn run(runtime: *Runtime) Error!void {
 
             .lea => {
                 const dest_reg = bitmask.apply(.reg_high, instr);
-                const pc_offset = bitmask.apply(.pc_offset_9, instr);
+                const pc_offset = bitmask.applySext(.pc_offset_9, instr);
                 runtime.setRegister(dest_reg, runtime.pc +% pc_offset);
             },
 
