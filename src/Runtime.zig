@@ -245,6 +245,19 @@ pub fn run(runtime: *Runtime) Error!void {
                         }
                     },
 
+                    .putsp => {
+                        var i: usize = runtime.registers[0];
+                        while (true) : (i += 1) {
+                            const words: [2]u8 = @bitCast(runtime.memory[i]);
+                            if (words[0] == 0x00)
+                                break;
+                            try runtime.writeChar(words[0]);
+                            if (words[1] == 0x00)
+                                break;
+                            try runtime.writeChar(words[1]);
+                        }
+                    },
+
                     .halt => {
                         break;
                     },
