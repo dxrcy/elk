@@ -13,32 +13,30 @@ registers: [8]u16,
 pc: u16,
 condition: Condition,
 
-newline: bool,
 tty: Tty,
 writer: Writer,
 io: Io,
 
 const Writer = struct {
-    newline: bool,
-    // TODO: Buffer writes !! duh
+    is_newline: bool,
     inner: Io.File.Writer,
 
-    pub fn new(io: Io) Writer {
+    pub fn new(buffer: []u8, io: Io) Writer {
         return .{
-            .newline = true,
-            .inner = Io.File.stdout().writer(io, &.{}),
+            .is_newline = true,
+            .inner = Io.File.stdout().writer(io, buffer),
         };
     }
 
     pub fn writeByte(writer: *Writer, byte: u8) error{WriteFailed}!void {
         try writer.inner.interface.writeByte(byte);
-        writer.newline = byte == '\n';
+        writer.is_newline = byte == '\n';
     }
 
     pub fn writeAll(writer: *Writer, bytes: []const u8) error{WriteFailed}!void {
         try writer.inner.interface.writeAll(bytes);
         if (bytes.len > 0)
-            writer.newline = bytes[bytes.len - 1] == '\n';
+            writer.is_newline = bytes[bytes.len - 1] == '\n';
     }
 
     pub fn flush(writer: *Writer) error{WriteFailed}!void {
@@ -46,7 +44,7 @@ const Writer = struct {
     }
 
     pub fn ensureNewline(writer: *Writer) Io.Writer.Error!void {
-        if (!writer.newline)
+        if (!writer.is_newline)
             try writer.writeByte('\n');
     }
 };
@@ -57,7 +55,7 @@ const Condition = enum(u3) {
     positive = 0b001,
 };
 
-pub fn init(io: Io, allocator: Allocator) !Runtime {
+pub fn init(write_buffer: []u8, io: Io, allocator: Allocator) !Runtime {
     const buffer = try allocator.alloc(u16, MEMORY_SIZE);
     @memset(buffer, 0x0000);
 
@@ -66,9 +64,8 @@ pub fn init(io: Io, allocator: Allocator) !Runtime {
         .registers = @splat(0x0000),
         .pc = 0x0000,
         .condition = .zero,
-        .newline = true,
         .tty = .uninit,
-        .writer = .new(io),
+        .writer = .new(write_buffer, io),
         .io = io,
     };
 }

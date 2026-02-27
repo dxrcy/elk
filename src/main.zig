@@ -51,7 +51,8 @@ pub fn main(init: std.process.Init) !u8 {
     }
 
     {
-        var runtime = try Runtime.init(io, gpa);
+        var write_buffer: [64]u8 = undefined;
+        var runtime = try Runtime.init(&write_buffer, io, gpa);
         defer runtime.deinit(gpa);
 
         try air.emitRuntime(&runtime);
