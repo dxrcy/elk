@@ -15,7 +15,41 @@ condition: Condition,
 
 newline: bool,
 tty: Tty,
+writer: Writer,
 io: Io,
+
+const Writer = struct {
+    newline: bool,
+    // TODO: Buffer writes !! duh
+    inner: Io.File.Writer,
+
+    pub fn new(io: Io) Writer {
+        return .{
+            .newline = true,
+            .inner = Io.File.stdout().writer(io, &.{}),
+        };
+    }
+
+    pub fn writeByte(writer: *Writer, byte: u8) error{WriteFailed}!void {
+        try writer.inner.interface.writeByte(byte);
+        writer.newline = byte == '\n';
+    }
+
+    pub fn writeAll(writer: *Writer, bytes: []const u8) error{WriteFailed}!void {
+        try writer.inner.interface.writeAll(bytes);
+        if (bytes.len > 0)
+            writer.newline = bytes[bytes.len - 1] == '\n';
+    }
+
+    pub fn flush(writer: *Writer) error{WriteFailed}!void {
+        try writer.inner.interface.flush();
+    }
+
+    pub fn ensureNewline(writer: *Writer) Io.Writer.Error!void {
+        if (!writer.newline)
+            try writer.writeByte('\n');
+    }
+};
 
 const Condition = enum(u3) {
     negative = 0b100,
@@ -34,6 +68,7 @@ pub fn init(io: Io, allocator: Allocator) !Runtime {
         .condition = .zero,
         .newline = true,
         .tty = .uninit,
+        .writer = .new(io),
         .io = io,
     };
 }
@@ -88,18 +123,6 @@ const TrapVect = enum(u8) {
     reg = 0x27,
     _,
 };
-
-pub fn ensureNewline(runtime: *Runtime) Io.Writer.Error!void {
-    if (!runtime.newline)
-        try runtime.writeChar('\n');
-}
-
-fn writeChar(runtime: *Runtime, char: u8) Io.Writer.Error!void {
-    var writer = Io.File.stdout().writer(runtime.io, &.{});
-    try writer.interface.writeByte(char);
-    try writer.interface.flush();
-    runtime.newline = char == '\n';
-}
 
 fn setRegister(runtime: *Runtime, register: u3, value: u16) void {
     runtime.registers[register] = value;
@@ -250,8 +273,9 @@ pub fn run(runtime: *Runtime) Error!void {
                             const word: u8 = @truncate(runtime.memory[i]);
                             if (word == 0x00)
                                 break;
-                            try runtime.writeChar(word);
+                            try runtime.writer.writeByte(word);
                         }
+                        try runtime.writer.flush();
                     },
 
                     .putsp => {
@@ -260,20 +284,18 @@ pub fn run(runtime: *Runtime) Error!void {
                             const words: [2]u8 = @bitCast(runtime.memory[i]);
                             if (words[0] == 0x00)
                                 break;
-                            try runtime.writeChar(words[0]);
+                            try runtime.writer.writeByte(words[1]);
                             if (words[1] == 0x00)
                                 break;
-                            try runtime.writeChar(words[1]);
+                            try runtime.writer.writeByte(words[1]);
                         }
+                        try runtime.writer.flush();
                     },
 
                     .in => {
-                        try runtime.ensureNewline();
-
-                        // TODO: Write to stdout
-                        std.debug.print("Input> ", .{});
-
-                        try runtime.ensureNewline();
+                        try runtime.writer.ensureNewline();
+                        try runtime.writer.writeAll("Input> ");
+                        try runtime.writer.flush();
 
                         if (runtime.tty.state == .uninit)
                             try runtime.tty.init();
@@ -287,8 +309,10 @@ pub fn run(runtime: *Runtime) Error!void {
 
                         try runtime.tty.disableRawMode();
 
-                        try runtime.writeChar(char);
-                        try runtime.ensureNewline();
+                        try runtime.writer.writeByte(char);
+                        try runtime.writer.ensureNewline();
+                        try runtime.writer.flush();
+
                         runtime.registers[0] = char;
                     },
 
