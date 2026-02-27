@@ -195,7 +195,7 @@ pub fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
                         },
                         1 => { // CALL
                             runtime.stackPush(runtime.pc);
-                            const pc_offset = bitmask.operand.pc_offset_9.applySext(instr);
+                            const pc_offset = bitmask.operand.pc_offset_10.applySext(instr);
                             runtime.pc +%= pc_offset;
                         },
                     }
