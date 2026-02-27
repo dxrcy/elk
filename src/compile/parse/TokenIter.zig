@@ -309,6 +309,15 @@ pub const Argument = union(enum) {
                     else => try unexpected(reporter, token, &.{ .label, .integer }),
                 },
 
+                Operand.Value.PcOffset10 => switch (token.value) {
+                    // TODO: Integer literals here may be non-standard; warn
+                    .integer => |integer| .{
+                        .resolved = try shrink(reporter, token.span, integer, i10),
+                    },
+                    .label => .unresolved,
+                    else => try unexpected(reporter, token, &.{ .label, .integer }),
+                },
+
                 Operand.Value.PcOffset11 => switch (token.value) {
                     // TODO: Integer literals here may be non-standard; warn
                     .integer => |integer| .{

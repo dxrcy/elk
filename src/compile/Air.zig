@@ -92,7 +92,7 @@ pub const Statement = union(enum) {
         dest: Operand.Register,
     },
     call: struct {
-        dest: Operand.PcOffset11,
+        dest: Operand.PcOffset10,
     },
     rets: struct {},
     rti: struct {},
@@ -105,6 +105,7 @@ pub const Operand = struct {
     pub const TrapVect = Spanned(Value.TrapVect);
     pub const Offset6 = Spanned(Value.Offset6);
     pub const PcOffset9 = Spanned(Value.PcOffset9);
+    pub const PcOffset10 = Spanned(Value.PcOffset10);
     pub const PcOffset11 = Spanned(Value.PcOffset11);
     pub const ConditionMask = Spanned(Value.ConditionMask);
 
@@ -155,6 +156,15 @@ pub const Operand = struct {
             pub fn bits(self: @This()) u16 {
                 assert(self == .resolved);
                 return @as(u9, @bitCast(self.resolved));
+            }
+        };
+
+        pub const PcOffset10 = union(enum) {
+            unresolved,
+            resolved: i10,
+            pub fn bits(self: @This()) u16 {
+                assert(self == .resolved);
+                return @as(u10, @bitCast(self.resolved));
             }
         };
 
