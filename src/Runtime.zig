@@ -369,8 +369,15 @@ pub fn run(runtime: *Runtime) Error!void {
                         try runtime.writer.interface.print("+------------------+-----------------+\n", .{});
 
                         try runtime.writer.interface.print(
-                            "|    PC  0x{x:04}    |     CC  {b:03}     |\n",
-                            .{ runtime.pc, @intFromEnum(runtime.condition) },
+                            "|    PC  0x{x:04}    |   CC {s}   |\n",
+                            .{
+                                runtime.pc,
+                                switch (runtime.condition) {
+                                    .negative => "NEGATIVE",
+                                    .zero => "  ZERO  ",
+                                    .positive => "POSITIVE",
+                                },
+                            },
                         );
 
                         try runtime.writer.interface.print("+------------------+-----------------+\n", .{});
