@@ -20,24 +20,26 @@ tokens: TokenIter,
 current_label: ?Span,
 origin: ?Span,
 
-source: []const u8,
-reporter: *Reporter,
-
 pub fn new(
     air: *Air,
-    source: []const u8,
-    reporter: *Reporter,
+    source_: []const u8,
+    reporter_: *Reporter,
     allocator: Allocator,
 ) Parser {
     return .{
         .air = air,
         .allocator = allocator,
-        .tokens = .new(source, reporter),
+        .tokens = .new(source_, reporter_),
         .current_label = null,
         .origin = null,
-        .source = source,
-        .reporter = reporter,
     };
+}
+
+fn source(parser: *const Parser) []const u8 {
+    return parser.tokens.source;
+}
+fn reporter(parser: *Parser) *Reporter {
+    return parser.tokens.reporter;
 }
 
 const Control = enum { @"continue", @"break" };
@@ -71,19 +73,19 @@ pub fn parse(parser: *Parser) error{OutOfMemory}!void {
     }
 
     if (parser.origin == null) {
-        parser.reporter.report(.missing_origin, .{
+        parser.reporter().report(.missing_origin, .{
             .first_token = parser.air.getFirstSpan(),
         }).proceed();
     }
 
     if (parser.current_label) |existing| {
-        parser.reporter.report(.eof_label, .{
+        parser.reporter().report(.eof_label, .{
             .label = existing,
         }).proceed();
     }
 
     if (missing_end) {
-        parser.reporter.report(.missing_end, .{
+        parser.reporter().report(.missing_end, .{
             .last_token = parser.tokens.latest,
         }).proceed();
     }
@@ -95,14 +97,14 @@ fn parseLine(parser: *Parser) InnerError!Control {
     switch (token.value) {
         .label => {
             if (parser.current_label) |existing| {
-                parser.reporter.report(.shadowed_label, .{
+                parser.reporter().report(.shadowed_label, .{
                     .existing = existing,
                     .new = token.span,
                 }).proceed();
             }
 
-            if (parser.getExistingLabel(token.span.view(parser.source))) |existing_label| {
-                try parser.reporter.report(.duplicate_label, .{
+            if (parser.getExistingLabel(token.span.view(parser.source()))) |existing_label| {
+                try parser.reporter().report(.duplicate_label, .{
                     .existing = existing_label,
                     .new = token.span,
                 }).abort();
@@ -116,7 +118,7 @@ fn parseLine(parser: *Parser) InnerError!Control {
             // This should also be checked when the second label is parsed, but
             // this reports a more appropriate message
             if (try parser.tokens.nextMatching(.label)) |label| {
-                parser.reporter.report(.unexpected_label, .{
+                parser.reporter().report(.unexpected_label, .{
                     .existing = token.span,
                     .new = label.span,
                 }).proceed(); // May be followed by a (valid) instruction
@@ -141,7 +143,7 @@ fn parseLine(parser: *Parser) InnerError!Control {
         },
 
         else => {
-            try parser.reporter.report(.unexpected_token_kind, .{
+            try parser.reporter().report(.unexpected_token_kind, .{
                 .token = token,
                 .expected = &.{ .label, .instruction, .directive },
             }).abort();
@@ -198,7 +200,7 @@ fn parseDirective(
     switch (directive) {
         .end => {
             if (parser.current_label) |label| {
-                parser.reporter.report(.useless_label, .{
+                parser.reporter().report(.useless_label, .{
                     .label = label,
                     .token = span,
                 }).proceed();
@@ -209,7 +211,7 @@ fn parseDirective(
         .orig => {
             // FIXME: This should technically be removed I think ??
             if (parser.current_label) |label| {
-                parser.reporter.report(.useless_label, .{
+                parser.reporter().report(.useless_label, .{
                     .label = label,
                     .token = span,
                 }).proceed();
@@ -217,20 +219,20 @@ fn parseDirective(
 
             const origin = try parser.tokens.expectArgument(.word);
             if (parser.origin) |existing| {
-                try parser.reporter.report(.multiple_origins, .{
+                try parser.reporter().report(.multiple_origins, .{
                     .existing = existing,
                     .new = origin.span,
                 }).abort();
             }
             parser.air.origin = origin.value.castToUnsigned() orelse {
-                try parser.reporter.report(.unexpected_negative_integer, .{
+                try parser.reporter().report(.unexpected_negative_integer, .{
                     .integer = origin.span,
                 }).abort();
             };
             parser.origin = origin.span;
 
             if (parser.air.lines.items.len > 0) {
-                try parser.reporter.report(.late_origin, .{
+                try parser.reporter().report(.late_origin, .{
                     .origin = origin.span,
                     .first_token = parser.air.getFirstSpan(),
                 }).abort();
@@ -259,7 +261,7 @@ fn parseDirective(
             const contents = string.value.in(string.span);
 
             var is_escaped = false;
-            for (contents.view(parser.source), 0..) |char, i| {
+            for (contents.view(parser.source()), 0..) |char, i| {
                 if (!is_escaped and char == '\\') {
                     is_escaped = true;
                     continue;
@@ -273,7 +275,7 @@ fn parseDirective(
                         't' => '\t',
                         'r' => '\r',
                         else => {
-                            try parser.reporter.report(.invalid_string_escape, .{
+                            try parser.reporter().report(.invalid_string_escape, .{
                                 .string = string.span,
                                 .sequence = .{
                                     .offset = contents.offset + i - 1,
@@ -395,7 +397,7 @@ fn getExistingLabel(parser: *const Parser, new_label: []const u8) ?Span {
     for (parser.air.lines.items) |line| {
         const existing_label = line.label orelse
             continue;
-        if (std.mem.eql(u8, existing_label.view(parser.source), new_label)) {
+        if (std.mem.eql(u8, existing_label.view(parser.source()), new_label)) {
             return existing_label;
         }
     }
@@ -436,13 +438,13 @@ fn resolveFieldLabel(
         .resolved => return,
     }
 
-    const definition = parser.findLabelDefinition(operand.span.view(parser.source)) orelse {
-        try parser.reporter.report(.undeclared_label, .{
+    const definition = parser.findLabelDefinition(operand.span.view(parser.source())) orelse {
+        try parser.reporter().report(.undeclared_label, .{
             .label = operand.span,
         }).abort();
     };
     const offset = calculateOffset(Int, definition, index) orelse {
-        try parser.reporter.report(.offset_too_large, .{
+        try parser.reporter().report(.offset_too_large, .{
             .reference = operand.span,
             .definition = parser.air.lines.items[definition].label orelse
                 unreachable,
@@ -455,7 +457,7 @@ fn findLabelDefinition(parser: *const Parser, reference: []const u8) ?usize {
     for (parser.air.lines.items, 0..) |*line, index| {
         const label = line.label orelse
             continue;
-        if (std.mem.eql(u8, label.view(parser.source), reference))
+        if (std.mem.eql(u8, label.view(parser.source()), reference))
             return index;
     }
     return null;
