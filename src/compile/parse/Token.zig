@@ -86,6 +86,11 @@ pub const Value = union(enum) {
         // Extension traps
         putn,
         reg,
+        // Extension instructions
+        push,
+        pop,
+        call,
+        rets,
         // Only used in 'supervisor' mode
         rti,
     };

@@ -85,6 +85,16 @@ pub const Statement = union(enum) {
     trap: struct {
         vect: Operand.TrapVect,
     },
+    push: struct {
+        src: Operand.Register,
+    },
+    pop: struct {
+        dest: Operand.Register,
+    },
+    call: struct {
+        dest: Operand.PcOffset11,
+    },
+    rets: struct {},
     rti: struct {},
 };
 
@@ -305,6 +315,24 @@ fn encode(statement: Statement) u16 {
             var raw: u16 = 0xf000;
             raw |= operands.vect.value.bits();
             return raw;
+        },
+        .push => |operands| {
+            var raw: u16 = 0xd400;
+            raw |= operands.src.value.bits() << 6;
+            return raw;
+        },
+        .pop => |operands| {
+            var raw: u16 = 0xd000;
+            raw |= operands.dest.value.bits() << 6;
+            return raw;
+        },
+        .call => |operands| {
+            var raw: u16 = 0xdc00;
+            raw |= operands.dest.value.bits();
+            return raw;
+        },
+        .rets => {
+            return 0xd800;
         },
         .rti => {
             return 0x8000;

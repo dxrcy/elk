@@ -325,6 +325,10 @@ fn parseInstruction(
         .sti,
         .str,
         .trap,
+        .push,
+        .pop,
+        .call,
+        .rets,
         .rti,
         => |regular| {
             const Operands = @FieldType(Statement, @tagName(regular));
