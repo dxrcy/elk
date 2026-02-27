@@ -6,7 +6,6 @@ const assert = std.debug.assert;
 const Reporter = @import("../../Reporter.zig");
 const Operand = @import("../Air.zig").Operand;
 const Span = @import("../Span.zig");
-
 const Lexer = @import("Lexer.zig");
 const Token = @import("Token.zig");
 const SourceInt = @import("integers.zig").SourceInt;

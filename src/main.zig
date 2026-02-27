@@ -1,10 +1,10 @@
 const std = @import("std");
 const Io = std.Io;
 
+const Reporter = @import("Reporter.zig");
 const Air = @import("compile/Air.zig");
 const Parser = @import("compile/parse/Parser.zig");
 const Runtime = @import("emulate/Runtime.zig");
-const Reporter = @import("Reporter.zig");
 
 pub fn main(init: std.process.Init) !u8 {
     const io, const gpa = .{ init.io, init.gpa };

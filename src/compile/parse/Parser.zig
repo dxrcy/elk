@@ -6,12 +6,11 @@ const assert = std.debug.assert;
 
 const Reporter = @import("../../Reporter.zig");
 const Air = @import("../Air.zig");
-const Operand = Air.Operand;
-const Statement = Air.Statement;
 const Span = @import("../Span.zig");
-
 const TokenIter = @import("TokenIter.zig");
 const Token = @import("Token.zig");
+const Operand = Air.Operand;
+const Statement = Air.Statement;
 
 air: *Air,
 /// Used for `air`.

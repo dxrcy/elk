@@ -6,9 +6,7 @@ const assert = std.debug.assert;
 const testing = std.testing;
 
 const Span = @import("../Span.zig");
-
 const integers = @import("integers.zig");
-const SourceInt = integers.SourceInt;
 
 span: Span,
 value: Value,
@@ -38,7 +36,7 @@ pub const Value = union(enum) {
     label,
 
     register: u3,
-    integer: SourceInt(16),
+    integer: integers.SourceInt(16),
     /// Contained in `Token.span`.
     string: Span,
 
