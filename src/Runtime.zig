@@ -14,16 +14,15 @@ pc: u16,
 condition: Condition,
 
 tty: Tty,
-writer: Writer,
+writer: NewlineTracker,
 io: Io,
 
-// TODO: Rename
-const Writer = struct {
+const NewlineTracker = struct {
     is_newline: bool,
     inner: Io.File.Writer,
     interface: Io.Writer,
 
-    pub fn new(buffer: []u8, io: Io) Writer {
+    pub fn new(buffer: []u8, io: Io) NewlineTracker {
         return .{
             .is_newline = true,
             .inner = Io.File.stdout().writer(io, buffer),
@@ -37,7 +36,7 @@ const Writer = struct {
     }
 
     pub fn drain(io_w: *Io.Writer, data: []const []const u8, splat: usize) Io.Writer.Error!usize {
-        const writer: *Writer = @alignCast(@fieldParentPtr("interface", io_w));
+        const writer: *NewlineTracker = @alignCast(@fieldParentPtr("interface", io_w));
 
         assert(data.len <= 1);
         if (data.len == 0)
@@ -51,7 +50,7 @@ const Writer = struct {
         return count;
     }
 
-    pub fn ensureNewline(writer: *Writer) Io.Writer.Error!void {
+    pub fn ensureNewline(writer: *NewlineTracker) Io.Writer.Error!void {
         if (!writer.is_newline)
             try writer.interface.writeByte('\n');
     }
