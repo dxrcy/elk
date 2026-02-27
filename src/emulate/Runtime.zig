@@ -15,73 +15,9 @@ registers: [8]u16,
 pc: u16,
 condition: Condition,
 
-tty: Tty,
 writer: NewlineTracker,
+tty: Tty,
 io: Io,
-
-const NewlineTracker = struct {
-    is_newline: bool,
-    inner: Io.File.Writer,
-    interface: Io.Writer,
-
-    pub fn new(buffer: []u8, io: Io) NewlineTracker {
-        return .{
-            .is_newline = true,
-            .inner = Io.File.stdout().writer(io, buffer),
-            .interface = .{
-                .vtable = &.{
-                    .drain = drain,
-                },
-                .buffer = &.{},
-            },
-        };
-    }
-
-    pub fn drain(io_w: *Io.Writer, data: []const []const u8, splat: usize) Io.Writer.Error!usize {
-        const writer: *NewlineTracker = @alignCast(@fieldParentPtr("interface", io_w));
-
-        assert(data.len <= 1);
-        if (data.len == 0)
-            return 0;
-
-        const count = try writer.inner.interface.vtable.drain(&writer.inner.interface, data, splat);
-        if (count > 0) {
-            const index = (count / splat) - 1; // Probably correct
-            writer.is_newline = data[0][index] == '\n';
-        }
-        return count;
-    }
-
-    pub fn ensureNewline(writer: *NewlineTracker) Io.Writer.Error!void {
-        if (!writer.is_newline)
-            try writer.interface.writeByte('\n');
-    }
-};
-
-const Condition = enum(u3) {
-    negative = 0b100,
-    zero = 0b010,
-    positive = 0b001,
-};
-
-pub fn init(write_buffer: []u8, io: Io, allocator: Allocator) !Runtime {
-    const buffer = try allocator.alloc(u16, MEMORY_SIZE);
-    @memset(buffer, 0x0000);
-
-    return .{
-        .memory = buffer[0..MEMORY_SIZE],
-        .registers = @splat(0x0000),
-        .pc = 0x0000,
-        .condition = .zero,
-        .tty = .uninit,
-        .writer = .new(write_buffer, io),
-        .io = io,
-    };
-}
-
-pub fn deinit(runtime: Runtime, allocator: Allocator) void {
-    defer allocator.free(runtime.memory);
-}
 
 pub const Error = RuntimeError || IoError;
 
@@ -98,6 +34,12 @@ const IoError = error{
     WriteFailed,
     ReadFailed,
     TermiosFailed,
+};
+
+const Condition = enum(u3) {
+    negative = 0b100,
+    zero = 0b010,
+    positive = 0b001,
 };
 
 const Opcode = enum(u4) {
@@ -131,24 +73,23 @@ const TrapVect = enum(u8) {
     _,
 };
 
-fn setRegister(runtime: *Runtime, register: u3, value: u16) void {
-    runtime.registers[register] = value;
+pub fn init(write_buffer: []u8, io: Io, allocator: Allocator) !Runtime {
+    const buffer = try allocator.alloc(u16, MEMORY_SIZE);
+    @memset(buffer, 0x0000);
 
-    runtime.condition =
-        if (value < 0)
-            .negative
-        else if (value == 0)
-            .zero
-        else
-            .positive;
+    return .{
+        .memory = buffer[0..MEMORY_SIZE],
+        .registers = @splat(0x0000),
+        .pc = 0x0000,
+        .condition = .zero,
+        .writer = .new(write_buffer, io),
+        .tty = .uninit,
+        .io = io,
+    };
 }
 
-fn readByte(runtime: *const Runtime) error{ReadFailed}!u8 {
-    var reader = Io.File.stdin().reader(runtime.io, &.{});
-    var char: u8 = undefined;
-    reader.interface.readSliceAll(@ptrCast(&char)) catch
-        return error.ReadFailed;
-    return char;
+pub fn deinit(runtime: Runtime, allocator: Allocator) void {
+    defer allocator.free(runtime.memory);
 }
 
 pub fn run(runtime: *Runtime) Error!void {
@@ -367,6 +308,56 @@ pub fn run(runtime: *Runtime) Error!void {
     }
 }
 
+const bitmask = struct {
+    pub const opcode: Mask = .new(12, 15);
+
+    pub const flag = struct {
+        pub const add_and: Mask = .new(5, 5);
+        pub const jsr_jsrr: Mask = .new(11, 11);
+    };
+
+    pub const padding = struct {
+        pub const add_and: Mask = .new(3, 4);
+        pub const not: Mask = .new(0, 5);
+        pub const jmp_ret_high: Mask = .new(9, 11);
+        pub const jmp_ret_low: Mask = .new(0, 5);
+        pub const jsrr_high: Mask = .new(9, 11);
+        pub const jsrr_low: Mask = .new(0, 5);
+    };
+
+    pub const operand = struct {
+        pub const reg_high: Mask = .new(9, 11);
+        pub const reg_mid: Mask = .new(6, 8);
+        pub const reg_low: Mask = .new(0, 2);
+        pub const imm_5: Mask = .new(0, 4);
+        pub const trap_vect: Mask = .new(0, 8);
+        pub const offset_6: Mask = .new(0, 5);
+        pub const pc_offset_9: Mask = .new(0, 8);
+        pub const pc_offset_11: Mask = .new(0, 10);
+        pub const condition_mask: Mask = .new(9, 11);
+    };
+};
+
+fn setRegister(runtime: *Runtime, register: u3, value: u16) void {
+    runtime.registers[register] = value;
+
+    runtime.condition =
+        if (value < 0)
+            .negative
+        else if (value == 0)
+            .zero
+        else
+            .positive;
+}
+
+fn readByte(runtime: *const Runtime) error{ReadFailed}!u8 {
+    var reader = Io.File.stdin().reader(runtime.io, &.{});
+    var char: u8 = undefined;
+    reader.interface.readSliceAll(@ptrCast(&char)) catch
+        return error.ReadFailed;
+    return char;
+}
+
 fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
     try runtime.writer.ensureNewline();
     try runtime.writer.interface.print("+------------------------------------+\n", .{});
@@ -424,105 +415,11 @@ fn printDisplayChar(runtime: *Runtime, word: u16) error{WriteFailed}!void {
     try runtime.writer.interface.print("{s}", .{display});
 }
 
-const Tty = struct {
-    const HANDLE = posix.STDIN_FILENO;
-
-    state: union(enum) {
-        uninit,
-        not_a_tty,
-        /// Original `termios` state.
-        modified: posix.termios,
-        /// Original (and current) `termios` state.
-        unmodified: posix.termios,
-    },
-
-    const uninit: Tty = .{ .state = .uninit };
-
-    pub fn init(tty: *Tty) error{TermiosFailed}!void {
-        assert(tty.state == .uninit);
-        const termios = posix.tcgetattr(HANDLE) catch |err| switch (err) {
-            error.NotATerminal => {
-                tty.state = .not_a_tty;
-                return;
-            },
-            error.Unexpected => return error.TermiosFailed,
-        };
-        tty.state = .{ .unmodified = termios };
-    }
-
-    pub fn enableRawMode(tty: *Tty) error{TermiosFailed}!void {
-        const termios = switch (tty.state) {
-            .not_a_tty => return,
-            .uninit, .modified => unreachable,
-            .unmodified => |termios| termios,
-        };
-        try setTermios(applyRawMode(termios));
-        tty.state = .{ .modified = termios };
-    }
-
-    pub fn disableRawMode(tty: *Tty) error{TermiosFailed}!void {
-        const termios = switch (tty.state) {
-            .not_a_tty => return,
-            .uninit, .unmodified => unreachable,
-            .modified => |termios| termios,
-        };
-        try setTermios(termios);
-        tty.state = .{ .unmodified = termios };
-    }
-
-    fn applyRawMode(termios: posix.termios) posix.termios {
-        var termios_raw = termios;
-        termios_raw.lflag.ICANON = false;
-        termios_raw.lflag.ECHO = false;
-        return termios_raw;
-    }
-
-    fn setTermios(termios: posix.termios) error{TermiosFailed}!void {
-        posix.tcsetattr(HANDLE, .NOW, termios) catch |err| switch (err) {
-            // If stdin is not a terminal, we wouldn't have the termios value.
-            error.NotATerminal => unreachable,
-            error.Unexpected,
-            error.ProcessOrphaned,
-            => return error.TermiosFailed,
-        };
-    }
-};
-
-const bitmask = struct {
-    pub const opcode: Mask = .new(12, 15);
-
-    pub const flag = struct {
-        pub const add_and: Mask = .new(5, 5);
-        pub const jsr_jsrr: Mask = .new(11, 11);
-    };
-
-    pub const padding = struct {
-        pub const add_and: Mask = .new(3, 4);
-        pub const not: Mask = .new(0, 5);
-        pub const jmp_ret_high: Mask = .new(9, 11);
-        pub const jmp_ret_low: Mask = .new(0, 5);
-        pub const jsrr_high: Mask = .new(9, 11);
-        pub const jsrr_low: Mask = .new(0, 5);
-    };
-
-    pub const operand = struct {
-        pub const reg_high: Mask = .new(9, 11);
-        pub const reg_mid: Mask = .new(6, 8);
-        pub const reg_low: Mask = .new(0, 2);
-        pub const imm_5: Mask = .new(0, 4);
-        pub const trap_vect: Mask = .new(0, 8);
-        pub const offset_6: Mask = .new(0, 5);
-        pub const pc_offset_9: Mask = .new(0, 8);
-        pub const pc_offset_11: Mask = .new(0, 10);
-        pub const condition_mask: Mask = .new(9, 11);
-    };
-};
-
-pub const Mask = struct {
+const Mask = struct {
     lowest: u4,
     highest: u4,
 
-    fn new(lowest: u4, highest: u4) Mask {
+    pub fn new(lowest: u4, highest: u4) Mask {
         return .{ .lowest = lowest, .highest = highest };
     }
 
@@ -589,10 +486,113 @@ pub const Mask = struct {
         try expect(applySext(.new(14, 15), 0b1010_1010_0101_0101) == 0b1111_1111_1111_1110);
         try expect(applySext(.new(13, 15), 0b1010_1010_0101_0101) == 0b1111_1111_1111_1101);
         try expect(applySext(.new(12, 15), 0b1010_1010_0101_0101) == 0b1111_1111_1111_1010);
-        //
+
         try expect(applySext(.new(1, 4), 0b1010_1010_0101_0101) == 0b1111_1111_1111_1010);
         try expect(applySext(.new(2, 4), 0b1010_1010_0101_0101) == 0b1111_1111_1111_1101);
         try expect(applySext(.new(11, 14), 0b1010_1010_0101_0101) == 0b0000_0000_0000_0101);
         try expect(applySext(.new(11, 13), 0b1010_1010_0101_0101) == 0b1111_1111_1111_1101);
+    }
+};
+
+const NewlineTracker = struct {
+    is_newline: bool,
+    inner: Io.File.Writer,
+    interface: Io.Writer,
+
+    pub fn new(buffer: []u8, io: Io) NewlineTracker {
+        return .{
+            .is_newline = true,
+            .inner = Io.File.stdout().writer(io, buffer),
+            .interface = .{
+                .vtable = &.{
+                    .drain = drain,
+                },
+                .buffer = &.{},
+            },
+        };
+    }
+
+    pub fn drain(io_w: *Io.Writer, data: []const []const u8, splat: usize) Io.Writer.Error!usize {
+        const writer: *NewlineTracker = @alignCast(@fieldParentPtr("interface", io_w));
+
+        assert(data.len <= 1);
+        if (data.len == 0)
+            return 0;
+
+        const count = try writer.inner.interface.vtable.drain(&writer.inner.interface, data, splat);
+        if (count > 0) {
+            const index = (count / splat) - 1; // Probably correct
+            writer.is_newline = data[0][index] == '\n';
+        }
+        return count;
+    }
+
+    pub fn ensureNewline(writer: *NewlineTracker) Io.Writer.Error!void {
+        if (!writer.is_newline)
+            try writer.interface.writeByte('\n');
+    }
+};
+
+const Tty = struct {
+    const HANDLE = posix.STDIN_FILENO;
+
+    state: union(enum) {
+        uninit,
+        not_a_tty,
+        /// Original `termios` state.
+        modified: posix.termios,
+        /// Original (and current) `termios` state.
+        unmodified: posix.termios,
+    },
+
+    const uninit: Tty = .{ .state = .uninit };
+
+    pub fn init(tty: *Tty) error{TermiosFailed}!void {
+        assert(tty.state == .uninit);
+        const termios = posix.tcgetattr(HANDLE) catch |err| switch (err) {
+            error.NotATerminal => {
+                tty.state = .not_a_tty;
+                return;
+            },
+            error.Unexpected => return error.TermiosFailed,
+        };
+        tty.state = .{ .unmodified = termios };
+    }
+
+    pub fn enableRawMode(tty: *Tty) error{TermiosFailed}!void {
+        const termios = switch (tty.state) {
+            .not_a_tty => return,
+            .uninit, .modified => unreachable,
+            .unmodified => |termios| termios,
+        };
+        try setTermios(applyRawMode(termios));
+        tty.state = .{ .modified = termios };
+    }
+
+    pub fn disableRawMode(tty: *Tty) error{TermiosFailed}!void {
+        const termios = switch (tty.state) {
+            .not_a_tty => return,
+            .uninit, .unmodified => unreachable,
+            .modified => |termios| termios,
+        };
+        try setTermios(termios);
+        tty.state = .{ .unmodified = termios };
+    }
+
+    fn applyRawMode(termios: posix.termios) posix.termios {
+        var termios_raw = termios;
+        termios_raw.lflag.ICANON = false;
+        termios_raw.lflag.ECHO = false;
+        return termios_raw;
+    }
+
+    fn setTermios(termios: posix.termios) error{TermiosFailed}!void {
+        posix.tcsetattr(HANDLE, .NOW, termios) catch |err| switch (err) {
+            // If stdin is not a terminal, we wouldn't have the termios value.
+            error.NotATerminal => unreachable,
+            error.Unexpected,
+            error.ProcessOrphaned,
+            => return error.TermiosFailed,
+        };
     }
 };
