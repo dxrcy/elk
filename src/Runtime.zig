@@ -287,6 +287,36 @@ pub fn run(runtime: *Runtime) Error!void {
                         break;
                     },
 
+                    inline .in, .getc => {
+                        if (trap_vect == .in) {
+                            try runtime.writer.ensureNewline();
+                            try runtime.writer.writeAll("Input> ");
+                            try runtime.writer.flush();
+                        }
+
+                        if (runtime.tty.state == .uninit)
+                            try runtime.tty.init();
+                        try runtime.tty.enableRawMode();
+
+                        const char = try runtime.readByte();
+
+                        try runtime.tty.disableRawMode();
+
+                        if (trap_vect == .in) {
+                            try runtime.writer.writeByte(char);
+                            try runtime.writer.ensureNewline();
+                            try runtime.writer.flush();
+                        }
+
+                        runtime.registers[0] = char;
+                    },
+
+                    .out => {
+                        const word: u8 = @truncate(runtime.registers[0]);
+                        try runtime.writer.writeByte(word);
+                        try runtime.writer.flush();
+                    },
+
                     .puts => {
                         var i: usize = runtime.registers[0];
                         while (true) : (i += 1) {
@@ -312,34 +342,10 @@ pub fn run(runtime: *Runtime) Error!void {
                         try runtime.writer.flush();
                     },
 
-                    .out => {
-                        const word: u8 = @truncate(runtime.registers[0]);
-                        try runtime.writer.writeByte(word);
+                    .putn => {
+                        try runtime.writer.ensureNewline();
+                        try runtime.writer.print("{}\n", .{runtime.registers[0]});
                         try runtime.writer.flush();
-                    },
-
-                    inline .in, .getc => {
-                        if (trap_vect == .in) {
-                            try runtime.writer.ensureNewline();
-                            try runtime.writer.writeAll("Input> ");
-                            try runtime.writer.flush();
-                        }
-
-                        if (runtime.tty.state == .uninit)
-                            try runtime.tty.init();
-                        try runtime.tty.enableRawMode();
-
-                        const char = try runtime.readByte();
-
-                        try runtime.tty.disableRawMode();
-
-                        if (trap_vect == .in) {
-                            try runtime.writer.writeByte(char);
-                            try runtime.writer.ensureNewline();
-                            try runtime.writer.flush();
-                        }
-
-                        runtime.registers[0] = char;
                     },
 
                     .reg => {
@@ -370,19 +376,11 @@ pub fn run(runtime: *Runtime) Error!void {
                         try runtime.writer.flush();
                     },
 
-                    else => {
-                        // TODO:
-                        std.log.warn("unimplemented trap vector: {t}", .{trap_vect});
-                    },
-
-                    _ => {
-                        return error.UnsupportedTrap;
-                    },
+                    _ => return error.UnsupportedTrap,
                 }
             },
 
             .rti => return error.UnsupportedRti,
-
             // TODO: Support lace stack extension (behind feature flag)
             .reserved => return error.ReservedOpcode,
         }
