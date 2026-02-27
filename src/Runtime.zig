@@ -361,8 +361,7 @@ pub fn run(runtime: *Runtime) Error!void {
                                 "| R{}  0x{x:04}  {:6}  {:7}    ",
                                 .{ i, word, word, @as(i16, @bitCast(word)) },
                             );
-                            // TODO: Print character
-                            try runtime.writer.interface.print("---", .{});
+                            try runtime.printCharDisplay(word);
                             try runtime.writer.interface.print(" |\n", .{});
                         }
 
@@ -388,6 +387,32 @@ pub fn run(runtime: *Runtime) Error!void {
             },
         }
     }
+}
+
+fn printCharDisplay(runtime: *Runtime, word: u16) error{WriteFailed}!void {
+    const display = switch (word) {
+        // Non-ascii and unimportant ascii
+        else => "---",
+        // ASCII control characters which are arbitrarily considered significant
+        // ᴀʙᴄᴅᴇꜰɢʜɪᴊᴋʟᴍɴᴏᴘꞯʀꜱᴛᴜᴠᴡxʏᴢ
+        0x00 => "ɴᴜʟ",
+        0x08 => " ʙꜱ",
+        0x09 => " ʜᴛ",
+        0x0a => " ʟꜰ",
+        0x0b => " ᴠᴛ",
+        0x0c => " ꜰꜰ",
+        0x0d => " ᴄʀ",
+        0x1b => "ᴇꜱᴄ",
+        0x7f => "ᴅᴇʟ",
+        // Space
+        0x20 => "[_]",
+        // Printable ASCII characters
+        0x21...0x7e => {
+            try runtime.writer.interface.print("{c:^3}", .{@as(u8, @truncate(word))});
+            return;
+        },
+    };
+    try runtime.writer.interface.print("{s}", .{display});
 }
 
 const Tty = struct {
