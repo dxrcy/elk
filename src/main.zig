@@ -24,9 +24,9 @@ pub fn main(init: std.process.Init) !u8 {
     var air: Air = .init();
     defer air.deinit(gpa);
 
-    var parser: Parser = .new(&air, .new(source, &reporter), gpa);
+    var parser: Parser = .new(&air, .new(source, &reporter));
 
-    try parser.parse();
+    try parser.parse(gpa);
 
     parser.resolveLabels();
 

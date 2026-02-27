@@ -13,21 +13,13 @@ const Operand = Air.Operand;
 const Statement = Air.Statement;
 
 air: *Air,
-/// Used for `air`.
-allocator: Allocator,
-
 tokens: TokenIter,
 current_label: ?Span,
 origin: ?Span,
 
-pub fn new(
-    air: *Air,
-    tokens: TokenIter,
-    allocator: Allocator,
-) Parser {
+pub fn new(air: *Air, tokens: TokenIter) Parser {
     return .{
         .air = air,
-        .allocator = allocator,
         .tokens = tokens,
         .current_label = null,
         .origin = null,
@@ -49,11 +41,11 @@ const InnerError = error{
     OutOfMemory,
 };
 
-pub fn parse(parser: *Parser) error{OutOfMemory}!void {
+pub fn parse(parser: *Parser, gpa: Allocator) error{OutOfMemory}!void {
     var missing_end = false;
 
     while (true) {
-        const control = parser.parseLine() catch |err| switch (err) {
+        const control = parser.parseLine(gpa) catch |err| switch (err) {
             error.Reported => {
                 parser.tokens.discardRemainingLine();
                 continue;
@@ -90,7 +82,7 @@ pub fn parse(parser: *Parser) error{OutOfMemory}!void {
     }
 }
 
-fn parseLine(parser: *Parser) InnerError!Control {
+fn parseLine(parser: *Parser, gpa: Allocator) InnerError!Control {
     const token = try parser.tokens.nextExcluding(&.{.newline});
 
     switch (token.value) {
@@ -125,7 +117,7 @@ fn parseLine(parser: *Parser) InnerError!Control {
         },
 
         .directive => |directive| {
-            const control = try parser.parseDirective(directive, token.span);
+            const control = try parser.parseDirective(directive, token.span, gpa);
             try parser.tokens.expectEol();
             return control;
         },
@@ -138,7 +130,7 @@ fn parseLine(parser: *Parser) InnerError!Control {
                 parser.tokens.getIndex(),
             );
             try parser.tokens.expectEol();
-            try parser.appendLine(statement, span);
+            try parser.appendLine(statement, span, gpa);
         },
 
         else => {
@@ -155,8 +147,9 @@ fn appendLine(
     parser: *Parser,
     statement: Statement,
     span: Span,
+    gpa: Allocator,
 ) error{OutOfMemory}!void {
-    try parser.air.lines.append(parser.allocator, .{
+    try parser.air.lines.append(gpa, .{
         .label = parser.current_label,
         .statement = statement,
         .span = span,
@@ -172,10 +165,11 @@ fn appendLineNTimes(
     statement: Statement,
     span: Span,
     n: usize,
+    gpa: Allocator,
 ) error{OutOfMemory}!void {
     assert(n > 0);
 
-    try parser.air.lines.ensureUnusedCapacity(parser.allocator, n);
+    try parser.air.lines.ensureUnusedCapacity(gpa, n);
 
     parser.air.lines.appendAssumeCapacity(.{
         .label = parser.current_label,
@@ -195,6 +189,7 @@ fn parseDirective(
     parser: *Parser,
     directive: Token.Value.Directive,
     span: Span,
+    gpa: Allocator,
 ) InnerError!Control {
     switch (directive) {
         .end => {
@@ -243,6 +238,7 @@ fn parseDirective(
             try parser.appendLine(
                 .{ .raw_word = word.value.underlying },
                 word.span,
+                gpa,
             );
         },
 
@@ -252,6 +248,7 @@ fn parseDirective(
                 .{ .raw_word = 0x00 },
                 size.span,
                 size.value.underlying,
+                gpa,
             );
         },
 
@@ -290,6 +287,7 @@ fn parseDirective(
                 try parser.appendLine(
                     .{ .raw_word = char_escaped },
                     string.span,
+                    gpa,
                 );
             }
 
@@ -297,6 +295,7 @@ fn parseDirective(
             try parser.appendLine(
                 .{ .raw_word = 0x0000 },
                 string.span,
+                gpa,
             );
         },
     }
