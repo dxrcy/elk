@@ -24,7 +24,10 @@ const Level = enum { err, warn };
 pub const Options = struct {
     strictness: Strictness = .normal,
     verbosity: Verbosity = .normal,
-    features: Features = .{},
+    features: Features = .{
+        .extension = .none,
+        .style = .none,
+    },
 
     pub const Strictness = enum {
         strict,
@@ -40,15 +43,38 @@ pub const Options = struct {
 
     pub const Features = struct {
         extension: struct {
-            implicit_origin: bool = false,
-            implicit_end: bool = false,
-            multiline_strings: bool = false,
-            more_integer_radixes: bool = false,
-            more_integer_forms: bool = false,
-        } = .{},
+            implicit_origin: bool,
+            implicit_end: bool,
+            multiline_strings: bool,
+            more_integer_radixes: bool,
+            more_integer_forms: bool,
+
+            pub const none: @This() = .{
+                .implicit_origin = false,
+                .implicit_end = false,
+                .multiline_strings = false,
+                .more_integer_radixes = false,
+                .more_integer_forms = false,
+            };
+            pub const all: @This() = .{
+                .implicit_origin = true,
+                .implicit_end = true,
+                .multiline_strings = true,
+                .more_integer_radixes = true,
+                .more_integer_forms = true,
+            };
+        },
+
         style: struct {
-            allow_undesirable_integer_forms: bool = false,
-        } = .{},
+            allow_undesirable_integer_forms: bool,
+
+            pub const none: @This() = .{
+                .allow_undesirable_integer_forms = false,
+            };
+            pub const all: @This() = .{
+                .allow_undesirable_integer_forms = true,
+            };
+        },
     };
 
     fn strictnessResponse(options: Options) Response {
