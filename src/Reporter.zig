@@ -4,8 +4,9 @@ const std = @import("std");
 const Io = std.Io;
 const assert = std.debug.assert;
 
-const Token = @import("Token.zig");
-const Span = @import("Span.zig");
+const Span = @import("compile/Span.zig");
+const Token = @import("compile/parse/Token.zig");
+const Radix = @import("compile/parse/integers.zig").Form.Radix;
 
 const BUFFER_SIZE = 1024;
 
@@ -154,7 +155,7 @@ pub const Diagnostic = union(enum) {
     },
     nonstandard_integer_radix: struct {
         integer: Span,
-        radix: @import("integers.zig").Form.Radix,
+        radix: Radix,
     },
     nonstandard_integer_form: struct {
         integer: Span,

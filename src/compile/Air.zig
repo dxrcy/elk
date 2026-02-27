@@ -7,7 +7,7 @@ const ArrayList = std.ArrayList;
 const assert = std.debug.assert;
 
 const Span = @import("Span.zig");
-const Runtime = @import("Runtime.zig");
+const Runtime = @import("../emulate/Runtime.zig");
 
 origin: u16,
 lines: ArrayList(Line),

@@ -5,9 +5,10 @@ const Io = std.Io;
 const assert = std.debug.assert;
 const testing = std.testing;
 
+const Span = @import("../Span.zig");
+
 const integers = @import("integers.zig");
 const SourceInt = integers.SourceInt;
-const Span = @import("Span.zig");
 
 span: Span,
 value: Value,

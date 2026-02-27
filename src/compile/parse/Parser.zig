@@ -4,13 +4,14 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
-const Air = @import("Air.zig");
+const Reporter = @import("../../Reporter.zig");
+const Air = @import("../Air.zig");
 const Operand = Air.Operand;
 const Statement = Air.Statement;
+const Span = @import("../Span.zig");
+
 const TokenIter = @import("TokenIter.zig");
 const Token = @import("Token.zig");
-const Span = @import("Span.zig");
-const Reporter = @import("Reporter.zig");
 
 air: *Air,
 /// Used for `air`.

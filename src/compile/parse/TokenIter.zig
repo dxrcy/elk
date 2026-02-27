@@ -3,12 +3,13 @@ const TokenIter = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 
-const Operand = @import("Air.zig").Operand;
+const Reporter = @import("../../Reporter.zig");
+const Operand = @import("../Air.zig").Operand;
+const Span = @import("../Span.zig");
+
 const Lexer = @import("Lexer.zig");
 const Token = @import("Token.zig");
-const Span = @import("Span.zig");
 const SourceInt = @import("integers.zig").SourceInt;
-const Reporter = @import("Reporter.zig");
 
 lexer: Lexer,
 // Peek+peek or peek+next will parse same span as token multiple times, but this

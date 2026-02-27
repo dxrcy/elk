@@ -1,9 +1,9 @@
 const std = @import("std");
 const Io = std.Io;
 
-const Air = @import("Air.zig");
-const Parser = @import("Parser.zig");
-const Runtime = @import("Runtime.zig");
+const Air = @import("compile/Air.zig");
+const Parser = @import("compile/parse/Parser.zig");
+const Runtime = @import("emulate/Runtime.zig");
 const Reporter = @import("Reporter.zig");
 
 pub fn main(init: std.process.Init) !u8 {
