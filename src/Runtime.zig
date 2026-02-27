@@ -133,6 +133,14 @@ fn setRegister(runtime: *Runtime, register: u3, value: u16) void {
             .positive;
 }
 
+fn readByte(runtime: *const Runtime) error{ReadFailed}!u8 {
+    var reader = Io.File.stdin().reader(runtime.io, &.{});
+    var char: u8 = undefined;
+    reader.interface.readSliceAll(@ptrCast(&char)) catch
+        return error.ReadFailed;
+    return char;
+}
+
 pub fn run(runtime: *Runtime) Error!void {
     while (true) {
         const instr = runtime.memory[runtime.pc];
@@ -298,11 +306,7 @@ pub fn run(runtime: *Runtime) Error!void {
                             try runtime.tty.init();
                         try runtime.tty.enableRawMode();
 
-                        // TODO: Extract as method
-                        var reader = Io.File.stdin().reader(runtime.io, &.{});
-                        var char: u8 = undefined;
-                        reader.interface.readSliceAll(@ptrCast(&char)) catch
-                            return error.ReadFailed;
+                        const char = try runtime.readByte();
 
                         try runtime.tty.disableRawMode();
 
