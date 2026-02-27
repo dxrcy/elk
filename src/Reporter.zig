@@ -130,6 +130,10 @@ pub const Diagnostic = union(enum) {
     eof_label: struct {
         label: Span,
     },
+    unexpected_line_end: struct {
+        span: Span,
+        expected: []const TokenKinds.Kind,
+    },
     unexpected_token_kind: struct {
         token: Token,
         expected: []const TokenKinds.Kind,
@@ -296,6 +300,7 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
         .duplicate_label,
         .undeclared_label,
         .offset_too_large,
+        .unexpected_line_end,
         .unexpected_token_kind,
         .unexpected_token,
         .invalid_token,
@@ -406,6 +411,12 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
                 .{},
                 .lastCharOf(source),
             );
+        },
+        .unexpected_line_end => |info| {
+            ctx.printTitle("Unexpected end of line", .{});
+            ctx.deepen().printSourceNote("Line ends too early", .{}, info.span);
+            ctx.deepen().printNote("Expected {f}", .{TokenKinds{ .kinds = info.expected }});
+            ctx.deepen().printNote("Instructions cannot span multiple lines", .{});
         },
         .unexpected_token_kind => |info| {
             ctx.printTitle("Unexpected {s}", .{TokenKinds.name(info.token.value)});

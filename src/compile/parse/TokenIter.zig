@@ -344,9 +344,16 @@ pub const Argument = union(enum) {
         token: Token,
         expected: []const TokenKind,
     ) error{Reported}!noreturn {
-        try reporter.report(.unexpected_token_kind, .{
-            .token = token,
-            .expected = expected,
-        }).abort();
+        if (token.value == .newline) {
+            try reporter.report(.unexpected_line_end, .{
+                .span = token.span,
+                .expected = expected,
+            }).abort();
+        } else {
+            try reporter.report(.unexpected_token_kind, .{
+                .token = token,
+                .expected = expected,
+            }).abort();
+        }
     }
 };
