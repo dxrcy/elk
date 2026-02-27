@@ -68,7 +68,7 @@ pub fn main(init: std.process.Init) !u8 {
         };
 
         try runtime.writer.ensureNewline();
-        try runtime.writer.flush();
+        try runtime.writer.interface.flush();
     }
 
     return 0;

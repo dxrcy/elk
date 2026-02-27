@@ -17,46 +17,33 @@ tty: Tty,
 writer: Writer,
 io: Io,
 
-// TODO: Implement `Io.Writer` and use interface methods !
-// Wrap inner writer just to track newline
 const Writer = struct {
     is_newline: bool,
     inner: Io.File.Writer,
+    interface: Io.Writer,
 
     pub fn new(buffer: []u8, io: Io) Writer {
         return .{
             .is_newline = true,
             .inner = Io.File.stdout().writer(io, buffer),
+            .interface = .{
+                .vtable = &.{
+                    .drain = drain,
+                },
+                .buffer = &.{},
+            },
         };
     }
 
-    pub fn writeByte(writer: *Writer, byte: u8) error{WriteFailed}!void {
-        try writer.inner.interface.writeByte(byte);
-        writer.is_newline = byte == '\n';
-    }
-
-    pub fn writeAll(writer: *Writer, bytes: []const u8) error{WriteFailed}!void {
-        try writer.inner.interface.writeAll(bytes);
-        if (bytes.len > 0)
-            writer.is_newline = bytes[bytes.len - 1] == '\n';
-    }
-
-    pub fn print(
-        writer: *Writer,
-        comptime fmt: []const u8,
-        args: anytype,
-    ) error{WriteFailed}!void {
-        try writer.inner.interface.print(fmt, args);
-        writer.is_newline = true; // Meaningless and hazardous assumption!
-    }
-
-    pub fn flush(writer: *Writer) error{WriteFailed}!void {
-        try writer.inner.interface.flush();
+    pub fn drain(io_w: *Io.Writer, data: []const []const u8, splat: usize) Io.Writer.Error!usize {
+        const w: *Writer = @alignCast(@fieldParentPtr("interface", io_w));
+        // TODO: Set `is_newline`
+        return w.inner.interface.vtable.drain(&w.inner.interface, data, splat);
     }
 
     pub fn ensureNewline(writer: *Writer) Io.Writer.Error!void {
         if (!writer.is_newline)
-            try writer.writeByte('\n');
+            try writer.interface.writeByte('\n');
     }
 };
 
@@ -161,6 +148,10 @@ pub fn run(runtime: *Runtime) Error!void {
         const opcode: Opcode = @enumFromInt(bitmask.opcode.apply(instr));
 
         switch (opcode) {
+            .rti => return error.UnsupportedRti,
+            // TODO: Support lace stack extension (behind feature flag)
+            .reserved => return error.ReservedOpcode,
+
             inline .add, .@"and" => |arith_opcode| {
                 const dest_reg = bitmask.operand.reg_high.apply(instr);
                 const src_reg = bitmask.operand.reg_mid.apply(instr);
@@ -283,6 +274,8 @@ pub fn run(runtime: *Runtime) Error!void {
                 const trap_vect: TrapVect = @enumFromInt(bitmask.operand.trap_vect.apply(instr));
 
                 switch (trap_vect) {
+                    _ => return error.UnsupportedTrap,
+
                     .halt => {
                         break;
                     },
@@ -290,8 +283,8 @@ pub fn run(runtime: *Runtime) Error!void {
                     inline .in, .getc => {
                         if (trap_vect == .in) {
                             try runtime.writer.ensureNewline();
-                            try runtime.writer.writeAll("Input> ");
-                            try runtime.writer.flush();
+                            try runtime.writer.interface.writeAll("Input> ");
+                            try runtime.writer.interface.flush();
                         }
 
                         if (runtime.tty.state == .uninit)
@@ -303,9 +296,9 @@ pub fn run(runtime: *Runtime) Error!void {
                         try runtime.tty.disableRawMode();
 
                         if (trap_vect == .in) {
-                            try runtime.writer.writeByte(char);
+                            try runtime.writer.interface.writeByte(char);
                             try runtime.writer.ensureNewline();
-                            try runtime.writer.flush();
+                            try runtime.writer.interface.flush();
                         }
 
                         runtime.registers[0] = char;
@@ -313,8 +306,8 @@ pub fn run(runtime: *Runtime) Error!void {
 
                     .out => {
                         const word: u8 = @truncate(runtime.registers[0]);
-                        try runtime.writer.writeByte(word);
-                        try runtime.writer.flush();
+                        try runtime.writer.interface.writeByte(word);
+                        try runtime.writer.interface.flush();
                     },
 
                     .puts => {
@@ -323,9 +316,9 @@ pub fn run(runtime: *Runtime) Error!void {
                             const word: u8 = @truncate(runtime.memory[i]);
                             if (word == 0x00)
                                 break;
-                            try runtime.writer.writeByte(word);
+                            try runtime.writer.interface.writeByte(word);
                         }
-                        try runtime.writer.flush();
+                        try runtime.writer.interface.flush();
                     },
 
                     .putsp => {
@@ -334,55 +327,49 @@ pub fn run(runtime: *Runtime) Error!void {
                             const words: [2]u8 = @bitCast(runtime.memory[i]);
                             if (words[0] == 0x00)
                                 break;
-                            try runtime.writer.writeByte(words[1]);
+                            try runtime.writer.interface.writeByte(words[1]);
                             if (words[1] == 0x00)
                                 break;
-                            try runtime.writer.writeByte(words[1]);
+                            try runtime.writer.interface.writeByte(words[1]);
                         }
-                        try runtime.writer.flush();
+                        try runtime.writer.interface.flush();
                     },
 
                     .putn => {
                         try runtime.writer.ensureNewline();
-                        try runtime.writer.print("{}\n", .{runtime.registers[0]});
-                        try runtime.writer.flush();
+                        try runtime.writer.interface.print("{}\n", .{runtime.registers[0]});
+                        try runtime.writer.interface.flush();
                     },
 
                     .reg => {
                         try runtime.writer.ensureNewline();
 
-                        try runtime.writer.print("+------------------------------------+\n", .{});
-                        try runtime.writer.print("|        hex     int     uint    chr |\n", .{});
+                        try runtime.writer.interface.print("+------------------------------------+\n", .{});
+                        try runtime.writer.interface.print("|        hex     int     uint    chr |\n", .{});
 
                         for (runtime.registers, 0..8) |word, i| {
-                            try runtime.writer.print(
+                            try runtime.writer.interface.print(
                                 "| R{}  0x{x:04}  {:6}  {:7}    ",
                                 .{ i, word, word, @as(i16, @bitCast(word)) },
                             );
                             // TODO: Print character
-                            try runtime.writer.print("---", .{});
-                            try runtime.writer.print(" |\n", .{});
+                            try runtime.writer.interface.print("---", .{});
+                            try runtime.writer.interface.print(" |\n", .{});
                         }
 
-                        try runtime.writer.print("+------------------+-----------------+\n", .{});
+                        try runtime.writer.interface.print("+------------------+-----------------+\n", .{});
 
-                        try runtime.writer.print(
+                        try runtime.writer.interface.print(
                             "|    PC  0x{x:04}    |     CC  {b:03}     |\n",
                             .{ runtime.pc, @intFromEnum(runtime.condition) },
                         );
 
-                        try runtime.writer.print("+------------------+-----------------+\n", .{});
+                        try runtime.writer.interface.print("+------------------+-----------------+\n", .{});
 
-                        try runtime.writer.flush();
+                        try runtime.writer.interface.flush();
                     },
-
-                    _ => return error.UnsupportedTrap,
                 }
             },
-
-            .rti => return error.UnsupportedRti,
-            // TODO: Support lace stack extension (behind feature flag)
-            .reserved => return error.ReservedOpcode,
         }
     }
 }
