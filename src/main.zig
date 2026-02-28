@@ -21,6 +21,8 @@ pub fn main(init: std.process.Init) !u8 {
     reporter.options.strictness = .normal;
     reporter.options.verbosity = .normal;
 
+    reporter.options.policies.style.whitespace_commas = .permit;
+
     var air: Air = .init();
     defer air.deinit(gpa);
 

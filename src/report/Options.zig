@@ -2,7 +2,7 @@ const Options = @This();
 
 strictness: Strictness = .default,
 verbosity: Verbosity = .default,
-features: Features = .default,
+policies: Policies = .default,
 
 pub const Strictness = enum {
     strict,
@@ -18,11 +18,10 @@ pub const Verbosity = enum {
     const default: Verbosity = .normal;
 };
 
-// TODO: Rename. This is more broad than just "features"
-pub const Features = struct {
+pub const Policies = struct {
     pub const Policy = enum { permit, forbid };
 
-    const default: Features = .{
+    const default: Policies = .{
         .extension = .forbidAll,
         .smell = .forbidAll,
         .style = .forbidAll,

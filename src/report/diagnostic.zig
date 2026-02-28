@@ -48,12 +48,12 @@ fn strictnessResponse(options: Options) Reporter.Response {
     };
 }
 
-fn featureResponse(
+fn policyResponse(
     options: Options,
-    comptime category: std.meta.FieldEnum(Options.Features),
-    comptime feature: std.meta.FieldEnum(@FieldType(Options.Features, @tagName(category))),
+    comptime category: std.meta.FieldEnum(Options.Policies),
+    comptime name: std.meta.FieldEnum(@FieldType(Options.Policies, @tagName(category))),
 ) Reporter.Response {
-    const policy = @field(@field(options.features, @tagName(category)), @tagName(feature));
+    const policy = @field(@field(options.policies, @tagName(category)), @tagName(name));
     if (policy == .permit)
         return .pass;
     return strictnessResponse(options);
@@ -215,18 +215,18 @@ pub const Diagnostic = union(enum) {
             .invalid_string_escape,
             => strictnessResponse(options),
 
-            .missing_origin => featureResponse(options, .extension, .implicit_origin),
-            .missing_end => featureResponse(options, .extension, .implicit_end),
-            .multiline_string => featureResponse(options, .extension, .multiline_strings),
-            .nonstandard_integer_radix => featureResponse(options, .extension, .more_integer_radixes),
-            .nonstandard_integer_form => featureResponse(options, .extension, .more_integer_forms),
-            .nonstandard_label_colon => featureResponse(options, .extension, .label_declaration_colons),
+            .missing_origin => policyResponse(options, .extension, .implicit_origin),
+            .missing_end => policyResponse(options, .extension, .implicit_end),
+            .multiline_string => policyResponse(options, .extension, .multiline_strings),
+            .nonstandard_integer_radix => policyResponse(options, .extension, .more_integer_radixes),
+            .nonstandard_integer_form => policyResponse(options, .extension, .more_integer_forms),
+            .nonstandard_label_colon => policyResponse(options, .extension, .label_declaration_colons),
 
-            .literal_pc_offset => featureResponse(options, .smell, .pc_offset_literals),
+            .literal_pc_offset => policyResponse(options, .smell, .pc_offset_literals),
 
-            .undesirable_integer_form => featureResponse(options, .style, .undesirable_integer_forms),
-            .missing_operand_comma => featureResponse(options, .style, .missing_operand_commas),
-            .whitespace_comma => featureResponse(options, .style, .whitespace_commas),
+            .undesirable_integer_form => policyResponse(options, .style, .undesirable_integer_forms),
+            .missing_operand_comma => policyResponse(options, .style, .missing_operand_commas),
+            .whitespace_comma => policyResponse(options, .style, .whitespace_commas),
 
             .generic_debug => .fatal,
         };
