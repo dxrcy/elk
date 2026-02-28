@@ -261,7 +261,7 @@ pub fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
         .ldr => {
             const dest_reg = bitmask.operand.reg_high.apply(instr);
             const base_reg = bitmask.operand.reg_mid.apply(instr);
-            const offset = bitmask.operand.offset_6.apply(instr);
+            const offset = bitmask.operand.offset_6.applySext(instr);
             const address = runtime.registers[base_reg] + offset;
             runtime.setRegister(dest_reg, runtime.memory[address]);
         },
@@ -283,7 +283,7 @@ pub fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
         .str => {
             const src_reg = bitmask.operand.reg_high.apply(instr);
             const base_reg = bitmask.operand.reg_mid.apply(instr);
-            const offset = bitmask.operand.offset_6.apply(instr);
+            const offset = bitmask.operand.offset_6.applySext(instr);
             const address = runtime.registers[base_reg] + offset;
             runtime.memory[address] = runtime.registers[src_reg];
         },
