@@ -10,7 +10,7 @@ const NewlineTracker = @import("NewlineTracker.zig");
 const Tty = @import("Tty.zig");
 const Mask = @import("Mask.zig");
 
-pub const MEMORY_SIZE = 0x1_0000;
+const MEMORY_SIZE = 0x1_0000;
 const USER_MEMORY_START = 0x3000;
 const USER_MEMORY_END = 0xFDFF;
 
@@ -28,7 +28,7 @@ io: Io,
 
 pub const Error = RuntimeError || IoError;
 
-const RuntimeError = error{
+pub const RuntimeError = error{
     PcOutOfBounds,
     IncorrectPadding,
     InvalidOperand,
@@ -37,7 +37,7 @@ const RuntimeError = error{
     UnpermittedOpcode,
 };
 
-const IoError = error{
+pub const IoError = error{
     WriteFailed,
     ReadFailed,
     TermiosFailed,
@@ -146,7 +146,7 @@ pub fn run(runtime: *Runtime) Error!void {
     }
 }
 
-pub fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
+fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
     // Conversion cannot fail
     const opcode: Opcode = @enumFromInt(bitmask.opcode.apply(instr));
 
