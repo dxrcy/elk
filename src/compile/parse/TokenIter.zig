@@ -123,87 +123,6 @@ fn peekAny(tokens: *TokenIter) error{ InvalidTokenPeeked, Eof }!Token {
         return error.InvalidTokenPeeked;
 }
 
-fn ensureSupported(
-    tokens: *const TokenIter,
-    token: Token,
-    comptime argument_opt: ?Argument,
-) error{Reported}!void {
-    var result: error{Reported}!void = {};
-
-    switch (token.value) {
-        .string => |string| {
-            const value = string.in(token.span).view(tokens.source);
-            if (std.mem.containsAtLeast(u8, value, 1, "\n")) {
-                tokens.reporter.report(.multiline_string, .{
-                    .string = token.span,
-                }).collect(&result);
-            }
-        },
-
-        .integer => |integer| {
-            if (argument_opt) |argument| switch (argument) {
-                .operand => |operand| switch (operand) {
-                    Operand.Value.PcOffset(9),
-                    Operand.Value.PcOffset(10),
-                    Operand.Value.PcOffset(11),
-                    => {
-                        tokens.reporter.report(.literal_pc_offset, .{
-                            .integer = token.span,
-                        }).collect(&result);
-                    },
-                    else => {},
-                },
-                else => {},
-            };
-            if (integer.form.radix) |radix| switch (radix) {
-                .octal => {
-                    tokens.reporter.report(.nonstandard_integer_radix, .{
-                        .integer = token.span,
-                        .radix = radix,
-                    }).collect(&result);
-                },
-                else => {},
-            };
-            if (integer.form.radix) |radix| switch (radix) {
-                .decimal => if (integer.form.sign) |sign| {
-                    if (sign.position == .pre_radix) {
-                        tokens.reporter.report(.nonstandard_integer_form, .{
-                            .integer = token.span,
-                            .reason = .pre_radix_sign,
-                        }).collect(&result);
-                    }
-                },
-                .hex, .octal, .binary => if (integer.form.sign) |sign| {
-                    if (sign.position == .post_radix) {
-                        tokens.reporter.report(.nonstandard_integer_form, .{
-                            .integer = token.span,
-                            .reason = .post_radix_sign,
-                        }).collect(&result);
-                    }
-                },
-            };
-            if (integer.form.delimited) {
-                tokens.reporter.report(.nonstandard_integer_form, .{
-                    .integer = token.span,
-                    .reason = .delimiter,
-                }).collect(&result);
-            }
-            if (integer.form.radix) |radix| switch (radix) {
-                .hex, .octal, .binary => if (!integer.form.zero) {
-                    tokens.reporter.report(.undesirable_integer_form, .{
-                        .integer = token.span,
-                        .reason = .missing_zero,
-                    }).collect(&result);
-                },
-                else => assert(!integer.form.zero),
-            };
-        },
-
-        else => {},
-    }
-    return result;
-}
-
 pub fn nextExcluding(
     tokens: *TokenIter,
     comptime discards: []const TokenKind,
@@ -401,3 +320,84 @@ pub const Argument = union(enum) {
         }
     }
 };
+
+fn ensureSupported(
+    tokens: *const TokenIter,
+    token: Token,
+    comptime argument_opt: ?Argument,
+) error{Reported}!void {
+    var result: error{Reported}!void = {};
+
+    switch (token.value) {
+        .string => |string| {
+            const value = string.in(token.span).view(tokens.source);
+            if (std.mem.containsAtLeast(u8, value, 1, "\n")) {
+                tokens.reporter.report(.multiline_string, .{
+                    .string = token.span,
+                }).collect(&result);
+            }
+        },
+
+        .integer => |integer| {
+            if (argument_opt) |argument| switch (argument) {
+                .operand => |operand| switch (operand) {
+                    Operand.Value.PcOffset(9),
+                    Operand.Value.PcOffset(10),
+                    Operand.Value.PcOffset(11),
+                    => {
+                        tokens.reporter.report(.literal_pc_offset, .{
+                            .integer = token.span,
+                        }).collect(&result);
+                    },
+                    else => {},
+                },
+                else => {},
+            };
+            if (integer.form.radix) |radix| switch (radix) {
+                .octal => {
+                    tokens.reporter.report(.nonstandard_integer_radix, .{
+                        .integer = token.span,
+                        .radix = radix,
+                    }).collect(&result);
+                },
+                else => {},
+            };
+            if (integer.form.radix) |radix| switch (radix) {
+                .decimal => if (integer.form.sign) |sign| {
+                    if (sign.position == .pre_radix) {
+                        tokens.reporter.report(.nonstandard_integer_form, .{
+                            .integer = token.span,
+                            .reason = .pre_radix_sign,
+                        }).collect(&result);
+                    }
+                },
+                .hex, .octal, .binary => if (integer.form.sign) |sign| {
+                    if (sign.position == .post_radix) {
+                        tokens.reporter.report(.nonstandard_integer_form, .{
+                            .integer = token.span,
+                            .reason = .post_radix_sign,
+                        }).collect(&result);
+                    }
+                },
+            };
+            if (integer.form.delimited) {
+                tokens.reporter.report(.nonstandard_integer_form, .{
+                    .integer = token.span,
+                    .reason = .delimiter,
+                }).collect(&result);
+            }
+            if (integer.form.radix) |radix| switch (radix) {
+                .hex, .octal, .binary => if (!integer.form.zero) {
+                    tokens.reporter.report(.undesirable_integer_form, .{
+                        .integer = token.span,
+                        .reason = .missing_zero,
+                    }).collect(&result);
+                },
+                else => assert(!integer.form.zero),
+            };
+        },
+
+        else => {},
+    }
+    return result;
+}
