@@ -2,6 +2,7 @@ const std = @import("std");
 const Io = std.Io;
 
 const lcz = @import("lcz");
+const mcz = @import("mcz");
 
 pub fn main(init: std.process.Init) !u8 {
     const io, const gpa = .{ init.io, init.gpa };
@@ -52,17 +53,24 @@ pub fn main(init: std.process.Init) !u8 {
     }
 
     {
-        const trap_table: lcz.Runtime.traps.Table = .default;
+        var conn_write_buffer: [1024]u8 = undefined;
+        var conn_read_buffer: [1024]u8 = undefined;
 
-        var write_buffer: [64]u8 = undefined;
-        var writer = Io.File.stdout().writer(io, &write_buffer);
-        var reader = Io.File.stdin().reader(io, &.{});
+        var conn: mcz.Connection = try .new(&conn_write_buffer, &conn_read_buffer, io);
+
+        var trap_table: lcz.Runtime.traps.Table = .default;
+        trap_table.register(@enumFromInt(0x28), mcz_traps.chat, &conn);
+        trap_table.register(@enumFromInt(0x29), mcz_traps.getp, &conn);
+
+        var runtime_write_buffer: [64]u8 = undefined;
+        var runtime_writer = Io.File.stdout().writer(io, &runtime_write_buffer);
+        var runtime_reader = Io.File.stdin().reader(io, &.{});
 
         var runtime = try lcz.Runtime.init(
             &trap_table,
             &policies,
-            &writer.interface,
-            &reader.interface,
+            &runtime_writer.interface,
+            &runtime_reader.interface,
             io,
             gpa,
         );
@@ -86,3 +94,25 @@ pub fn main(init: std.process.Init) !u8 {
 
     return 0;
 }
+
+const mcz_traps = struct {
+    fn chat(runtime: *lcz.Runtime, data: *const anyopaque) lcz.Runtime.traps.Result {
+        _ = .{ runtime, data };
+        return error.TrapFailed;
+    }
+
+    fn getp(runtime: *lcz.Runtime, data: *const anyopaque) lcz.Runtime.traps.Result {
+        const conn: *mcz.Connection = @ptrCast(@alignCast(@constCast(data)));
+
+        const player = conn.getPlayerPosition() catch
+            return error.TrapFailed;
+
+        runtime.registers[0] = cast(player.x);
+        runtime.registers[1] = cast(player.y);
+        runtime.registers[2] = cast(player.z);
+    }
+
+    fn cast(value: i32) u16 {
+        return @bitCast(@as(i16, @truncate(value)));
+    }
+};
