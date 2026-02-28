@@ -2,16 +2,11 @@ const std = @import("std");
 const Io = std.Io;
 
 const lcz = @import("lcz");
-const Policies = lcz.Policies;
-const Reporter = lcz.Reporter;
-const Air = lcz.Air;
-const Parser = lcz.Parser;
-const Runtime = lcz.Runtime;
 
 pub fn main(init: std.process.Init) !u8 {
     const io, const gpa = .{ init.io, init.gpa };
 
-    var reporter = Reporter.new(io);
+    var reporter = lcz.Reporter.new(io);
     try reporter.init();
 
     const asm_path = "../hw.asm";
@@ -24,13 +19,13 @@ pub fn main(init: std.process.Init) !u8 {
     // reporter.options.strictness = .normal;
     // reporter.options.verbosity = .normal;
 
-    const policies: Policies = .config_lace;
+    const policies: lcz.Policies = .config_lace;
     reporter.options.policies = &policies;
 
-    var air: Air = .init();
+    var air: lcz.Air = .init();
     defer air.deinit(gpa);
 
-    var parser: Parser = .new(&air, .new(source, &reporter));
+    var parser: lcz.Parser = .new(&air, .new(source, &reporter));
 
     try parser.parse(gpa);
 
@@ -57,10 +52,10 @@ pub fn main(init: std.process.Init) !u8 {
     }
 
     {
-        const trap_table: Runtime.traps.Table = .default;
+        const trap_table: lcz.Runtime.traps.Table = .default;
 
         var write_buffer: [64]u8 = undefined;
-        var runtime = try Runtime.init(&trap_table, &policies, &write_buffer, io, gpa);
+        var runtime = try lcz.Runtime.init(&trap_table, &policies, &write_buffer, io, gpa);
         defer runtime.deinit(gpa);
 
         try air.emitRuntime(&runtime);
