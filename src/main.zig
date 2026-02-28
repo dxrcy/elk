@@ -1,6 +1,7 @@
 const std = @import("std");
 const Io = std.Io;
 
+const Policies = @import("Policies.zig");
 const Reporter = @import("report/Reporter.zig");
 const Air = @import("compile/Air.zig");
 const Parser = @import("compile/parse/Parser.zig");
@@ -21,7 +22,9 @@ pub fn main(init: std.process.Init) !u8 {
 
     // reporter.options.strictness = .normal;
     // reporter.options.verbosity = .normal;
-    reporter.options.policies = &.config_lace;
+
+    const policies: Policies = .config_lace;
+    reporter.options.policies = &policies;
 
     var air: Air = .init();
     defer air.deinit(gpa);
@@ -56,7 +59,7 @@ pub fn main(init: std.process.Init) !u8 {
         const trap_table: Runtime.traps.Table = .default;
 
         var write_buffer: [64]u8 = undefined;
-        var runtime = try Runtime.init(&trap_table, &write_buffer, io, gpa);
+        var runtime = try Runtime.init(&trap_table, &policies, &write_buffer, io, gpa);
         defer runtime.deinit(gpa);
 
         try air.emitRuntime(&runtime);

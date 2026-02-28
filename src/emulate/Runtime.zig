@@ -4,6 +4,7 @@ const std = @import("std");
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
 
+const Policies = @import("../Policies.zig");
 pub const traps = @import("traps.zig");
 const NewlineTracker = @import("NewlineTracker.zig");
 const Tty = @import("Tty.zig");
@@ -19,6 +20,7 @@ pc: u16,
 condition: Condition,
 
 trap_table: *const traps.Table,
+policies: *const Policies,
 
 writer: NewlineTracker,
 tty: Tty,
@@ -98,7 +100,13 @@ const bitmask = struct {
     };
 };
 
-pub fn init(trap_table: *const traps.Table, write_buffer: []u8, io: Io, gpa: Allocator) !Runtime {
+pub fn init(
+    trap_table: *const traps.Table,
+    policies: *const Policies,
+    write_buffer: []u8,
+    io: Io,
+    gpa: Allocator,
+) !Runtime {
     const buffer = try gpa.alloc(u16, MEMORY_SIZE);
     @memset(buffer, 0x0000);
 
@@ -108,6 +116,7 @@ pub fn init(trap_table: *const traps.Table, write_buffer: []u8, io: Io, gpa: All
         .pc = 0x0000,
         .condition = .zero,
         .trap_table = trap_table,
+        .policies = policies,
         .writer = .new(write_buffer, io),
         .tty = .uninit,
         .io = io,
