@@ -17,7 +17,8 @@ Complete [LC-3](https://en.wikipedia.org/wiki/Little_Computer_3) toolchain.
 
 - [x] Debug traps (compatible with [Lace](https://github.com/rozukke/lace))
 - [x] Stack instructions (compatible with [Lace](https://github.com/rozukke/lace))
-- [x] Extra-permissive syntax
+- [x] Extra-permissive assembly syntax
+- [x] Custom user-supplied trap procedures
 - [ ] Preprocessor metaprogramming
 
 # Usage
