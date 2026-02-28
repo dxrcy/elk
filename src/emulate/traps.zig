@@ -116,7 +116,7 @@ pub const defaults = struct {
             const words: [2]u8 = @bitCast(runtime.memory[i]);
             if (words[0] == 0x00)
                 break;
-            try runtime.writer.interface.writeByte(words[1]);
+            try runtime.writer.interface.writeByte(words[0]);
             if (words[1] == 0x00)
                 break;
             try runtime.writer.interface.writeByte(words[1]);
