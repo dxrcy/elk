@@ -236,14 +236,6 @@ pub fn nextMatching(
     return token;
 }
 
-// TODO: Remove !
-pub fn discardOptional(tokens: *TokenIter, comptime discard: TokenKind) void {
-    _ = nextMatching(tokens, discard) catch |err| switch (err) {
-        // We are discarding this token regardless
-        error.Reported => {},
-    };
-}
-
 pub fn discardRemainingLine(tokens: *TokenIter) void {
     while (true) {
         const token = tokens.nextAny() catch |err| switch (err) {
