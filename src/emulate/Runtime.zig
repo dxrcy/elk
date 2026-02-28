@@ -161,12 +161,12 @@ pub fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
 
             switch (bitmask.flag.pop_push_rets_call.apply(instr)) {
                 0b00 => { // POP
-                    const dest_reg = bitmask.operand.reg_high.apply(instr);
+                    const dest_reg = bitmask.operand.reg_mid.apply(instr);
                     const value = runtime.stackPop();
                     runtime.setRegister(dest_reg, value);
                 },
                 0b01 => { // PUSH
-                    const src_reg = bitmask.operand.reg_high.apply(instr);
+                    const src_reg = bitmask.operand.reg_mid.apply(instr);
                     const value = runtime.registers[src_reg];
                     runtime.stackPush(value);
                 },
