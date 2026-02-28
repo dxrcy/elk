@@ -169,6 +169,7 @@ pub const Diagnostic = union(enum) {
             missing_zero,
             pre_radix_sign,
             post_radix_sign,
+            implicit_radix,
         },
     },
     missing_operand_comma: struct {
@@ -402,6 +403,7 @@ pub const Diagnostic = union(enum) {
                     .missing_zero => "Leading zero should appear before base specifier",
                     .pre_radix_sign => "Sign character should appear after decimal base specifier",
                     .post_radix_sign => "Sign character should appear before non-decimal base specifier",
+                    .implicit_radix => "Decimal integer literal should begin with `#`",
                 }});
             },
             .missing_operand_comma => |info| {

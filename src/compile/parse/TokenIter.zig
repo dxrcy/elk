@@ -408,6 +408,12 @@ fn ensureSupported(
                 },
                 else => assert(!integer.form.zero),
             };
+            if (integer.form.radix == null) {
+                tokens.reporter.report(.undesirable_integer_form, .{
+                    .integer = token.span,
+                    .reason = .implicit_radix,
+                }).collect(&result);
+            }
         },
 
         else => {},
