@@ -10,13 +10,12 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    const lcz_mod = b.createModule(.{
-        .root_source_file = b.path("../src/root.zig"),
+    const lcz_dep = b.dependency("lcz", .{
         .target = target,
         .optimize = optimize,
     });
 
-    exe_mod.addImport("lcz", lcz_mod);
+    exe_mod.addImport("lcz", lcz_dep.module("lcz"));
 
     const exe = b.addExecutable(.{
         .name = "lcz",
