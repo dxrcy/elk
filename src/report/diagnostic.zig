@@ -170,6 +170,9 @@ pub const Diagnostic = union(enum) {
     missing_operand_comma: struct {
         operand: Span,
     },
+    whitespace_comma: struct {
+        comma: Span,
+    },
     literal_pc_offset: struct {
         integer: Span,
     },
@@ -223,6 +226,7 @@ pub const Diagnostic = union(enum) {
 
             .undesirable_integer_form => featureResponse(options, .style, .allow_undesirable_integer_forms),
             .missing_operand_comma => featureResponse(options, .style, .allow_missing_operand_commas),
+            .whitespace_comma => featureResponse(options, .style, .allow_whitespace_commas),
 
             .generic_debug => .fatal,
         };
@@ -403,6 +407,11 @@ pub const Diagnostic = union(enum) {
                 ctx.printTitle("Missing comma `,` after operand", .{});
                 ctx.deepen().printSourceNote("Operand", .{}, info.operand);
                 ctx.deepen().printNote("Operands should be separated with commas", .{});
+            },
+            .whitespace_comma => |info| {
+                ctx.printTitle("Unexpected comma `,`", .{});
+                ctx.deepen().printSourceNote("Comma", .{}, info.comma);
+                ctx.deepen().printNote("Commas should only appear between instruction operands", .{});
             },
 
             .generic_debug => |info| {

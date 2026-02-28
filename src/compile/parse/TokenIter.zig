@@ -128,7 +128,17 @@ pub fn nextExcluding(
     comptime discards: []const TokenKind,
 ) error{ Reported, Eof }!Token {
     token: while (true) {
-        const token = try tokens.nextAny();
+        const token = while (true) {
+            const token = try tokens.nextAny();
+            if (token.value == .comma) {
+                tokens.reporter.report(.whitespace_comma, .{
+                    .comma = token.span,
+                }).proceed();
+                continue;
+            }
+            break token;
+        };
+
         for (discards) |discard| {
             if (token.value == discard)
                 continue :token;
@@ -172,10 +182,19 @@ pub fn discardRemainingLine(tokens: *TokenIter) void {
 }
 
 pub fn expectEol(tokens: *TokenIter) error{Reported}!void {
-    const token = tokens.nextAny() catch |err| switch (err) {
-        error.Reported => return error.Reported,
-        // These can be handled by next token request
-        error.Eof => return,
+    const token = while (true) {
+        const token = tokens.nextAny() catch |err| switch (err) {
+            error.Reported => return error.Reported,
+            // These can be handled by next token request
+            error.Eof => return,
+        };
+        if (token.value == .comma) {
+            tokens.reporter.report(.whitespace_comma, .{
+                .comma = token.span,
+            }).proceed();
+            continue;
+        }
+        break token;
     };
     if (token.value != .newline) {
         try tokens.reporter.report(.unexpected_token, .{
@@ -188,7 +207,16 @@ pub fn expectArgument(
     tokens: *TokenIter,
     comptime argument: Argument,
 ) error{ Reported, Eof }!Operand.Spanned(argument.Value()) {
-    const token = try tokens.nextAny();
+    const token = while (true) {
+        const token = try tokens.nextAny();
+        if (token.value == .comma) {
+            tokens.reporter.report(.whitespace_comma, .{
+                .comma = token.span,
+            }).proceed();
+            continue;
+        }
+        break token;
+    };
     const value = try argument.convert(token, tokens.reporter);
     try tokens.ensureSupported(token, argument);
     return .{ .span = token.span, .value = value };

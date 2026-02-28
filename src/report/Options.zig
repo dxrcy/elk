@@ -45,7 +45,7 @@ pub const Features = struct {
     style: struct {
         allow_undesirable_integer_forms: bool,
         allow_missing_operand_commas: bool,
-        // allow_whitespace_commas: bool,
+        allow_whitespace_commas: bool,
 
         pub const none = fillFields(@This(), false);
         pub const all = fillFields(@This(), true);
