@@ -208,7 +208,7 @@ pub fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
         .not => {
             const dest_reg = bitmask.operand.reg_high.apply(instr);
             const src_reg = bitmask.operand.reg_mid.apply(instr);
-            if (bitmask.padding.not.apply(instr) != 0b11111)
+            if (bitmask.padding.not.apply(instr) != 0b111111)
                 return error.IncorrectPadding;
             runtime.setRegister(dest_reg, ~runtime.registers[src_reg]);
         },
