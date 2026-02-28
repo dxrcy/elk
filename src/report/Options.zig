@@ -20,10 +20,24 @@ pub const Verbosity = enum {
 pub const Policies = struct {
     pub const Policy = enum { permit, forbid };
 
-    const default: Policies = .{
+    pub const default: Policies = .{
         .extension = .forbidAll,
         .smell = .forbidAll,
         .style = .forbidAll,
+    };
+    pub const config_laser: Policies = blk: {
+        var policies: Policies = .default;
+        policies.style.undesirable_integer_forms = .permit;
+        break :blk policies;
+    };
+    pub const config_lace: Policies = blk: {
+        var policies: Policies = .default;
+        policies.extension.implicit_origin = .permit;
+        policies.extension.implicit_end = .permit;
+        policies.extension.label_declaration_colons = .permit;
+        policies.style.missing_operand_commas = .permit;
+        policies.style.whitespace_commas = .permit;
+        break :blk policies;
     };
 
     extension: struct {
@@ -49,6 +63,8 @@ pub const Policies = struct {
         undesirable_integer_forms: Policy,
         missing_operand_commas: Policy,
         whitespace_commas: Policy,
+        // non_lowercase_instructions: Policy,
+        // non_uppercase_directives: Policy,
 
         pub const forbidAll = fillFields(@This(), .forbid);
         pub const permitAll = fillFields(@This(), .permit);

@@ -18,10 +18,10 @@ pub fn main(init: std.process.Init) !u8 {
     defer gpa.free(source);
 
     reporter.setSource(source);
-    reporter.options.strictness = .normal;
-    reporter.options.verbosity = .normal;
 
-    reporter.options.policies.style.whitespace_commas = .permit;
+    // reporter.options.strictness = .normal;
+    // reporter.options.verbosity = .normal;
+    reporter.options.policies = .config_lace;
 
     var air: Air = .init();
     defer air.deinit(gpa);
