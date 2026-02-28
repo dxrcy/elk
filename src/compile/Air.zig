@@ -55,13 +55,13 @@ pub fn emitRuntime(air: *const Air, runtime: *Runtime) !void {
 
 pub const Operand = struct {
     // Shorthand
-    pub const Register = Spanned(Value.Register);
-    pub const RegImm5 = Spanned(Value.RegImm5);
-    pub const TrapVect = Spanned(Value.TrapVect);
-    pub const Offset6 = Spanned(Value.Offset6);
-    pub const ConditionMask = Spanned(Value.ConditionMask);
+    pub const Register = Spanned(value.Register);
+    pub const RegImm5 = Spanned(value.RegImm5);
+    pub const TrapVect = Spanned(value.TrapVect);
+    pub const Offset6 = Spanned(value.Offset6);
+    pub const ConditionMask = Spanned(value.ConditionMask);
     pub fn PcOffset(comptime size: u4) type {
-        return Spanned(Value.PcOffset(size));
+        return Spanned(value.PcOffset(size));
     }
 
     pub fn Spanned(comptime K: type) type {
@@ -71,7 +71,7 @@ pub const Operand = struct {
         };
     }
 
-    pub const Value = struct {
+    pub const value = struct {
         pub const Register = struct {
             code: u3,
             pub fn bits(self: @This()) u16 {
@@ -80,7 +80,7 @@ pub const Operand = struct {
         };
 
         pub const RegImm5 = union(enum) {
-            register: Value.Register,
+            register: value.Register,
             immediate: i5,
             pub fn bits(self: @This()) u16 {
                 return switch (self) {

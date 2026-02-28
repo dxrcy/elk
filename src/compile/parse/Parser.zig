@@ -368,7 +368,7 @@ fn parseInstruction(
 
         inline // Branch instructions
         .br, .brn, .brz, .brp, .brnz, .brzp, .brnp, .brnzp => |branch| {
-            const condition: Operand.Value.ConditionMask = switch (branch) {
+            const condition: Operand.value.ConditionMask = switch (branch) {
                 .brn => .n,
                 .brz => .z,
                 .brp => .p,
@@ -379,7 +379,7 @@ fn parseInstruction(
                 else => comptime unreachable,
             };
             const dest = try parser.tokens.expectArgument(.{
-                .operand = Operand.Value.PcOffset(9),
+                .operand = Operand.value.PcOffset(9),
             });
             return .{ .br = .{
                 .condition = .{ .span = span, .value = condition },

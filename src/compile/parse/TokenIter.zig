@@ -237,12 +237,12 @@ pub const Argument = union(enum) {
             },
 
             .operand => |operand| switch (operand) {
-                Operand.Value.Register => switch (token.value) {
+                Operand.value.Register => switch (token.value) {
                     .register => |register| .{ .code = register },
                     else => try unexpected(reporter, token, &.{.register}),
                 },
 
-                Operand.Value.RegImm5 => switch (token.value) {
+                Operand.value.RegImm5 => switch (token.value) {
                     .register => |register| .{ .register = .{ .code = register } },
                     .integer => |integer| .{
                         // TODO: Allow +1 bit for unsigned literals, which will
@@ -253,21 +253,21 @@ pub const Argument = union(enum) {
                     else => try unexpected(reporter, token, &.{ .register, .integer }),
                 },
 
-                Operand.Value.TrapVect => switch (token.value) {
+                Operand.value.TrapVect => switch (token.value) {
                     .integer => |integer| .{
                         .immediate = try shrink(reporter, token.span, integer, u8),
                     },
                     else => try unexpected(reporter, token, &.{.integer}),
                 },
 
-                Operand.Value.Offset6 => switch (token.value) {
+                Operand.value.Offset6 => switch (token.value) {
                     .integer => |integer| .{
                         .immediate = try shrink(reporter, token.span, integer, i6),
                     },
                     else => try unexpected(reporter, token, &.{.integer}),
                 },
 
-                Operand.Value.PcOffset(9) => switch (token.value) {
+                Operand.value.PcOffset(9) => switch (token.value) {
                     // TODO: Integer literals here may be non-standard; warn
                     .integer => |integer| .{
                         .resolved = try shrink(reporter, token.span, integer, i9),
@@ -276,7 +276,7 @@ pub const Argument = union(enum) {
                     else => try unexpected(reporter, token, &.{ .label, .integer }),
                 },
 
-                Operand.Value.PcOffset(10) => switch (token.value) {
+                Operand.value.PcOffset(10) => switch (token.value) {
                     // TODO: Integer literals here may be non-standard; warn
                     .integer => |integer| .{
                         .resolved = try shrink(reporter, token.span, integer, i10),
@@ -285,7 +285,7 @@ pub const Argument = union(enum) {
                     else => try unexpected(reporter, token, &.{ .label, .integer }),
                 },
 
-                Operand.Value.PcOffset(11) => switch (token.value) {
+                Operand.value.PcOffset(11) => switch (token.value) {
                     // TODO: Integer literals here may be non-standard; warn
                     .integer => |integer| .{
                         .resolved = try shrink(reporter, token.span, integer, i11),
@@ -354,9 +354,9 @@ fn ensureSupported(
         .integer => |integer| {
             if (argument_opt) |argument| switch (argument) {
                 .operand => |operand| switch (operand) {
-                    Operand.Value.PcOffset(9),
-                    Operand.Value.PcOffset(10),
-                    Operand.Value.PcOffset(11),
+                    Operand.value.PcOffset(9),
+                    Operand.value.PcOffset(10),
+                    Operand.value.PcOffset(11),
                     => {
                         tokens.reporter.report(.literal_pc_offset, .{
                             .integer = token.span,
