@@ -10,12 +10,18 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    const lcz_dep = b.dependency("lcz", .{
+    const lcz_mod = b.dependency("lcz", .{
         .target = target,
         .optimize = optimize,
-    });
+    }).module("lcz");
 
-    exe_mod.addImport("lcz", lcz_dep.module("lcz"));
+    const mcz_mod = b.dependency("mcz", .{
+        .target = target,
+        .optimize = optimize,
+    }).module("mcz");
+
+    exe_mod.addImport("lcz", lcz_mod);
+    exe_mod.addImport("mcz", mcz_mod);
 
     const exe = b.addExecutable(.{
         .name = "lcz",

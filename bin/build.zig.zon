@@ -8,6 +8,10 @@
         .lcz = .{
             .path = "../",
         },
+        .mcz = .{
+            .url = "git+https://github.com/dxrcy/mcz#2db49117350e906f7a32c09954aa848bd2a63045",
+            .hash = "mcz-0.1.0-kvwPQu-zAABwz6RShl6O9vWPXwiWlW8nDpChZTGRX-e6",
+        },
     },
 
     .paths = .{
