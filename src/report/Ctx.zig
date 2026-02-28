@@ -8,12 +8,14 @@ const Reporter = @import("Reporter.zig");
 reporter: *Reporter,
 level: ?Reporter.Level,
 depth: usize,
+item_count: ?*usize,
 
-pub fn new(reporter: *Reporter, level: ?Reporter.Level) Ctx {
+pub fn new(reporter: *Reporter, level: ?Reporter.Level, item_count: ?*usize) Ctx {
     return .{
         .reporter = reporter,
         .level = level,
         .depth = 0,
+        .item_count = item_count,
     };
 }
 
@@ -33,16 +35,23 @@ pub fn deepen(ctx: Ctx) Ctx {
     return new_ctx;
 }
 
+fn incrementItemCount(ctx: *const Ctx) void {
+    if (ctx.item_count) |count|
+        count.* += 1;
+}
+
 fn printDepth(ctx: Ctx) void {
     for (0..ctx.depth) |_|
         ctx.print(" " ** 4, .{});
 }
 
 pub fn printTitle(
-    ctx: *const Ctx,
+    ctx: Ctx,
     comptime fmt: []const u8,
     args: anytype,
 ) void {
+    defer ctx.incrementItemCount();
+
     const level = ctx.level orelse
         unreachable;
     ctx.printDepth();
@@ -72,6 +81,8 @@ pub fn printTitle(
 }
 
 pub fn printNote(ctx: Ctx, comptime fmt: []const u8, args: anytype) void {
+    defer ctx.incrementItemCount();
+
     switch (ctx.reporter.options.verbosity) {
         .normal => {},
         .quiet => return,
