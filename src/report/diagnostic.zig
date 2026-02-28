@@ -184,12 +184,6 @@ pub const Diagnostic = union(enum) {
         colon: Span,
     },
 
-    // TODO: Remove
-    generic_debug: struct {
-        code: anyerror,
-        span: Span,
-    },
-
     pub fn getResponse(diag: Diagnostic, options: Reporter.Options) Reporter.Response {
         return switch (diag) {
             .multiple_origins,
@@ -232,8 +226,6 @@ pub const Diagnostic = union(enum) {
             .undesirable_integer_form => policyResponse(options, .style, .undesirable_integer_forms),
             .missing_operand_comma => policyResponse(options, .style, .missing_operand_commas),
             .whitespace_comma => policyResponse(options, .style, .whitespace_commas),
-
-            .generic_debug => .fatal,
         };
     }
 
@@ -421,11 +413,6 @@ pub const Diagnostic = union(enum) {
                 ctx.printTitle("Unexpected comma `,`", .{});
                 ctx.deepen().printSourceNote("Comma", .{}, info.comma);
                 ctx.deepen().printNote("Commas should only appear between instruction operands", .{});
-            },
-
-            .generic_debug => |info| {
-                ctx.printTitle("Generic error '{t}'", .{info.code});
-                ctx.deepen().printSourceNote("Token", .{}, info.span);
             },
         }
 
