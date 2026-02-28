@@ -62,6 +62,8 @@ pub fn main(init: std.process.Init) !u8 {
         trap_table.register(@enumFromInt(0x28), mcz_traps.chat, &conn);
         trap_table.register(@enumFromInt(0x29), mcz_traps.getp, &conn);
         trap_table.register(@enumFromInt(0x2a), mcz_traps.setp, &conn);
+        trap_table.register(@enumFromInt(0x2b), mcz_traps.getb, &conn);
+        trap_table.register(@enumFromInt(0x2c), mcz_traps.setb, &conn);
 
         var runtime_write_buffer: [64]u8 = undefined;
         var runtime_writer = Io.File.stdout().writer(io, &runtime_write_buffer);
@@ -123,6 +125,39 @@ const mcz_traps = struct {
         };
 
         conn.setPlayerPosition(player) catch
+            return error.TrapFailed;
+    }
+
+    fn getb(runtime: *lcz.Runtime, data: *const anyopaque) lcz.Runtime.traps.Result {
+        const conn: *mcz.Connection = @ptrCast(@alignCast(@constCast(data)));
+
+        const coordinate: mcz.Coordinate = .{
+            .x = fromWord(runtime.registers[0]),
+            .y = fromWord(runtime.registers[1]),
+            .z = fromWord(runtime.registers[2]),
+        };
+
+        const block = conn.getBlock(coordinate) catch
+            return error.TrapFailed;
+
+        runtime.registers[3] = @truncate(block.id);
+    }
+
+    fn setb(runtime: *lcz.Runtime, data: *const anyopaque) lcz.Runtime.traps.Result {
+        const conn: *mcz.Connection = @ptrCast(@alignCast(@constCast(data)));
+
+        const coordinate: mcz.Coordinate = .{
+            .x = fromWord(runtime.registers[0]),
+            .y = fromWord(runtime.registers[1]),
+            .z = fromWord(runtime.registers[2]),
+        };
+
+        const block: mcz.Block = .{
+            .id = runtime.registers[3],
+            .mod = 0,
+        };
+
+        conn.setBlock(coordinate, block) catch
             return error.TrapFailed;
     }
 
