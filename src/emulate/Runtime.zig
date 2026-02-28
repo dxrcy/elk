@@ -83,9 +83,7 @@ const bitmask = struct {
     pub const flag = struct {
         pub const add_and: Mask = .new(5, 5);
         pub const jsr_jsrr: Mask = .new(11, 11);
-        pub const stack: Mask = .new(11, 11);
-        pub const pop_push: Mask = .new(10, 10);
-        pub const rets_call: Mask = .new(10, 10);
+        pub const pop_push_rets_call: Mask = .new(10, 11);
     };
 
     pub const padding = struct {
@@ -149,19 +147,6 @@ pub fn run(runtime: *Runtime) Error!void {
     }
 }
 
-fn stackPush(runtime: *Runtime, value: u16) void {
-    runtime.registers[7] -%= 1;
-    const stack_ptr = runtime.registers[7];
-    runtime.memory[stack_ptr] = value;
-}
-
-fn stackPop(runtime: *Runtime) u16 {
-    const stack_ptr = runtime.registers[7];
-    const value = runtime.memory[stack_ptr];
-    runtime.registers[7] +%= 1;
-    return value;
-}
-
 pub fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
     // Conversion cannot fail
     const opcode: Opcode = @enumFromInt(bitmask.opcode.apply(instr));
@@ -174,31 +159,24 @@ pub fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
         .reserved_stack => {
             // TODO: Enable with single feature flag
 
-            switch (bitmask.flag.stack.apply(instr)) {
-                0 => { // PUSH/POP
-                    const reg = bitmask.operand.reg_high.apply(instr);
-                    switch (bitmask.flag.pop_push.apply(instr)) {
-                        0 => { // POP
-                            const value = runtime.stackPop();
-                            runtime.setRegister(reg, value);
-                        },
-                        1 => { // PUSH
-                            const value = runtime.registers[reg];
-                            runtime.stackPush(value);
-                        },
-                    }
+            switch (bitmask.flag.pop_push_rets_call.apply(instr)) {
+                0b00 => { // POP
+                    const dest_reg = bitmask.operand.reg_high.apply(instr);
+                    const value = runtime.stackPop();
+                    runtime.setRegister(dest_reg, value);
                 },
-                1 => { // RETS/CALL
-                    switch (bitmask.flag.rets_call.apply(instr)) {
-                        0 => { // RETS
-                            runtime.pc = runtime.stackPop();
-                        },
-                        1 => { // CALL
-                            runtime.stackPush(runtime.pc);
-                            const pc_offset = bitmask.operand.pc_offset_10.applySext(instr);
-                            runtime.pc +%= pc_offset;
-                        },
-                    }
+                0b01 => { // PUSH
+                    const src_reg = bitmask.operand.reg_high.apply(instr);
+                    const value = runtime.registers[src_reg];
+                    runtime.stackPush(value);
+                },
+                0b10 => { // RETS
+                    runtime.pc = runtime.stackPop();
+                },
+                0b11 => { // CALL
+                    runtime.stackPush(runtime.pc);
+                    const pc_offset = bitmask.operand.pc_offset_10.applySext(instr);
+                    runtime.pc +%= pc_offset;
                 },
             }
         },
@@ -417,6 +395,19 @@ fn setRegister(runtime: *Runtime, register: u3, value: u16) void {
             .zero
         else
             .positive;
+}
+
+fn stackPush(runtime: *Runtime, value: u16) void {
+    runtime.registers[7] -%= 1;
+    const stack_ptr = runtime.registers[7];
+    runtime.memory[stack_ptr] = value;
+}
+
+fn stackPop(runtime: *Runtime) u16 {
+    const stack_ptr = runtime.registers[7];
+    const value = runtime.memory[stack_ptr];
+    runtime.registers[7] +%= 1;
+    return value;
 }
 
 fn readByte(runtime: *const Runtime) error{ReadFailed}!u8 {
