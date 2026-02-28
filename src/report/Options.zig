@@ -4,6 +4,7 @@ strictness: Strictness = .normal,
 verbosity: Verbosity = .normal,
 features: Features = .{
     .extension = .none,
+    .smells = .none,
     .style = .none,
 },
 
@@ -19,6 +20,7 @@ pub const Verbosity = enum {
     quiet,
 };
 
+// TODO: Rename. This is more broad than just "features"
 pub const Features = struct {
     extension: struct {
         implicit_origin: bool,
@@ -26,9 +28,14 @@ pub const Features = struct {
         multiline_strings: bool,
         more_integer_radixes: bool,
         more_integer_forms: bool,
-        // TODO: Move to new category, for bad practices
-        literal_pc_offset: bool,
         label_colons: bool,
+
+        pub const none = fillFields(@This(), false);
+        pub const all = fillFields(@This(), true);
+    },
+
+    smells: struct {
+        allow_literal_pc_offset: bool,
 
         pub const none = fillFields(@This(), false);
         pub const all = fillFields(@This(), true);

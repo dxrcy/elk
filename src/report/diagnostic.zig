@@ -212,8 +212,10 @@ pub const Diagnostic = union(enum) {
             .multiline_string => featureResponse(options, .extension, .multiline_strings),
             .nonstandard_integer_radix => featureResponse(options, .extension, .more_integer_radixes),
             .nonstandard_integer_form => featureResponse(options, .extension, .more_integer_forms),
-            .literal_pc_offset => featureResponse(options, .extension, .literal_pc_offset),
             .nonstandard_label_colon => featureResponse(options, .extension, .label_colons),
+
+            .literal_pc_offset => featureResponse(options, .smells, .allow_literal_pc_offset),
+
             .undesirable_integer_form => featureResponse(options, .style, .allow_undesirable_integer_forms),
 
             .generic_debug => .fatal,
