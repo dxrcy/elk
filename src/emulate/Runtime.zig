@@ -317,7 +317,7 @@ fn setRegister(runtime: *Runtime, register: u3, value: u16) void {
     runtime.registers[register] = value;
 
     runtime.condition =
-        if (value < 0)
+        if (@as(i16, @bitCast(value)) < 0)
             .negative
         else if (value == 0)
             .zero
