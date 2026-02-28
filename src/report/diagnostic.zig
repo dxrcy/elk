@@ -169,6 +169,9 @@ pub const Diagnostic = union(enum) {
     literal_pc_offset: struct {
         integer: Span,
     },
+    nonstandard_label_colon: struct {
+        colon: Span,
+    },
 
     generic_debug: struct {
         code: anyerror,
@@ -210,6 +213,7 @@ pub const Diagnostic = union(enum) {
             .nonstandard_integer_radix => featureResponse(options, .extension, .more_integer_radixes),
             .nonstandard_integer_form => featureResponse(options, .extension, .more_integer_forms),
             .literal_pc_offset => featureResponse(options, .extension, .literal_pc_offset),
+            .nonstandard_label_colon => featureResponse(options, .extension, .label_colons),
             .undesirable_integer_form => featureResponse(options, .style, .allow_undesirable_integer_forms),
 
             .generic_debug => .fatal,
@@ -358,11 +362,11 @@ pub const Diagnostic = union(enum) {
                 ctx.deepen().printSourceNote("String", .{}, info.string);
             },
             .nonstandard_integer_radix => |info| {
-                ctx.printTitle("Integer uses nonstandard base specifier '{t}'", .{info.radix});
+                ctx.printTitle("Integer uses non-standard base specifier '{t}'", .{info.radix});
                 ctx.deepen().printSourceNote("Integer", .{}, info.integer);
             },
             .nonstandard_integer_form => |info| {
-                ctx.printTitle("Integer uses nonstandard syntax", .{});
+                ctx.printTitle("Integer uses non-standard syntax", .{});
                 ctx.deepen().printSourceNote("Integer", .{}, info.integer);
                 ctx.deepen().printNote("{s}", .{switch (info.reason) {
                     .pre_radix_sign => "Sign character should appear after decimal base specifier",
@@ -374,6 +378,11 @@ pub const Diagnostic = union(enum) {
                 ctx.printTitle("Address operand is a literal offset", .{});
                 ctx.deepen().printSourceNote("Integer", .{}, info.integer);
                 ctx.deepen().printNote("PC-offset operand should be a label reference, instead of hardcoded offset value", .{});
+            },
+            .nonstandard_label_colon => |info| {
+                ctx.printTitle("Label followed by colon token", .{});
+                ctx.deepen().printSourceNote("Colon", .{}, info.colon);
+                ctx.deepen().printNote("A post-label colon is non-standard syntax", .{});
             },
             .undesirable_integer_form => |info| {
                 ctx.printTitle("Integer uses undesirable syntax", .{});

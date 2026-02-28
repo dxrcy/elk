@@ -103,7 +103,11 @@ fn parseLine(parser: *Parser, gpa: Allocator) InnerError!Control {
                 parser.current_label = token.span;
             }
 
-            parser.tokens.discardOptional(.colon);
+            if (try parser.tokens.nextMatching(.colon)) |colon| {
+                parser.reporter().report(.nonstandard_label_colon, .{
+                    .colon = colon.span,
+                }).proceed();
+            }
 
             // Disallow two labels on same line
             // This should also be checked when the second label is parsed, but
@@ -334,6 +338,7 @@ fn parseInstruction(
             const Operands = @FieldType(Statement, @tagName(regular));
             var operands: Operands = undefined;
             inline for (@typeInfo(Operands).@"struct".fields) |field| {
+                // TODO:
                 parser.tokens.discardOptional(.comma);
                 const operand = try parser.tokens.expectArgument(
                     .{ .operand = @FieldType(field.type, "value") },
@@ -355,6 +360,7 @@ fn parseInstruction(
                 .br, .brnzp => .nzp,
                 else => comptime unreachable,
             };
+            // TODO:
             parser.tokens.discardOptional(.comma);
             const dest = try parser.tokens.expectArgument(.{
                 .operand = Operand.Value.PcOffset(9),
