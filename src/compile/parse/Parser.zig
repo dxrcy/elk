@@ -335,6 +335,16 @@ fn parseInstruction(
         .rets,
         .rti,
         => |regular| {
+            switch (regular) {
+                .push, .pop, .call, .rets => {
+                    try parser.reporter().report(.nonstandard_stack_instruction, .{
+                        .instruction = instruction,
+                        .span = span,
+                    }).handle();
+                },
+                else => {},
+            }
+
             const Operands = @FieldType(Statement, @tagName(regular));
             var operands: Operands = undefined;
 

@@ -61,6 +61,10 @@ fn policyResponse(
 
 // TODO: Organise variants
 pub const Diagnostic = union(enum) {
+    nonstandard_stack_instruction: struct {
+        instruction: Token.Value.Instruction,
+        span: Span,
+    },
     missing_origin: struct {
         first_token: ?Span,
     },
@@ -215,6 +219,7 @@ pub const Diagnostic = union(enum) {
             .invalid_string_escape,
             => strictnessResponse(options),
 
+            .nonstandard_stack_instruction => policyResponse(options, .extension, .stack_instructions),
             .missing_origin => policyResponse(options, .extension, .implicit_origin),
             .missing_end => policyResponse(options, .extension, .implicit_end),
             .multiline_string => policyResponse(options, .extension, .multiline_strings),
@@ -234,6 +239,10 @@ pub const Diagnostic = union(enum) {
 
     pub fn print(diag: Diagnostic, ctx: Ctx, source: []const u8) void {
         switch (diag) {
+            .nonstandard_stack_instruction => |info| {
+                ctx.printTitle("Use of non-standard stack instruction `{t}`", .{info.instruction});
+                ctx.deepen().printSourceNote("Instruction is an ISA extension", .{}, info.span);
+            },
             .missing_origin => |info| {
                 ctx.printTitle("Missing .ORIG directive", .{});
                 ctx.deepen().printSourceNote(

@@ -14,6 +14,7 @@ pub const config_laser: Policies = blk: {
 };
 pub const config_lace: Policies = blk: {
     var policies: Policies = .default;
+    policies.extension.stack_instructions = .permit;
     policies.extension.implicit_origin = .permit;
     policies.extension.implicit_end = .permit;
     policies.extension.label_declaration_colons = .permit;
@@ -23,6 +24,7 @@ pub const config_lace: Policies = blk: {
 };
 
 extension: struct {
+    stack_instructions: Policy,
     implicit_origin: Policy,
     implicit_end: Policy,
     multiline_strings: Policy,
