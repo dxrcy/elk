@@ -61,6 +61,7 @@ pub fn main(init: std.process.Init) !u8 {
         var trap_table: lcz.Runtime.traps.Table = .default;
         trap_table.register(@enumFromInt(0x28), mcz_traps.chat, &conn);
         trap_table.register(@enumFromInt(0x29), mcz_traps.getp, &conn);
+        trap_table.register(@enumFromInt(0x2a), mcz_traps.setp, &conn);
 
         var runtime_write_buffer: [64]u8 = undefined;
         var runtime_writer = Io.File.stdout().writer(io, &runtime_write_buffer);
@@ -107,12 +108,28 @@ const mcz_traps = struct {
         const player = conn.getPlayerPosition() catch
             return error.TrapFailed;
 
-        runtime.registers[0] = cast(player.x);
-        runtime.registers[1] = cast(player.y);
-        runtime.registers[2] = cast(player.z);
+        runtime.registers[0] = toWord(player.x);
+        runtime.registers[1] = toWord(player.y);
+        runtime.registers[2] = toWord(player.z);
     }
 
-    fn cast(value: i32) u16 {
+    fn setp(runtime: *lcz.Runtime, data: *const anyopaque) lcz.Runtime.traps.Result {
+        const conn: *mcz.Connection = @ptrCast(@alignCast(@constCast(data)));
+
+        const player: mcz.Coordinate = .{
+            .x = fromWord(runtime.registers[0]),
+            .y = fromWord(runtime.registers[1]),
+            .z = fromWord(runtime.registers[2]),
+        };
+
+        conn.setPlayerPosition(player) catch
+            return error.TrapFailed;
+    }
+
+    fn toWord(value: i32) u16 {
         return @bitCast(@as(i16, @truncate(value)));
+    }
+    fn fromWord(value: u16) i32 {
+        return @as(i16, @bitCast(value));
     }
 };
