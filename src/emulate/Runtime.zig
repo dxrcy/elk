@@ -37,6 +37,7 @@ pub const ProgramError = error{
     UnhandledTrap,
     UnsupportedRti,
     UnpermittedOpcode,
+    TrapFailed,
 };
 
 /// Stdio or terminal failure.

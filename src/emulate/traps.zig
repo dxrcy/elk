@@ -3,7 +3,11 @@ const Io = std.Io;
 
 const Runtime = @import("Runtime.zig");
 
-pub const Result = (Runtime.Error || error{Halt})!void;
+pub const Error =
+    Runtime.IoError ||
+    error{ TrapFailed, Halt };
+
+pub const Result = Error!void;
 
 pub const Vect = enum(u8) {
     getc = 0x20,
