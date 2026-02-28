@@ -420,8 +420,8 @@ fn readByte(runtime: *const Runtime) error{ReadFailed}!u8 {
 
 fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
     try runtime.writer.ensureNewline();
-    try runtime.writer.interface.print("+------------------------------------+\n", .{});
-    try runtime.writer.interface.print("|        hex     int     uint    chr |\n", .{});
+    try runtime.writer.interface.print("+-----------------------------------+\n", .{});
+    try runtime.writer.interface.print("|        hex      int    uint   chr |\n", .{});
 
     for (runtime.registers, 0..8) |word, i| {
         try runtime.writer.interface.print("| R{}  ", .{i});
@@ -429,22 +429,22 @@ fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
         try runtime.writer.interface.print(" |\n", .{});
     }
 
-    try runtime.writer.interface.print("+------------------+-----------------+\n", .{});
+    try runtime.writer.interface.print("+-----------------+-----------------+\n", .{});
     try runtime.writer.interface.print(
-        "|    PC  0x{x:04}    |   CC {s}   |\n",
+        "|    PC 0x{x:04}    |   CC {s}   |\n",
         .{ runtime.pc, switch (runtime.condition) {
             .negative => "NEGATIVE",
             .zero => "  ZERO  ",
             .positive => "POSITIVE",
         } },
     );
-    try runtime.writer.interface.print("+------------------+-----------------+\n", .{});
+    try runtime.writer.interface.print("+-----------------+-----------------+\n", .{});
 }
 
 fn printIntegerForms(runtime: *Runtime, word: u16) error{WriteFailed}!void {
     try runtime.writer.interface.print(
-        "0x{x:04}  {:6}  {:7}    ",
-        .{ word, word, @as(i16, @bitCast(word)) },
+        "0x{x:04}  {:7}  {:6}   ",
+        .{ word, @as(i16, @bitCast(word)), word },
     );
     try runtime.printDisplayChar(word);
 }
