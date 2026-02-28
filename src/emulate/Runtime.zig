@@ -106,7 +106,7 @@ const bitmask = struct {
 pub fn init(
     trap_table: *const traps.Table,
     policies: *const Policies,
-    write_buffer: []u8,
+    writer: *Io.Writer,
     io: Io,
     gpa: Allocator,
 ) !Runtime {
@@ -120,7 +120,7 @@ pub fn init(
         .condition = .zero,
         .trap_table = trap_table,
         .policies = policies,
-        .writer = .new(write_buffer, io),
+        .writer = .new(writer),
         .tty = .uninit,
         .io = io,
     };

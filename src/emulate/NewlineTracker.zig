@@ -5,13 +5,13 @@ const Io = std.Io;
 const assert = std.debug.assert;
 
 is_newline: bool,
-inner: Io.File.Writer,
+inner: *Io.Writer,
 interface: Io.Writer,
 
-pub fn new(buffer: []u8, io: Io) NewlineTracker {
+pub fn new(inner: *Io.Writer) NewlineTracker {
     return .{
         .is_newline = true,
-        .inner = Io.File.stdout().writer(io, buffer),
+        .inner = inner,
         .interface = .{
             .vtable = &.{
                 .drain = drain,
@@ -28,7 +28,7 @@ fn drain(io_w: *Io.Writer, data: []const []const u8, splat: usize) Io.Writer.Err
     if (data.len == 0)
         return 0;
 
-    const count = try writer.inner.interface.vtable.drain(&writer.inner.interface, data, splat);
+    const count = try writer.inner.vtable.drain(writer.inner, data, splat);
     if (count > 0) {
         const index = (count / splat) - 1; // Probably correct
         writer.is_newline = data[0][index] == '\n';

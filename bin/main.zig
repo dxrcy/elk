@@ -55,7 +55,15 @@ pub fn main(init: std.process.Init) !u8 {
         const trap_table: lcz.Runtime.traps.Table = .default;
 
         var write_buffer: [64]u8 = undefined;
-        var runtime = try lcz.Runtime.init(&trap_table, &policies, &write_buffer, io, gpa);
+        var writer = Io.File.stdout().writer(io, &write_buffer);
+
+        var runtime = try lcz.Runtime.init(
+            &trap_table,
+            &policies,
+            &writer.interface,
+            io,
+            gpa,
+        );
         defer runtime.deinit(gpa);
 
         try air.emitRuntime(&runtime);
