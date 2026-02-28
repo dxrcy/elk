@@ -64,6 +64,7 @@ pub fn main(init: std.process.Init) !u8 {
         trap_table.register(@enumFromInt(0x2a), mcz_traps.setp, &conn);
         trap_table.register(@enumFromInt(0x2b), mcz_traps.getb, &conn);
         trap_table.register(@enumFromInt(0x2c), mcz_traps.setb, &conn);
+        trap_table.register(@enumFromInt(0x2d), mcz_traps.geth, &conn);
 
         var runtime_write_buffer: [64]u8 = undefined;
         var runtime_writer = Io.File.stdout().writer(io, &runtime_write_buffer);
@@ -159,6 +160,20 @@ const mcz_traps = struct {
 
         conn.setBlock(coordinate, block) catch
             return error.TrapFailed;
+    }
+
+    fn geth(runtime: *lcz.Runtime, data: *const anyopaque) lcz.Runtime.traps.Result {
+        const conn: *mcz.Connection = @ptrCast(@alignCast(@constCast(data)));
+
+        const coordinate: mcz.Coordinate2D = .{
+            .x = fromWord(runtime.registers[0]),
+            .z = fromWord(runtime.registers[2]),
+        };
+
+        const height = conn.getHeight(coordinate) catch
+            return error.TrapFailed;
+
+        runtime.registers[1] = toWord(height);
     }
 
     fn toWord(value: i32) u16 {
