@@ -3,9 +3,9 @@ const Policies = @This();
 pub const Policy = enum { permit, forbid };
 
 pub const default: Policies = .{
-    .extension = .forbidAll,
-    .smell = .forbidAll,
-    .style = .forbidAll,
+    .extension = .forbid_all,
+    .smell = .forbid_all,
+    .style = .forbid_all,
 };
 pub const config_laser: Policies = blk: {
     var policies: Policies = .default;
@@ -32,15 +32,15 @@ extension: struct {
     more_integer_forms: Policy,
     label_declaration_colons: Policy,
 
-    pub const forbidAll = fillFields(@This(), .forbid);
-    pub const permitAll = fillFields(@This(), .permit);
+    pub const forbid_all = fillFields(@This(), .forbid);
+    pub const permit_all = fillFields(@This(), .permit);
 },
 
 smell: struct {
     pc_offset_literals: Policy,
 
-    pub const forbidAll = fillFields(@This(), .forbid);
-    pub const permitAll = fillFields(@This(), .permit);
+    pub const forbid_all = fillFields(@This(), .forbid);
+    pub const permit_all = fillFields(@This(), .permit);
 },
 
 style: struct {
@@ -50,8 +50,8 @@ style: struct {
     // non_lowercase_instructions: Policy,
     // non_uppercase_directives: Policy,
 
-    pub const forbidAll = fillFields(@This(), .forbid);
-    pub const permitAll = fillFields(@This(), .permit);
+    pub const forbid_all = fillFields(@This(), .forbid);
+    pub const permit_all = fillFields(@This(), .permit);
 },
 
 fn fillFields(comptime T: type, comptime value: Policy) T {
