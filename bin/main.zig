@@ -56,11 +56,13 @@ pub fn main(init: std.process.Init) !u8 {
 
         var write_buffer: [64]u8 = undefined;
         var writer = Io.File.stdout().writer(io, &write_buffer);
+        var reader = Io.File.stdin().reader(io, &.{});
 
         var runtime = try lcz.Runtime.init(
             &trap_table,
             &policies,
             &writer.interface,
+            &reader.interface,
             io,
             gpa,
         );

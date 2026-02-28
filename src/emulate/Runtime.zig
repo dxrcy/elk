@@ -23,6 +23,7 @@ trap_table: *const traps.Table,
 policies: *const Policies,
 
 writer: NewlineTracker,
+reader: *Io.Reader,
 tty: Tty,
 io: Io,
 
@@ -107,6 +108,7 @@ pub fn init(
     trap_table: *const traps.Table,
     policies: *const Policies,
     writer: *Io.Writer,
+    reader: *Io.Reader,
     io: Io,
     gpa: Allocator,
 ) !Runtime {
@@ -121,6 +123,7 @@ pub fn init(
         .trap_table = trap_table,
         .policies = policies,
         .writer = .new(writer),
+        .reader = reader,
         .tty = .uninit,
         .io = io,
     };
