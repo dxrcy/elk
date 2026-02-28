@@ -1,19 +1,21 @@
 const Options = @This();
 
-strictness: Strictness = .normal,
-verbosity: Verbosity = .normal,
+strictness: Strictness = .default,
+verbosity: Verbosity = .default,
 features: Features = .default,
 
 pub const Strictness = enum {
     strict,
     normal,
     relaxed,
+    const default: Strictness = .normal;
 };
 
 pub const Verbosity = enum {
     verbose,
     normal,
     quiet,
+    const default: Verbosity = .normal;
 };
 
 // TODO: Rename. This is more broad than just "features"
