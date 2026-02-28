@@ -156,8 +156,6 @@ pub const Diagnostic = union(enum) {
     nonstandard_integer_form: struct {
         integer: Span,
         reason: enum {
-            pre_radix_sign,
-            post_radix_sign,
             delimiter,
         },
     },
@@ -165,6 +163,8 @@ pub const Diagnostic = union(enum) {
         integer: Span,
         reason: enum {
             missing_zero,
+            pre_radix_sign,
+            post_radix_sign,
         },
     },
     missing_operand_comma: struct {
@@ -381,8 +381,6 @@ pub const Diagnostic = union(enum) {
                 ctx.printTitle("Integer uses non-standard syntax", .{});
                 ctx.deepen().printSourceNote("Integer", .{}, info.integer);
                 ctx.deepen().printNote("{s}", .{switch (info.reason) {
-                    .pre_radix_sign => "Sign character should appear after decimal base specifier",
-                    .post_radix_sign => "Sign character should appear before non-decimal base specifier",
                     .delimiter => "Delimiter character `_` is non-standard",
                 }});
             },
@@ -401,6 +399,8 @@ pub const Diagnostic = union(enum) {
                 ctx.deepen().printSourceNote("Integer", .{}, info.integer);
                 ctx.deepen().printNote("{s}", .{switch (info.reason) {
                     .missing_zero => "Leading zero should appear before base specifier",
+                    .pre_radix_sign => "Sign character should appear after decimal base specifier",
+                    .post_radix_sign => "Sign character should appear before non-decimal base specifier",
                 }});
             },
             .missing_operand_comma => |info| {
