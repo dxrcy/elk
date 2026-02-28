@@ -115,7 +115,7 @@ pub fn init(write_buffer: []u8, io: Io, allocator: Allocator) !Runtime {
 
     return .{
         .memory = buffer[0..MEMORY_SIZE],
-        .registers = @splat(0x0000),
+        .registers = .{ 0, 0, 0, 0, 0, 0, 0, USER_MEMORY_END },
         .pc = 0x0000,
         .condition = .zero,
         .writer = .new(write_buffer, io),
