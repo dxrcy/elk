@@ -6,6 +6,7 @@ const assert = std.debug.assert;
 const testing = std.testing;
 
 const Span = @import("../Span.zig");
+const Traps = @import("Traps.zig");
 const integers = @import("integers.zig");
 
 span: Span,
@@ -21,12 +22,7 @@ pub const Error =
         UnmatchedQuote,
     };
 
-pub const TrapEntry = struct {
-    vect: u8,
-    alias: []const u8,
-};
-
-pub fn from(span: Span, source: []const u8, trap_aliases: []const TrapEntry) Error!Token {
+pub fn from(span: Span, source: []const u8, trap_aliases: Traps) Error!Token {
     const value: Value = try .from(span.view(source), trap_aliases);
     return .{ .span = span, .value = value };
 }
@@ -92,7 +88,7 @@ pub const Value = union(enum) {
         rti,
     };
 
-    pub fn from(string: []const u8, trap_aliases: []const TrapEntry) Error!Value {
+    pub fn from(string: []const u8, trap_aliases: Traps) Error!Value {
         assert(string.len > 0);
 
         // Trap aliases always take precedence
@@ -179,9 +175,9 @@ pub const Value = union(enum) {
         return null;
     }
 
-    fn tryTrap(string: []const u8, trap_aliases: []const TrapEntry) Error!?Value {
+    fn tryTrap(string: []const u8, trap_aliases: Traps) Error!?Value {
         assert(string.len > 0);
-        for (trap_aliases) |entry| {
+        for (trap_aliases.entries) |entry| {
             if (std.ascii.eqlIgnoreCase(string, entry.alias))
                 return .{ .trap_alias = entry.vect };
         }

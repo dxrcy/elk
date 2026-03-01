@@ -26,23 +26,18 @@ pub fn main(init: std.process.Init) !u8 {
     var air: lcz.Air = .init();
     defer air.deinit(gpa);
 
-    const trap_aliases = [_]lcz.Parser.TrapEntry{
-        .{ .vect = 0x20, .alias = "getc" },
-        .{ .vect = 0x21, .alias = "out" },
-        .{ .vect = 0x22, .alias = "puts" },
-        .{ .vect = 0x23, .alias = "in" },
-        .{ .vect = 0x24, .alias = "putsp" },
-        .{ .vect = 0x25, .alias = "halt" },
-        .{ .vect = 0x26, .alias = "putn" },
-        .{ .vect = 0x27, .alias = "reg" },
-        .{ .vect = 0x29, .alias = "getp" },
-        .{ .vect = 0x2a, .alias = "setp" },
-        .{ .vect = 0x2b, .alias = "getb" },
-        .{ .vect = 0x2c, .alias = "setb" },
-        .{ .vect = 0x2d, .alias = "geth" },
-    };
+    const trap_aliases: lcz.Parser.Traps = comptime .fromEnum(enum(u8) {
+        getc = 0x20,
+        out = 0x21,
+        puts = 0x22,
+        in = 0x23,
+        putsp = 0x24,
+        halt = 0x25,
+        putn = 0x26,
+        reg = 0x27,
+    });
 
-    var parser: lcz.Parser = .new(&air, &trap_aliases, source, &reporter);
+    var parser: lcz.Parser = .new(&air, trap_aliases, source, &reporter);
 
     try parser.parse(gpa);
     parser.resolveLabels();

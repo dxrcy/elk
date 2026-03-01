@@ -8,11 +8,11 @@ const Reporter = @import("../../report/Reporter.zig");
 const Air = @import("../Air.zig");
 const Statement = @import("../statement.zig").Statement;
 const Span = @import("../Span.zig");
+pub const Traps = @import("Traps.zig");
 const TokenIter = @import("TokenIter.zig");
 const Token = @import("Token.zig");
 const case = @import("case.zig");
 const Operand = Air.Operand;
-pub const TrapEntry = Token.TrapEntry;
 
 air: *Air,
 tokens: TokenIter,
@@ -21,7 +21,7 @@ origin: ?Span,
 
 pub fn new(
     air: *Air,
-    trap_aliases: []const Token.TrapEntry,
+    trap_aliases: Traps,
     source_: []const u8,
     reporter_: *Reporter,
 ) Parser {
