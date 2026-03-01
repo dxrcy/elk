@@ -18,12 +18,15 @@ tokens: TokenIter,
 current_label: ?Span,
 origin: ?Span,
 
-pub fn new(air: *Air, tokens: TokenIter) Parser {
+trap_aliases: []const Air.TrapEntry,
+
+pub fn new(air: *Air, tokens: TokenIter, trap_entries: []const Air.TrapEntry) Parser {
     return .{
         .air = air,
         .tokens = tokens,
         .current_label = null,
         .origin = null,
+        .trap_aliases = trap_entries,
     };
 }
 
@@ -146,30 +149,12 @@ fn parseLine(parser: *Parser, gpa: Allocator) InnerError!Control {
         },
 
         .trap_alias => {
-            // TODO: Rename
-            const TrapEntry = struct {
-                vect: u8,
-                alias: []const u8,
-            };
-
-            // TODO: Use user-provided list
-            const trap_vects = [_]TrapEntry{
-                .{ .vect = 0x20, .alias = "getc" },
-                .{ .vect = 0x21, .alias = "out" },
-                .{ .vect = 0x22, .alias = "puts" },
-                .{ .vect = 0x23, .alias = "in" },
-                .{ .vect = 0x24, .alias = "putsp" },
-                .{ .vect = 0x25, .alias = "halt" },
-                .{ .vect = 0x26, .alias = "putn" },
-                .{ .vect = 0x27, .alias = "reg" },
-            };
-
             // TODO: Move to method
-            const vect = for (trap_vects) |entry| {
+            const vect = for (parser.trap_aliases) |entry| {
                 if (std.mem.eql(u8, entry.alias, token.span.view(parser.source())))
                     break entry.vect;
             } else {
-                // TODO: Handle
+                // FIXME: Handle
                 unreachable;
             };
 
