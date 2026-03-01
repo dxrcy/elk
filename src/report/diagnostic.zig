@@ -302,6 +302,7 @@ pub const Diagnostic = union(enum) {
             .undeclared_label => |info| {
                 ctx.printTitle("Label is not declared", .{});
                 ctx.deepen().printSourceNote("Label used here", .{}, info.label);
+                ctx.deepen().printNote("Label names are case-sensitive", .{});
             },
             .offset_too_large => |info| {
                 ctx.printTitle("Label offset is too large", .{});
