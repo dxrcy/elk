@@ -10,6 +10,7 @@ const Statement = @import("../statement.zig").Statement;
 const Span = @import("../Span.zig");
 const TokenIter = @import("TokenIter.zig");
 const Token = @import("Token.zig");
+const case = @import("case.zig");
 const Operand = Air.Operand;
 
 air: *Air,
@@ -119,7 +120,7 @@ fn parseLine(parser: *Parser, gpa: Allocator) InnerError!Control {
                 }).handle();
             }
 
-            if (!TokenIter.case.isLowercase(token.span.view(parser.source()))) {
+            if (!case.isPascalCase(token.span.view(parser.source()))) {
                 try parser.reporter().report(.unconventional_case_ident, .{
                     .ident = token.span,
                     .kind = .label,

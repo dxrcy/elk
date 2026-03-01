@@ -9,6 +9,7 @@ const Span = @import("../Span.zig");
 const Lexer = @import("Lexer.zig");
 const Token = @import("Token.zig");
 const SourceInt = @import("integers.zig").SourceInt;
+const case = @import("case.zig");
 
 lexer: Lexer,
 // Peek+peek or peek+next will parse same span as token multiple times, but this
@@ -343,7 +344,9 @@ fn ensureSupported(
 
     switch (token.value) {
         .directive => {
-            if (!case.isUppercase(token.span.view(tokens.source))) {
+            // Don't include initial `.`
+            const string = token.span.view(tokens.source)[1..];
+            if (!case.isUppercaseAlpha(string)) {
                 tokens.reporter.report(.unconventional_case_ident, .{
                     .ident = token.span,
                     .kind = .directive,
@@ -352,7 +355,7 @@ fn ensureSupported(
         },
 
         .instruction => {
-            if (!case.isLowercase(token.span.view(tokens.source))) {
+            if (!case.isLowercaseAlpha(token.span.view(tokens.source))) {
                 tokens.reporter.report(.unconventional_case_ident, .{
                     .ident = token.span,
                     .kind = .instruction,
@@ -442,29 +445,3 @@ fn ensureSupported(
     }
     return result;
 }
-
-pub const case = struct {
-    pub fn isLowercase(string: []const u8) bool {
-        for (string) |char| {
-            if (std.ascii.isUpper(char))
-                return false;
-        }
-        return true;
-    }
-
-    pub fn isUppercase(string: []const u8) bool {
-        for (string) |char| {
-            if (std.ascii.isLower(char))
-                return false;
-        }
-        return true;
-    }
-
-    pub fn isPascalCase(string: []const u8) bool {
-        for (string) |char| {
-            if (std.ascii.isLower(char))
-                return false;
-        }
-        return true;
-    }
-};
