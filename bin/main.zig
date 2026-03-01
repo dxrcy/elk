@@ -25,16 +25,16 @@ pub fn main(init: std.process.Init) !u8 {
     var air: lcz.Air = .init();
     defer air.deinit(gpa);
 
-    const trap_aliases = [_]lcz.Parser.TrapEntry{
-        .{ .vect = 0x20, .alias = "getc" },
-        .{ .vect = 0x21, .alias = "out" },
-        .{ .vect = 0x22, .alias = "puts" },
-        .{ .vect = 0x23, .alias = "in" },
-        .{ .vect = 0x24, .alias = "putsp" },
-        .{ .vect = 0x25, .alias = "halt" },
-        .{ .vect = 0x26, .alias = "putn" },
-        .{ .vect = 0x27, .alias = "reg" },
-    };
+    const trap_aliases = comptime lcz.Parser.trapEntriesFromEnum(enum(u8) {
+        getc = 0x20,
+        out = 0x21,
+        puts = 0x22,
+        in = 0x23,
+        putsp = 0x24,
+        halt = 0x25,
+        putn = 0x26,
+        reg = 0x27,
+    });
 
     var parser: lcz.Parser = .new(&air, &trap_aliases, source, &reporter);
 

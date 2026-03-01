@@ -19,6 +19,23 @@ tokens: TokenIter,
 current_label: ?Span,
 origin: ?Span,
 
+pub fn trapEntriesFromEnum(comptime T: type) [@typeInfo(T).@"enum".fields.len]TrapEntry {
+    comptime {
+        const info = @typeInfo(T).@"enum";
+        const fields = info.fields;
+        assert(info.tag_type == u8);
+
+        var entries: [fields.len]TrapEntry = undefined;
+        for (fields, 0..) |field, i| {
+            entries[i] = .{
+                .alias = field.name,
+                .vect = field.value,
+            };
+        }
+        return entries;
+    }
+}
+
 pub fn new(
     air: *Air,
     trap_aliases: []const Token.TrapEntry,
