@@ -30,7 +30,9 @@ pub fn new(
     source: []const u8,
     reporter: *Reporter,
 ) TokenIter {
-    // TODO: Assert trap aliases are all alphabetic
+    for (trap_aliases) |entry|
+        assert(case.isLowercaseAlpha(entry.alias));
+
     return .{
         .lexer = Lexer.new(source),
         .peeked = null,
