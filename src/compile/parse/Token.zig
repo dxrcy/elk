@@ -21,7 +21,6 @@ pub const Error =
         UnmatchedQuote,
     };
 
-// TODO: Rename!! TrapAlias ??
 pub const TrapEntry = struct {
     vect: u8,
     alias: []const u8,
@@ -96,7 +95,7 @@ pub const Value = union(enum) {
     pub fn from(string: []const u8, trap_aliases: []const TrapEntry) Error!Value {
         assert(string.len > 0);
 
-        // TODO: Does this have to be separate from `parsers` ?
+        // Trap aliases always take precedence
         if (try tryTrap(string, trap_aliases)) |value|
             return value;
 

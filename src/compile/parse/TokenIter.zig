@@ -30,6 +30,7 @@ pub fn new(
     source: []const u8,
     reporter: *Reporter,
 ) TokenIter {
+    // TODO: Assert trap aliases are all alphabetic
     return .{
         .lexer = Lexer.new(source),
         .peeked = null,
@@ -41,7 +42,7 @@ pub fn new(
 }
 
 pub fn getIndex(tokens: *const TokenIter) usize {
-    // TODO: We might need to support this assertion being false
+    // We currently have no need to support 'getting index when token has been peeked'
     assert(tokens.peeked == null);
     return tokens.lexer.index;
 }
@@ -276,7 +277,6 @@ pub const Argument = union(enum) {
                 },
 
                 Operand.value.PcOffset(9) => switch (token.value) {
-                    // TODO: Integer literals here may be non-standard; warn
                     .integer => |integer| .{
                         .resolved = try shrink(reporter, token.span, integer, i9),
                     },
@@ -285,7 +285,6 @@ pub const Argument = union(enum) {
                 },
 
                 Operand.value.PcOffset(10) => switch (token.value) {
-                    // TODO: Integer literals here may be non-standard; warn
                     .integer => |integer| .{
                         .resolved = try shrink(reporter, token.span, integer, i10),
                     },
@@ -294,7 +293,6 @@ pub const Argument = union(enum) {
                 },
 
                 Operand.value.PcOffset(11) => switch (token.value) {
-                    // TODO: Integer literals here may be non-standard; warn
                     .integer => |integer| .{
                         .resolved = try shrink(reporter, token.span, integer, i11),
                     },

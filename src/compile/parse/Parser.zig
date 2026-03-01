@@ -19,6 +19,7 @@ tokens: TokenIter,
 current_label: ?Span,
 origin: ?Span,
 
+// TODO: Dont take tokenizer param
 pub fn new(air: *Air, tokens: TokenIter) Parser {
     return .{
         .air = air,
