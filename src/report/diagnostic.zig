@@ -32,6 +32,7 @@ pub const TokenKinds = struct {
             .colon => "colon `:`",
             .directive => "directive",
             .instruction => "instruction",
+            .trap_alias => "trap alias",
             .label => "label",
             .register => "register",
             .integer => "integer literal",
@@ -169,6 +170,15 @@ pub const Diagnostic = union(enum) {
             missing_zero,
             pre_radix_sign,
             post_radix_sign,
+            implicit_radix,
+        },
+    },
+    unconventional_case_ident: struct {
+        ident: Span,
+        kind: enum {
+            directive,
+            instruction,
+            label,
         },
     },
     missing_operand_comma: struct {
@@ -224,6 +234,11 @@ pub const Diagnostic = union(enum) {
             .literal_pc_offset => policyResponse(options, .smell, .pc_offset_literals),
 
             .undesirable_integer_form => policyResponse(options, .style, .undesirable_integer_forms),
+            .unconventional_case_ident => |info| switch (info.kind) {
+                .directive => policyResponse(options, .style, .unconventional_case_directives),
+                .instruction => policyResponse(options, .style, .unconventional_case_instructions),
+                .label => policyResponse(options, .style, .unconventional_case_labels),
+            },
             .missing_operand_comma => policyResponse(options, .style, .missing_operand_commas),
             .whitespace_comma => policyResponse(options, .style, .whitespace_commas),
         };
@@ -288,6 +303,7 @@ pub const Diagnostic = union(enum) {
             .undeclared_label => |info| {
                 ctx.printTitle("Label is not declared", .{});
                 ctx.deepen().printSourceNote("Label used here", .{}, info.label);
+                ctx.deepen().printNote("Label names are case-sensitive", .{});
             },
             .offset_too_large => |info| {
                 ctx.printTitle("Label offset is too large", .{});
@@ -402,7 +418,22 @@ pub const Diagnostic = union(enum) {
                     .missing_zero => "Leading zero should appear before base specifier",
                     .pre_radix_sign => "Sign character should appear after decimal base specifier",
                     .post_radix_sign => "Sign character should appear before non-decimal base specifier",
+                    .implicit_radix => "Decimal integer literal should begin with `#`",
                 }});
+            },
+            .unconventional_case_ident => |info| switch (info.kind) {
+                .instruction => {
+                    ctx.printTitle("Instruction mnemonic is not lowercase", .{});
+                    ctx.deepen().printSourceNote("Mnemonic", .{}, info.ident);
+                },
+                .directive => {
+                    ctx.printTitle("Directive name is not uppercase", .{});
+                    ctx.deepen().printSourceNote("Directive", .{}, info.ident);
+                },
+                .label => {
+                    ctx.printTitle("Label name is not PascalCase", .{});
+                    ctx.deepen().printSourceNote("Label declared here", .{}, info.ident);
+                },
             },
             .missing_operand_comma => |info| {
                 ctx.printTitle("Missing comma `,` after operand", .{});

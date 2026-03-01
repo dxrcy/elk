@@ -4,11 +4,13 @@ const std = @import("std");
 const assert = std.debug.assert;
 
 const Reporter = @import("../../report/Reporter.zig");
-const Operand = @import("../Air.zig").Operand;
+const Air = @import("../Air.zig");
 const Span = @import("../Span.zig");
 const Lexer = @import("Lexer.zig");
 const Token = @import("Token.zig");
 const SourceInt = @import("integers.zig").SourceInt;
+const case = @import("case.zig");
+const Operand = Air.Operand;
 
 lexer: Lexer,
 // Peek+peek or peek+next will parse same span as token multiple times, but this
@@ -17,23 +19,32 @@ peeked: ?Span,
 /// Updated by `parseToken`.
 latest: ?Span,
 
+trap_aliases: []const Token.TrapEntry,
 source: []const u8,
 reporter: *Reporter,
 
 const TokenKind = std.meta.Tag(Token.Value);
 
-pub fn new(source: []const u8, reporter: *Reporter) TokenIter {
+pub fn new(
+    trap_aliases: []const Token.TrapEntry,
+    source: []const u8,
+    reporter: *Reporter,
+) TokenIter {
+    for (trap_aliases) |entry|
+        assert(case.isLowercaseAlpha(entry.alias));
+
     return .{
-        .source = source,
-        .reporter = reporter,
         .lexer = Lexer.new(source),
         .peeked = null,
         .latest = null,
+        .trap_aliases = trap_aliases,
+        .source = source,
+        .reporter = reporter,
     };
 }
 
 pub fn getIndex(tokens: *const TokenIter) usize {
-    // TODO: We might need to support this assertion being false
+    // We currently have no need to support 'getting index when token has been peeked'
     assert(tokens.peeked == null);
     return tokens.lexer.index;
 }
@@ -45,7 +56,7 @@ fn getNextSpan(tokens: *TokenIter) error{Eof}!Span {
 }
 
 fn parseToken(tokens: *TokenIter, span: Span) Token.Error!Token {
-    const token = try Token.from(span, tokens.source);
+    const token = try Token.from(span, tokens.source, tokens.trap_aliases);
     if (token.value != .newline)
         tokens.latest = token.span;
     return token;
@@ -127,9 +138,9 @@ fn nextAfterComma(tokens: *TokenIter) error{ Reported, Eof }!Token {
     while (true) {
         const token = try tokens.nextAny();
         if (token.value == .comma) {
-            tokens.reporter.report(.whitespace_comma, .{
+            try tokens.reporter.report(.whitespace_comma, .{
                 .comma = token.span,
-            }).proceed();
+            }).handle();
             continue;
         }
         return token;
@@ -268,7 +279,6 @@ pub const Argument = union(enum) {
                 },
 
                 Operand.value.PcOffset(9) => switch (token.value) {
-                    // TODO: Integer literals here may be non-standard; warn
                     .integer => |integer| .{
                         .resolved = try shrink(reporter, token.span, integer, i9),
                     },
@@ -277,7 +287,6 @@ pub const Argument = union(enum) {
                 },
 
                 Operand.value.PcOffset(10) => switch (token.value) {
-                    // TODO: Integer literals here may be non-standard; warn
                     .integer => |integer| .{
                         .resolved = try shrink(reporter, token.span, integer, i10),
                     },
@@ -286,7 +295,6 @@ pub const Argument = union(enum) {
                 },
 
                 Operand.value.PcOffset(11) => switch (token.value) {
-                    // TODO: Integer literals here may be non-standard; warn
                     .integer => |integer| .{
                         .resolved = try shrink(reporter, token.span, integer, i11),
                     },
@@ -342,6 +350,30 @@ fn ensureSupported(
     var result: error{Reported}!void = {};
 
     switch (token.value) {
+        .directive => {
+            // Don't include initial `.`
+            const string = token.span.view(tokens.source)[1..];
+            if (!case.isUppercaseAlpha(string)) {
+                tokens.reporter.report(.unconventional_case_ident, .{
+                    .ident = token.span,
+                    .kind = .directive,
+                }).collect(&result);
+            }
+        },
+
+        .instruction => {
+            if (!case.isLowercaseAlpha(token.span.view(tokens.source))) {
+                tokens.reporter.report(.unconventional_case_ident, .{
+                    .ident = token.span,
+                    .kind = .instruction,
+                }).collect(&result);
+            }
+        },
+
+        // Conventional case check should handled by `Parser`
+        // Since we only want to report label declarations, not references
+        .label => {},
+
         .string => |string| {
             const value = string.in(token.span).view(tokens.source);
             if (std.mem.containsAtLeast(u8, value, 1, "\n")) {
@@ -408,6 +440,12 @@ fn ensureSupported(
                 },
                 else => assert(!integer.form.zero),
             };
+            if (integer.form.radix == null) {
+                tokens.reporter.report(.undesirable_integer_form, .{
+                    .integer = token.span,
+                    .reason = .implicit_radix,
+                }).collect(&result);
+            }
         },
 
         else => {},

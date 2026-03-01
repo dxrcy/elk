@@ -21,8 +21,13 @@ pub const Error =
         UnmatchedQuote,
     };
 
-pub fn from(span: Span, source: []const u8) Error!Token {
-    const value: Value = try .from(span.view(source));
+pub const TrapEntry = struct {
+    vect: u8,
+    alias: []const u8,
+};
+
+pub fn from(span: Span, source: []const u8, trap_aliases: []const TrapEntry) Error!Token {
+    const value: Value = try .from(span.view(source), trap_aliases);
     return .{ .span = span, .value = value };
 }
 
@@ -33,6 +38,7 @@ pub const Value = union(enum) {
 
     directive: Directive,
     instruction: Instruction,
+    trap_alias: u8,
     label,
 
     register: u3,
@@ -75,17 +81,8 @@ pub const Value = union(enum) {
         sti,
         ldr,
         str,
-        // Traps
+        // Trap *aliases* are handled separatly
         trap,
-        getc,
-        out,
-        puts,
-        in,
-        putsp,
-        halt,
-        // Extension traps
-        putn,
-        reg,
         // Extension instructions
         push,
         pop,
@@ -95,8 +92,13 @@ pub const Value = union(enum) {
         rti,
     };
 
-    pub fn from(string: []const u8) Error!Value {
+    pub fn from(string: []const u8, trap_aliases: []const TrapEntry) Error!Value {
         assert(string.len > 0);
+
+        // Trap aliases always take precedence
+        if (try tryTrap(string, trap_aliases)) |value|
+            return value;
+
         const parsers = [_]fn ([]const u8) Error!?Value{
             // Order is important
             tryKeyword,
@@ -173,6 +175,15 @@ pub const Value = union(enum) {
         assert(string.len > 0);
         if (matchTagName(Instruction, string)) |instruction| {
             return .{ .instruction = instruction };
+        }
+        return null;
+    }
+
+    fn tryTrap(string: []const u8, trap_aliases: []const TrapEntry) Error!?Value {
+        assert(string.len > 0);
+        for (trap_aliases) |entry| {
+            if (std.ascii.eqlIgnoreCase(string, entry.alias))
+                return .{ .trap_alias = entry.vect };
         }
         return null;
     }

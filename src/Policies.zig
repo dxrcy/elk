@@ -47,8 +47,9 @@ style: struct {
     undesirable_integer_forms: Policy,
     missing_operand_commas: Policy,
     whitespace_commas: Policy,
-    // non_lowercase_instructions: Policy,
-    // non_uppercase_directives: Policy,
+    unconventional_case_instructions: Policy,
+    unconventional_case_directives: Policy,
+    unconventional_case_labels: Policy,
 
     pub const forbid_all = fillFields(@This(), .forbid);
     pub const permit_all = fillFields(@This(), .permit);

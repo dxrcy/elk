@@ -26,10 +26,20 @@ pub fn main(init: std.process.Init) !u8 {
     var air: lcz.Air = .init();
     defer air.deinit(gpa);
 
-    var parser: lcz.Parser = .new(&air, .new(source, &reporter));
+    const trap_aliases = [_]lcz.Parser.TrapEntry{
+        .{ .vect = 0x20, .alias = "getc" },
+        .{ .vect = 0x21, .alias = "out" },
+        .{ .vect = 0x22, .alias = "puts" },
+        .{ .vect = 0x23, .alias = "in" },
+        .{ .vect = 0x24, .alias = "putsp" },
+        .{ .vect = 0x25, .alias = "halt" },
+        .{ .vect = 0x26, .alias = "putn" },
+        .{ .vect = 0x27, .alias = "reg" },
+    };
+
+    var parser: lcz.Parser = .new(&air, &trap_aliases, source, &reporter);
 
     try parser.parse(gpa);
-
     parser.resolveLabels();
 
     {

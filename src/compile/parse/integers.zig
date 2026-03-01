@@ -126,7 +126,6 @@ pub const Form = struct {
         positive = 1,
     };
 
-    // TODO: Rename
     pub const SignInfo = struct {
         value: Sign,
         /// Note that `position==.pre_radix` when `radix==null`.
