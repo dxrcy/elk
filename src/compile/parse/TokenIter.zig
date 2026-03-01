@@ -30,8 +30,11 @@ pub fn new(
     source: []const u8,
     reporter: *Reporter,
 ) TokenIter {
-    for (trap_aliases) |entry|
-        assert(case.isLowercaseAlpha(entry.alias));
+    for (trap_aliases, 0..) |entry_a, i| {
+        assert(case.isLowercaseAlpha(entry_a.alias));
+        for (trap_aliases[0..i]) |entry_b|
+            assert(entry_a.vect != entry_b.vect);
+    }
 
     return .{
         .lexer = Lexer.new(source),
