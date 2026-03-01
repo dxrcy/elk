@@ -26,7 +26,7 @@ pub fn main(init: std.process.Init) !u8 {
     var air: lcz.Air = .init();
     defer air.deinit(gpa);
 
-    const trap_aliases: lcz.Parser.Traps = comptime .fromEnum(enum(u8) {
+    const Traps = enum(u8) {
         getc = 0x20,
         out = 0x21,
         puts = 0x22,
@@ -35,9 +35,16 @@ pub fn main(init: std.process.Init) !u8 {
         halt = 0x25,
         putn = 0x26,
         reg = 0x27,
-    });
 
-    var parser: lcz.Parser = .new(&air, trap_aliases, source, &reporter);
+        chat = 0x28,
+        getp = 0x29,
+        setp = 0x2a,
+        getb = 0x2b,
+        setb = 0x2c,
+        geth = 0x2d,
+    };
+
+    var parser: lcz.Parser = .new(&air, comptime .fromEnum(Traps), source, &reporter);
 
     try parser.parse(gpa);
     parser.resolveLabels();
@@ -69,12 +76,12 @@ pub fn main(init: std.process.Init) !u8 {
         var conn: mcz.Connection = try .new(&conn_write_buffer, &conn_read_buffer, io);
 
         var trap_table: lcz.Runtime.traps.Table = .default;
-        trap_table.register(@enumFromInt(0x28), mcz_traps.chat, &conn);
-        trap_table.register(@enumFromInt(0x29), mcz_traps.getp, &conn);
-        trap_table.register(@enumFromInt(0x2a), mcz_traps.setp, &conn);
-        trap_table.register(@enumFromInt(0x2b), mcz_traps.getb, &conn);
-        trap_table.register(@enumFromInt(0x2c), mcz_traps.setb, &conn);
-        trap_table.register(@enumFromInt(0x2d), mcz_traps.geth, &conn);
+        trap_table.register(@enumFromInt(@intFromEnum(Traps.chat)), mcz_traps.chat, &conn);
+        trap_table.register(@enumFromInt(@intFromEnum(Traps.getp)), mcz_traps.getp, &conn);
+        trap_table.register(@enumFromInt(@intFromEnum(Traps.setp)), mcz_traps.setp, &conn);
+        trap_table.register(@enumFromInt(@intFromEnum(Traps.getb)), mcz_traps.getb, &conn);
+        trap_table.register(@enumFromInt(@intFromEnum(Traps.setb)), mcz_traps.setb, &conn);
+        trap_table.register(@enumFromInt(@intFromEnum(Traps.geth)), mcz_traps.geth, &conn);
 
         var runtime_write_buffer: [64]u8 = undefined;
         var runtime_writer = Io.File.stdout().writer(io, &runtime_write_buffer);
