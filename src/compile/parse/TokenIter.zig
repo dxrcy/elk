@@ -4,12 +4,14 @@ const std = @import("std");
 const assert = std.debug.assert;
 
 const Reporter = @import("../../report/Reporter.zig");
-const Operand = @import("../Air.zig").Operand;
+const Air = @import("../Air.zig");
 const Span = @import("../Span.zig");
 const Lexer = @import("Lexer.zig");
 const Token = @import("Token.zig");
 const SourceInt = @import("integers.zig").SourceInt;
 const case = @import("case.zig");
+const Operand = Air.Operand;
+const TrapEntry = Air.TrapEntry;
 
 lexer: Lexer,
 // Peek+peek or peek+next will parse same span as token multiple times, but this
@@ -18,18 +20,24 @@ peeked: ?Span,
 /// Updated by `parseToken`.
 latest: ?Span,
 
+trap_aliases: []const TrapEntry,
 source: []const u8,
 reporter: *Reporter,
 
 const TokenKind = std.meta.Tag(Token.Value);
 
-pub fn new(source: []const u8, reporter: *Reporter) TokenIter {
+pub fn new(
+    trap_aliases: []const TrapEntry,
+    source: []const u8,
+    reporter: *Reporter,
+) TokenIter {
     return .{
-        .source = source,
-        .reporter = reporter,
         .lexer = Lexer.new(source),
         .peeked = null,
         .latest = null,
+        .trap_aliases = trap_aliases,
+        .source = source,
+        .reporter = reporter,
     };
 }
 
@@ -46,7 +54,7 @@ fn getNextSpan(tokens: *TokenIter) error{Eof}!Span {
 }
 
 fn parseToken(tokens: *TokenIter, span: Span) Token.Error!Token {
-    const token = try Token.from(span, tokens.source);
+    const token = try Token.from(span, tokens.source, tokens.trap_aliases);
     if (token.value != .newline)
         tokens.latest = token.span;
     return token;

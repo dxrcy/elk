@@ -6,6 +6,7 @@ const assert = std.debug.assert;
 const testing = std.testing;
 
 const Span = @import("../Span.zig");
+const TrapEntry = @import("../Air.zig").TrapEntry;
 const integers = @import("integers.zig");
 
 span: Span,
@@ -21,8 +22,8 @@ pub const Error =
         UnmatchedQuote,
     };
 
-pub fn from(span: Span, source: []const u8) Error!Token {
-    const value: Value = try .from(span.view(source));
+pub fn from(span: Span, source: []const u8, trap_aliases: []const TrapEntry) Error!Token {
+    const value: Value = try .from(span.view(source), trap_aliases);
     return .{ .span = span, .value = value };
 }
 
@@ -87,20 +88,13 @@ pub const Value = union(enum) {
         rti,
     };
 
-    // TODO: Use user-provided list
-    pub const TRAPS = [_][]const u8{
-        "getc",
-        "out",
-        "puts",
-        "in",
-        "putsp",
-        "halt",
-        "putn",
-        "reg",
-    };
-
-    pub fn from(string: []const u8) Error!Value {
+    pub fn from(string: []const u8, trap_aliases: []const TrapEntry) Error!Value {
         assert(string.len > 0);
+
+        // TODO: Does this have to be separate from `parsers` ?
+        if (try tryTrap(string, trap_aliases)) |value|
+            return value;
+
         const parsers = [_]fn ([]const u8) Error!?Value{
             // Order is important
             tryKeyword,
@@ -109,7 +103,6 @@ pub const Value = union(enum) {
             tryString,
             tryDirective,
             tryInstruction,
-            tryTrap,
             tryLabel,
         };
         inline for (parsers) |parser| {
@@ -182,10 +175,10 @@ pub const Value = union(enum) {
         return null;
     }
 
-    fn tryTrap(string: []const u8) Error!?Value {
+    fn tryTrap(string: []const u8, trap_aliases: []const TrapEntry) Error!?Value {
         assert(string.len > 0);
-        for (TRAPS) |trap| {
-            if (std.ascii.eqlIgnoreCase(string, trap))
+        for (trap_aliases) |entry| {
+            if (std.ascii.eqlIgnoreCase(string, entry.alias))
                 return .trap_alias;
         }
         return null;

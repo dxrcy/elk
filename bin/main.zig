@@ -36,7 +36,11 @@ pub fn main(init: std.process.Init) !u8 {
         .{ .vect = 0x27, .alias = "reg" },
     };
 
-    var parser: lcz.Parser = .new(&air, .new(source, &reporter), &trap_aliases);
+    var parser: lcz.Parser = .new(
+        &air,
+        .new(&trap_aliases, source, &reporter),
+        &trap_aliases,
+    );
 
     try parser.parse(gpa);
     parser.resolveLabels();

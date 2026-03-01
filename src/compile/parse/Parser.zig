@@ -18,6 +18,7 @@ tokens: TokenIter,
 current_label: ?Span,
 origin: ?Span,
 
+// TODO: remove, use `tokens.trap_aliases`
 trap_aliases: []const Air.TrapEntry,
 
 pub fn new(air: *Air, tokens: TokenIter, trap_entries: []const Air.TrapEntry) Parser {
