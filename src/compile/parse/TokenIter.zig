@@ -7,6 +7,7 @@ const Reporter = @import("../../report/Reporter.zig");
 const Air = @import("../Air.zig");
 const Span = @import("../Span.zig");
 const Lexer = @import("Lexer.zig");
+const Traps = @import("Traps.zig");
 const Token = @import("Token.zig");
 const SourceInt = @import("integers.zig").SourceInt;
 const case = @import("case.zig");
@@ -19,14 +20,14 @@ peeked: ?Span,
 /// Updated by `parseToken`.
 latest: ?Span,
 
-trap_aliases: []const Token.TrapEntry,
+trap_aliases: []const Traps.Entry,
 source: []const u8,
 reporter: *Reporter,
 
 const TokenKind = std.meta.Tag(Token.Value);
 
 pub fn new(
-    trap_aliases: []const Token.TrapEntry,
+    trap_aliases: []const Traps.Entry,
     source: []const u8,
     reporter: *Reporter,
 ) TokenIter {
