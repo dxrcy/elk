@@ -35,6 +35,11 @@ pub fn main(init: std.process.Init) !u8 {
         .{ .vect = 0x25, .alias = "halt" },
         .{ .vect = 0x26, .alias = "putn" },
         .{ .vect = 0x27, .alias = "reg" },
+        .{ .vect = 0x29, .alias = "getp" },
+        .{ .vect = 0x2a, .alias = "setp" },
+        .{ .vect = 0x2b, .alias = "getb" },
+        .{ .vect = 0x2c, .alias = "setb" },
+        .{ .vect = 0x2d, .alias = "geth" },
     };
 
     var parser: lcz.Parser = .new(&air, &trap_aliases, source, &reporter);
