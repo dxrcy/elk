@@ -127,9 +127,9 @@ fn nextAfterComma(tokens: *TokenIter) error{ Reported, Eof }!Token {
     while (true) {
         const token = try tokens.nextAny();
         if (token.value == .comma) {
-            tokens.reporter.report(.whitespace_comma, .{
+            try tokens.reporter.report(.whitespace_comma, .{
                 .comma = token.span,
-            }).proceed();
+            }).handle();
             continue;
         }
         return token;

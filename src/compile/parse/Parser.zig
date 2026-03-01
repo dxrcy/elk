@@ -66,19 +66,19 @@ pub fn parse(parser: *Parser, gpa: Allocator) error{OutOfMemory}!void {
     if (parser.origin == null) {
         parser.reporter().report(.missing_origin, .{
             .first_token = parser.air.getFirstSpan(),
-        }).proceed();
+        }).proceed(); // Can't return `error.Reported`
     }
 
     if (parser.current_label) |existing| {
         parser.reporter().report(.eof_label, .{
             .label = existing,
-        }).proceed();
+        }).proceed(); // Can't return `error.Reported`
     }
 
     if (missing_end) {
         parser.reporter().report(.missing_end, .{
             .last_token = parser.tokens.latest,
-        }).proceed();
+        }).proceed(); // Can't return `error.Reported`
     }
 }
 
@@ -88,10 +88,10 @@ fn parseLine(parser: *Parser, gpa: Allocator) InnerError!Control {
     switch (token.value) {
         .label => {
             if (parser.current_label) |existing| {
-                parser.reporter().report(.shadowed_label, .{
+                try parser.reporter().report(.shadowed_label, .{
                     .existing = existing,
                     .new = token.span,
-                }).proceed();
+                }).handle();
             }
 
             if (parser.getExistingLabel(token.span.view(parser.source()))) |existing_label| {
@@ -104,20 +104,19 @@ fn parseLine(parser: *Parser, gpa: Allocator) InnerError!Control {
             }
 
             if (try parser.tokens.nextMatching(.colon)) |colon| {
-                // FIXME: Handle not proceed. And elsewhere
-                parser.reporter().report(.nonstandard_label_colon, .{
+                try parser.reporter().report(.nonstandard_label_colon, .{
                     .colon = colon.span,
-                }).proceed();
+                }).handle();
             }
 
             // Disallow two labels on same line
             // This should also be checked when the second label is parsed, but
             // this reports a more appropriate message
             if (try parser.tokens.nextMatching(.label)) |label| {
-                parser.reporter().report(.unexpected_label, .{
+                try parser.reporter().report(.unexpected_label, .{
                     .existing = token.span,
                     .new = label.span,
-                }).proceed(); // May be followed by a (valid) instruction
+                }).handle();
             }
 
             if (!TokenIter.case.isLowercase(token.span.view(parser.source()))) {
@@ -206,10 +205,10 @@ fn parseDirective(
     switch (directive) {
         .end => {
             if (parser.current_label) |label| {
-                parser.reporter().report(.useless_label, .{
+                try parser.reporter().report(.useless_label, .{
                     .label = label,
                     .token = span,
-                }).proceed();
+                }).handle();
             }
             return .@"break";
         },
@@ -217,10 +216,10 @@ fn parseDirective(
         .orig => {
             // FIXME: This should technically be removed I think ??
             if (parser.current_label) |label| {
-                parser.reporter().report(.useless_label, .{
+                try parser.reporter().report(.useless_label, .{
                     .label = label,
                     .token = span,
-                }).proceed();
+                }).handle();
             }
 
             const origin = try parser.tokens.expectArgument(.word);
@@ -365,9 +364,9 @@ fn parseInstruction(
 
                 if (i + 1 < fields.len)
                     if (try parser.tokens.nextMatching(.comma) == null) {
-                        parser.reporter().report(.missing_operand_comma, .{
+                        try parser.reporter().report(.missing_operand_comma, .{
                             .operand = operand.span,
-                        }).proceed();
+                        }).handle();
                     };
             }
 

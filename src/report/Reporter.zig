@@ -70,6 +70,7 @@ pub const Response = enum {
             .minor, .pass => {},
         };
     }
+    /// Callsites should document why `proceed` is used rather than `handle`.
     pub fn proceed(response: Response) void {
         switch (response) {
             .fatal => unreachable,
