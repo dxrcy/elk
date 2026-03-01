@@ -34,7 +34,7 @@ pub const Value = union(enum) {
 
     directive: Directive,
     instruction: Instruction,
-    trap_alias,
+    trap_alias: u8,
     label,
 
     register: u3,
@@ -179,7 +179,7 @@ pub const Value = union(enum) {
         assert(string.len > 0);
         for (trap_aliases) |entry| {
             if (std.ascii.eqlIgnoreCase(string, entry.alias))
-                return .trap_alias;
+                return .{ .trap_alias = entry.vect };
         }
         return null;
     }

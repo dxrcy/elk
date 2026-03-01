@@ -18,16 +18,12 @@ tokens: TokenIter,
 current_label: ?Span,
 origin: ?Span,
 
-// TODO: remove, use `tokens.trap_aliases`
-trap_aliases: []const Air.TrapEntry,
-
-pub fn new(air: *Air, tokens: TokenIter, trap_entries: []const Air.TrapEntry) Parser {
+pub fn new(air: *Air, tokens: TokenIter) Parser {
     return .{
         .air = air,
         .tokens = tokens,
         .current_label = null,
         .origin = null,
-        .trap_aliases = trap_entries,
     };
 }
 
@@ -149,16 +145,7 @@ fn parseLine(parser: *Parser, gpa: Allocator) InnerError!Control {
             try parser.appendLine(statement, span, gpa);
         },
 
-        .trap_alias => {
-            // TODO: Move to method
-            const vect = for (parser.trap_aliases) |entry| {
-                if (std.mem.eql(u8, entry.alias, token.span.view(parser.source())))
-                    break entry.vect;
-            } else {
-                // FIXME: Handle
-                unreachable;
-            };
-
+        .trap_alias => |vect| {
             const statement: Statement = .{ .trap = .{
                 .vect = .{ .span = token.span, .value = .{ .immediate = vect } },
             } };
