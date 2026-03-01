@@ -419,8 +419,9 @@ fn ensureSupported(
         .instruction => {
             for (token.span.view(tokens.source)) |char| {
                 if (std.ascii.isUpper(char)) {
-                    tokens.reporter.report(.non_lowercase_instruction, .{
-                        .instruction = token.span,
+                    tokens.reporter.report(.unconventional_case_ident, .{
+                        .ident = token.span,
+                        .kind = .instruction,
                     }).collect(&result);
                     break;
                 }
@@ -430,8 +431,9 @@ fn ensureSupported(
         .directive => {
             for (token.span.view(tokens.source)) |char| {
                 if (std.ascii.isLower(char)) {
-                    tokens.reporter.report(.non_uppercase_directive, .{
-                        .directive = token.span,
+                    tokens.reporter.report(.unconventional_case_ident, .{
+                        .ident = token.span,
+                        .kind = .directive,
                     }).collect(&result);
                     break;
                 }

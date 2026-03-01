@@ -172,11 +172,12 @@ pub const Diagnostic = union(enum) {
             implicit_radix,
         },
     },
-    non_lowercase_instruction: struct {
-        instruction: Span,
-    },
-    non_uppercase_directive: struct {
-        directive: Span,
+    unconventional_case_ident: struct {
+        ident: Span,
+        kind: enum {
+            instruction,
+            directive,
+        },
     },
     missing_operand_comma: struct {
         operand: Span,
@@ -231,8 +232,10 @@ pub const Diagnostic = union(enum) {
             .literal_pc_offset => policyResponse(options, .smell, .pc_offset_literals),
 
             .undesirable_integer_form => policyResponse(options, .style, .undesirable_integer_forms),
-            .non_lowercase_instruction => policyResponse(options, .style, .non_lowercase_instructions),
-            .non_uppercase_directive => policyResponse(options, .style, .non_uppercase_directives),
+            .unconventional_case_ident => |info| switch (info.kind) {
+                .instruction => policyResponse(options, .style, .unconventional_case_instructions),
+                .directive => policyResponse(options, .style, .unconventional_case_directives),
+            },
             .missing_operand_comma => policyResponse(options, .style, .missing_operand_commas),
             .whitespace_comma => policyResponse(options, .style, .whitespace_commas),
         };
@@ -414,13 +417,15 @@ pub const Diagnostic = union(enum) {
                     .implicit_radix => "Decimal integer literal should begin with `#`",
                 }});
             },
-            .non_lowercase_instruction => |info| {
-                ctx.printTitle("Instruction mnemonic is not lowercase", .{});
-                ctx.deepen().printSourceNote("Mnemonic", .{}, info.instruction);
-            },
-            .non_uppercase_directive => |info| {
-                ctx.printTitle("Directive name is not uppercase", .{});
-                ctx.deepen().printSourceNote("Directive", .{}, info.directive);
+            .unconventional_case_ident => |info| switch (info.kind) {
+                .instruction => {
+                    ctx.printTitle("Instruction mnemonic is not lowercase", .{});
+                    ctx.deepen().printSourceNote("Mnemonic", .{}, info.ident);
+                },
+                .directive => {
+                    ctx.printTitle("Directive name is not uppercase", .{});
+                    ctx.deepen().printSourceNote("Directive", .{}, info.ident);
+                },
             },
             .missing_operand_comma => |info| {
                 ctx.printTitle("Missing comma `,` after operand", .{});
