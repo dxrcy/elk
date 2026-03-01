@@ -32,6 +32,7 @@ pub const TokenKinds = struct {
             .colon => "colon `:`",
             .directive => "directive",
             .instruction => "instruction",
+            .trap_alias => "trap alias",
             .label => "label",
             .register => "register",
             .integer => "integer literal",

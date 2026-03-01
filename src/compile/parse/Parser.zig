@@ -145,6 +145,41 @@ fn parseLine(parser: *Parser, gpa: Allocator) InnerError!Control {
             try parser.appendLine(statement, span, gpa);
         },
 
+        .trap_alias => {
+            // TODO: Rename
+            const TrapEntry = struct {
+                vect: u8,
+                alias: []const u8,
+            };
+
+            // TODO: Use user-provided list
+            const trap_vects = [_]TrapEntry{
+                .{ .vect = 0x20, .alias = "getc" },
+                .{ .vect = 0x21, .alias = "out" },
+                .{ .vect = 0x22, .alias = "puts" },
+                .{ .vect = 0x23, .alias = "in" },
+                .{ .vect = 0x24, .alias = "putsp" },
+                .{ .vect = 0x25, .alias = "halt" },
+                .{ .vect = 0x26, .alias = "putn" },
+                .{ .vect = 0x27, .alias = "reg" },
+            };
+
+            // TODO: Move to method
+            const vect = for (trap_vects) |entry| {
+                if (std.mem.eql(u8, entry.alias, token.span.view(parser.source())))
+                    break entry.vect;
+            } else {
+                // TODO: Handle
+                unreachable;
+            };
+
+            const statement: Statement = .{ .trap = .{
+                .vect = .{ .span = token.span, .value = .{ .immediate = vect } },
+            } };
+            try parser.tokens.expectEol();
+            try parser.appendLine(statement, token.span, gpa);
+        },
+
         else => {
             try parser.reporter().report(.unexpected_token_kind, .{
                 .token = token,
@@ -392,32 +427,6 @@ fn parseInstruction(
             return .{ .br = .{
                 .condition = .{ .span = span, .value = condition },
                 .dest = dest,
-            } };
-        },
-
-        inline // Trap aliases
-        .getc,
-        .out,
-        .puts,
-        .in,
-        .putsp,
-        .halt,
-        .putn,
-        .reg,
-        => |alias| {
-            const vect: u8 = switch (alias) {
-                .getc => 0x20,
-                .out => 0x21,
-                .puts => 0x22,
-                .in => 0x23,
-                .putsp => 0x24,
-                .halt => 0x25,
-                .putn => 0x26,
-                .reg => 0x27,
-                else => comptime unreachable,
-            };
-            return .{ .trap = .{
-                .vect = .{ .span = span, .value = .{ .immediate = vect } },
             } };
         },
     }

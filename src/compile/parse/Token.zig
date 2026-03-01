@@ -33,6 +33,7 @@ pub const Value = union(enum) {
 
     directive: Directive,
     instruction: Instruction,
+    trap_alias,
     label,
 
     register: u3,
@@ -75,17 +76,8 @@ pub const Value = union(enum) {
         sti,
         ldr,
         str,
-        // Traps
+        // Trap *aliases* are handled separatly
         trap,
-        getc,
-        out,
-        puts,
-        in,
-        putsp,
-        halt,
-        // Extension traps
-        putn,
-        reg,
         // Extension instructions
         push,
         pop,
@@ -93,6 +85,18 @@ pub const Value = union(enum) {
         rets,
         // Only used in 'supervisor' mode
         rti,
+    };
+
+    // TODO: Use user-provided list
+    pub const TRAPS = [_][]const u8{
+        "getc",
+        "out",
+        "puts",
+        "in",
+        "putsp",
+        "halt",
+        "putn",
+        "reg",
     };
 
     pub fn from(string: []const u8) Error!Value {
@@ -105,6 +109,7 @@ pub const Value = union(enum) {
             tryString,
             tryDirective,
             tryInstruction,
+            tryTrap,
             tryLabel,
         };
         inline for (parsers) |parser| {
@@ -173,6 +178,15 @@ pub const Value = union(enum) {
         assert(string.len > 0);
         if (matchTagName(Instruction, string)) |instruction| {
             return .{ .instruction = instruction };
+        }
+        return null;
+    }
+
+    fn tryTrap(string: []const u8) Error!?Value {
+        assert(string.len > 0);
+        for (TRAPS) |trap| {
+            if (std.ascii.eqlIgnoreCase(string, trap))
+                return .trap_alias;
         }
         return null;
     }
