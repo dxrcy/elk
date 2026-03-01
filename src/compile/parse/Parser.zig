@@ -104,6 +104,7 @@ fn parseLine(parser: *Parser, gpa: Allocator) InnerError!Control {
             }
 
             if (try parser.tokens.nextMatching(.colon)) |colon| {
+                // FIXME: Handle not proceed. And elsewhere
                 parser.reporter().report(.nonstandard_label_colon, .{
                     .colon = colon.span,
                 }).proceed();
@@ -117,6 +118,13 @@ fn parseLine(parser: *Parser, gpa: Allocator) InnerError!Control {
                     .existing = token.span,
                     .new = label.span,
                 }).proceed(); // May be followed by a (valid) instruction
+            }
+
+            if (!TokenIter.case.isLowercase(token.span.view(parser.source()))) {
+                try parser.reporter().report(.unconventional_case_ident, .{
+                    .ident = token.span,
+                    .kind = .label,
+                }).handle();
             }
         },
 

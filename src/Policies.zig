@@ -49,6 +49,7 @@ style: struct {
     whitespace_commas: Policy,
     unconventional_case_instructions: Policy,
     unconventional_case_directives: Policy,
+    unconventional_case_labels: Policy,
 
     pub const forbid_all = fillFields(@This(), .forbid);
     pub const permit_all = fillFields(@This(), .permit);

@@ -175,8 +175,9 @@ pub const Diagnostic = union(enum) {
     unconventional_case_ident: struct {
         ident: Span,
         kind: enum {
-            instruction,
             directive,
+            instruction,
+            label,
         },
     },
     missing_operand_comma: struct {
@@ -233,8 +234,9 @@ pub const Diagnostic = union(enum) {
 
             .undesirable_integer_form => policyResponse(options, .style, .undesirable_integer_forms),
             .unconventional_case_ident => |info| switch (info.kind) {
-                .instruction => policyResponse(options, .style, .unconventional_case_instructions),
                 .directive => policyResponse(options, .style, .unconventional_case_directives),
+                .instruction => policyResponse(options, .style, .unconventional_case_instructions),
+                .label => policyResponse(options, .style, .unconventional_case_labels),
             },
             .missing_operand_comma => policyResponse(options, .style, .missing_operand_commas),
             .whitespace_comma => policyResponse(options, .style, .whitespace_commas),
@@ -425,6 +427,10 @@ pub const Diagnostic = union(enum) {
                 .directive => {
                     ctx.printTitle("Directive name is not uppercase", .{});
                     ctx.deepen().printSourceNote("Directive", .{}, info.ident);
+                },
+                .label => {
+                    ctx.printTitle("Label name is not PascalCase", .{});
+                    ctx.deepen().printSourceNote("Label declared here", .{}, info.ident);
                 },
             },
             .missing_operand_comma => |info| {

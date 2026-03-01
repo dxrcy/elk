@@ -342,6 +342,28 @@ fn ensureSupported(
     var result: error{Reported}!void = {};
 
     switch (token.value) {
+        .directive => {
+            if (!case.isUppercase(token.span.view(tokens.source))) {
+                tokens.reporter.report(.unconventional_case_ident, .{
+                    .ident = token.span,
+                    .kind = .directive,
+                }).collect(&result);
+            }
+        },
+
+        .instruction => {
+            if (!case.isLowercase(token.span.view(tokens.source))) {
+                tokens.reporter.report(.unconventional_case_ident, .{
+                    .ident = token.span,
+                    .kind = .instruction,
+                }).collect(&result);
+            }
+        },
+
+        // Conventional case check should handled by `Parser`
+        // Since we only want to report label declarations, not references
+        .label => {},
+
         .string => |string| {
             const value = string.in(token.span).view(tokens.source);
             if (std.mem.containsAtLeast(u8, value, 1, "\n")) {
@@ -416,31 +438,33 @@ fn ensureSupported(
             }
         },
 
-        .instruction => {
-            for (token.span.view(tokens.source)) |char| {
-                if (std.ascii.isUpper(char)) {
-                    tokens.reporter.report(.unconventional_case_ident, .{
-                        .ident = token.span,
-                        .kind = .instruction,
-                    }).collect(&result);
-                    break;
-                }
-            }
-        },
-
-        .directive => {
-            for (token.span.view(tokens.source)) |char| {
-                if (std.ascii.isLower(char)) {
-                    tokens.reporter.report(.unconventional_case_ident, .{
-                        .ident = token.span,
-                        .kind = .directive,
-                    }).collect(&result);
-                    break;
-                }
-            }
-        },
-
         else => {},
     }
     return result;
 }
+
+pub const case = struct {
+    pub fn isLowercase(string: []const u8) bool {
+        for (string) |char| {
+            if (std.ascii.isUpper(char))
+                return false;
+        }
+        return true;
+    }
+
+    pub fn isUppercase(string: []const u8) bool {
+        for (string) |char| {
+            if (std.ascii.isLower(char))
+                return false;
+        }
+        return true;
+    }
+
+    pub fn isPascalCase(string: []const u8) bool {
+        for (string) |char| {
+            if (std.ascii.isLower(char))
+                return false;
+        }
+        return true;
+    }
+};
