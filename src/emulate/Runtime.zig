@@ -57,8 +57,15 @@ const Condition = enum(u3) {
 };
 
 pub const Hooks = struct {
-    pre_execute: ?*const fn (Instruction) void = null,
+    pre_execute: ?Callback(fn (*Runtime, Instruction, ?*const anyopaque) IoError!void) = null,
 };
+
+fn Callback(comptime Func: type) type {
+    return struct {
+        func: *const Func,
+        data: ?*const anyopaque,
+    };
+}
 
 pub fn init(
     traps: *const Traps,
@@ -106,7 +113,7 @@ pub fn run(runtime: *Runtime) Error!void {
         const instr: Instruction = try .decode(word);
 
         if (runtime.hooks.pre_execute) |pre_execute|
-            pre_execute(instr);
+            try pre_execute.func(runtime, instr, pre_execute.data);
 
         const control = try runtime.runInstruction(instr);
         switch (control) {

@@ -60,8 +60,13 @@ pub fn main(init: std.process.Init) !u8 {
         var writer = Io.File.stdout().writer(io, &write_buffer);
         var reader = Io.File.stdin().reader(io, &.{});
 
+        var calls: u32 = 0;
+
         const hooks: lcz.Runtime.Hooks = .{
-            .pre_execute = preExecuteHook,
+            .pre_execute = .{
+                .func = preExecuteHook,
+                .data = &calls,
+            },
         };
 
         var runtime = try lcz.Runtime.init(
@@ -94,6 +99,14 @@ pub fn main(init: std.process.Init) !u8 {
     return 0;
 }
 
-fn preExecuteHook(instr: lcz.Runtime.Instruction) void {
-    std.debug.print("PRE-EXECUTE {t}\n", .{instr});
+fn preExecuteHook(
+    runtime: *lcz.Runtime,
+    instr: lcz.Runtime.Instruction,
+    data: ?*const anyopaque,
+) lcz.Runtime.IoError!void {
+    const calls: *u32 = @ptrCast(@alignCast(@constCast(data.?)));
+    calls.* += 1;
+
+    try runtime.writer.ensureNewline();
+    try runtime.writer.interface.print("\x1b[33mpre-execute {} {t}\x1b[0m\n", .{ calls.*, instr });
 }
