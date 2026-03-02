@@ -154,11 +154,14 @@ pub fn run(runtime: *Runtime) Error!void {
 }
 
 const Instruction = union(enum) {
-    add: struct {
+    add: ArithOperands,
+    @"and": ArithOperands,
+
+    const ArithOperands = struct {
         dest: Register,
         src_a: Register,
         src_b: RegImm5,
-    },
+    };
 
     pub const Register = u3;
     pub const RegImm5 = union(enum) {
@@ -171,7 +174,7 @@ const Instruction = union(enum) {
         const opcode: Opcode = @enumFromInt(bitmask.opcode.apply(word));
 
         switch (opcode) {
-            .add => {
+            inline .add, .@"and" => |arith_opcode| {
                 const dest = bitmask.operand.reg_high.apply(word);
                 const src_a = bitmask.operand.reg_mid.apply(word);
                 const src_b: Instruction.RegImm5 =
@@ -187,11 +190,16 @@ const Instruction = union(enum) {
                             .immediate = @bitCast(bitmask.operand.imm_5.apply(word)),
                         },
                     };
-                return .{ .add = .{
+                const operands: ArithOperands = .{
                     .dest = dest,
                     .src_a = src_a,
                     .src_b = src_b,
-                } };
+                };
+                return switch (arith_opcode) {
+                    .add => .{ .add = operands },
+                    .@"and" => .{ .@"and" = operands },
+                    else => comptime unreachable,
+                };
             },
 
             else => return null,
@@ -210,6 +218,17 @@ fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
                 };
                 runtime.setRegister(operands.dest, lhs +% rhs);
             },
+
+            .@"and" => |operands| {
+                const lhs = runtime.registers[operands.src_a];
+                const rhs: u16 = switch (operands.src_b) {
+                    .register => |register| runtime.registers[register],
+                    .immediate => |immediate| Mask.signExtend(immediate),
+                };
+                runtime.setRegister(operands.dest, lhs & rhs);
+            },
+
+            // else => {},
         }
         return .@"continue";
     }
@@ -221,31 +240,9 @@ fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
     // TODO: Extract magic numbers
 
     switch (opcode) {
+        .add, .@"and" => unreachable,
+
         .rti => return error.UnsupportedRti,
-
-        inline .add, .@"and" => |arith_opcode| {
-            const dest_reg = bitmask.operand.reg_high.apply(instr);
-            const src_reg = bitmask.operand.reg_mid.apply(instr);
-
-            const lhs = runtime.registers[src_reg];
-            const rhs = rhs: switch (bitmask.flag.add_and.apply(instr)) {
-                0 => { // Register
-                    if (bitmask.padding.add_and.apply(instr) != 0)
-                        return error.IncorrectPadding;
-                    const rhs_reg = bitmask.operand.reg_low.apply(instr);
-                    break :rhs runtime.registers[rhs_reg];
-                },
-                1 => { // Immediate
-                    break :rhs bitmask.operand.imm_5.applySext(instr);
-                },
-            };
-
-            runtime.setRegister(dest_reg, switch (arith_opcode) {
-                .add => lhs +% rhs,
-                .@"and" => lhs & rhs,
-                else => comptime unreachable,
-            });
-        },
 
         .not => {
             const dest_reg = bitmask.operand.reg_high.apply(instr);
