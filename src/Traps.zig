@@ -70,6 +70,19 @@ fn addDataParameter(
     }.wrapped;
 }
 
+pub fn castDataParameter(
+    comptime ActualPtr: type,
+    procedure: fn (*Runtime, ActualPtr) Traps.Result,
+) fn (*Runtime, ?*const anyopaque) Traps.Result {
+    return struct {
+        fn wrapped(runtime: *Runtime, data: ?*const anyopaque) Traps.Result {
+            assert(data != null);
+            const calls: ActualPtr = @ptrCast(@alignCast(@constCast(data)));
+            return procedure(runtime, calls);
+        }
+    }.wrapped;
+}
+
 pub fn register(traps: *Traps, vect: u8, entry: Entry) void {
     assert(traps.entries[vect] == null);
     traps.entries[vect] = entry;
