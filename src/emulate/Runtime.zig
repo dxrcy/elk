@@ -231,7 +231,7 @@ const Instruction = union(enum) {
     };
 
     // TODO: Use narrower error type for return
-    pub fn decode(word: u16) ProgramError!?Instruction {
+    pub fn decode(word: u16) ProgramError!Instruction {
         // Conversion cannot fail
         const opcode: Opcode = @enumFromInt(bitmask.opcode.apply(word));
 
@@ -407,149 +407,121 @@ const Instruction = union(enum) {
     }
 };
 
-fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
-    if (try Instruction.decode(instr)) |instr2| {
-        switch (instr2) {
-            inline .add, .@"and" => |operands| {
-                const lhs = runtime.registers[operands.src_a];
-                const rhs: u16 = switch (operands.src_b) {
-                    .register => |register| runtime.registers[register],
-                    .immediate => |immediate| Mask.signExtend(immediate),
-                };
-                runtime.setRegister(operands.dest, switch (instr2) {
-                    .add => lhs +% rhs,
-                    .@"and" => lhs & rhs,
-                    else => unreachable,
-                });
-            },
+fn runInstruction(runtime: *Runtime, word: u16) Error!Control {
+    const instr = try Instruction.decode(word);
+    switch (instr) {
+        inline .add, .@"and" => |operands| {
+            const lhs = runtime.registers[operands.src_a];
+            const rhs: u16 = switch (operands.src_b) {
+                .register => |register| runtime.registers[register],
+                .immediate => |immediate| Mask.signExtend(immediate),
+            };
+            runtime.setRegister(operands.dest, switch (instr) {
+                .add => lhs +% rhs,
+                .@"and" => lhs & rhs,
+                else => unreachable,
+            });
+        },
 
-            .not => |operands| {
-                runtime.setRegister(operands.dest, ~runtime.registers[operands.src]);
-            },
+        .not => |operands| {
+            runtime.setRegister(operands.dest, ~runtime.registers[operands.src]);
+        },
 
-            .br => |operands| {
-                // No-op case
-                if (operands.mask == 0b000)
-                    return .@"continue";
-                if (@intFromEnum(runtime.condition) & operands.mask != 0)
+        .br => |operands| {
+            // No-op case
+            if (operands.mask == 0b000)
+                return .@"continue";
+            if (@intFromEnum(runtime.condition) & operands.mask != 0)
+                runtime.pc +%= Mask.signExtend(operands.pc_offset);
+        },
+
+        .jmp_ret => |operands| {
+            runtime.pc = runtime.registers[operands.base];
+        },
+
+        .jsr_jsrr => |variant| {
+            runtime.registers[7] = runtime.pc;
+            switch (variant) {
+                .jsr => |operands| {
                     runtime.pc +%= Mask.signExtend(operands.pc_offset);
-            },
+                },
+                .jsrr => |operands| {
+                    runtime.pc = runtime.registers[operands.base];
+                },
+            }
+        },
 
-            .jmp_ret => |operands| {
-                runtime.pc = runtime.registers[operands.base];
-            },
+        .lea => |operands| {
+            const address = runtime.pc +% Mask.signExtend(operands.pc_offset);
+            runtime.setRegister(operands.dest, address);
+        },
 
-            .jsr_jsrr => |variant| {
-                runtime.registers[7] = runtime.pc;
-                switch (variant) {
-                    .jsr => |operands| {
-                        runtime.pc +%= Mask.signExtend(operands.pc_offset);
-                    },
-                    .jsrr => |operands| {
-                        runtime.pc = runtime.registers[operands.base];
-                    },
-                }
-            },
+        .ld => |operands| {
+            const address = runtime.pc +% Mask.signExtend(operands.pc_offset);
+            runtime.setRegister(operands.dest, runtime.memory[address]);
+        },
 
-            .lea => |operands| {
-                const address = runtime.pc +% Mask.signExtend(operands.pc_offset);
-                runtime.setRegister(operands.dest, address);
-            },
+        .ldi => |operands| {
+            const address = runtime.memory[runtime.pc +% Mask.signExtend(operands.pc_offset)];
+            runtime.setRegister(operands.dest, runtime.memory[address]);
+        },
 
-            .ld => |operands| {
-                const address = runtime.pc +% Mask.signExtend(operands.pc_offset);
-                runtime.setRegister(operands.dest, runtime.memory[address]);
-            },
+        .ldr => |operands| {
+            const address = runtime.registers[operands.base] + Mask.signExtend(operands.offset);
+            runtime.setRegister(operands.dest, runtime.memory[address]);
+        },
 
-            .ldi => |operands| {
-                const address = runtime.memory[runtime.pc +% Mask.signExtend(operands.pc_offset)];
-                runtime.setRegister(operands.dest, runtime.memory[address]);
-            },
+        .st => |operands| {
+            const address = runtime.pc +% Mask.signExtend(operands.pc_offset);
+            runtime.memory[address] = runtime.registers[operands.src];
+        },
 
-            .ldr => |operands| {
-                const address = runtime.registers[operands.base] + Mask.signExtend(operands.offset);
-                runtime.setRegister(operands.dest, runtime.memory[address]);
-            },
+        .sti => |operands| {
+            const address = runtime.memory[runtime.pc +% Mask.signExtend(operands.pc_offset)];
+            runtime.memory[address] = runtime.registers[operands.src];
+        },
 
-            .st => |operands| {
-                const address = runtime.pc +% Mask.signExtend(operands.pc_offset);
-                runtime.memory[address] = runtime.registers[operands.src];
-            },
+        .str => |operands| {
+            const address = runtime.registers[operands.base] + Mask.signExtend(operands.offset);
+            runtime.memory[address] = runtime.registers[operands.src];
+        },
 
-            .sti => |operands| {
-                const address = runtime.memory[runtime.pc +% Mask.signExtend(operands.pc_offset)];
-                runtime.memory[address] = runtime.registers[operands.src];
-            },
+        .trap => |operands| {
+            const entry = runtime.traps.entries[operands.vect] orelse
+                return error.UnhandledTrap; // Entry not declared
+            const procedure = entry.procedure orelse
+                return error.UnhandledTrap; // Entry only declared for alias
+            procedure(runtime, entry.data) catch |err| switch (err) {
+                error.Halt => return .@"break",
+                else => |err2| return err2,
+            };
+        },
 
-            .str => |operands| {
-                const address = runtime.registers[operands.base] + Mask.signExtend(operands.offset);
-                runtime.memory[address] = runtime.registers[operands.src];
-            },
+        .rti => return error.UnsupportedRti,
 
-            .trap => |operands| {
-                const entry = runtime.traps.entries[operands.vect] orelse
-                    return error.UnhandledTrap; // Entry not declared
-                const procedure = entry.procedure orelse
-                    return error.UnhandledTrap; // Entry only declared for alias
-                procedure(runtime, entry.data) catch |err| switch (err) {
-                    error.Halt => return .@"break",
-                    else => |err2| return err2,
-                };
-            },
+        .reserved_stack => |variant| {
+            if (runtime.policies.extension.stack_instructions != .permit)
+                return error.UnpermittedOpcode;
 
-            .rti => return error.UnsupportedRti,
-
-            .reserved_stack => |variant| {
-                if (runtime.policies.extension.stack_instructions != .permit)
-                    return error.UnpermittedOpcode;
-
-                // Do not set condition for any operation
-                switch (variant) {
-                    .pop => |operands| {
-                        const value = runtime.stackPop();
-                        runtime.registers[operands.dest] = value;
-                    },
-                    .push => |operands| {
-                        const value = runtime.registers[operands.src];
-                        runtime.stackPush(value);
-                    },
-                    .rets => {
-                        runtime.pc = runtime.stackPop();
-                    },
-                    .call => |operands| {
-                        runtime.stackPush(runtime.pc);
-                        runtime.pc +%= Mask.signExtend(operands.pc_offset);
-                    },
-                }
-            },
-        }
-        return .@"continue";
-    }
-
-    // Conversion cannot fail
-    const opcode: Opcode = @enumFromInt(bitmask.opcode.apply(instr));
-    std.log.warn("using one-pass execution for {t}", .{opcode});
-
-    // TODO: Extract magic numbers
-
-    switch (opcode) {
-        .add,
-        .@"and",
-        .not,
-        .br,
-        .jmp_ret,
-        .jsr_jsrr,
-        .lea,
-        .ld,
-        .ldi,
-        .ldr,
-        .st,
-        .sti,
-        .str,
-        .trap,
-        .rti,
-        .reserved_stack,
-        => unreachable,
+            // Do not set condition for any operation
+            switch (variant) {
+                .pop => |operands| {
+                    const value = runtime.stackPop();
+                    runtime.registers[operands.dest] = value;
+                },
+                .push => |operands| {
+                    const value = runtime.registers[operands.src];
+                    runtime.stackPush(value);
+                },
+                .rets => {
+                    runtime.pc = runtime.stackPop();
+                },
+                .call => |operands| {
+                    runtime.stackPush(runtime.pc);
+                    runtime.pc +%= Mask.signExtend(operands.pc_offset);
+                },
+            }
+        },
     }
 
     return .@"continue";
