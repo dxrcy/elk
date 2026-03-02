@@ -183,14 +183,8 @@ const Instruction = union(enum) {
         base: Register,
         offset: i6,
     },
-    st: struct {
-        src: Register,
-        pc_offset: i9,
-    },
-    sti: struct {
-        src: Register,
-        pc_offset: i9,
-    },
+    st: StStiOperands,
+    sti: StStiOperands,
     str: struct {
         src: Register,
         base: Register,
@@ -211,6 +205,10 @@ const Instruction = union(enum) {
     };
     const LeaLdLdiOperands = struct {
         dest: Register,
+        pc_offset: i9,
+    };
+    const StStiOperands = struct {
+        src: Register,
         pc_offset: i9,
     };
 
@@ -330,6 +328,20 @@ const Instruction = union(enum) {
                 } };
             },
 
+            inline .st, .sti => |grouped_opcode| {
+                const src = bitmask.operand.reg_high.apply(word);
+                const pc_offset = bitmask.operand.pc_offset_9.applySigned(word);
+                const operands: StStiOperands = .{
+                    .src = src,
+                    .pc_offset = pc_offset,
+                };
+                switch (grouped_opcode) {
+                    .st => return .{ .st = operands },
+                    .sti => return .{ .sti = operands },
+                    else => comptime unreachable,
+                }
+            },
+
             else => return null,
         }
     }
@@ -399,6 +411,16 @@ fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
                 runtime.setRegister(operands.dest, runtime.memory[address]);
             },
 
+            .st => |operands| {
+                const address = runtime.pc +% Mask.signExtend(operands.pc_offset);
+                runtime.memory[address] = runtime.registers[operands.src];
+            },
+
+            .sti => |operands| {
+                const address = runtime.memory[runtime.pc +% Mask.signExtend(operands.pc_offset)];
+                runtime.memory[address] = runtime.registers[operands.src];
+            },
+
             else => {},
         }
         return .@"continue";
@@ -421,23 +443,11 @@ fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
         .ld,
         .ldi,
         .ldr,
+        .st,
+        .sti,
         => unreachable,
 
         .rti => return error.UnsupportedRti,
-
-        .st => {
-            const src_reg = bitmask.operand.reg_high.apply(instr);
-            const pc_offset = bitmask.operand.pc_offset_9.applySext(instr);
-            const address = runtime.pc +% pc_offset;
-            runtime.memory[address] = runtime.registers[src_reg];
-        },
-
-        .sti => {
-            const src_reg = bitmask.operand.reg_high.apply(instr);
-            const pc_offset = bitmask.operand.pc_offset_9.applySext(instr);
-            const address = runtime.memory[runtime.pc +% pc_offset];
-            runtime.memory[address] = runtime.registers[src_reg];
-        },
 
         .str => {
             const src_reg = bitmask.operand.reg_high.apply(instr);
