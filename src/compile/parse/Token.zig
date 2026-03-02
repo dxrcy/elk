@@ -5,8 +5,8 @@ const Io = std.Io;
 const assert = std.debug.assert;
 const testing = std.testing;
 
+const Traps = @import("../../Traps.zig");
 const Span = @import("../Span.zig");
-const Traps = @import("Traps.zig");
 const integers = @import("integers.zig");
 
 span: Span,
@@ -22,8 +22,8 @@ pub const Error =
         UnmatchedQuote,
     };
 
-pub fn from(span: Span, source: []const u8, trap_aliases: Traps) Error!Token {
-    const value: Value = try .from(span.view(source), trap_aliases);
+pub fn from(span: Span, source: []const u8, traps: *const Traps) Error!Token {
+    const value: Value = try .from(span.view(source), traps);
     return .{ .span = span, .value = value };
 }
 
@@ -88,11 +88,11 @@ pub const Value = union(enum) {
         rti,
     };
 
-    pub fn from(string: []const u8, trap_aliases: Traps) Error!Value {
+    pub fn from(string: []const u8, traps: *const Traps) Error!Value {
         assert(string.len > 0);
 
         // Trap aliases always take precedence
-        if (try tryTrap(string, trap_aliases)) |value|
+        if (try tryTrap(string, traps)) |value|
             return value;
 
         const parsers = [_]fn ([]const u8) Error!?Value{
@@ -175,11 +175,13 @@ pub const Value = union(enum) {
         return null;
     }
 
-    fn tryTrap(string: []const u8, trap_aliases: Traps) Error!?Value {
+    fn tryTrap(string: []const u8, traps: *const Traps) Error!?Value {
         assert(string.len > 0);
-        for (trap_aliases.entries) |entry| {
+        for (traps.entries, 0..) |entry_opt, vect| {
+            const entry = entry_opt orelse
+                continue;
             if (std.ascii.eqlIgnoreCase(string, entry.alias))
-                return .{ .trap_alias = entry.vect };
+                return .{ .trap_alias = @intCast(vect) };
         }
         return null;
     }

@@ -5,7 +5,7 @@ const Io = std.Io;
 const Allocator = std.mem.Allocator;
 
 const Policies = @import("../Policies.zig");
-pub const traps = @import("traps.zig");
+const Traps = @import("../Traps.zig");
 const NewlineTracker = @import("NewlineTracker.zig");
 const Tty = @import("Tty.zig");
 const Mask = @import("Mask.zig");
@@ -19,7 +19,7 @@ registers: [8]u16,
 pc: u16,
 condition: Condition,
 
-trap_table: *const traps.Table,
+traps: *const Traps,
 policies: *const Policies,
 
 writer: NewlineTracker,
@@ -106,7 +106,7 @@ const bitmask = struct {
 };
 
 pub fn init(
-    trap_table: *const traps.Table,
+    traps: *const Traps,
     policies: *const Policies,
     writer: *Io.Writer,
     reader: *Io.Reader,
@@ -121,7 +121,7 @@ pub fn init(
         .registers = .{ 0, 0, 0, 0, 0, 0, 0, USER_MEMORY_END },
         .pc = 0x0000,
         .condition = .zero,
-        .trap_table = trap_table,
+        .traps = traps,
         .policies = policies,
         .writer = .new(writer),
         .reader = reader,
@@ -280,8 +280,8 @@ fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
         },
 
         .trap => {
-            const vect: traps.Vect = @enumFromInt(bitmask.operand.trap_vect.apply(instr));
-            const entry = runtime.trap_table.entries[@intFromEnum(vect)] orelse
+            const vect = bitmask.operand.trap_vect.apply(instr);
+            const entry = runtime.traps.entries[vect] orelse
                 return error.UnhandledTrap;
             entry.procedure(runtime, entry.data) catch |err| switch (err) {
                 error.Halt => return .@"break",

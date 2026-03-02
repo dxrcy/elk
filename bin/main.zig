@@ -26,25 +26,19 @@ pub fn main(init: std.process.Init) !u8 {
     var air: lcz.Air = .init();
     defer air.deinit(gpa);
 
-    const Traps = enum(u8) {
-        getc = 0x20,
-        out = 0x21,
-        puts = 0x22,
-        in = 0x23,
-        putsp = 0x24,
-        halt = 0x25,
-        putn = 0x26,
-        reg = 0x27,
+    // chat = 0x28,
+    // getp = 0x29,
+    // setp = 0x2a,
+    // getb = 0x2b,
+    // setb = 0x2c,
+    // geth = 0x2d,
 
-        chat = 0x28,
-        getp = 0x29,
-        setp = 0x2a,
-        getb = 0x2b,
-        setb = 0x2c,
-        geth = 0x2d,
-    };
+    const traps: lcz.Traps = comptime .initBuiltins(&.{
+        lcz.Traps.Standard,
+        lcz.Traps.Debug,
+    });
 
-    var parser: lcz.Parser = .new(&air, comptime .fromEnum(Traps), source, &reporter);
+    var parser: lcz.Parser = .new(&air, &traps, source, &reporter);
 
     try parser.parse(gpa);
     parser.resolveLabels();
@@ -75,20 +69,21 @@ pub fn main(init: std.process.Init) !u8 {
 
         var conn: mcz.Connection = try .new(&conn_write_buffer, &conn_read_buffer, io);
 
-        var trap_table: lcz.Runtime.traps.Table = .default;
-        trap_table.register(@enumFromInt(@intFromEnum(Traps.chat)), mcz_traps.chat, &conn);
-        trap_table.register(@enumFromInt(@intFromEnum(Traps.getp)), mcz_traps.getp, &conn);
-        trap_table.register(@enumFromInt(@intFromEnum(Traps.setp)), mcz_traps.setp, &conn);
-        trap_table.register(@enumFromInt(@intFromEnum(Traps.getb)), mcz_traps.getb, &conn);
-        trap_table.register(@enumFromInt(@intFromEnum(Traps.setb)), mcz_traps.setb, &conn);
-        trap_table.register(@enumFromInt(@intFromEnum(Traps.geth)), mcz_traps.geth, &conn);
+        _ = &conn;
+
+        // trap_table.register(@enumFromInt(@intFromEnum(Traps.chat)), mcz_traps.chat, &conn);
+        // trap_table.register(@enumFromInt(@intFromEnum(Traps.getp)), mcz_traps.getp, &conn);
+        // trap_table.register(@enumFromInt(@intFromEnum(Traps.setp)), mcz_traps.setp, &conn);
+        // trap_table.register(@enumFromInt(@intFromEnum(Traps.getb)), mcz_traps.getb, &conn);
+        // trap_table.register(@enumFromInt(@intFromEnum(Traps.setb)), mcz_traps.setb, &conn);
+        // trap_table.register(@enumFromInt(@intFromEnum(Traps.geth)), mcz_traps.geth, &conn);
 
         var runtime_write_buffer: [64]u8 = undefined;
         var runtime_writer = Io.File.stdout().writer(io, &runtime_write_buffer);
         var runtime_reader = Io.File.stdin().reader(io, &.{});
 
         var runtime = try lcz.Runtime.init(
-            &trap_table,
+            &traps,
             &policies,
             &runtime_writer.interface,
             &runtime_reader.interface,
