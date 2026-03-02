@@ -46,10 +46,10 @@ pub fn register(traps: *Traps, vect: u8, entry: Entry) void {
     assert(!traps.entries[vect].isSet());
     traps.entries[vect] = entry;
 }
+
 pub fn setData(traps: *Traps, vect: u8, data: *const anyopaque) void {
-    const entry = traps.entries[vect];
-    assert(entry.procedure != null);
-    entry.data = data;
+    assert(traps.entries[vect].procedure != null);
+    traps.entries[vect].data = data;
 }
 
 pub fn initBuiltins(comptime enums: []const type) Traps {
