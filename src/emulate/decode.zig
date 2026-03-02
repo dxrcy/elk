@@ -1,7 +1,15 @@
 const std = @import("std");
 const assert = std.debug.assert;
 
-const Mask = @import("Mask.zig");
+const Bitmask = @import("Bitmask.zig");
+
+comptime {
+    for (
+        @typeInfo(Opcode).@"enum".fields,
+        @typeInfo(Instruction).@"union".fields,
+    ) |opcode, instr|
+        assert(std.mem.eql(u8, opcode.name, instr.name));
+}
 
 const Opcode = enum(u4) {
     add = 0x1,
@@ -22,13 +30,37 @@ const Opcode = enum(u4) {
     pop_push_rets_call = 0xd,
 };
 
-comptime {
-    for (
-        @typeInfo(Opcode).@"enum".fields,
-        @typeInfo(Instruction).@"union".fields,
-    ) |opcode, instr|
-        assert(std.mem.eql(u8, opcode.name, instr.name));
-}
+const bitmasks = struct {
+    pub const opcode: Bitmask = .new(.unsigned, 12, 15, 4);
+
+    pub const flag = struct {
+        pub const add_and: Bitmask = .new(.unsigned, 5, 5, 1);
+        pub const jsr_jsrr: Bitmask = .new(.unsigned, 11, 11, 1);
+        pub const pop_push_rets_call: Bitmask = .new(.unsigned, 10, 11, 2);
+    };
+
+    pub const padding = struct {
+        pub const add_and: Bitmask = .new(.unsigned, 3, 4, 2);
+        pub const not: Bitmask = .new(.unsigned, 0, 5, 6);
+        pub const jmp_ret_high: Bitmask = .new(.unsigned, 9, 11, 3);
+        pub const jmp_ret_low: Bitmask = .new(.unsigned, 0, 5, 6);
+        pub const jsrr_high: Bitmask = .new(.unsigned, 9, 11, 3);
+        pub const jsrr_low: Bitmask = .new(.unsigned, 0, 5, 6);
+    };
+
+    pub const operand = struct {
+        pub const reg_high: Bitmask = .new(.unsigned, 9, 11, 3);
+        pub const reg_mid: Bitmask = .new(.unsigned, 6, 8, 3);
+        pub const reg_low: Bitmask = .new(.unsigned, 0, 2, 3);
+        pub const imm_5: Bitmask = .new(.signed, 0, 4, 5);
+        pub const trap_vect: Bitmask = .new(.unsigned, 0, 7, 8);
+        pub const offset_6: Bitmask = .new(.signed, 0, 5, 6);
+        pub const pc_offset_9: Bitmask = .new(.signed, 0, 8, 9);
+        pub const pc_offset_10: Bitmask = .new(.signed, 0, 9, 10);
+        pub const pc_offset_11: Bitmask = .new(.signed, 0, 10, 11);
+        pub const condition_mask: Bitmask = .new(.unsigned, 9, 11, 3);
+    };
+};
 
 pub const Instruction = union(enum) {
     add: AddAndOperands,
@@ -106,23 +138,23 @@ pub const Instruction = union(enum) {
 
     pub fn decode(word: u16) error{IncorrectPadding}!Instruction {
         // Conversion cannot fail
-        const opcode: Opcode = @enumFromInt(bitmask.opcode.apply(word));
+        const opcode: Opcode = @enumFromInt(bitmasks.opcode.apply(word));
 
         switch (opcode) {
             inline .add, .@"and" => |grouped_opcode| {
-                const dest = bitmask.operand.reg_high.apply(word);
-                const src_a = bitmask.operand.reg_mid.apply(word);
+                const dest = bitmasks.operand.reg_high.apply(word);
+                const src_a = bitmasks.operand.reg_mid.apply(word);
                 const src_b: Instruction.RegImm5 =
-                    src_b: switch (bitmask.flag.add_and.apply(word)) {
+                    src_b: switch (bitmasks.flag.add_and.apply(word)) {
                         0 => { // Register
-                            if (bitmask.padding.add_and.apply(word) != 0)
+                            if (bitmasks.padding.add_and.apply(word) != 0)
                                 return error.IncorrectPadding;
                             break :src_b .{
-                                .register = bitmask.operand.reg_low.apply(word),
+                                .register = bitmasks.operand.reg_low.apply(word),
                             };
                         },
                         1 => .{
-                            .immediate = bitmask.operand.imm_5.apply(word),
+                            .immediate = bitmasks.operand.imm_5.apply(word),
                         },
                     };
                 const operands: AddAndOperands = .{
@@ -138,9 +170,9 @@ pub const Instruction = union(enum) {
             },
 
             .not => {
-                const dest = bitmask.operand.reg_high.apply(word);
-                const src = bitmask.operand.reg_mid.apply(word);
-                if (bitmask.padding.not.apply(word) != 0b111111)
+                const dest = bitmasks.operand.reg_high.apply(word);
+                const src = bitmasks.operand.reg_mid.apply(word);
+                if (bitmasks.padding.not.apply(word) != 0b111111)
                     return error.IncorrectPadding;
                 return .{ .not = .{
                     .dest = dest,
@@ -149,8 +181,8 @@ pub const Instruction = union(enum) {
             },
 
             .br => {
-                const mask: u3 = bitmask.operand.condition_mask.apply(word);
-                const pc_offset = bitmask.operand.pc_offset_9.apply(word);
+                const mask: u3 = bitmasks.operand.condition_mask.apply(word);
+                const pc_offset = bitmasks.operand.pc_offset_9.apply(word);
                 return .{ .br = .{
                     .mask = mask,
                     .pc_offset = pc_offset,
@@ -158,9 +190,9 @@ pub const Instruction = union(enum) {
             },
 
             .jmp_ret => {
-                const base = bitmask.operand.reg_mid.apply(word);
-                if (bitmask.padding.jmp_ret_high.apply(word) != 0 or
-                    bitmask.padding.jmp_ret_low.apply(word) != 0)
+                const base = bitmasks.operand.reg_mid.apply(word);
+                if (bitmasks.padding.jmp_ret_high.apply(word) != 0 or
+                    bitmasks.padding.jmp_ret_low.apply(word) != 0)
                     return error.IncorrectPadding;
                 return .{ .jmp_ret = .{
                     .base = base,
@@ -168,18 +200,18 @@ pub const Instruction = union(enum) {
             },
 
             .jsr_jsrr => {
-                switch (bitmask.flag.jsr_jsrr.apply(word)) {
+                switch (bitmasks.flag.jsr_jsrr.apply(word)) {
                     1 => { // JSR
-                        const pc_offset = bitmask.operand.pc_offset_11.apply(word);
+                        const pc_offset = bitmasks.operand.pc_offset_11.apply(word);
                         return .{ .jsr_jsrr = .{
                             .jsr = .{ .pc_offset = pc_offset },
                         } };
                     },
                     0 => { // JSRR
-                        if (bitmask.padding.jsrr_high.apply(word) != 0 or
-                            bitmask.padding.jsrr_low.apply(word) != 0)
+                        if (bitmasks.padding.jsrr_high.apply(word) != 0 or
+                            bitmasks.padding.jsrr_low.apply(word) != 0)
                             return error.IncorrectPadding;
-                        const base = bitmask.operand.reg_mid.apply(word);
+                        const base = bitmasks.operand.reg_mid.apply(word);
                         return .{ .jsr_jsrr = .{
                             .jsrr = .{ .base = base },
                         } };
@@ -188,8 +220,8 @@ pub const Instruction = union(enum) {
             },
 
             inline .lea, .ld, .ldi => |grouped_opcode| {
-                const dest = bitmask.operand.reg_high.apply(word);
-                const pc_offset = bitmask.operand.pc_offset_9.apply(word);
+                const dest = bitmasks.operand.reg_high.apply(word);
+                const pc_offset = bitmasks.operand.pc_offset_9.apply(word);
                 const operands: LeaLdLdiOperands = .{
                     .dest = dest,
                     .pc_offset = pc_offset,
@@ -203,9 +235,9 @@ pub const Instruction = union(enum) {
             },
 
             .ldr => {
-                const dest = bitmask.operand.reg_high.apply(word);
-                const base = bitmask.operand.reg_mid.apply(word);
-                const offset = bitmask.operand.offset_6.apply(word);
+                const dest = bitmasks.operand.reg_high.apply(word);
+                const base = bitmasks.operand.reg_mid.apply(word);
+                const offset = bitmasks.operand.offset_6.apply(word);
                 return .{ .ldr = .{
                     .dest = dest,
                     .base = base,
@@ -214,8 +246,8 @@ pub const Instruction = union(enum) {
             },
 
             inline .st, .sti => |grouped_opcode| {
-                const src = bitmask.operand.reg_high.apply(word);
-                const pc_offset = bitmask.operand.pc_offset_9.apply(word);
+                const src = bitmasks.operand.reg_high.apply(word);
+                const pc_offset = bitmasks.operand.pc_offset_9.apply(word);
                 const operands: StStiOperands = .{
                     .src = src,
                     .pc_offset = pc_offset,
@@ -228,9 +260,9 @@ pub const Instruction = union(enum) {
             },
 
             .str => {
-                const src = bitmask.operand.reg_high.apply(word);
-                const base = bitmask.operand.reg_mid.apply(word);
-                const offset = bitmask.operand.offset_6.apply(word);
+                const src = bitmasks.operand.reg_high.apply(word);
+                const base = bitmasks.operand.reg_mid.apply(word);
+                const offset = bitmasks.operand.offset_6.apply(word);
                 return .{ .str = .{
                     .src = src,
                     .base = base,
@@ -239,7 +271,7 @@ pub const Instruction = union(enum) {
             },
 
             .trap => {
-                const vect = bitmask.operand.trap_vect.apply(word);
+                const vect = bitmasks.operand.trap_vect.apply(word);
                 return .{ .trap = .{
                     .vect = vect,
                 } };
@@ -250,15 +282,15 @@ pub const Instruction = union(enum) {
             },
 
             .pop_push_rets_call => {
-                switch (bitmask.flag.pop_push_rets_call.apply(word)) {
+                switch (bitmasks.flag.pop_push_rets_call.apply(word)) {
                     0b00 => { // POP
-                        const dest = bitmask.operand.reg_mid.apply(word);
+                        const dest = bitmasks.operand.reg_mid.apply(word);
                         return .{ .pop_push_rets_call = .{
                             .pop = .{ .dest = dest },
                         } };
                     },
                     0b01 => { // PUSH
-                        const src = bitmask.operand.reg_mid.apply(word);
+                        const src = bitmasks.operand.reg_mid.apply(word);
                         return .{ .pop_push_rets_call = .{
                             .push = .{ .src = src },
                         } };
@@ -269,7 +301,7 @@ pub const Instruction = union(enum) {
                         };
                     },
                     0b11 => { // CALL
-                        const pc_offset = bitmask.operand.pc_offset_10.apply(word);
+                        const pc_offset = bitmasks.operand.pc_offset_10.apply(word);
                         return .{ .pop_push_rets_call = .{
                             .call = .{ .pc_offset = pc_offset },
                         } };
@@ -278,36 +310,4 @@ pub const Instruction = union(enum) {
             },
         }
     }
-};
-
-const bitmask = struct {
-    pub const opcode: Mask = .new(.unsigned, 12, 15, 4);
-
-    pub const flag = struct {
-        pub const add_and: Mask = .new(.unsigned, 5, 5, 1);
-        pub const jsr_jsrr: Mask = .new(.unsigned, 11, 11, 1);
-        pub const pop_push_rets_call: Mask = .new(.unsigned, 10, 11, 2);
-    };
-
-    pub const padding = struct {
-        pub const add_and: Mask = .new(.unsigned, 3, 4, 2);
-        pub const not: Mask = .new(.unsigned, 0, 5, 6);
-        pub const jmp_ret_high: Mask = .new(.unsigned, 9, 11, 3);
-        pub const jmp_ret_low: Mask = .new(.unsigned, 0, 5, 6);
-        pub const jsrr_high: Mask = .new(.unsigned, 9, 11, 3);
-        pub const jsrr_low: Mask = .new(.unsigned, 0, 5, 6);
-    };
-
-    pub const operand = struct {
-        pub const reg_high: Mask = .new(.unsigned, 9, 11, 3);
-        pub const reg_mid: Mask = .new(.unsigned, 6, 8, 3);
-        pub const reg_low: Mask = .new(.unsigned, 0, 2, 3);
-        pub const imm_5: Mask = .new(.signed, 0, 4, 5);
-        pub const trap_vect: Mask = .new(.unsigned, 0, 7, 8);
-        pub const offset_6: Mask = .new(.signed, 0, 5, 6);
-        pub const pc_offset_9: Mask = .new(.signed, 0, 8, 9);
-        pub const pc_offset_10: Mask = .new(.signed, 0, 9, 10);
-        pub const pc_offset_11: Mask = .new(.signed, 0, 10, 11);
-        pub const condition_mask: Mask = .new(.unsigned, 9, 11, 3);
-    };
 };

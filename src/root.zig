@@ -21,8 +21,9 @@ test {
     refAllDecls(@import("report/Ctx.zig"));
     refAllDecls(@import("report/diagnostic.zig"));
     refAllDecls(@import("emulate/builtin_traps.zig"));
+    refAllDecls(@import("emulate/decode.zig"));
     refAllDecls(@import("emulate/Tty.zig"));
     refAllDecls(@import("emulate/NewlineTracker.zig"));
-    refAllDecls(@import("emulate/Mask.zig"));
+    refAllDecls(@import("emulate/Bitmask.zig"));
     refAllDecls(@import("emulate/Runtime.zig"));
 }

@@ -1,4 +1,4 @@
-const Mask = @This();
+const Bitmask = @This();
 
 const std = @import("std");
 const Signedness = std.builtin.Signedness;
@@ -14,7 +14,7 @@ pub fn new(
     comptime lowest: u4,
     comptime highest: u4,
     comptime assert_size: u16,
-) Mask {
+) Bitmask {
     comptime {
         assert(lowest <= highest);
         const size = @as(u16, highest) - lowest + 1;
@@ -28,7 +28,7 @@ pub fn new(
     }
 }
 
-pub fn apply(comptime mask: Mask, word: u16) @Int(mask.signedness, mask.size) {
+pub fn apply(comptime mask: Bitmask, word: u16) @Int(mask.signedness, mask.size) {
     const unsigned: @Int(.unsigned, mask.size) = @truncate(word >> mask.lowest);
     return @bitCast(unsigned);
 }
