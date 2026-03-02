@@ -26,17 +26,30 @@ pub fn main(init: std.process.Init) !u8 {
     var air: lcz.Air = .init();
     defer air.deinit(gpa);
 
-    // chat = 0x28,
-    // getp = 0x29,
-    // setp = 0x2a,
-    // getb = 0x2b,
-    // setb = 0x2c,
-    // geth = 0x2d,
+    const MczTraps = enum(u8) {
+        chat = 0x28,
+        getp = 0x29,
+        setp = 0x2a,
+        getb = 0x2b,
+        setb = 0x2c,
+        geth = 0x2d,
+    };
 
-    const traps: lcz.Traps = comptime .initBuiltins(&.{
+    var traps: lcz.Traps = comptime .initBuiltins(&.{
         lcz.Traps.Standard,
         lcz.Traps.Debug,
     });
+
+    inline for (@typeInfo(MczTraps).@"enum".fields) |field| {
+        traps.register(field.value, .{
+            .alias = field.name,
+            .procedure = lcz.Traps.castedDataParam(
+                *mcz.Connection,
+                @field(mcz_traps, field.name),
+            ),
+            .data = null,
+        });
+    }
 
     var parser: lcz.Parser = .new(&air, &traps, source, &reporter);
 
@@ -69,14 +82,9 @@ pub fn main(init: std.process.Init) !u8 {
 
         var conn: mcz.Connection = try .new(&conn_write_buffer, &conn_read_buffer, io);
 
-        _ = &conn;
-
-        // trap_table.register(@enumFromInt(@intFromEnum(Traps.chat)), mcz_traps.chat, &conn);
-        // trap_table.register(@enumFromInt(@intFromEnum(Traps.getp)), mcz_traps.getp, &conn);
-        // trap_table.register(@enumFromInt(@intFromEnum(Traps.setp)), mcz_traps.setp, &conn);
-        // trap_table.register(@enumFromInt(@intFromEnum(Traps.getb)), mcz_traps.getb, &conn);
-        // trap_table.register(@enumFromInt(@intFromEnum(Traps.setb)), mcz_traps.setb, &conn);
-        // trap_table.register(@enumFromInt(@intFromEnum(Traps.geth)), mcz_traps.geth, &conn);
+        inline for (@typeInfo(MczTraps).@"enum".fields) |field| {
+            traps.setData(field.value, &conn);
+        }
 
         var runtime_write_buffer: [64]u8 = undefined;
         var runtime_writer = Io.File.stdout().writer(io, &runtime_write_buffer);
@@ -112,14 +120,12 @@ pub fn main(init: std.process.Init) !u8 {
 }
 
 const mcz_traps = struct {
-    fn chat(runtime: *lcz.Runtime, data: *const anyopaque) lcz.Runtime.traps.Result {
-        _ = .{ runtime, data };
+    fn chat(runtime: *lcz.Runtime, conn: *mcz.Connection) lcz.Traps.Result {
+        _ = .{ runtime, conn };
         return error.TrapFailed;
     }
 
-    fn getp(runtime: *lcz.Runtime, data: *const anyopaque) lcz.Runtime.traps.Result {
-        const conn: *mcz.Connection = @ptrCast(@alignCast(@constCast(data)));
-
+    fn getp(runtime: *lcz.Runtime, conn: *mcz.Connection) lcz.Traps.Result {
         const player = conn.getPlayerPosition() catch
             return error.TrapFailed;
 
@@ -128,9 +134,7 @@ const mcz_traps = struct {
         runtime.registers[2] = toWord(player.z);
     }
 
-    fn setp(runtime: *lcz.Runtime, data: *const anyopaque) lcz.Runtime.traps.Result {
-        const conn: *mcz.Connection = @ptrCast(@alignCast(@constCast(data)));
-
+    fn setp(runtime: *lcz.Runtime, conn: *mcz.Connection) lcz.Traps.Result {
         const player: mcz.Coordinate = .{
             .x = fromWord(runtime.registers[0]),
             .y = fromWord(runtime.registers[1]),
@@ -141,9 +145,7 @@ const mcz_traps = struct {
             return error.TrapFailed;
     }
 
-    fn getb(runtime: *lcz.Runtime, data: *const anyopaque) lcz.Runtime.traps.Result {
-        const conn: *mcz.Connection = @ptrCast(@alignCast(@constCast(data)));
-
+    fn getb(runtime: *lcz.Runtime, conn: *mcz.Connection) lcz.Traps.Result {
         const coordinate: mcz.Coordinate = .{
             .x = fromWord(runtime.registers[0]),
             .y = fromWord(runtime.registers[1]),
@@ -156,9 +158,7 @@ const mcz_traps = struct {
         runtime.registers[3] = @truncate(block.id);
     }
 
-    fn setb(runtime: *lcz.Runtime, data: *const anyopaque) lcz.Runtime.traps.Result {
-        const conn: *mcz.Connection = @ptrCast(@alignCast(@constCast(data)));
-
+    fn setb(runtime: *lcz.Runtime, conn: *mcz.Connection) lcz.Traps.Result {
         const coordinate: mcz.Coordinate = .{
             .x = fromWord(runtime.registers[0]),
             .y = fromWord(runtime.registers[1]),
@@ -174,9 +174,7 @@ const mcz_traps = struct {
             return error.TrapFailed;
     }
 
-    fn geth(runtime: *lcz.Runtime, data: *const anyopaque) lcz.Runtime.traps.Result {
-        const conn: *mcz.Connection = @ptrCast(@alignCast(@constCast(data)));
-
+    fn geth(runtime: *lcz.Runtime, conn: *mcz.Connection) lcz.Traps.Result {
         const coordinate: mcz.Coordinate2D = .{
             .x = fromWord(runtime.registers[0]),
             .z = fromWord(runtime.registers[2]),
