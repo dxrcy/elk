@@ -7,6 +7,7 @@ const assert = std.debug.assert;
 signedness: Signedness,
 lowest: u4,
 highest: u4,
+size: u16,
 
 pub fn new(
     comptime signedness: Signedness,
@@ -15,23 +16,20 @@ pub fn new(
     comptime assert_size: u16,
 ) Mask {
     comptime {
-        const mask: Mask = .{
+        assert(lowest <= highest);
+        const size = @as(u16, highest) - lowest + 1;
+        assert(size == assert_size);
+        return .{
             .signedness = signedness,
             .lowest = lowest,
             .highest = highest,
+            .size = size,
         };
-        assert(mask.size() == assert_size);
-        return mask;
     }
 }
 
-fn size(comptime mask: Mask) u16 {
-    return @as(u16, mask.highest) - mask.lowest + 1;
-}
-
-pub fn apply(comptime mask: Mask, word: u16) @Int(mask.signedness, mask.size()) {
-    comptime assert(mask.lowest <= mask.highest);
-    const unsigned: @Int(.unsigned, mask.size()) = @truncate(word >> mask.lowest);
+pub fn apply(comptime mask: Mask, word: u16) @Int(mask.signedness, mask.size) {
+    const unsigned: @Int(.unsigned, mask.size) = @truncate(word >> mask.lowest);
     return @bitCast(unsigned);
 }
 
