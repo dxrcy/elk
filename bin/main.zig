@@ -60,12 +60,12 @@ pub fn main(init: std.process.Init) !u8 {
         var writer = Io.File.stdout().writer(io, &write_buffer);
         var reader = Io.File.stdin().reader(io, &.{});
 
-        var calls: u32 = 0;
+        var instr_count: InstrCount = .initFill(0);
 
         const hooks: lcz.Runtime.Hooks = .{
             .pre_execute = .{
                 .func = preExecuteHook,
-                .data = &calls,
+                .data = &instr_count,
             },
         };
 
@@ -94,19 +94,27 @@ pub fn main(init: std.process.Init) !u8 {
 
         try runtime.writer.ensureNewline();
         try runtime.writer.interface.flush();
+
+        for (std.meta.tags(std.meta.Tag(lcz.Runtime.Instruction))) |field| {
+            const count = instr_count.get(field);
+            std.debug.print("{t:20}: {}\n", .{ field, count });
+        }
     }
 
     return 0;
 }
+
+const InstrCount = std.EnumArray(std.meta.Tag(lcz.Runtime.Instruction), u32);
 
 fn preExecuteHook(
     runtime: *lcz.Runtime,
     instr: lcz.Runtime.Instruction,
     data: ?*const anyopaque,
 ) lcz.Runtime.IoError!void {
-    const calls: *u32 = @ptrCast(@alignCast(@constCast(data.?)));
-    calls.* += 1;
+    const instr_count: *InstrCount = @ptrCast(@alignCast(@constCast(data.?)));
+
+    instr_count.getPtr(instr).* += 1;
 
     try runtime.writer.ensureNewline();
-    try runtime.writer.interface.print("\x1b[33mpre-execute {} {t}\x1b[0m\n", .{ calls.*, instr });
+    try runtime.writer.interface.print("\x1b[33mpre-execute {t}\x1b[0m\n", .{instr});
 }
