@@ -6,9 +6,10 @@ const Allocator = std.mem.Allocator;
 
 const Policies = @import("../Policies.zig");
 const Traps = @import("../Traps.zig");
-const Instruction = @import("decode.zig").Instruction;
 const NewlineTracker = @import("NewlineTracker.zig");
 const Tty = @import("Tty.zig");
+
+pub const Instruction = @import("decode.zig").Instruction;
 
 const MEMORY_SIZE = 0x1_0000;
 const USER_MEMORY_START = 0x3000;
@@ -20,6 +21,7 @@ pc: u16,
 condition: Condition,
 
 traps: *const Traps,
+hooks: Hooks,
 policies: *const Policies,
 
 writer: NewlineTracker,
@@ -54,8 +56,13 @@ const Condition = enum(u3) {
     positive = 0b001,
 };
 
+pub const Hooks = struct {
+    pre_execute: ?*const fn (Instruction) void = null,
+};
+
 pub fn init(
     traps: *const Traps,
+    hooks: Hooks,
     policies: *const Policies,
     writer: *Io.Writer,
     reader: *Io.Reader,
@@ -71,6 +78,7 @@ pub fn init(
         .pc = 0x0000,
         .condition = .zero,
         .traps = traps,
+        .hooks = hooks,
         .policies = policies,
         .writer = .new(writer),
         .reader = reader,
@@ -96,6 +104,10 @@ pub fn run(runtime: *Runtime) Error!void {
         runtime.pc += 1;
 
         const instr: Instruction = try .decode(word);
+
+        if (runtime.hooks.pre_execute) |pre_execute|
+            pre_execute(instr);
+
         const control = try runtime.runInstruction(instr);
         switch (control) {
             .@"continue" => continue,

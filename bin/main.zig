@@ -60,8 +60,13 @@ pub fn main(init: std.process.Init) !u8 {
         var writer = Io.File.stdout().writer(io, &write_buffer);
         var reader = Io.File.stdin().reader(io, &.{});
 
+        const hooks: lcz.Runtime.Hooks = .{
+            .pre_execute = preExecuteHook,
+        };
+
         var runtime = try lcz.Runtime.init(
             &traps,
+            hooks,
             &policies,
             &writer.interface,
             &reader.interface,
@@ -87,4 +92,8 @@ pub fn main(init: std.process.Init) !u8 {
     }
 
     return 0;
+}
+
+fn preExecuteHook(instr: lcz.Runtime.Instruction) void {
+    std.debug.print("PRE-EXECUTE {t}\n", .{instr});
 }
