@@ -16,7 +16,7 @@ pub const Result = Error!void;
 
 pub const Entry = struct {
     alias: ?[]const u8,
-    procedure: Procedure,
+    procedure: ?Procedure,
     data: ?*const anyopaque,
 
     const Procedure = *const fn (*Runtime, ?*const anyopaque) Result;
@@ -91,8 +91,4 @@ pub fn castedDataParam(
             return procedure(runtime, calls);
         }
     }.wrapped;
-}
-
-pub fn unimplemented(_: *Runtime, _: ?*anyopaque) Traps.Result {
-    return error.UnhandledTrap;
 }
