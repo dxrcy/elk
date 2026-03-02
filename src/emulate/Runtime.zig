@@ -167,6 +167,8 @@ const Instruction = union(enum) {
     jmp_ret: struct {
         base: Register,
     },
+    // TODO: Split into separate instructions ?????
+    // Same with add, and, and stack
     jsr_jsrr: union(enum) {
         jsr: struct {
             pc_offset: i11,
@@ -194,8 +196,18 @@ const Instruction = union(enum) {
         vect: u8,
     },
     rti,
-    reserved_stack: struct {
-        // TODO:
+    // TODO: Rename `pop_push_rets_call`
+    reserved_stack: union(enum) {
+        pop: struct {
+            dest: Register,
+        },
+        push: struct {
+            src: Register,
+        },
+        rets: void,
+        call: struct {
+            pc_offset: i10,
+        },
     },
 
     const AddAndOperands = struct {
@@ -364,7 +376,33 @@ const Instruction = union(enum) {
                 return .rti;
             },
 
-            else => return null,
+            .reserved_stack => {
+                switch (bitmask.flag.pop_push_rets_call.apply(word)) {
+                    0b00 => { // POP
+                        const dest = bitmask.operand.reg_mid.apply(word);
+                        return .{ .reserved_stack = .{
+                            .pop = .{ .dest = dest },
+                        } };
+                    },
+                    0b01 => { // PUSH
+                        const src = bitmask.operand.reg_mid.apply(word);
+                        return .{ .reserved_stack = .{
+                            .push = .{ .src = src },
+                        } };
+                    },
+                    0b10 => { // RETS
+                        return .{
+                            .reserved_stack = .rets,
+                        };
+                    },
+                    0b11 => { // CALL
+                        const pc_offset = bitmask.operand.pc_offset_10.applySigned(word);
+                        return .{ .reserved_stack = .{
+                            .call = .{ .pc_offset = pc_offset },
+                        } };
+                    },
+                }
+            },
         }
     }
 };
@@ -461,7 +499,29 @@ fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
 
             .rti => return error.UnsupportedRti,
 
-            else => {},
+            .reserved_stack => |variant| {
+                if (runtime.policies.extension.stack_instructions != .permit)
+                    return error.UnpermittedOpcode;
+
+                // Do not set condition for any operation
+                switch (variant) {
+                    .pop => |operands| {
+                        const value = runtime.stackPop();
+                        runtime.registers[operands.dest] = value;
+                    },
+                    .push => |operands| {
+                        const value = runtime.registers[operands.src];
+                        runtime.stackPush(value);
+                    },
+                    .rets => {
+                        runtime.pc = runtime.stackPop();
+                    },
+                    .call => |operands| {
+                        runtime.stackPush(runtime.pc);
+                        runtime.pc +%= Mask.signExtend(operands.pc_offset);
+                    },
+                }
+            },
         }
         return .@"continue";
     }
@@ -488,34 +548,8 @@ fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
         .str,
         .trap,
         .rti,
+        .reserved_stack,
         => unreachable,
-
-        .reserved_stack => {
-            if (runtime.policies.extension.stack_instructions != .permit)
-                return error.UnpermittedOpcode;
-
-            // Do not set condition for any operation
-            switch (bitmask.flag.pop_push_rets_call.apply(instr)) {
-                0b00 => { // POP
-                    const dest_reg = bitmask.operand.reg_mid.apply(instr);
-                    const value = runtime.stackPop();
-                    runtime.registers[dest_reg] = value;
-                },
-                0b01 => { // PUSH
-                    const src_reg = bitmask.operand.reg_mid.apply(instr);
-                    const value = runtime.registers[src_reg];
-                    runtime.stackPush(value);
-                },
-                0b10 => { // RETS
-                    runtime.pc = runtime.stackPop();
-                },
-                0b11 => { // CALL
-                    runtime.stackPush(runtime.pc);
-                    const pc_offset = bitmask.operand.pc_offset_10.applySext(instr);
-                    runtime.pc +%= pc_offset;
-                },
-            }
-        },
     }
 
     return .@"continue";
