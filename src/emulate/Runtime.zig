@@ -183,18 +183,9 @@ const Instruction = union(enum) {
             base: Register,
         },
     },
-    lea: struct {
-        dest: Register,
-        pc_offset: i9,
-    },
-    ld: struct {
-        dest: Register,
-        pc_offset: i9,
-    },
-    ldi: struct {
-        dest: Register,
-        pc_offset: i9,
-    },
+    lea: LeaLdLdiOperands,
+    ld: LeaLdLdiOperands,
+    ldi: LeaLdLdiOperands,
     ldr: struct {
         dest: Register,
         src: Register,
@@ -220,6 +211,11 @@ const Instruction = union(enum) {
     reserved_stack: struct {
         // TODO:
     },
+
+    const LeaLdLdiOperands = struct {
+        dest: Register,
+        pc_offset: i9,
+    };
 
     pub const Register = u3;
     pub const RegImm5 = union(enum) {
@@ -314,22 +310,19 @@ const Instruction = union(enum) {
                 }
             },
 
-            .lea => {
+            inline .lea, .ld, .ldi => |grouped_opcode| {
                 const dest = bitmask.operand.reg_high.apply(word);
                 const pc_offset = bitmask.operand.pc_offset_9.applySigned(word);
-                return .{ .lea = .{
+                const operands: LeaLdLdiOperands = .{
                     .dest = dest,
                     .pc_offset = pc_offset,
-                } };
-            },
-
-            .ld => {
-                const dest = bitmask.operand.reg_high.apply(word);
-                const pc_offset = bitmask.operand.pc_offset_9.applySigned(word);
-                return .{ .ld = .{
-                    .dest = dest,
-                    .pc_offset = pc_offset,
-                } };
+                };
+                switch (grouped_opcode) {
+                    .lea => return .{ .lea = operands },
+                    .ld => return .{ .ld = operands },
+                    .ldi => return .{ .ldi = operands },
+                    else => comptime unreachable,
+                }
             },
 
             else => return null,
@@ -391,6 +384,11 @@ fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
                 runtime.setRegister(operands.dest, runtime.memory[address]);
             },
 
+            .ldi => |operands| {
+                const address = runtime.memory[runtime.pc +% Mask.signExtend(operands.pc_offset)];
+                runtime.setRegister(operands.dest, runtime.memory[address]);
+            },
+
             else => {},
         }
         return .@"continue";
@@ -411,16 +409,10 @@ fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
         .jsr_jsrr,
         .lea,
         .ld,
+        .ldi,
         => unreachable,
 
         .rti => return error.UnsupportedRti,
-
-        .ldi => {
-            const dest_reg = bitmask.operand.reg_high.apply(instr);
-            const pc_offset = bitmask.operand.pc_offset_9.applySext(instr);
-            const address = runtime.memory[runtime.pc +% pc_offset];
-            runtime.setRegister(dest_reg, runtime.memory[address]);
-        },
 
         .ldr => {
             const dest_reg = bitmask.operand.reg_high.apply(instr);
