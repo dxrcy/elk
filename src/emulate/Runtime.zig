@@ -6,9 +6,9 @@ const Allocator = std.mem.Allocator;
 
 const Policies = @import("../Policies.zig");
 const Traps = @import("../Traps.zig");
+const Instruction = @import("decode.zig").Instruction;
 const NewlineTracker = @import("NewlineTracker.zig");
 const Tty = @import("Tty.zig");
-const Mask = @import("Mask.zig");
 
 const MEMORY_SIZE = 0x1_0000;
 const USER_MEMORY_START = 0x3000;
@@ -54,57 +54,6 @@ const Condition = enum(u3) {
     positive = 0b001,
 };
 
-const Opcode = enum(u4) {
-    add = 0x1,
-    @"and" = 0x5,
-    not = 0x9,
-    br = 0x0,
-    jmp_ret = 0xc,
-    jsr_jsrr = 0x4,
-    lea = 0xe,
-    ld = 0x2,
-    ldi = 0xa,
-    ldr = 0x6,
-    st = 0x3,
-    sti = 0xb,
-    str = 0x7,
-    trap = 0xf,
-    rti = 0x8,
-    reserved_stack = 0xd,
-};
-
-const bitmask = struct {
-    pub const opcode: Mask = .new(12, 15);
-
-    pub const flag = struct {
-        pub const add_and: Mask = .new(5, 5);
-        pub const jsr_jsrr: Mask = .new(11, 11);
-        pub const pop_push_rets_call: Mask = .new(10, 11);
-    };
-
-    pub const padding = struct {
-        pub const add_and: Mask = .new(3, 4);
-        pub const not: Mask = .new(0, 5);
-        pub const jmp_ret_high: Mask = .new(9, 11);
-        pub const jmp_ret_low: Mask = .new(0, 5);
-        pub const jsrr_high: Mask = .new(9, 11);
-        pub const jsrr_low: Mask = .new(0, 5);
-    };
-
-    pub const operand = struct {
-        pub const reg_high: Mask = .new(9, 11);
-        pub const reg_mid: Mask = .new(6, 8);
-        pub const reg_low: Mask = .new(0, 2);
-        pub const imm_5: Mask = .new(0, 4);
-        pub const trap_vect: Mask = .new(0, 8);
-        pub const offset_6: Mask = .new(0, 5);
-        pub const pc_offset_9: Mask = .new(0, 8);
-        pub const pc_offset_10: Mask = .new(0, 9);
-        pub const pc_offset_11: Mask = .new(0, 10);
-        pub const condition_mask: Mask = .new(9, 11);
-    };
-};
-
 pub fn init(
     traps: *const Traps,
     policies: *const Policies,
@@ -143,145 +92,90 @@ pub fn run(runtime: *Runtime) Error!void {
             else => return error.PcOutOfBounds,
         }
 
-        const instr = runtime.memory[runtime.pc];
+        const word = runtime.memory[runtime.pc];
         runtime.pc += 1;
 
-        switch (try runtime.runInstruction(instr)) {
+        const instr: Instruction = try .decode(word);
+        const control = try runtime.runInstruction(instr);
+        switch (control) {
             .@"continue" => continue,
             .@"break" => break,
         }
     }
 }
 
-fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
-    // Conversion cannot fail
-    const opcode: Opcode = @enumFromInt(bitmask.opcode.apply(instr));
-
-    // TODO: Extract magic numbers
-
-    switch (opcode) {
-        .rti => return error.UnsupportedRti,
-
-        inline .add, .@"and" => |arith_opcode| {
-            const dest_reg = bitmask.operand.reg_high.apply(instr);
-            const src_reg = bitmask.operand.reg_mid.apply(instr);
-
-            const lhs = runtime.registers[src_reg];
-            const rhs = rhs: switch (bitmask.flag.add_and.apply(instr)) {
-                0 => { // Register
-                    if (bitmask.padding.add_and.apply(instr) != 0)
-                        return error.IncorrectPadding;
-                    const rhs_reg = bitmask.operand.reg_low.apply(instr);
-                    break :rhs runtime.registers[rhs_reg];
-                },
-                1 => { // Immediate
-                    break :rhs bitmask.operand.imm_5.applySext(instr);
-                },
+fn runInstruction(runtime: *Runtime, instr: Instruction) Error!Control {
+    switch (instr) {
+        inline .add, .@"and" => |operands| {
+            const lhs = runtime.registers[operands.src_a];
+            const rhs: u16 = switch (operands.src_b) {
+                .register => |register| runtime.registers[register],
+                .immediate => |immediate| signExtend(immediate),
             };
-
-            runtime.setRegister(dest_reg, switch (arith_opcode) {
+            runtime.setRegister(operands.dest, switch (instr) {
                 .add => lhs +% rhs,
                 .@"and" => lhs & rhs,
-                else => comptime unreachable,
+                else => unreachable,
             });
         },
-
-        .not => {
-            const dest_reg = bitmask.operand.reg_high.apply(instr);
-            const src_reg = bitmask.operand.reg_mid.apply(instr);
-            if (bitmask.padding.not.apply(instr) != 0b111111)
-                return error.IncorrectPadding;
-            runtime.setRegister(dest_reg, ~runtime.registers[src_reg]);
+        .not => |operands| {
+            runtime.setRegister(operands.dest, ~runtime.registers[operands.src]);
         },
 
-        .br => {
-            const mask: u3 = bitmask.operand.condition_mask.apply(instr);
+        .br => |operands| {
             // No-op case
-            if (mask == 0b000)
+            if (operands.mask == 0b000)
                 return .@"continue";
-            const pc_offset = bitmask.operand.pc_offset_9.applySext(instr);
-            if (@intFromEnum(runtime.condition) & mask != 0)
-                runtime.pc +%= pc_offset;
+            if (@intFromEnum(runtime.condition) & operands.mask != 0)
+                runtime.pc +%= signExtend(operands.pc_offset);
         },
 
-        .jmp_ret => {
-            const base_reg = bitmask.operand.reg_mid.apply(instr);
-            if (bitmask.padding.jmp_ret_high.apply(instr) != 0 or
-                bitmask.padding.jmp_ret_low.apply(instr) != 0)
-                return error.IncorrectPadding;
-            runtime.pc = runtime.registers[base_reg];
+        .jmp_ret => |operands| {
+            runtime.pc = runtime.registers[operands.base];
         },
-
-        .jsr_jsrr => {
+        .jsr_jsrr => |variant| {
             runtime.registers[7] = runtime.pc;
-            switch (bitmask.flag.jsr_jsrr.apply(instr)) {
-                0 => { // JSRR
-                    if (bitmask.padding.jsrr_high.apply(instr) != 0 or
-                        bitmask.padding.jsrr_low.apply(instr) != 0)
-                        return error.IncorrectPadding;
-                    const base_reg = bitmask.operand.reg_mid.apply(instr);
-                    runtime.pc = runtime.registers[base_reg];
+            switch (variant) {
+                .jsr => |operands| {
+                    runtime.pc +%= signExtend(operands.pc_offset);
                 },
-                1 => { // JSR
-                    const pc_offset = bitmask.operand.pc_offset_11.applySext(instr);
-                    runtime.pc +%= pc_offset;
+                .jsrr => |operands| {
+                    runtime.pc = runtime.registers[operands.base];
                 },
             }
         },
 
-        .lea => {
-            const dest_reg = bitmask.operand.reg_high.apply(instr);
-            const pc_offset = bitmask.operand.pc_offset_9.applySext(instr);
-            runtime.setRegister(dest_reg, runtime.pc +% pc_offset);
+        .lea => |operands| {
+            const address = runtime.pc +% signExtend(operands.pc_offset);
+            runtime.setRegister(operands.dest, address);
+        },
+        .ld => |operands| {
+            const address = runtime.pc +% signExtend(operands.pc_offset);
+            runtime.setRegister(operands.dest, runtime.memory[address]);
+        },
+        .ldi => |operands| {
+            const address = runtime.memory[runtime.pc +% signExtend(operands.pc_offset)];
+            runtime.setRegister(operands.dest, runtime.memory[address]);
+        },
+        .ldr => |operands| {
+            const address = runtime.registers[operands.base] + signExtend(operands.offset);
+            runtime.setRegister(operands.dest, runtime.memory[address]);
+        },
+        .st => |operands| {
+            const address = runtime.pc +% signExtend(operands.pc_offset);
+            runtime.memory[address] = runtime.registers[operands.src];
+        },
+        .sti => |operands| {
+            const address = runtime.memory[runtime.pc +% signExtend(operands.pc_offset)];
+            runtime.memory[address] = runtime.registers[operands.src];
+        },
+        .str => |operands| {
+            const address = runtime.registers[operands.base] + signExtend(operands.offset);
+            runtime.memory[address] = runtime.registers[operands.src];
         },
 
-        .ld => {
-            const dest_reg = bitmask.operand.reg_high.apply(instr);
-            const pc_offset = bitmask.operand.pc_offset_9.applySext(instr);
-            const address = runtime.pc +% pc_offset;
-            runtime.setRegister(dest_reg, runtime.memory[address]);
-        },
-
-        .ldi => {
-            const dest_reg = bitmask.operand.reg_high.apply(instr);
-            const pc_offset = bitmask.operand.pc_offset_9.applySext(instr);
-            const address = runtime.memory[runtime.pc +% pc_offset];
-            runtime.setRegister(dest_reg, runtime.memory[address]);
-        },
-
-        .ldr => {
-            const dest_reg = bitmask.operand.reg_high.apply(instr);
-            const base_reg = bitmask.operand.reg_mid.apply(instr);
-            const offset = bitmask.operand.offset_6.applySext(instr);
-            const address = runtime.registers[base_reg] + offset;
-            runtime.setRegister(dest_reg, runtime.memory[address]);
-        },
-
-        .st => {
-            const src_reg = bitmask.operand.reg_high.apply(instr);
-            const pc_offset = bitmask.operand.pc_offset_9.applySext(instr);
-            const address = runtime.pc +% pc_offset;
-            runtime.memory[address] = runtime.registers[src_reg];
-        },
-
-        .sti => {
-            const src_reg = bitmask.operand.reg_high.apply(instr);
-            const pc_offset = bitmask.operand.pc_offset_9.applySext(instr);
-            const address = runtime.memory[runtime.pc +% pc_offset];
-            runtime.memory[address] = runtime.registers[src_reg];
-        },
-
-        .str => {
-            const src_reg = bitmask.operand.reg_high.apply(instr);
-            const base_reg = bitmask.operand.reg_mid.apply(instr);
-            const offset = bitmask.operand.offset_6.applySext(instr);
-            const address = runtime.registers[base_reg] + offset;
-            runtime.memory[address] = runtime.registers[src_reg];
-        },
-
-        .trap => {
-            const vect = bitmask.operand.trap_vect.apply(instr);
-            const entry = runtime.traps.entries[vect];
+        .trap => |operands| {
+            const entry = runtime.traps.entries[operands.vect];
             const procedure = entry.procedure orelse
                 // No procedure declared
                 // Either trap was never registered, or only registered for alias
@@ -292,29 +186,30 @@ fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
             };
         },
 
-        .reserved_stack => {
+        .rti => {
+            return error.UnsupportedRti;
+        },
+
+        .pop_push_rets_call => |variant| {
             if (runtime.policies.extension.stack_instructions != .permit)
                 return error.UnpermittedOpcode;
 
             // Do not set condition for any operation
-            switch (bitmask.flag.pop_push_rets_call.apply(instr)) {
-                0b00 => { // POP
-                    const dest_reg = bitmask.operand.reg_mid.apply(instr);
+            switch (variant) {
+                .pop => |operands| {
                     const value = runtime.stackPop();
-                    runtime.registers[dest_reg] = value;
+                    runtime.registers[operands.dest] = value;
                 },
-                0b01 => { // PUSH
-                    const src_reg = bitmask.operand.reg_mid.apply(instr);
-                    const value = runtime.registers[src_reg];
+                .push => |operands| {
+                    const value = runtime.registers[operands.src];
                     runtime.stackPush(value);
                 },
-                0b10 => { // RETS
+                .rets => {
                     runtime.pc = runtime.stackPop();
                 },
-                0b11 => { // CALL
+                .call => |operands| {
                     runtime.stackPush(runtime.pc);
-                    const pc_offset = bitmask.operand.pc_offset_10.applySext(instr);
-                    runtime.pc +%= pc_offset;
+                    runtime.pc +%= signExtend(operands.pc_offset);
                 },
             }
         },
@@ -403,4 +298,19 @@ fn printDisplayChar(runtime: *Runtime, word: u16) error{WriteFailed}!void {
         },
     };
     try runtime.writer.interface.print("{s}", .{display});
+}
+
+fn signExtend(value: anytype) u16 {
+    const bits = @typeInfo(@TypeOf(value)).int.bits;
+    const Signed = @Int(.signed, bits);
+    return @bitCast(@as(i16, @as(Signed, @bitCast(value))));
+}
+
+test signExtend {
+    const expect = std.testing.expect;
+
+    try expect(signExtend(@as(u1, 0b1)) == 0b1111_1111_1111_1111);
+    try expect(signExtend(@as(u2, 0b01)) == 0b0000_0000_0000_0001);
+    try expect(signExtend(@as(u3, 0b101)) == 0b1111_1111_1111_1101);
+    try expect(signExtend(@as(u4, 0b0101)) == 0b0000_0000_0000_0101);
 }

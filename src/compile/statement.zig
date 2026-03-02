@@ -47,7 +47,7 @@ pub const Statement = union(enum) {
     },
     ldr: struct {
         dest: Operand.Register,
-        src: Operand.Register,
+        base: Operand.Register,
         offset: Operand.Offset6,
     },
     st: struct {
@@ -60,7 +60,7 @@ pub const Statement = union(enum) {
     },
     str: struct {
         src: Operand.Register,
-        dest: Operand.Register,
+        base: Operand.Register,
         offset: Operand.Offset6,
     },
     trap: struct {
@@ -149,7 +149,7 @@ pub const Statement = union(enum) {
             .ldr => |operands| {
                 var raw: u16 = 0x6000;
                 raw |= operands.dest.value.bits() << 9;
-                raw |= operands.src.value.bits() << 6;
+                raw |= operands.base.value.bits() << 6;
                 raw |= operands.offset.value.bits();
                 return raw;
             },
@@ -168,7 +168,7 @@ pub const Statement = union(enum) {
             .str => |operands| {
                 var raw: u16 = 0x7000;
                 raw |= operands.src.value.bits() << 9;
-                raw |= operands.dest.value.bits() << 6;
+                raw |= operands.base.value.bits() << 6;
                 raw |= operands.offset.value.bits();
                 return raw;
             },
