@@ -17,9 +17,9 @@ pub const Result = Error!void;
 pub const Entry = struct {
     alias: []const u8,
     procedure: Procedure,
-    data: *const anyopaque,
+    data: ?*const anyopaque,
 
-    pub const Procedure = *const fn (*Runtime, *const anyopaque) Result;
+    pub const Procedure = *const fn (*Runtime, ?*const anyopaque) Result;
 };
 
 pub const Standard = enum(u8) {
@@ -47,7 +47,7 @@ pub fn initBuiltins(comptime enums: []const type) Traps {
                 const entry: Entry = .{
                     .alias = field.name,
                     .procedure = @field(builtin_traps, field.name),
-                    .data = undefined,
+                    .data = null,
                 };
 
                 assert(traps.entries[vect] == null);
@@ -59,10 +59,9 @@ pub fn initBuiltins(comptime enums: []const type) Traps {
     }
 }
 
-pub fn register(
-    traps: *Traps,
-    vect: u8,
-    entry: Entry,
-) void {
+pub fn register(traps: *Traps, vect: u8, entry: Entry) void {
     traps.entries[vect] = entry;
+}
+pub fn setData(traps: *Traps, vect: u8, data: *anyopaque) void {
+    traps.entries[vect].data = data;
 }
