@@ -193,7 +193,7 @@ const Instruction = union(enum) {
     trap: struct {
         vect: u8,
     },
-    rti: void,
+    rti,
     reserved_stack: struct {
         // TODO:
     },
@@ -360,6 +360,10 @@ const Instruction = union(enum) {
                 } };
             },
 
+            .rti => {
+                return .rti;
+            },
+
             else => return null,
         }
     }
@@ -455,6 +459,8 @@ fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
                 };
             },
 
+            .rti => return error.UnsupportedRti,
+
             else => {},
         }
         return .@"continue";
@@ -481,9 +487,8 @@ fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
         .sti,
         .str,
         .trap,
+        .rti,
         => unreachable,
-
-        .rti => return error.UnsupportedRti,
 
         .reserved_stack => {
             if (runtime.policies.extension.stack_instructions != .permit)
