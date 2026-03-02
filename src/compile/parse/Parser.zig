@@ -4,11 +4,11 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
+const Traps = @import("../../Traps.zig");
 const Reporter = @import("../../report/Reporter.zig");
 const Air = @import("../Air.zig");
 const Statement = @import("../statement.zig").Statement;
 const Span = @import("../Span.zig");
-pub const Traps = @import("Traps.zig");
 const TokenIter = @import("TokenIter.zig");
 const Token = @import("Token.zig");
 const case = @import("case.zig");
@@ -21,13 +21,13 @@ origin: ?Span,
 
 pub fn new(
     air: *Air,
-    trap_aliases: Traps,
+    traps: *const Traps,
     source_: []const u8,
     reporter_: *Reporter,
 ) Parser {
     return .{
         .air = air,
-        .tokens = .new(trap_aliases, source_, reporter_),
+        .tokens = .new(traps, source_, reporter_),
         .current_label = null,
         .origin = null,
     };

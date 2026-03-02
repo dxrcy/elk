@@ -3,11 +3,11 @@ const TokenIter = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 
+const Traps = @import("../../Traps.zig");
 const Reporter = @import("../../report/Reporter.zig");
 const Air = @import("../Air.zig");
 const Span = @import("../Span.zig");
 const Lexer = @import("Lexer.zig");
-const Traps = @import("Traps.zig");
 const Token = @import("Token.zig");
 const SourceInt = @import("integers.zig").SourceInt;
 const case = @import("case.zig");
@@ -20,28 +20,27 @@ peeked: ?Span,
 /// Updated by `parseToken`.
 latest: ?Span,
 
-trap_aliases: Traps,
+traps: *const Traps,
 source: []const u8,
 reporter: *Reporter,
 
 const TokenKind = std.meta.Tag(Token.Value);
 
 pub fn new(
-    trap_aliases: Traps,
+    traps: *const Traps,
     source: []const u8,
     reporter: *Reporter,
 ) TokenIter {
-    for (trap_aliases.entries, 0..) |entry_a, i| {
-        assert(case.isLowercaseAlpha(entry_a.alias));
-        for (trap_aliases.entries[0..i]) |entry_b|
-            assert(entry_a.vect != entry_b.vect);
+    for (traps.entries) |entry_opt| {
+        if (entry_opt) |entry|
+            assert(case.isLowercaseAlpha(entry.alias));
     }
 
     return .{
         .lexer = Lexer.new(source),
         .peeked = null,
         .latest = null,
-        .trap_aliases = trap_aliases,
+        .traps = traps,
         .source = source,
         .reporter = reporter,
     };
@@ -60,7 +59,7 @@ fn getNextSpan(tokens: *TokenIter) error{Eof}!Span {
 }
 
 fn parseToken(tokens: *TokenIter, span: Span) Token.Error!Token {
-    const token = try Token.from(span, tokens.source, tokens.trap_aliases);
+    const token = try Token.from(span, tokens.source, tokens.traps);
     if (token.value != .newline)
         tokens.latest = token.span;
     return token;

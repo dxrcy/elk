@@ -25,18 +25,9 @@ pub fn main(init: std.process.Init) !u8 {
     var air: lcz.Air = .init();
     defer air.deinit(gpa);
 
-    const trap_aliases: lcz.Parser.Traps = comptime .fromEnum(enum(u8) {
-        getc = 0x20,
-        out = 0x21,
-        puts = 0x22,
-        in = 0x23,
-        putsp = 0x24,
-        halt = 0x25,
-        putn = 0x26,
-        reg = 0x27,
-    });
+    const traps: lcz.Traps = .default;
 
-    var parser: lcz.Parser = .new(&air, trap_aliases, source, &reporter);
+    var parser: lcz.Parser = .new(&air, &traps, source, &reporter);
 
     try parser.parse(gpa);
     parser.resolveLabels();
@@ -62,14 +53,12 @@ pub fn main(init: std.process.Init) !u8 {
     }
 
     {
-        const trap_table: lcz.Runtime.traps.Table = .default;
-
         var write_buffer: [64]u8 = undefined;
         var writer = Io.File.stdout().writer(io, &write_buffer);
         var reader = Io.File.stdin().reader(io, &.{});
 
         var runtime = try lcz.Runtime.init(
-            &trap_table,
+            &traps,
             &policies,
             &writer.interface,
             &reader.interface,
