@@ -31,9 +31,9 @@ pub fn new(
     source: []const u8,
     reporter: *Reporter,
 ) TokenIter {
-    for (traps.entries) |entry_opt| {
-        if (entry_opt) |entry|
-            assert(case.isLowercaseAlpha(entry.alias));
+    for (traps.entries) |entry| {
+        if (entry.alias) |alias|
+            assert(case.isLowercaseAlpha(alias));
     }
 
     return .{
