@@ -7,6 +7,7 @@ lowest: u4,
 highest: u4,
 // TODO: Add `signedness` field
 
+// TODO: Add `size` field which is checked against bounds
 pub fn new(lowest: u4, highest: u4) Mask {
     return .{ .lowest = lowest, .highest = highest };
 }
