@@ -154,14 +154,16 @@ pub fn run(runtime: *Runtime) Error!void {
 }
 
 const Instruction = union(enum) {
-    const ArithOperands = struct {
+    add: struct {
         dest: Register,
         src_a: Register,
         src_b: RegImm5,
-    };
-
-    add: ArithOperands,
-    @"and": ArithOperands,
+    },
+    @"and": struct {
+        dest: Register,
+        src_a: Register,
+        src_b: RegImm5,
+    },
     not: struct {
         dest: Register,
         src: Register,
@@ -225,6 +227,7 @@ const Instruction = union(enum) {
         immediate: i5,
     };
 
+    // TODO: Use narrower error type for return
     pub fn decode(word: u16) ProgramError!?Instruction {
         // Conversion cannot fail
         const opcode: Opcode = @enumFromInt(bitmask.opcode.apply(word));
@@ -246,16 +249,30 @@ const Instruction = union(enum) {
                             .immediate = @bitCast(bitmask.operand.imm_5.apply(word)),
                         },
                     };
-                const operands: ArithOperands = .{
-                    .dest = dest,
-                    .src_a = src_a,
-                    .src_b = src_b,
-                };
                 return switch (arith_opcode) {
-                    .add => .{ .add = operands },
-                    .@"and" => .{ .@"and" = operands },
+                    .add => .{ .add = .{
+                        .dest = dest,
+                        .src_a = src_a,
+                        .src_b = src_b,
+                    } },
+                    .@"and" => .{ .@"and" = .{
+                        .dest = dest,
+                        .src_a = src_a,
+                        .src_b = src_b,
+                    } },
                     else => comptime unreachable,
                 };
+            },
+
+            .not => {
+                const dest = bitmask.operand.reg_high.apply(word);
+                const src = bitmask.operand.reg_mid.apply(word);
+                if (bitmask.padding.not.apply(word) != 0b111111)
+                    return error.IncorrectPadding;
+                return .{ .not = .{
+                    .dest = dest,
+                    .src = src,
+                } };
             },
 
             else => return null,
@@ -284,6 +301,10 @@ fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
                 runtime.setRegister(operands.dest, lhs & rhs);
             },
 
+            .not => |operands| {
+                runtime.setRegister(operands.dest, ~runtime.registers[operands.src]);
+            },
+
             else => {},
         }
         return .@"continue";
@@ -296,17 +317,12 @@ fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
     // TODO: Extract magic numbers
 
     switch (opcode) {
-        .add, .@"and" => unreachable,
+        .add,
+        .@"and",
+        .not,
+        => unreachable,
 
         .rti => return error.UnsupportedRti,
-
-        .not => {
-            const dest_reg = bitmask.operand.reg_high.apply(instr);
-            const src_reg = bitmask.operand.reg_mid.apply(instr);
-            if (bitmask.padding.not.apply(instr) != 0b111111)
-                return error.IncorrectPadding;
-            runtime.setRegister(dest_reg, ~runtime.registers[src_reg]);
-        },
 
         .br => {
             const mask: u3 = bitmask.operand.condition_mask.apply(instr);
