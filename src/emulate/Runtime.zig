@@ -342,6 +342,17 @@ const Instruction = union(enum) {
                 }
             },
 
+            .str => {
+                const src = bitmask.operand.reg_high.apply(word);
+                const base = bitmask.operand.reg_mid.apply(word);
+                const offset = bitmask.operand.offset_6.applySigned(word);
+                return .{ .str = .{
+                    .src = src,
+                    .base = base,
+                    .offset = offset,
+                } };
+            },
+
             else => return null,
         }
     }
@@ -421,6 +432,11 @@ fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
                 runtime.memory[address] = runtime.registers[operands.src];
             },
 
+            .str => |operands| {
+                const address = runtime.registers[operands.base] + Mask.signExtend(operands.offset);
+                runtime.memory[address] = runtime.registers[operands.src];
+            },
+
             else => {},
         }
         return .@"continue";
@@ -445,17 +461,10 @@ fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
         .ldr,
         .st,
         .sti,
+        .str,
         => unreachable,
 
         .rti => return error.UnsupportedRti,
-
-        .str => {
-            const src_reg = bitmask.operand.reg_high.apply(instr);
-            const base_reg = bitmask.operand.reg_mid.apply(instr);
-            const offset = bitmask.operand.offset_6.applySext(instr);
-            const address = runtime.registers[base_reg] + offset;
-            runtime.memory[address] = runtime.registers[src_reg];
-        },
 
         .trap => {
             const vect = bitmask.operand.trap_vect.apply(instr);
