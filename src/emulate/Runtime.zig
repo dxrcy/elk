@@ -323,6 +323,15 @@ const Instruction = union(enum) {
                 } };
             },
 
+            .ld => {
+                const dest = bitmask.operand.reg_high.apply(word);
+                const pc_offset = bitmask.operand.pc_offset_9.applySigned(word);
+                return .{ .ld = .{
+                    .dest = dest,
+                    .pc_offset = pc_offset,
+                } };
+            },
+
             else => return null,
         }
     }
@@ -377,6 +386,11 @@ fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
                 runtime.setRegister(operands.dest, address);
             },
 
+            .ld => |operands| {
+                const address = runtime.pc +% Mask.signExtend(operands.pc_offset);
+                runtime.setRegister(operands.dest, runtime.memory[address]);
+            },
+
             else => {},
         }
         return .@"continue";
@@ -396,16 +410,10 @@ fn runInstruction(runtime: *Runtime, instr: u16) Error!Control {
         .jmp_ret,
         .jsr_jsrr,
         .lea,
+        .ld,
         => unreachable,
 
         .rti => return error.UnsupportedRti,
-
-        .ld => {
-            const dest_reg = bitmask.operand.reg_high.apply(instr);
-            const pc_offset = bitmask.operand.pc_offset_9.applySext(instr);
-            const address = runtime.pc +% pc_offset;
-            runtime.setRegister(dest_reg, runtime.memory[address]);
-        },
 
         .ldi => {
             const dest_reg = bitmask.operand.reg_high.apply(instr);
