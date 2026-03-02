@@ -17,9 +17,9 @@ pub const Result = Error!void;
 pub const Entry = struct {
     alias: []const u8,
     procedure: Procedure,
-    data: *const anyopaque,
+    data: ?*const anyopaque,
 
-    pub const Procedure = *const fn (*Runtime, *const anyopaque) Result;
+    const Procedure = *const fn (*Runtime, ?*const anyopaque) Result;
 };
 
 pub const Standard = enum(u8) {
@@ -46,8 +46,8 @@ pub fn initBuiltins(comptime enums: []const type) Traps {
                 const vect = field.value;
                 const entry: Entry = .{
                     .alias = field.name,
-                    .procedure = @field(builtin_traps, field.name),
-                    .data = undefined,
+                    .procedure = unusedDataParam(@field(builtin_traps, field.name)),
+                    .data = null,
                 };
 
                 assert(traps.entries[vect] == null);
@@ -59,10 +59,36 @@ pub fn initBuiltins(comptime enums: []const type) Traps {
     }
 }
 
-pub fn register(
-    traps: *Traps,
-    vect: u8,
-    entry: Entry,
-) void {
+fn unusedDataParam(
+    procedure: fn (*Runtime) Traps.Result,
+) fn (*Runtime, ?*const anyopaque) Traps.Result {
+    return struct {
+        pub fn wrapped(runtime: *Runtime, data: ?*const anyopaque) Traps.Result {
+            assert(data == null);
+            return procedure(runtime);
+        }
+    }.wrapped;
+}
+
+pub fn castedDataParam(
+    comptime ActualPtr: type,
+    procedure: fn (*Runtime, ActualPtr) Traps.Result,
+) fn (*Runtime, ?*const anyopaque) Traps.Result {
+    return struct {
+        fn wrapped(runtime: *Runtime, data: ?*const anyopaque) Traps.Result {
+            assert(data != null);
+            const calls: ActualPtr = @ptrCast(@alignCast(@constCast(data)));
+            return procedure(runtime, calls);
+        }
+    }.wrapped;
+}
+
+pub fn register(traps: *Traps, vect: u8, entry: Entry) void {
+    assert(traps.entries[vect] == null);
     traps.entries[vect] = entry;
+}
+pub fn setData(traps: *Traps, vect: u8, data: *const anyopaque) void {
+    const entry = &(traps.entries[vect] orelse
+        unreachable);
+    entry.data = data;
 }
