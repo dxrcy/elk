@@ -364,12 +364,21 @@ fn ensureSupported(
             }
         },
 
-        .instruction => {
+        .instruction => |instruction| {
             if (!case.isLowercaseAlpha(token.span.view(tokens.source))) {
                 tokens.reporter.report(.unconventional_case_ident, .{
                     .ident = token.span,
                     .kind = .instruction,
                 }).collect(&result);
+            }
+
+            switch (instruction) {
+                else => {},
+                .trap => {
+                    tokens.reporter.report(.explicit_trap_instruction, .{
+                        .instruction = token.span,
+                    }).collect(&result);
+                },
             }
         },
 

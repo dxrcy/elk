@@ -190,6 +190,9 @@ pub const Diagnostic = union(enum) {
     literal_pc_offset: struct {
         integer: Span,
     },
+    explicit_trap_instruction: struct {
+        instruction: Span,
+    },
     nonstandard_label_colon: struct {
         colon: Span,
     },
@@ -232,6 +235,7 @@ pub const Diagnostic = union(enum) {
             .nonstandard_label_colon => policyResponse(options, .extension, .label_declaration_colons),
 
             .literal_pc_offset => policyResponse(options, .smell, .pc_offset_literals),
+            .explicit_trap_instruction => policyResponse(options, .smell, .explicit_trap_instructions),
 
             .undesirable_integer_form => policyResponse(options, .style, .undesirable_integer_forms),
             .unconventional_case_ident => |info| switch (info.kind) {
@@ -405,6 +409,11 @@ pub const Diagnostic = union(enum) {
                 ctx.printTitle("Address operand is a literal offset", .{});
                 ctx.deepen().printSourceNote("Integer", .{}, info.integer);
                 ctx.deepen().printNote("PC-offset operand should be a label reference, instead of hardcoded offset value", .{});
+            },
+            .explicit_trap_instruction => |info| {
+                ctx.printTitle("Use of trap instruction with explicit vector operand", .{});
+                ctx.deepen().printSourceNote("Trap instruction", .{}, info.instruction);
+                ctx.deepen().printNote("Traps should be used via trap aliases, instead of hardcoded vector operand", .{});
             },
             .nonstandard_label_colon => |info| {
                 ctx.printTitle("Label followed by colon `:`", .{});
