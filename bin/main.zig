@@ -43,11 +43,10 @@ pub fn main(init: std.process.Init) !u8 {
     inline for (@typeInfo(MczTraps).@"enum".fields) |field| {
         traps.register(field.value, .{
             .alias = field.name,
-            .procedure = lcz.Traps.castedDataParam(
+            .callback = .withDataDeferInit(
                 *mcz.Connection,
                 @field(mcz_traps, field.name),
             ),
-            .data = null,
         });
     }
 
@@ -83,7 +82,7 @@ pub fn main(init: std.process.Init) !u8 {
         var conn: mcz.Connection = try .new(&conn_write_buffer, &conn_read_buffer, io);
 
         inline for (@typeInfo(MczTraps).@"enum".fields) |field| {
-            traps.setData(field.value, &conn);
+            traps.initData(field.value, *mcz.Connection, &conn);
         }
 
         var runtime_write_buffer: [64]u8 = undefined;
@@ -94,7 +93,7 @@ pub fn main(init: std.process.Init) !u8 {
 
         const hooks: lcz.Runtime.Hooks = .{
             .pre_decode = .withoutData(preDecodeHook),
-            .pre_execute = .withData(*InstrCount, preExecuteHook, &instr_count),
+            .pre_execute = .withDataInit(*InstrCount, preExecuteHook, &instr_count),
         };
 
         var runtime = try lcz.Runtime.init(
