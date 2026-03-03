@@ -115,9 +115,9 @@ pub fn main(init: std.process.Init) !u8 {
 const InstrCount = std.EnumArray(std.meta.Tag(lcz.Runtime.Instruction), u32);
 
 fn preDecodeHook(
+    data: ?*const anyopaque,
     runtime: *lcz.Runtime,
     word: u16,
-    data: ?*const anyopaque,
 ) lcz.Runtime.IoError!void {
     std.debug.assert(data == null);
 
@@ -126,9 +126,9 @@ fn preDecodeHook(
 }
 
 fn preExecuteHook(
+    data: ?*const anyopaque,
     runtime: *lcz.Runtime,
     instr: lcz.Runtime.Instruction,
-    data: ?*const anyopaque,
 ) lcz.Runtime.IoError!void {
     const instr_count: *InstrCount = @ptrCast(@alignCast(@constCast(data.?)));
 

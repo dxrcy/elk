@@ -57,14 +57,36 @@ const Condition = enum(u3) {
 };
 
 pub const Hooks = struct {
-    pre_decode: ?Callback(fn (*Runtime, u16, ?*const anyopaque) IoError!void) = null,
-    pre_execute: ?Callback(fn (*Runtime, Instruction, ?*const anyopaque) IoError!void) = null,
+    pre_decode: ?Callback(.{ *Runtime, u16 }) = null,
+    pre_execute: ?Callback(.{ *Runtime, Instruction }) = null,
 };
 
-fn Callback(comptime Func: type) type {
+// TODO: Share with `Traps`
+fn Callback(comptime params: anytype) type {
+    const params_full = [1]type{?*const anyopaque} ++ params;
+
+    const Return = IoError!void;
+
+    const Func = @Fn(
+        &params_full,
+        &@splat(.{}),
+        Return,
+        .{},
+    );
+
     return struct {
         func: *const Func,
         data: ?*const anyopaque,
+
+        fn call(callback: *const @This(), args: @Tuple(&params)) Return {
+            var args_full: @Tuple(&params_full) = undefined;
+            args_full[0] = callback.data;
+            inline for (params, 1..) |_, i| {
+                args_full[i] = args[i - 1];
+            }
+
+            try @call(.auto, callback.func, args_full);
+        }
     };
 }
 
@@ -112,12 +134,12 @@ pub fn run(runtime: *Runtime) Error!void {
         runtime.pc += 1;
 
         if (runtime.hooks.pre_decode) |pre_decode|
-            try pre_decode.func(runtime, word, pre_decode.data);
+            try pre_decode.call(.{ runtime, word });
 
         const instr: Instruction = try .decode(word);
 
         if (runtime.hooks.pre_execute) |pre_execute|
-            try pre_execute.func(runtime, instr, pre_execute.data);
+            try pre_execute.call(.{ runtime, instr });
 
         const control = try runtime.runInstruction(instr);
         switch (control) {
