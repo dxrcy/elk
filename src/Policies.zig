@@ -39,6 +39,7 @@ extension: struct {
 smell: struct {
     pc_offset_literals: Policy,
     explicit_trap_instructions: Policy,
+    unknown_trap_vectors: Policy,
 
     pub const forbid_all = fillFields(@This(), .forbid);
     pub const permit_all = fillFields(@This(), .permit);

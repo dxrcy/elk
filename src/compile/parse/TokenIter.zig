@@ -364,21 +364,12 @@ fn ensureSupported(
             }
         },
 
-        .instruction => |instruction| {
+        .instruction => {
             if (!case.isLowercaseAlpha(token.span.view(tokens.source))) {
                 tokens.reporter.report(.unconventional_case_ident, .{
                     .ident = token.span,
                     .kind = .instruction,
                 }).collect(&result);
-            }
-
-            switch (instruction) {
-                else => {},
-                .trap => {
-                    tokens.reporter.report(.explicit_trap_instruction, .{
-                        .instruction = token.span,
-                    }).collect(&result);
-                },
             }
         },
 
@@ -405,6 +396,26 @@ fn ensureSupported(
                         tokens.reporter.report(.literal_pc_offset, .{
                             .integer = token.span,
                         }).collect(&result);
+                    },
+                    Operand.value.TrapVect => {
+                        // If vect is too big, it will be reported elsewhere
+                        if (integer.castToSmaller(u8) catch null) |vect| {
+                            const entry = tokens.traps.entries[vect];
+                            if (entry.alias) |alias| {
+                                tokens.reporter.report(.explicit_trap_vect, .{
+                                    .vect = vect,
+                                    .span = token.span,
+                                    .alias = alias,
+                                }).collect(&result);
+                            } else if (entry.callback == null) {
+                                tokens.reporter.report(.unknown_trap_vect, .{
+                                    .vect = vect,
+                                    .span = token.span,
+                                }).collect(&result);
+                            } else {
+                                // Should use explicit vector; it's the only way
+                            }
+                        }
                     },
                     else => {},
                 },

@@ -190,8 +190,14 @@ pub const Diagnostic = union(enum) {
     literal_pc_offset: struct {
         integer: Span,
     },
-    explicit_trap_instruction: struct {
-        instruction: Span,
+    explicit_trap_vect: struct {
+        vect: u8,
+        span: Span,
+        alias: []const u8,
+    },
+    unknown_trap_vect: struct {
+        vect: u8,
+        span: Span,
     },
     nonstandard_label_colon: struct {
         colon: Span,
@@ -235,7 +241,8 @@ pub const Diagnostic = union(enum) {
             .nonstandard_label_colon => policyResponse(options, .extension, .label_declaration_colons),
 
             .literal_pc_offset => policyResponse(options, .smell, .pc_offset_literals),
-            .explicit_trap_instruction => policyResponse(options, .smell, .explicit_trap_instructions),
+            .explicit_trap_vect => policyResponse(options, .smell, .explicit_trap_instructions),
+            .unknown_trap_vect => policyResponse(options, .smell, .unknown_trap_vectors),
 
             .undesirable_integer_form => policyResponse(options, .style, .undesirable_integer_forms),
             .unconventional_case_ident => |info| switch (info.kind) {
@@ -410,10 +417,15 @@ pub const Diagnostic = union(enum) {
                 ctx.deepen().printSourceNote("Integer", .{}, info.integer);
                 ctx.deepen().printNote("PC-offset operand should be a label reference, instead of hardcoded offset value", .{});
             },
-            .explicit_trap_instruction => |info| {
+            .explicit_trap_vect => |info| {
                 ctx.printTitle("Use of trap instruction with explicit vector operand", .{});
-                ctx.deepen().printSourceNote("Trap instruction", .{}, info.instruction);
-                ctx.deepen().printNote("Traps should be used via trap aliases, instead of hardcoded vector operand", .{});
+                ctx.deepen().printSourceNote("Trap vector", .{}, info.span);
+                ctx.deepen().printNote("Consider using trap alias `{s}`", .{info.alias});
+            },
+            .unknown_trap_vect => |info| {
+                ctx.printTitle("Use of unknown trap vector 0x{x:02}", .{info.vect});
+                ctx.deepen().printSourceNote("Trap vector", .{}, info.span);
+                ctx.deepen().printNote("Traps vector 0x{x:02} is not recognized", .{info.vect});
             },
             .nonstandard_label_colon => |info| {
                 ctx.printTitle("Label followed by colon `:`", .{});
