@@ -57,6 +57,7 @@ const Condition = enum(u3) {
 };
 
 pub const Hooks = struct {
+    pre_decode: ?Callback(fn (*Runtime, u16, ?*const anyopaque) IoError!void) = null,
     pre_execute: ?Callback(fn (*Runtime, Instruction, ?*const anyopaque) IoError!void) = null,
 };
 
@@ -109,6 +110,9 @@ pub fn run(runtime: *Runtime) Error!void {
 
         const word = runtime.memory[runtime.pc];
         runtime.pc += 1;
+
+        if (runtime.hooks.pre_decode) |pre_decode|
+            try pre_decode.func(runtime, word, pre_decode.data);
 
         const instr: Instruction = try .decode(word);
 
