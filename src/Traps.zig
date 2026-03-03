@@ -45,10 +45,10 @@ pub fn register(traps: *Traps, vect: u8, entry: Entry) void {
     traps.entries[vect] = entry;
 }
 
-pub fn setData(traps: *Traps, vect: u8, data: *const anyopaque) void {
+pub fn initData(traps: *Traps, vect: u8, comptime Data: type, data: Data) void {
     const callback = &(traps.entries[vect].callback orelse
         unreachable);
-    callback.data = data;
+    callback.initData(Data, data);
 }
 
 pub fn initBuiltins(comptime enums: []const type) Traps {
