@@ -120,7 +120,14 @@ pub fn Callback(comptime params: []const type) type {
                     args: @Tuple(params),
                 ) Return {
                     const casted: Data = @ptrCast(@alignCast(@constCast(data_inner.?)));
-                    return @call(.auto, func, .{ casted, args });
+
+                    var args_full: @Tuple(ParamData(Data)) = undefined;
+                    args_full[0] = casted;
+                    inline for (params, 1..) |_, i| {
+                        args_full[i] = args[i - 1];
+                    }
+
+                    return @call(.auto, func, args_full);
                 }
             }.wrapped;
 
@@ -130,12 +137,13 @@ pub fn Callback(comptime params: []const type) type {
             };
         }
 
+        fn ParamData(comptime Data: type) []const type {
+            return &[1]type{Data} ++ params;
+        }
+
         fn FuncData(comptime Data: type) type {
             return @Fn(
-                &[2]type{
-                    Data,
-                    @Tuple(params),
-                },
+                ParamData(Data),
                 &@splat(.{}),
                 Return,
                 .{},

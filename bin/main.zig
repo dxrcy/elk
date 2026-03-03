@@ -122,13 +122,9 @@ fn preDecodeHook(
 
 fn preExecuteHook(
     instr_count: *InstrCount,
-    args: struct {
-        *lcz.Runtime,
-        lcz.Runtime.Instruction,
-    },
+    runtime: *lcz.Runtime,
+    instr: lcz.Runtime.Instruction,
 ) lcz.Runtime.IoError!void {
-    const runtime, const instr = args;
-
     instr_count.getPtr(instr).* += 1;
 
     try runtime.writer.ensureNewline();
