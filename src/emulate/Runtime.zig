@@ -6,9 +6,11 @@ const Allocator = std.mem.Allocator;
 
 const Policies = @import("../Policies.zig");
 const Traps = @import("../Traps.zig");
-const Instruction = @import("decode.zig").Instruction;
 const NewlineTracker = @import("NewlineTracker.zig");
 const Tty = @import("Tty.zig");
+
+pub const Callback = @import("../callback.zig").Callback;
+pub const Instruction = @import("decode.zig").Instruction;
 
 const MEMORY_SIZE = 0x1_0000;
 const USER_MEMORY_START = 0x3000;
@@ -20,6 +22,7 @@ pc: u16,
 condition: Condition,
 
 traps: *const Traps,
+hooks: Hooks,
 policies: *const Policies,
 
 writer: NewlineTracker,
@@ -54,8 +57,14 @@ const Condition = enum(u3) {
     positive = 0b001,
 };
 
+pub const Hooks = struct {
+    pre_decode: ?Callback(&.{ *Runtime, u16 }, IoError!void) = null,
+    pre_execute: ?Callback(&.{ *Runtime, Instruction }, IoError!void) = null,
+};
+
 pub fn init(
     traps: *const Traps,
+    hooks: Hooks,
     policies: *const Policies,
     writer: *Io.Writer,
     reader: *Io.Reader,
@@ -71,6 +80,7 @@ pub fn init(
         .pc = 0x0000,
         .condition = .zero,
         .traps = traps,
+        .hooks = hooks,
         .policies = policies,
         .writer = .new(writer),
         .reader = reader,
@@ -95,7 +105,14 @@ pub fn run(runtime: *Runtime) Error!void {
         const word = runtime.memory[runtime.pc];
         runtime.pc += 1;
 
+        if (runtime.hooks.pre_decode) |pre_decode|
+            try pre_decode.call(.{ runtime, word });
+
         const instr: Instruction = try .decode(word);
+
+        if (runtime.hooks.pre_execute) |pre_execute|
+            try pre_execute.call(.{ runtime, instr });
+
         const control = try runtime.runInstruction(instr);
         switch (control) {
             .@"continue" => continue,
@@ -175,12 +192,11 @@ fn runInstruction(runtime: *Runtime, instr: Instruction) Error!Control {
         },
 
         .trap => |operands| {
-            const entry = runtime.traps.entries[operands.vect];
-            const procedure = entry.procedure orelse
-                // No procedure declared
+            const callback = runtime.traps.entries[operands.vect].callback orelse
+                // No trap callback declared
                 // Either trap was never registered, or only registered for alias
                 return error.UnhandledTrap;
-            procedure(runtime, entry.data) catch |err| switch (err) {
+            callback.call(.{runtime}) catch |err| switch (err) {
                 error.Halt => return .@"break",
                 else => |err2| return err2,
             };

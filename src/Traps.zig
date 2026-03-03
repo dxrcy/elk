@@ -3,6 +3,7 @@ const Traps = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 
+pub const Callback = @import("callback.zig").Callback;
 const Runtime = @import("emulate/Runtime.zig");
 const builtin_traps = @import("emulate/builtin_traps.zig");
 
@@ -16,16 +17,13 @@ pub const Result = Error!void;
 
 pub const Entry = struct {
     alias: ?[]const u8,
-    procedure: ?Procedure,
-    data: ?*const anyopaque,
+    callback: ?Callback(&.{*Runtime}, Result),
 
-    const Procedure = *const fn (*Runtime, ?*const anyopaque) Result;
-
-    const unset: Entry = .{ .alias = null, .procedure = null, .data = null };
+    const unset: Entry = .{ .alias = null, .callback = null };
 
     fn isSet(entry: *const Entry) bool {
         return entry.alias != null or
-            entry.procedure != null;
+            entry.callback != null;
     }
 };
 
@@ -48,8 +46,9 @@ pub fn register(traps: *Traps, vect: u8, entry: Entry) void {
 }
 
 pub fn setData(traps: *Traps, vect: u8, data: *const anyopaque) void {
-    assert(traps.entries[vect].procedure != null);
-    traps.entries[vect].data = data;
+    const callback = &(traps.entries[vect].callback orelse
+        unreachable);
+    callback.data = data;
 }
 
 pub fn initBuiltins(comptime enums: []const type) Traps {
@@ -57,43 +56,16 @@ pub fn initBuiltins(comptime enums: []const type) Traps {
 
     comptime {
         var traps: Traps = .{ .entries = @splat(.unset) };
-
         for (enums) |Enum| {
             for (@typeInfo(Enum).@"enum".fields) |field| {
                 const vect = field.value;
                 const entry: Entry = .{
                     .alias = field.name,
-                    .procedure = unusedDataParam(@field(builtin_traps, field.name)),
-                    .data = null,
+                    .callback = .withoutData(@field(builtin_traps, field.name)),
                 };
                 traps.register(vect, entry);
             }
         }
-
         return traps;
     }
-}
-
-pub fn unusedDataParam(
-    procedure: fn (*Runtime) Traps.Result,
-) fn (*Runtime, ?*const anyopaque) Traps.Result {
-    return struct {
-        pub fn wrapped(runtime: *Runtime, data: ?*const anyopaque) Traps.Result {
-            assert(data == null);
-            return procedure(runtime);
-        }
-    }.wrapped;
-}
-
-pub fn castedDataParam(
-    comptime ActualPtr: type,
-    procedure: fn (*Runtime, ActualPtr) Traps.Result,
-) fn (*Runtime, ?*const anyopaque) Traps.Result {
-    return struct {
-        fn wrapped(runtime: *Runtime, data: ?*const anyopaque) Traps.Result {
-            assert(data != null);
-            const calls: ActualPtr = @ptrCast(@alignCast(@constCast(data)));
-            return procedure(runtime, calls);
-        }
-    }.wrapped;
 }

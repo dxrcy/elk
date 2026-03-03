@@ -90,8 +90,16 @@ pub fn main(init: std.process.Init) !u8 {
         var runtime_writer = Io.File.stdout().writer(io, &runtime_write_buffer);
         var runtime_reader = Io.File.stdin().reader(io, &.{});
 
+        var instr_count: InstrCount = .initFill(0);
+
+        const hooks: lcz.Runtime.Hooks = .{
+            .pre_decode = .withoutData(preDecodeHook),
+            .pre_execute = .withData(*InstrCount, preExecuteHook, &instr_count),
+        };
+
         var runtime = try lcz.Runtime.init(
             &traps,
+            hooks,
             &policies,
             &runtime_writer.interface,
             &runtime_reader.interface,
@@ -114,9 +122,39 @@ pub fn main(init: std.process.Init) !u8 {
 
         try runtime.writer.ensureNewline();
         try runtime.writer.interface.flush();
+
+        for (runtime.registers, 0..) |register, i| {
+            std.debug.print("r{}: 0x{x:04}\n", .{ i, register });
+        }
+
+        for (std.meta.tags(std.meta.Tag(lcz.Runtime.Instruction))) |field| {
+            const count = instr_count.get(field);
+            std.debug.print("{t:20}: {}\n", .{ field, count });
+        }
     }
 
     return 0;
+}
+
+const InstrCount = std.EnumArray(std.meta.Tag(lcz.Runtime.Instruction), u32);
+
+fn preDecodeHook(
+    runtime: *lcz.Runtime,
+    word: u16,
+) lcz.Runtime.IoError!void {
+    try runtime.writer.ensureNewline();
+    try runtime.writer.interface.print("\x1b[33mpre-decode {x:04}\x1b[0m\n", .{word});
+}
+
+fn preExecuteHook(
+    runtime: *lcz.Runtime,
+    instr: lcz.Runtime.Instruction,
+    instr_count: *InstrCount,
+) lcz.Runtime.IoError!void {
+    instr_count.getPtr(instr).* += 1;
+
+    try runtime.writer.ensureNewline();
+    try runtime.writer.interface.print("\x1b[33mpre-execute {t}\x1b[0m\n", .{instr});
 }
 
 const mcz_traps = struct {
