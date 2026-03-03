@@ -89,11 +89,14 @@ pub fn main(init: std.process.Init) !u8 {
         var runtime_writer = Io.File.stdout().writer(io, &runtime_write_buffer);
         var runtime_reader = Io.File.stdin().reader(io, &.{});
 
-        var instr_count: InstrCount = .initFill(0);
+        var callback_data: CallbackData = .{
+            .instr_count = .initFill(0),
+            .trap_count = @splat(0),
+        };
 
         const hooks: lcz.Runtime.Hooks = .{
             .pre_decode = .withoutData(preDecodeHook),
-            .pre_execute = .withDataInit(*InstrCount, preExecuteHook, &instr_count),
+            .pre_execute = .withDataInit(*CallbackData, preExecuteHook, &callback_data),
         };
 
         var runtime = try lcz.Runtime.init(
@@ -126,16 +129,26 @@ pub fn main(init: std.process.Init) !u8 {
             std.debug.print("r{}: 0x{x:04}\n", .{ i, register });
         }
 
+        std.debug.print("\n",.{});
         for (std.meta.tags(std.meta.Tag(lcz.Runtime.Instruction))) |field| {
-            const count = instr_count.get(field);
+            const count = callback_data.instr_count.get(field);
             std.debug.print("{t:20}: {}\n", .{ field, count });
+        }
+         std.debug.print("\n",.{});
+        for (callback_data.trap_count, 0..) |count, vect| {
+            if (count == 0)
+                continue;
+            std.debug.print("\t trap 0x{x:04}: {}\n", .{ vect, count });
         }
     }
 
     return 0;
 }
 
-const InstrCount = std.EnumArray(std.meta.Tag(lcz.Runtime.Instruction), u32);
+const CallbackData = struct {
+    instr_count: std.EnumArray(std.meta.Tag(lcz.Runtime.Instruction), u32),
+    trap_count: [256]u32,
+};
 
 fn preDecodeHook(
     runtime: *lcz.Runtime,
@@ -148,9 +161,14 @@ fn preDecodeHook(
 fn preExecuteHook(
     runtime: *lcz.Runtime,
     instr: lcz.Runtime.Instruction,
-    instr_count: *InstrCount,
+    data: *CallbackData,
 ) lcz.Runtime.IoError!void {
-    instr_count.getPtr(instr).* += 1;
+    data.instr_count.getPtr(instr).* += 1;
+
+    switch (instr) {
+        else => {},
+        .trap => |operands| data.trap_count[operands.vect] += 1,
+    }
 
     try runtime.writer.ensureNewline();
     try runtime.writer.interface.print("\x1b[33mpre-execute {t}\x1b[0m\n", .{instr});
