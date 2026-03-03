@@ -49,7 +49,7 @@ pub fn Callback(comptime params: []const type, comptime Return: type) type {
             return .{ .func = wrapped, .data = null };
         }
 
-        pub fn withData(
+        pub fn withDataInit(
             comptime Data: type,
             comptime func: FuncWithData(Data),
             data_init: Data,
@@ -66,6 +66,29 @@ pub fn Callback(comptime params: []const type, comptime Return: type) type {
             }.wrapped;
 
             return .{ .func = wrapped, .data = data_init };
+        }
+
+        pub fn withDataDeferInit(
+            comptime Data: type,
+            comptime func: FuncWithData(Data),
+        ) Self {
+            const wrapped = struct {
+                fn wrapped(
+                    args: @Tuple(params),
+                    data: ?*const anyopaque,
+                ) Return {
+                    const casted = castData(Data, data);
+                    const args_actual = appendDataArg(Data, args, casted);
+                    return @call(.auto, func, args_actual);
+                }
+            }.wrapped;
+
+            return .{ .func = wrapped, .data = null };
+        }
+
+        pub fn initData(callback: *Self, comptime Data: type, data_init: Data) void {
+            assert(callback.data == null);
+            callback.data = data_init;
         }
 
         fn castData(comptime Data: type, data: ?*const anyopaque) Data {
