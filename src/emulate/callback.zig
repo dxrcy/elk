@@ -1,13 +1,8 @@
 const std = @import("std");
 const assert = std.debug.assert;
 
-const Runtime = @import("Runtime.zig");
-const IoError = Runtime.IoError;
-
 // TODO: Share with `Traps`
-pub fn Callback(comptime params: []const type) type {
-    const Return = IoError!void;
-
+pub fn Callback(comptime params: []const type, comptime Return: type) type {
     const FuncNoData = @Fn(
         params,
         &@splat(.{}),

@@ -58,8 +58,8 @@ const Condition = enum(u3) {
 };
 
 pub const Hooks = struct {
-    pre_decode: ?Callback(&.{ *Runtime, u16 }) = null,
-    pre_execute: ?Callback(&.{ *Runtime, Instruction }) = null,
+    pre_decode: ?Callback(&.{ *Runtime, u16 }, IoError!void) = null,
+    pre_execute: ?Callback(&.{ *Runtime, Instruction }, IoError!void) = null,
 };
 
 pub fn init(
