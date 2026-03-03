@@ -3,7 +3,7 @@ const Traps = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 
-const Callback = @import("callback.zig").Callback;
+pub const Callback = @import("callback.zig").Callback;
 const Runtime = @import("emulate/Runtime.zig");
 const builtin_traps = @import("emulate/builtin_traps.zig");
 
