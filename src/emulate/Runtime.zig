@@ -57,35 +57,89 @@ const Condition = enum(u3) {
 };
 
 pub const Hooks = struct {
-    pre_decode: ?Callback(.{ *Runtime, u16 }) = null,
-    pre_execute: ?Callback(.{ *Runtime, Instruction }) = null,
+    pre_decode: ?Callback(&.{ *Runtime, u16 }) = null,
+    pre_execute: ?Callback(&.{ *Runtime, Instruction }) = null,
 };
 
 // TODO: Share with `Traps`
-fn Callback(comptime params: anytype) type {
-    const params_full = [1]type{?*const anyopaque} ++ params;
-
+pub fn Callback(comptime params: []const type) type {
     const Return = IoError!void;
 
-    const Func = @Fn(
-        &params_full,
+    const FuncNoData = @Fn(
+        params,
+        &@splat(.{}),
+        Return,
+        .{},
+    );
+
+    const FuncFull = @Fn(
+        &[2]type{
+            ?*const anyopaque,
+            @Tuple(params),
+        },
         &@splat(.{}),
         Return,
         .{},
     );
 
     return struct {
-        func: *const Func,
+        const Self = @This();
+
+        func: *const FuncFull,
         data: ?*const anyopaque,
 
-        fn call(callback: *const @This(), args: @Tuple(&params)) Return {
-            var args_full: @Tuple(&params_full) = undefined;
-            args_full[0] = callback.data;
-            inline for (params, 1..) |_, i| {
-                args_full[i] = args[i - 1];
-            }
+        pub fn call(callback: *const Self, args: @Tuple(params)) Return {
+            try @call(.auto, callback.func, .{ callback.data, args });
+        }
 
-            try @call(.auto, callback.func, args_full);
+        pub fn noData(comptime func: FuncNoData) Self {
+            const wrapped = struct {
+                fn wrapped(
+                    data: ?*const anyopaque,
+                    args: @Tuple(params),
+                ) Return {
+                    std.debug.assert(data == null);
+                    return @call(.auto, func, args);
+                }
+            }.wrapped;
+
+            return .{
+                .func = wrapped,
+                .data = null,
+            };
+        }
+
+        pub fn withData(
+            comptime Data: type,
+            comptime func: FuncData(Data),
+            data: Data,
+        ) Self {
+            const wrapped = struct {
+                fn wrapped(
+                    data_inner: ?*const anyopaque,
+                    args: @Tuple(params),
+                ) Return {
+                    const casted: Data = @ptrCast(@alignCast(@constCast(data_inner.?)));
+                    return @call(.auto, func, .{ casted, args });
+                }
+            }.wrapped;
+
+            return .{
+                .func = wrapped,
+                .data = data,
+            };
+        }
+
+        fn FuncData(comptime Data: type) type {
+            return @Fn(
+                &[2]type{
+                    Data,
+                    @Tuple(params),
+                },
+                &@splat(.{}),
+                Return,
+                .{},
+            );
         }
     };
 }

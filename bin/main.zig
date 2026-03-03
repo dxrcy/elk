@@ -63,14 +63,12 @@ pub fn main(init: std.process.Init) !u8 {
         var instr_count: InstrCount = .initFill(0);
 
         const hooks: lcz.Runtime.Hooks = .{
-            .pre_decode = .{
-                .func = preDecodeHook,
-                .data = null,
-            },
-            .pre_execute = .{
-                .func = preExecuteHook,
-                .data = &instr_count,
-            },
+            .pre_decode = .noData(preDecodeHook),
+            .pre_execute = .withData(
+                *InstrCount,
+                preExecuteHook,
+                &instr_count,
+            ),
         };
 
         var runtime = try lcz.Runtime.init(
@@ -115,22 +113,21 @@ pub fn main(init: std.process.Init) !u8 {
 const InstrCount = std.EnumArray(std.meta.Tag(lcz.Runtime.Instruction), u32);
 
 fn preDecodeHook(
-    data: ?*const anyopaque,
     runtime: *lcz.Runtime,
     word: u16,
 ) lcz.Runtime.IoError!void {
-    std.debug.assert(data == null);
-
     try runtime.writer.ensureNewline();
     try runtime.writer.interface.print("\x1b[33mpre-decode {x:04}\x1b[0m\n", .{word});
 }
 
 fn preExecuteHook(
-    data: ?*const anyopaque,
-    runtime: *lcz.Runtime,
-    instr: lcz.Runtime.Instruction,
+    instr_count: *InstrCount,
+    args: struct {
+        *lcz.Runtime,
+        lcz.Runtime.Instruction,
+    },
 ) lcz.Runtime.IoError!void {
-    const instr_count: *InstrCount = @ptrCast(@alignCast(@constCast(data.?)));
+    const runtime, const instr = args;
 
     instr_count.getPtr(instr).* += 1;
 
