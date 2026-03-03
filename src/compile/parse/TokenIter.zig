@@ -386,6 +386,21 @@ fn ensureSupported(
             }
         },
 
+        .register => {
+            const string = token.span.view(tokens.source);
+            assert(string.len == 2);
+            switch (string[0]) {
+                'r' => {},
+                'R' => {
+                    tokens.reporter.report(.unconventional_case_ident, .{
+                        .ident = token.span,
+                        .kind = .register,
+                    }).collect(&result);
+                },
+                else => unreachable,
+            }
+        },
+
         .integer => |integer| {
             if (argument_opt) |argument| switch (argument) {
                 .operand => |operand| switch (operand) {

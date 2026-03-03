@@ -179,6 +179,7 @@ pub const Diagnostic = union(enum) {
             directive,
             instruction,
             label,
+            register,
         },
     },
     missing_operand_comma: struct {
@@ -249,6 +250,7 @@ pub const Diagnostic = union(enum) {
                 .directive => policyResponse(options, .style, .unconventional_case_directives),
                 .instruction => policyResponse(options, .style, .unconventional_case_instructions),
                 .label => policyResponse(options, .style, .unconventional_case_labels),
+                .register => policyResponse(options, .style, .unconventional_case_registers),
             },
             .missing_operand_comma => policyResponse(options, .style, .missing_operand_commas),
             .whitespace_comma => policyResponse(options, .style, .whitespace_commas),
@@ -454,6 +456,10 @@ pub const Diagnostic = union(enum) {
                 .label => {
                     ctx.printTitle("Label name is not PascalCase", .{});
                     ctx.deepen().printSourceNote("Label declared here", .{}, info.ident);
+                },
+                .register => {
+                    ctx.printTitle("Register name is not lowercase", .{});
+                    ctx.deepen().printSourceNote("Register", .{}, info.ident);
                 },
             },
             .missing_operand_comma => |info| {
