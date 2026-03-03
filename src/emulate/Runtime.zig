@@ -291,27 +291,17 @@ fn printIntegerForms(runtime: *Runtime, word: u16) error{WriteFailed}!void {
 }
 
 fn printDisplayChar(runtime: *Runtime, word: u16) error{WriteFailed}!void {
-    const display = switch (word) {
-        // Non-ascii and unimportant ascii
-        else => "---",
-        // ASCII control characters which are arbitrarily considered significant
-        0x00 => "NUL",
-        0x08 => " BS",
-        0x09 => " HT",
-        0x0a => " LF",
-        0x0b => " VT",
-        0x0c => " FF",
-        0x0d => " CR",
-        0x1b => "ESC",
-        0x7f => "DEL",
-        // Space
-        0x20 => "[_]",
-        // Printable ASCII characters
-        0x21...0x7e => {
-            try runtime.writer.interface.print("{c:^3}", .{@as(u8, @truncate(word))});
-            return;
-        },
+    const ascii = [0x80]*const [3]u8{
+        "NUL", "SOH", "STX",  "ETX", "EOT", "ENQ", "ACK", "BEL", " BS", " HT", " LF", " VT", " FF",  " CR", " SO", " SI",
+        "DLE", "DC1", "DC2",  "DC3", "DC4", "NAK", "SYN", "ETB", "CAN", " EM", "SUB", "ESC", " FS",  " GS", " RS", " US",
+        " SP", " ! ", " \" ", " # ", " $ ", " % ", " & ", " ' ", " ( ", " ) ", " * ", " + ", " , ",  " - ", " . ", " / ",
+        " 0 ", " 1 ", " 2 ",  " 3 ", " 4 ", " 5 ", " 6 ", " 7 ", " 8 ", " 9 ", " : ", " ; ", " < ",  " = ", " > ", " ? ",
+        " @ ", " A ", " B ",  " C ", " D ", " E ", " F ", " G ", " H ", " I ", " J ", " K ", " L ",  " M ", " N ", " O ",
+        " P ", " Q ", " R ",  " S ", " T ", " U ", " V ", " W ", " X ", " Y ", " Z ", " [ ", " \\ ", " ] ", " ^ ", " _ ",
+        " ` ", " a ", " b ",  " c ", " d ", " e ", " f ", " g ", " h ", " i ", " j ", " k ", " l ",  " m ", " n ", " o ",
+        " p ", " q ", " r ",  " s ", " t ", " u ", " v ", " w ", " x ", " y ", " z ", " { ", " | ",  " } ", " ~ ", "DEL",
     };
+    const display = if (word > 0x80) "---" else ascii[word];
     try runtime.writer.interface.print("{s}", .{display});
 }
 
