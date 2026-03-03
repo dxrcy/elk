@@ -9,8 +9,8 @@ const Traps = @import("../Traps.zig");
 const NewlineTracker = @import("NewlineTracker.zig");
 const Tty = @import("Tty.zig");
 
+pub const Callback = @import("../callback.zig").Callback;
 pub const Instruction = @import("decode.zig").Instruction;
-pub const Callback = @import("callback.zig").Callback;
 
 const MEMORY_SIZE = 0x1_0000;
 const USER_MEMORY_START = 0x3000;
@@ -192,12 +192,11 @@ fn runInstruction(runtime: *Runtime, instr: Instruction) Error!Control {
         },
 
         .trap => |operands| {
-            const entry = runtime.traps.entries[operands.vect];
-            const procedure = entry.procedure orelse
+            const callback = runtime.traps.entries[operands.vect].callback orelse
                 // No procedure declared
                 // Either trap was never registered, or only registered for alias
                 return error.UnhandledTrap;
-            procedure(runtime, entry.data) catch |err| switch (err) {
+            callback.call(.{runtime}) catch |err| switch (err) {
                 error.Halt => return .@"break",
                 else => |err2| return err2,
             };

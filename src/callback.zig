@@ -1,7 +1,6 @@
 const std = @import("std");
 const assert = std.debug.assert;
 
-// TODO: Share with `Traps`
 pub fn Callback(comptime params: []const type, comptime Return: type) type {
     return struct {
         const Self = @This();
