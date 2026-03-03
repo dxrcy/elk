@@ -46,8 +46,9 @@ pub fn register(traps: *Traps, vect: u8, entry: Entry) void {
 }
 
 pub fn setData(traps: *Traps, vect: u8, data: *const anyopaque) void {
-    assert(traps.entries[vect].procedure != null);
-    traps.entries[vect].data = data;
+    const callback = &(traps.entries[vect].callback orelse
+        unreachable);
+    callback.data = data;
 }
 
 pub fn initBuiltins(comptime enums: []const type) Traps {

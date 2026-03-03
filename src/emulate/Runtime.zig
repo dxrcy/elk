@@ -193,7 +193,7 @@ fn runInstruction(runtime: *Runtime, instr: Instruction) Error!Control {
 
         .trap => |operands| {
             const callback = runtime.traps.entries[operands.vect].callback orelse
-                // No procedure declared
+                // No trap callback declared
                 // Either trap was never registered, or only registered for alias
                 return error.UnhandledTrap;
             callback.call(.{runtime}) catch |err| switch (err) {
