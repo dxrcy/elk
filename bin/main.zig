@@ -63,12 +63,8 @@ pub fn main(init: std.process.Init) !u8 {
         var instr_count: InstrCount = .initFill(0);
 
         const hooks: lcz.Runtime.Hooks = .{
-            .pre_decode = .noData(preDecodeHook),
-            .pre_execute = .withData(
-                *InstrCount,
-                preExecuteHook,
-                &instr_count,
-            ),
+            .pre_decode = .withoutData(preDecodeHook),
+            .pre_execute = .withData(*InstrCount, preExecuteHook, &instr_count),
         };
 
         var runtime = try lcz.Runtime.init(
