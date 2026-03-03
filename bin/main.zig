@@ -158,8 +158,12 @@ fn preExecuteHook(
 
 const mcz_traps = struct {
     fn chat(runtime: *lcz.Runtime, conn: *mcz.Connection) lcz.Traps.Result {
-        _ = .{ runtime, conn };
-        return error.TrapFailed;
+        const memory_str: MemoryStr = .{
+            .runtime = runtime,
+            .start = runtime.registers[0],
+        };
+        conn.postToChatFmt("{f}", .{memory_str}) catch
+            return error.TrapFailed;
     }
 
     fn getp(runtime: *lcz.Runtime, conn: *mcz.Connection) lcz.Traps.Result {
@@ -229,4 +233,23 @@ const mcz_traps = struct {
     fn fromWord(value: u16) i32 {
         return @as(i16, @bitCast(value));
     }
+
+    const MemoryStr = struct {
+        runtime: *const lcz.Runtime,
+        start: u16,
+
+        pub fn format(memory_str: *const MemoryStr, writer: *Io.Writer) Io.Writer.Error!void {
+            for (memory_str.runtime.memory[memory_str.start..]) |word| {
+                if (word == 0x0000)
+                    break;
+                const byte: u8 = @truncate(word);
+                const char = switch (byte) {
+                    '\n' | '\t' => ' ',
+                    '\x20'...'\x7e' => byte,
+                    else => continue,
+                };
+                try writer.print("{c}", .{char});
+            }
+        }
+    };
 };

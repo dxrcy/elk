@@ -9,8 +9,8 @@
             .path = "../",
         },
         .mcz = .{
-            .url = "git+https://github.com/dxrcy/mcz#2db49117350e906f7a32c09954aa848bd2a63045",
-            .hash = "mcz-0.1.0-kvwPQu-zAABwz6RShl6O9vWPXwiWlW8nDpChZTGRX-e6",
+            .url = "git+https://github.com/dxrcy/mcz#89104409aa94b4b7587a142229cdeaa4fa4f047d",
+            .hash = "mcz-0.1.0-kvwPQhu1AAAXmBTC5OSwCu3ZcTSLq7oD9nVjSjIN8LSk",
         },
     },
 
