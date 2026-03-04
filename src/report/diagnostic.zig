@@ -152,8 +152,8 @@ pub const Diagnostic = union(enum) {
         integer: Span,
     },
     integer_too_large: struct {
-        integer: Span,
-        bits: u16,
+        span: Span,
+        integer: std.builtin.Type.Int,
     },
     invalid_string_escape: struct {
         string: Span,
@@ -418,8 +418,11 @@ pub const Diagnostic = union(enum) {
             },
             .integer_too_large => |info| {
                 ctx.printTitle("Integer operand is too large", .{});
-                ctx.deepen().printSourceNote("Operand", .{}, info.integer);
-                ctx.deepen().printNote("Value cannot be represented in {} bits", .{info.bits});
+                ctx.deepen().printSourceNote("Operand", .{}, info.span);
+                ctx.deepen().printNote("Value cannot be represented in {} bits", .{info.integer.bits});
+                if (info.integer.signedness == .signed) {
+                    ctx.deepen().printNote("Since the operand is a signed integer, the highest bit is reserved as the sign bit", .{});
+                }
             },
             .invalid_string_escape => |info| {
                 ctx.printTitle("Invalid escape sequence", .{});
