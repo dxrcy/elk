@@ -7,7 +7,9 @@ const Cli = @import("Cli.zig");
 
 pub fn main(init: std.process.Init) !u8 {
     const io, const gpa = .{ init.io, init.gpa };
-    _ = io;
+
+    var reporter = lcz.Reporter.new(io);
+    try reporter.init();
 
     var args = try init.minimal.args.iterateAllocator(gpa);
     defer args.deinit();
@@ -24,6 +26,9 @@ pub fn main(init: std.process.Init) !u8 {
         else => return err,
     };
 
+    const policies: lcz.Policies = .config_lace;
+    reporter.options.policies = &policies;
+
     switch (cli.command) {
         .assemble => {
             std.debug.print("todo: assemble\n", .{});
@@ -34,133 +39,64 @@ pub fn main(init: std.process.Init) !u8 {
         },
 
         .assemble_emulate => {
-            std.debug.print("todo: assemble and emulate\n", .{});
+            const source = try Io.Dir.cwd().readFileAlloc(io, cli.filepath, gpa, .unlimited);
+            defer gpa.free(source);
+
+            reporter.setSource(source);
+
+            var air: lcz.Air = .init();
+            defer air.deinit(gpa);
+
+            const traps: lcz.Traps = comptime .initBuiltins(&.{
+                lcz.Traps.Standard,
+                lcz.Traps.Debug,
+            });
+
+            const hooks: lcz.Runtime.Hooks = .{};
+
+            var parser: lcz.Parser = .new(&air, &traps, source, &reporter);
+
+            try parser.parse(gpa);
+            if (reporter.endSection() == .err) {
+                return 1;
+            }
+
+            parser.resolveLabels();
+            if (reporter.endSection() == .err) {
+                return 1;
+            }
+
+            var write_buffer: [64]u8 = undefined;
+            var writer = Io.File.stdout().writer(io, &write_buffer);
+            var reader = Io.File.stdin().reader(io, &.{});
+
+            var runtime = try lcz.Runtime.init(
+                &traps,
+                hooks,
+                &policies,
+                &writer.interface,
+                &reader.interface,
+                io,
+                gpa,
+            );
+            defer runtime.deinit(gpa);
+
+            try air.emitRuntime(&runtime);
+
+            runtime.run() catch |err| switch (err) {
+                error.WriteFailed,
+                error.ReadFailed,
+                error.TermiosFailed,
+                => |err2| return err2,
+                else => |err2| {
+                    std.log.err("runtime threw exception: {t}", .{err2});
+                },
+            };
+
+            try runtime.writer.ensureNewline();
+            try runtime.writer.interface.flush();
         },
     }
 
     return 0;
-}
-
-fn main_old(init: std.process.Init) !u8 {
-    const io, const gpa = .{ init.io, init.gpa };
-
-    var reporter = lcz.Reporter.new(io);
-    try reporter.init();
-
-    const asm_path = "hw.asm";
-
-    const source = try Io.Dir.cwd().readFileAlloc(io, asm_path, gpa, .unlimited);
-    defer gpa.free(source);
-
-    reporter.setSource(source);
-
-    // reporter.options.strictness = .normal;
-    // reporter.options.verbosity = .normal;
-
-    const policies: lcz.Policies = .config_lace;
-    reporter.options.policies = &policies;
-
-    var air: lcz.Air = .init();
-    defer air.deinit(gpa);
-
-    const traps: lcz.Traps = comptime .initBuiltins(&.{
-        lcz.Traps.Standard,
-        lcz.Traps.Debug,
-    });
-
-    var parser: lcz.Parser = .new(&air, &traps, source, &reporter);
-
-    try parser.parse(gpa);
-    parser.resolveLabels();
-
-    {
-        if (reporter.endSection() == .err) {
-            std.log.info("stop", .{});
-            return 1;
-        }
-    }
-
-    {
-        const bin_path = "hw.obj";
-
-        var file = try Io.Dir.cwd().createFile(io, bin_path, .{});
-        defer file.close(io);
-
-        var buffer: [512]u8 = undefined;
-        var writer = file.writer(io, &buffer);
-
-        try air.emitWriter(&writer.interface);
-        try writer.flush();
-    }
-
-    {
-        var write_buffer: [64]u8 = undefined;
-        var writer = Io.File.stdout().writer(io, &write_buffer);
-        var reader = Io.File.stdin().reader(io, &.{});
-
-        var instr_count: InstrCount = .initFill(0);
-
-        const hooks: lcz.Runtime.Hooks = .{
-            // .pre_decode = .withoutData(preDecodeHook),
-            // .pre_execute = .withDataInit(*InstrCount, preExecuteHook, &instr_count),
-        };
-
-        var runtime = try lcz.Runtime.init(
-            &traps,
-            hooks,
-            &policies,
-            &writer.interface,
-            &reader.interface,
-            io,
-            gpa,
-        );
-        defer runtime.deinit(gpa);
-
-        try air.emitRuntime(&runtime);
-
-        runtime.run() catch |err| switch (err) {
-            error.WriteFailed,
-            error.ReadFailed,
-            error.TermiosFailed,
-            => |err2| return err2,
-            else => |err2| {
-                std.log.err("runtime threw exception: {t}", .{err2});
-            },
-        };
-
-        try runtime.writer.ensureNewline();
-        try runtime.writer.interface.flush();
-
-        for (runtime.registers, 0..) |register, i| {
-            std.debug.print("r{}: 0x{x:04}\n", .{ i, register });
-        }
-
-        for (std.meta.tags(std.meta.Tag(lcz.Runtime.Instruction))) |field| {
-            const count = instr_count.get(field);
-            std.debug.print("{t:20}: {}\n", .{ field, count });
-        }
-    }
-
-    return 0;
-}
-
-const InstrCount = std.EnumArray(std.meta.Tag(lcz.Runtime.Instruction), u32);
-
-fn preDecodeHook(
-    runtime: *lcz.Runtime,
-    word: u16,
-) lcz.Runtime.IoError!void {
-    try runtime.writer.ensureNewline();
-    try runtime.writer.interface.print("\x1b[33mpre-decode {x:04}\x1b[0m\n", .{word});
-}
-
-fn preExecuteHook(
-    runtime: *lcz.Runtime,
-    instr: lcz.Runtime.Instruction,
-    instr_count: *InstrCount,
-) lcz.Runtime.IoError!void {
-    instr_count.getPtr(instr).* += 1;
-
-    try runtime.writer.ensureNewline();
-    try runtime.writer.interface.print("\x1b[33mpre-execute {t}\x1b[0m\n", .{instr});
 }
