@@ -123,16 +123,16 @@ pub fn run(runtime: *Runtime) Error!void {
 
 fn runInstruction(runtime: *Runtime, instr: Instruction) Error!Control {
     switch (instr) {
-        inline .add, .@"and" => |operands| {
+        inline .add, .@"and" => |operands, instr_subset| {
             const lhs = runtime.registers[operands.src_a];
             const rhs: u16 = switch (operands.src_b) {
                 .register => |register| runtime.registers[register],
                 .immediate => |immediate| signExtend(immediate),
             };
-            runtime.setRegister(operands.dest, switch (instr) {
+            runtime.setRegister(operands.dest, switch (instr_subset) {
                 .add => lhs +% rhs,
                 .@"and" => lhs & rhs,
-                else => unreachable,
+                else => comptime unreachable,
             });
         },
         .not => |operands| {
