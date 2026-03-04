@@ -45,6 +45,7 @@ const Control = enum { @"continue", @"break" };
 const InnerError = error{
     Reported,
     Eof,
+    TooLong,
     OutOfMemory,
 };
 
@@ -60,6 +61,9 @@ pub fn parse(parser: *Parser, gpa: Allocator) error{OutOfMemory}!void {
             error.Eof => {
                 missing_end = true; // Report at end of function
                 break;
+            },
+            error.TooLong => {
+                return; // Give up, do not warn for anything else
             },
             error.OutOfMemory => |other| return other,
         };
@@ -174,9 +178,9 @@ fn appendLine(
     statement: Statement,
     span: Span,
     gpa: Allocator,
-) error{OutOfMemory}!void {
-    if (parser.air.lines.items.len + 1 > 0xffff)
-        return error.OutOfMemory;
+) error{ TooLong, OutOfMemory }!void {
+    try parser.ensureCanAppendLines(1, span);
+
     try parser.air.lines.append(gpa, .{
         .label = parser.current_label,
         .statement = statement,
@@ -194,10 +198,9 @@ fn appendLineNTimes(
     span: Span,
     n: usize,
     gpa: Allocator,
-) error{OutOfMemory}!void {
+) error{ TooLong, OutOfMemory }!void {
     assert(n > 0);
-    if (parser.air.lines.items.len + n > 0xffff)
-        return error.OutOfMemory;
+    try parser.ensureCanAppendLines(n, span);
 
     try parser.air.lines.ensureUnusedCapacity(gpa, n);
 
@@ -213,6 +216,15 @@ fn appendLineNTimes(
         .statement = statement,
         .span = span,
     }, n - 1);
+}
+
+fn ensureCanAppendLines(parser: *Parser, n: usize, span: Span) error{TooLong}!void {
+    if (parser.air.lines.items.len + n > 0xffff) {
+        parser.reporter().report(.output_too_long, .{
+            .line = span,
+        }).abort() catch
+            return error.TooLong;
+    }
 }
 
 fn parseDirective(

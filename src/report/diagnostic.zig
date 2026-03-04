@@ -62,6 +62,9 @@ fn policyResponse(
 
 // TODO: Organise variants
 pub const Diagnostic = union(enum) {
+    output_too_long: struct {
+        line: Span,
+    },
     nonstandard_stack_instruction: struct {
         instruction: Token.Value.Instruction,
         span: Span,
@@ -209,6 +212,7 @@ pub const Diagnostic = union(enum) {
 
     pub fn getResponse(diag: Diagnostic, options: Reporter.Options) Reporter.Response {
         return switch (diag) {
+            .output_too_long,
             .multiple_origins,
             .late_origin,
             .duplicate_label,
@@ -263,6 +267,11 @@ pub const Diagnostic = union(enum) {
 
     pub fn print(diag: Diagnostic, ctx: Ctx, source: []const u8) void {
         switch (diag) {
+            .output_too_long => |info| {
+                ctx.printTitle("Assembly file would emit too many words", .{});
+                ctx.deepen().printSourceNote("Line", .{}, info.line);
+                ctx.deepen().printNote("Object files cannot contain more than 0xffff words", .{});
+            },
             .nonstandard_stack_instruction => |info| {
                 ctx.printTitle("Use of non-standard stack instruction `{t}`", .{info.instruction});
                 ctx.deepen().printSourceNote("Instruction is an ISA extension", .{}, info.span);
