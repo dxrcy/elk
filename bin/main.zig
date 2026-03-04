@@ -30,7 +30,8 @@ pub fn main(init: std.process.Init) !u8 {
         lcz.Traps.Debug,
     });
 
-    var parser: lcz.Parser = .new(&air, &traps, source, &reporter);
+    var parser = lcz.Parser.new(&air, &traps, source, &reporter) orelse
+        return 1;
 
     try parser.parse(gpa);
     if (reporter.getLevel() == .err) {

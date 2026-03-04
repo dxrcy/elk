@@ -36,6 +36,9 @@ pub fn new(
             assert(case.isLowercaseAlpha(alias));
     }
 
+    for (source) |char|
+        assert(Token.isValidChar(char));
+
     return .{
         .lexer = Lexer.new(source),
         .peeked = null,

@@ -22,6 +22,13 @@ pub const Error =
         UnmatchedQuote,
     };
 
+pub fn isValidChar(char: u8) bool {
+    return switch (char) {
+        0x20...0x7e, '\t', '\r', '\n' => true,
+        else => false,
+    };
+}
+
 pub fn from(span: Span, source: []const u8, traps: *const Traps) Error!Token {
     const value: Value = try .from(span.view(source), traps);
     return .{ .span = span, .value = value };

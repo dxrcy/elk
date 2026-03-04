@@ -62,6 +62,9 @@ fn policyResponse(
 
 // TODO: Organise variants
 pub const Diagnostic = union(enum) {
+    invalid_byte: struct {
+        byte: usize,
+    },
     output_too_long: struct {
         line: Span,
     },
@@ -212,6 +215,7 @@ pub const Diagnostic = union(enum) {
 
     pub fn getResponse(diag: Diagnostic, options: Reporter.Options) Reporter.Response {
         return switch (diag) {
+            .invalid_byte,
             .output_too_long,
             .multiple_origins,
             .late_origin,
@@ -267,6 +271,12 @@ pub const Diagnostic = union(enum) {
 
     pub fn print(diag: Diagnostic, ctx: Ctx, source: []const u8) void {
         switch (diag) {
+            .invalid_byte => |info| {
+                ctx.printTitle("Assembly file contains invalid bytes", .{});
+                ctx.deepen().printSourceNote("Byte", .{}, .{ .offset = info.byte, .len = 1 });
+                ctx.deepen().printNote("Assembly file must only contain printable ASCII characters", .{});
+                ctx.deepen().printNote("The assembler cannot read object files", .{});
+            },
             .output_too_long => |info| {
                 ctx.printTitle("Assembly file would emit too many words", .{});
                 ctx.deepen().printSourceNote("Line", .{}, info.line);

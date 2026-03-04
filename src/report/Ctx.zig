@@ -3,6 +3,7 @@ const Ctx = @This();
 const std = @import("std");
 
 const Span = @import("../compile/Span.zig");
+const Token = @import("../compile/parse/Token.zig");
 const Reporter = @import("Reporter.zig");
 
 reporter: *Reporter,
@@ -139,15 +140,30 @@ fn printSource(ctx: Ctx, span: Span) void {
 
         {
             var was_in_span = false;
+            var was_non_valid = false;
+
             for (line_string, 0..) |char, i| {
                 const index = line.offset + i;
+
                 const in_span = span.containsIndex(index);
                 if (in_span and !was_in_span)
                     ctx.print("\x1b[22m", .{})
                 else if (!in_span and was_in_span)
                     ctx.print("\x1b[2m", .{});
-                ctx.print("{c}", .{char});
+
+                const non_valid = Token.isValidChar(char);
+                if (!non_valid and was_non_valid)
+                    ctx.print("\x1b[31m", .{})
+                else if (non_valid and !was_non_valid)
+                    ctx.print("\x1b[39m", .{});
+
+                if (non_valid)
+                    ctx.print("{c}", .{char})
+                else
+                    ctx.print("?", .{});
+
                 was_in_span = in_span;
+                was_non_valid = non_valid;
             }
         }
 

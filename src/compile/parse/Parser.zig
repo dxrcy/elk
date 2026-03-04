@@ -24,7 +24,16 @@ pub fn new(
     traps: *const Traps,
     source_: []const u8,
     reporter_: *Reporter,
-) Parser {
+) ?Parser {
+    for (source_, 0..) |char, i| {
+        if (!Token.isValidChar(char)) {
+            reporter_.report(.invalid_byte, .{
+                .byte = i,
+            }).abort() catch
+                return null;
+        }
+    }
+
     return .{
         .air = air,
         .tokens = .new(traps, source_, reporter_),
