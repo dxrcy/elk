@@ -75,7 +75,38 @@ pub fn main(init: std.process.Init) !u8 {
         },
 
         .emulate => {
-            std.debug.print("todo: emulate\n", .{});
+            const obj_file = try Io.Dir.cwd().openFile(io, cli.filepath, .{});
+            var read_buffer: [1024]u8 = undefined;
+
+            var write_buffer: [64]u8 = undefined;
+            var writer = Io.File.stdout().writer(io, &write_buffer);
+            var reader = Io.File.stdin().reader(io, &.{});
+
+            var runtime = try lcz.Runtime.init(
+                &traps,
+                hooks,
+                &policies,
+                &writer.interface,
+                &reader.interface,
+                io,
+                gpa,
+            );
+            defer runtime.deinit(gpa);
+
+            try runtime.readFromFile(obj_file, &read_buffer, io);
+
+            runtime.run() catch |err| switch (err) {
+                error.WriteFailed,
+                error.ReadFailed,
+                error.TermiosFailed,
+                => |err2| return err2,
+                else => |err2| {
+                    std.log.err("runtime threw exception: {t}", .{err2});
+                },
+            };
+
+            try runtime.writer.ensureNewline();
+            try runtime.writer.interface.flush();
         },
 
         .assemble_emulate => {
