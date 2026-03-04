@@ -11,8 +11,6 @@ Complete [LC-3](https://en.wikipedia.org/wiki/Little_Computer_3) toolchain (curr
 - [x] Emulator
 - [ ] Debugger
 - [ ] Formatter
-- [ ] Language server
-- [ ] and more coming...
 
 ## Optional Extension Features
 
@@ -20,7 +18,17 @@ Complete [LC-3](https://en.wikipedia.org/wiki/Little_Computer_3) toolchain (curr
 - [x] Stack instructions (compatible with [Lace](https://github.com/rozukke/lace))
 - [x] Extra-permissive assembly syntax
 - [x] Full support for arbitrary user-defined traps
-- [ ] Preprocessor metaprogramming
+- [ ] Multiple file support (compatible with [Laser](https://github.com/PaperFanz/laser))
+
+## Quality-of-Life Features
+
+- [x] Descriptive warnings and error messages
+- [x] Assembly code style hints
+
+## Other Toolchain Components
+
+- [ ] Language server
+- [ ] Tree-sitter parser (syntax highlighting)
 
 ## Supported Applications
 
