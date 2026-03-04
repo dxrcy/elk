@@ -219,7 +219,7 @@ fn appendLineNTimes(
 }
 
 fn ensureCanAppendLines(parser: *Parser, n: usize, span: Span) error{TooLong}!void {
-    if (parser.air.lines.items.len + n > 0xffff) {
+    if (parser.air.origin + parser.air.lines.items.len + n > 0xffff) {
         parser.reporter().report(.output_too_long, .{
             .line = span,
         }).abort() catch
