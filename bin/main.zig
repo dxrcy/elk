@@ -6,8 +6,9 @@ const lcz = @import("lcz");
 pub fn main(init: std.process.Init) !u8 {
     const io, const gpa = .{ init.io, init.gpa };
 
-    var reporter = lcz.Reporter.new(io);
-    try reporter.init();
+    var reporter_buffer: [1024]u8 = undefined;
+    var reporter_writer = Io.File.stderr().writer(io, &reporter_buffer);
+    var reporter = lcz.Reporter.new(&reporter_writer.interface);
 
     const asm_path = "hw.asm";
 

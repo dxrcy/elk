@@ -17,10 +17,7 @@ impl: Inner,
 
 pub const Inner = struct {
     source: ?[]const u8,
-    file: Io.File,
-    buffer: [BUFFER_SIZE]u8,
-    writer: Io.File.Writer,
-    io: Io,
+    writer: *Io.Writer,
 };
 
 pub const Level = enum { err, warn };
@@ -82,23 +79,15 @@ pub const Response = enum {
     }
 };
 
-pub fn new(io: Io) Reporter {
+pub fn new(writer: *Io.Writer) Reporter {
     return .{
         .options = .{},
         .count = .initFill(0),
         .impl = .{
             .source = null,
-            .file = undefined,
-            .buffer = undefined,
-            .writer = undefined,
-            .io = io,
+            .writer = writer,
         },
     };
-}
-
-pub fn init(reporter: *Reporter) !void {
-    reporter.impl.file = std.Io.File.stderr();
-    reporter.impl.writer = reporter.impl.file.writer(reporter.impl.io, &reporter.impl.buffer);
 }
 
 pub fn setSource(reporter: *Reporter, source: []const u8) void {
