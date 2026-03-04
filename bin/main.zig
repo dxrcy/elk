@@ -29,9 +29,49 @@ pub fn main(init: std.process.Init) !u8 {
     const policies: lcz.Policies = .config_lace;
     reporter.options.policies = &policies;
 
+    const traps: lcz.Traps = comptime .initBuiltins(&.{
+        lcz.Traps.Standard,
+        lcz.Traps.Debug,
+    });
+    const hooks: lcz.Runtime.Hooks = .{};
+
     switch (cli.command) {
         .assemble => {
-            std.debug.print("todo: assemble\n", .{});
+            const source = try Io.Dir.cwd().readFileAlloc(io, cli.filepath, gpa, .unlimited);
+            defer gpa.free(source);
+
+            reporter.setSource(source);
+
+            var air: lcz.Air = .init();
+            defer air.deinit(gpa);
+
+            var parser: lcz.Parser = .new(&air, &traps, source, &reporter);
+
+            try parser.parse(gpa);
+            if (reporter.getLevel() == .err) {
+                reporter.showSummary();
+                return 1;
+            }
+
+            parser.resolveLabels();
+            if (reporter.getLevel() == .err) {
+                reporter.showSummary();
+                return 1;
+            }
+
+            reporter.showSummary();
+
+            // TODO: Derive from `cli.filepath`
+            const obj_path = "hw.obj";
+
+            var file = try Io.Dir.cwd().createFile(io, obj_path, .{});
+            defer file.close(io);
+
+            var buffer: [512]u8 = undefined;
+            var writer = file.writer(io, &buffer);
+
+            try air.emitWriter(&writer.interface);
+            try writer.flush();
         },
 
         .emulate => {
@@ -46,13 +86,6 @@ pub fn main(init: std.process.Init) !u8 {
 
             var air: lcz.Air = .init();
             defer air.deinit(gpa);
-
-            const traps: lcz.Traps = comptime .initBuiltins(&.{
-                lcz.Traps.Standard,
-                lcz.Traps.Debug,
-            });
-
-            const hooks: lcz.Runtime.Hooks = .{};
 
             var parser: lcz.Parser = .new(&air, &traps, source, &reporter);
 
