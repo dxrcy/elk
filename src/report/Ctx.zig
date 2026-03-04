@@ -21,12 +21,12 @@ pub fn new(reporter: *Reporter, level: ?Reporter.Level, item_count: ?*usize) Ctx
 }
 
 pub fn print(ctx: Ctx, comptime fmt: []const u8, args: anytype) void {
-    ctx.reporter.writer.interface.print(fmt, args) catch
+    ctx.reporter.impl.writer.interface.print(fmt, args) catch
         std.debug.panic("failed to write to reporter file", .{});
 }
 
 pub fn flush(ctx: Ctx) void {
-    ctx.reporter.writer.interface.flush() catch
+    ctx.reporter.impl.writer.interface.flush() catch
         std.debug.panic("failed to flush reporter file", .{});
 }
 
@@ -108,7 +108,7 @@ pub fn printSourceNote(
 }
 
 fn printSource(ctx: Ctx, span: Span) void {
-    const source = ctx.reporter.source orelse
+    const source = ctx.reporter.impl.source orelse
         unreachable;
 
     switch (ctx.reporter.options.verbosity) {

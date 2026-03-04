@@ -12,13 +12,16 @@ const Ctx = @import("Ctx.zig");
 const BUFFER_SIZE = 1024;
 
 options: Options,
-source: ?[]const u8,
 count: std.EnumArray(Level, usize),
+impl: Inner,
 
-file: Io.File,
-buffer: [BUFFER_SIZE]u8,
-writer: Io.File.Writer,
-io: Io,
+pub const Inner = struct {
+    source: ?[]const u8,
+    file: Io.File,
+    buffer: [BUFFER_SIZE]u8,
+    writer: Io.File.Writer,
+    io: Io,
+};
 
 pub const Level = enum { err, warn };
 
@@ -82,23 +85,25 @@ pub const Response = enum {
 pub fn new(io: Io) Reporter {
     return .{
         .options = .{},
-        .source = null,
         .count = .initFill(0),
-        .file = undefined,
-        .buffer = undefined,
-        .writer = undefined,
-        .io = io,
+        .impl = .{
+            .source = null,
+            .file = undefined,
+            .buffer = undefined,
+            .writer = undefined,
+            .io = io,
+        },
     };
 }
 
 pub fn init(reporter: *Reporter) !void {
-    reporter.file = std.Io.File.stderr();
-    reporter.writer = reporter.file.writer(reporter.io, &reporter.buffer);
+    reporter.impl.file = std.Io.File.stderr();
+    reporter.impl.writer = reporter.impl.file.writer(reporter.impl.io, &reporter.impl.buffer);
 }
 
 pub fn setSource(reporter: *Reporter, source: []const u8) void {
-    assert(reporter.source == null);
-    reporter.source = source;
+    assert(reporter.impl.source == null);
+    reporter.impl.source = source;
 }
 
 pub fn getLevel(reporter: *const Reporter) ?Level {
@@ -153,7 +158,7 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
 
     var ctx_items: usize = 0;
     const ctx: Ctx = .new(reporter, level, &ctx_items);
-    const source = reporter.source orelse
+    const source = reporter.impl.source orelse
         unreachable;
 
     diag.print(ctx, source);
