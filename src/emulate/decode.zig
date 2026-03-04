@@ -46,6 +46,8 @@ const bitmasks = struct {
         pub const jmp_ret_low: Bitmask = .new(.unsigned, 0, 5, 6);
         pub const jsrr_high: Bitmask = .new(.unsigned, 9, 11, 3);
         pub const jsrr_low: Bitmask = .new(.unsigned, 0, 5, 6);
+        pub const rti: Bitmask = .new(.unsigned, 0, 11, 12);
+        pub const trap: Bitmask = .new(.unsigned, 8, 11, 4);
     };
 
     pub const operand = struct {
@@ -271,6 +273,8 @@ pub const Instruction = union(enum) {
             },
 
             .trap => {
+                if (bitmasks.padding.trap.apply(word) != 0)
+                    return error.IncorrectPadding;
                 const vect = bitmasks.operand.trap_vect.apply(word);
                 return .{ .trap = .{
                     .vect = vect,
@@ -278,6 +282,8 @@ pub const Instruction = union(enum) {
             },
 
             .rti => {
+                if (bitmasks.padding.rti.apply(word) != 0)
+                    return error.IncorrectPadding;
                 return .rti;
             },
 
