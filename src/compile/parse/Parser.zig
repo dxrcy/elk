@@ -262,7 +262,6 @@ fn parseDirective(
         },
 
         .orig => {
-            // FIXME: This should technically be removed I think ??
             if (parser.current_label) |label| {
                 try parser.reporter().report(.invalid_label_target, .{
                     .label = label,
