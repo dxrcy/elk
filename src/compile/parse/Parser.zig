@@ -14,13 +14,11 @@ const TokenIter = @import("TokenIter.zig");
 const Token = @import("Token.zig");
 const case = @import("case.zig");
 
-air: *Air,
 tokens: TokenIter,
 current_label: ?Span,
 origin: ?Span,
 
 pub fn new(
-    air: *Air,
     traps: *const Traps,
     source_: []const u8,
     reporter_: *Reporter,
@@ -35,7 +33,6 @@ pub fn new(
     }
 
     return .{
-        .air = air,
         .tokens = .new(traps, source_, reporter_),
         .current_label = null,
         .origin = null,
@@ -58,11 +55,11 @@ const InnerError = error{
     OutOfMemory,
 };
 
-pub fn parse(parser: *Parser, gpa: Allocator) error{OutOfMemory}!void {
+pub fn parse(parser: *Parser, air: *Air, gpa: Allocator) error{OutOfMemory}!void {
     var missing_end = false;
 
     while (true) {
-        const control = parser.parseLine(gpa) catch |err| switch (err) {
+        const control = parser.parseLine(air, gpa) catch |err| switch (err) {
             error.Reported => {
                 parser.tokens.discardRemainingLine();
                 continue;
@@ -85,7 +82,7 @@ pub fn parse(parser: *Parser, gpa: Allocator) error{OutOfMemory}!void {
 
     if (parser.origin == null) {
         parser.reporter().report(.missing_origin, .{
-            .first_token = parser.air.getFirstSpan(),
+            .first_token = air.getFirstSpan(),
         }).proceed(); // Can't return `error.Reported`
     }
 
@@ -102,7 +99,7 @@ pub fn parse(parser: *Parser, gpa: Allocator) error{OutOfMemory}!void {
     }
 }
 
-fn parseLine(parser: *Parser, gpa: Allocator) InnerError!Control {
+fn parseLine(parser: *Parser, air: *Air, gpa: Allocator) InnerError!Control {
     const token = try parser.tokens.nextExcluding(&.{.newline});
 
     switch (token.value) {
@@ -114,7 +111,7 @@ fn parseLine(parser: *Parser, gpa: Allocator) InnerError!Control {
                 }).handle();
             }
 
-            if (parser.getExistingLabel(token.span.view(parser.source()))) |existing_label| {
+            if (parser.getExistingLabel(air, token.span.view(parser.source()))) |existing_label| {
                 try parser.reporter().report(.duplicate_label, .{
                     .existing = existing_label,
                     .new = token.span,
@@ -148,7 +145,7 @@ fn parseLine(parser: *Parser, gpa: Allocator) InnerError!Control {
         },
 
         .directive => |directive| {
-            const control = try parser.parseDirective(directive, token.span, gpa);
+            const control = try parser.parseDirective(air, directive, token.span, gpa);
             try parser.tokens.expectEol();
             return control;
         },
@@ -161,7 +158,7 @@ fn parseLine(parser: *Parser, gpa: Allocator) InnerError!Control {
                 parser.tokens.getIndex(),
             );
             try parser.tokens.expectEol();
-            try parser.appendLine(statement, span, gpa);
+            try parser.appendLine(air, statement, span, gpa);
         },
 
         .trap_alias => |vect| {
@@ -169,7 +166,7 @@ fn parseLine(parser: *Parser, gpa: Allocator) InnerError!Control {
                 .vect = .{ .span = token.span, .value = .{ .immediate = vect } },
             } };
             try parser.tokens.expectEol();
-            try parser.appendLine(statement, token.span, gpa);
+            try parser.appendLine(air, statement, token.span, gpa);
         },
 
         else => {
@@ -184,13 +181,14 @@ fn parseLine(parser: *Parser, gpa: Allocator) InnerError!Control {
 
 fn appendLine(
     parser: *Parser,
+    air: *Air,
     statement: Statement,
     span: Span,
     gpa: Allocator,
 ) error{ TooLong, OutOfMemory }!void {
-    try parser.ensureCanAppendLines(1, span);
+    try parser.ensureCanAppendLines(air, 1, span);
 
-    try parser.air.lines.append(gpa, .{
+    try air.lines.append(gpa, .{
         .label = parser.current_label,
         .statement = statement,
         .span = span,
@@ -203,32 +201,33 @@ fn appendLine(
 /// Equivalent to calling `appendLine` `n` times, but only resizes once at most.
 fn appendLineNTimes(
     parser: *Parser,
+    air: *Air,
     statement: Statement,
     span: Span,
     n: usize,
     gpa: Allocator,
 ) error{ TooLong, OutOfMemory }!void {
     assert(n > 0);
-    try parser.ensureCanAppendLines(n, span);
+    try parser.ensureCanAppendLines(air, n, span);
 
-    try parser.air.lines.ensureUnusedCapacity(gpa, n);
+    try air.lines.ensureUnusedCapacity(gpa, n);
 
-    parser.air.lines.appendAssumeCapacity(.{
+    air.lines.appendAssumeCapacity(.{
         .label = parser.current_label,
         .statement = statement,
         .span = span,
     });
     parser.current_label = null;
 
-    parser.air.lines.appendNTimesAssumeCapacity(.{
+    air.lines.appendNTimesAssumeCapacity(.{
         .label = null,
         .statement = statement,
         .span = span,
     }, n - 1);
 }
 
-fn ensureCanAppendLines(parser: *Parser, n: usize, span: Span) error{TooLong}!void {
-    if (parser.air.origin + parser.air.lines.items.len + n > 0xffff) {
+fn ensureCanAppendLines(parser: *Parser, air: *Air, n: usize, span: Span) error{TooLong}!void {
+    if (air.origin + air.lines.items.len + n > 0xffff) {
         parser.reporter().report(.output_too_long, .{
             .line = span,
         }).abort() catch
@@ -238,6 +237,7 @@ fn ensureCanAppendLines(parser: *Parser, n: usize, span: Span) error{TooLong}!vo
 
 fn parseDirective(
     parser: *Parser,
+    air: *Air,
     directive: Token.Value.Directive,
     span: Span,
     gpa: Allocator,
@@ -269,17 +269,17 @@ fn parseDirective(
                     .new = origin.span,
                 }).abort();
             }
-            parser.air.origin = origin.value.castToUnsigned() orelse {
+            air.origin = origin.value.castToUnsigned() orelse {
                 try parser.reporter().report(.unexpected_negative_integer, .{
                     .integer = origin.span,
                 }).abort();
             };
             parser.origin = origin.span;
 
-            if (parser.air.lines.items.len > 0) {
+            if (air.lines.items.len > 0) {
                 try parser.reporter().report(.late_origin, .{
                     .origin = origin.span,
-                    .first_token = parser.air.getFirstSpan(),
+                    .first_token = air.getFirstSpan(),
                 }).abort();
             }
         },
@@ -287,6 +287,7 @@ fn parseDirective(
         .fill => {
             const word = try parser.tokens.expectArgument(.word);
             try parser.appendLine(
+                air,
                 .{ .raw_word = word.value.underlying },
                 word.span,
                 gpa,
@@ -296,6 +297,7 @@ fn parseDirective(
         .blkw => {
             const size = try parser.tokens.expectArgument(.word);
             try parser.appendLineNTimes(
+                air,
                 .{ .raw_word = 0x00 },
                 size.span,
                 size.value.underlying,
@@ -336,6 +338,7 @@ fn parseDirective(
                 is_escaped = false;
 
                 try parser.appendLine(
+                    air,
                     .{ .raw_word = char_escaped },
                     string.span,
                     gpa,
@@ -344,6 +347,7 @@ fn parseDirective(
 
             // Null terminator
             try parser.appendLine(
+                air,
                 .{ .raw_word = 0x0000 },
                 string.span,
                 gpa,
@@ -436,8 +440,8 @@ fn parseInstruction(
     }
 }
 
-fn getExistingLabel(parser: *const Parser, new_label: []const u8) ?Span {
-    for (parser.air.lines.items) |line| {
+fn getExistingLabel(parser: *const Parser, air: *Air, new_label: []const u8) ?Span {
+    for (air.lines.items) |line| {
         const existing_label = line.label orelse
             continue;
         if (std.mem.eql(u8, existing_label.view(parser.source()), new_label)) {
@@ -447,17 +451,17 @@ fn getExistingLabel(parser: *const Parser, new_label: []const u8) ?Span {
     return null;
 }
 
-pub fn resolveLabels(parser: *Parser) void {
-    for (parser.air.lines.items, 0..) |*line, index| {
+pub fn resolveLabels(parser: *Parser, air: *Air) void {
+    for (air.lines.items, 0..) |*line, index| {
         _ = switch (line.statement) {
-            .br => |*operands| parser.resolveFieldLabel(&operands.dest, index),
-            .jsr => |*operands| parser.resolveFieldLabel(&operands.dest, index),
-            .ld => |*operands| parser.resolveFieldLabel(&operands.src, index),
-            .ldi => |*operands| parser.resolveFieldLabel(&operands.src, index),
-            .lea => |*operands| parser.resolveFieldLabel(&operands.src, index),
-            .st => |*operands| parser.resolveFieldLabel(&operands.dest, index),
-            .sti => |*operands| parser.resolveFieldLabel(&operands.dest, index),
-            .call => |*operands| parser.resolveFieldLabel(&operands.dest, index),
+            .br => |*operands| parser.resolveFieldLabel(air, &operands.dest, index),
+            .jsr => |*operands| parser.resolveFieldLabel(air, &operands.dest, index),
+            .ld => |*operands| parser.resolveFieldLabel(air, &operands.src, index),
+            .ldi => |*operands| parser.resolveFieldLabel(air, &operands.src, index),
+            .lea => |*operands| parser.resolveFieldLabel(air, &operands.src, index),
+            .st => |*operands| parser.resolveFieldLabel(air, &operands.dest, index),
+            .sti => |*operands| parser.resolveFieldLabel(air, &operands.dest, index),
+            .call => |*operands| parser.resolveFieldLabel(air, &operands.dest, index),
             else => {},
         } catch |err| switch (err) {
             error.Reported => continue,
@@ -467,6 +471,7 @@ pub fn resolveLabels(parser: *Parser) void {
 
 fn resolveFieldLabel(
     parser: *Parser,
+    air: *const Air,
     operand: anytype,
     index: usize,
 ) error{Reported}!void {
@@ -483,9 +488,9 @@ fn resolveFieldLabel(
     const string = operand.span.view(parser.source());
 
     const definition, const definition_span =
-        parser.findLabelDefinition(string, .sensitive) orelse {
+        parser.findLabelDefinition(air, string, .sensitive) orelse {
             _, const near_match =
-                parser.findLabelDefinition(string, .insensitive) orelse .{ {}, null };
+                parser.findLabelDefinition(air, string, .insensitive) orelse .{ {}, null };
             try parser.reporter().report(.undeclared_label, .{
                 .label = operand.span,
                 .near_match = near_match,
@@ -507,10 +512,11 @@ fn resolveFieldLabel(
 
 fn findLabelDefinition(
     parser: *const Parser,
+    air: *const Air,
     reference: []const u8,
     case_mode: enum { sensitive, insensitive },
 ) ?struct { usize, Span } {
-    for (parser.air.lines.items, 0..) |*line, index| {
+    for (air.lines.items, 0..) |*line, index| {
         const label = line.label orelse
             continue;
         const string = label.view(parser.source());
