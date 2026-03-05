@@ -1,4 +1,4 @@
-const StderrReporter = @This();
+const Stderr = @This();
 
 const std = @import("std");
 const Io = std.Io;
@@ -11,21 +11,21 @@ const Diagnostic = @import("diagnostic.zig").Diagnostic;
 source: ?[]const u8,
 writer: *Io.Writer,
 
-pub fn new(writer: *Io.Writer) StderrReporter {
+pub fn new(writer: *Io.Writer) Stderr {
     return .{
         .source = null,
         .writer = writer,
     };
 }
 
-pub fn interface(reporter: *StderrReporter) Reporter {
+pub fn interface(reporter: *Stderr) Reporter {
     return .fromImplementation(reporter, &.{
         .showReport = showReport,
         .showSummary = showSummary,
     });
 }
 
-pub fn setSource(reporter: *StderrReporter, source: []const u8) void {
+pub fn setSource(reporter: *Stderr, source: []const u8) void {
     assert(reporter.source == null);
     reporter.source = source;
 }
@@ -36,7 +36,7 @@ pub fn showReport(
     options: Reporter.Options,
     level: Reporter.Level,
 ) void {
-    const reporter: *StderrReporter = @ptrCast(@alignCast(ptr));
+    const reporter: *Stderr = @ptrCast(@alignCast(ptr));
 
     var ctx_items: usize = 0;
     const ctx: Ctx = .new(reporter, options, level, &ctx_items);
@@ -52,7 +52,7 @@ pub fn showSummary(
     count: *const std.EnumArray(Reporter.Level, usize),
     options: Reporter.Options,
 ) void {
-    const reporter: *StderrReporter = @ptrCast(@alignCast(ptr));
+    const reporter: *Stderr = @ptrCast(@alignCast(ptr));
 
     const count_err = count.get(.err);
     const count_warn = count.get(.warn);
