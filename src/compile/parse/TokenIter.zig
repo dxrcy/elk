@@ -80,7 +80,7 @@ fn nextAny(tokens: *TokenIter) error{ Reported, Eof }!Token {
             => |err2| {
                 try tokens.reporter.report(.invalid_token, .{
                     .token = span,
-                    .kind = switch (err2) {
+                    .guess = switch (err2) {
                         error.InvalidLabel => .label,
                         error.InvalidDirective => .directive,
                         error.InvalidToken => null,
@@ -121,8 +121,8 @@ fn nextAny(tokens: *TokenIter) error{ Reported, Eof }!Token {
             },
             error.IntegerTooLarge => {
                 try tokens.reporter.report(.integer_too_large, .{
-                    .span = span,
-                    .integer = @typeInfo(u16).int,
+                    .integer = span,
+                    .type_info = @typeInfo(u16).int,
                 }).abort();
             },
         }
@@ -208,7 +208,7 @@ pub fn expectEol(tokens: *TokenIter) error{Reported}!void {
     };
     if (token.value != .newline) {
         try tokens.reporter.report(.expected_eol, .{
-            .token = token,
+            .found = token,
         }).abort();
     }
 }
@@ -318,8 +318,8 @@ pub const Argument = union(enum) {
         const value = integer.castToSmaller(T) catch |err| switch (err) {
             error.IntegerTooLarge => {
                 try reporter.report(.integer_too_large, .{
-                    .span = span,
-                    .integer = @typeInfo(T).int,
+                    .integer = span,
+                    .type_info = @typeInfo(T).int,
                 }).abort();
             },
         };
@@ -336,12 +336,12 @@ pub const Argument = union(enum) {
     ) error{Reported}!noreturn {
         if (token.value == .newline) {
             try reporter.report(.unexpected_eol, .{
-                .span = token.span,
+                .eol = token.span,
                 .expected = expected,
             }).abort();
         } else {
             try reporter.report(.unexpected_token_kind, .{
-                .token = token,
+                .found = token,
                 .expected = expected,
             }).abort();
         }
@@ -361,7 +361,7 @@ fn ensureSupported(
             const string = token.span.view(tokens.source)[1..];
             if (!case.isUppercaseAlpha(string)) {
                 tokens.reporter.report(.unconventional_case, .{
-                    .ident = token.span,
+                    .token = token.span,
                     .kind = .directive,
                 }).collect(&result);
             }
@@ -370,7 +370,7 @@ fn ensureSupported(
         .instruction => {
             if (!case.isLowercaseAlpha(token.span.view(tokens.source))) {
                 tokens.reporter.report(.unconventional_case, .{
-                    .ident = token.span,
+                    .token = token.span,
                     .kind = .instruction,
                 }).collect(&result);
             }
@@ -396,7 +396,7 @@ fn ensureSupported(
                 'r' => {},
                 'R' => {
                     tokens.reporter.report(.unconventional_case, .{
-                        .ident = token.span,
+                        .token = token.span,
                         .kind = .register,
                     }).collect(&result);
                 },
@@ -407,7 +407,7 @@ fn ensureSupported(
         .integer => |integer| {
             if (case.hasUppercaseAlpha(token.span.view(tokens.source))) {
                 tokens.reporter.report(.unconventional_case, .{
-                    .ident = token.span,
+                    .token = token.span,
                     .kind = .integer,
                 }).collect(&result);
             }
@@ -428,14 +428,14 @@ fn ensureSupported(
                             const entry = tokens.traps.entries[vect];
                             if (entry.alias) |alias| {
                                 tokens.reporter.report(.explicit_trap_vect, .{
-                                    .vect = vect,
-                                    .span = token.span,
+                                    .vect = token.span,
+                                    .value = vect,
                                     .alias = alias,
                                 }).collect(&result);
                             } else if (entry.callback == null) {
                                 tokens.reporter.report(.undeclared_trap_vect, .{
-                                    .vect = vect,
-                                    .span = token.span,
+                                    .vect = token.span,
+                                    .value = vect,
                                 }).collect(&result);
                             } else {
                                 // Should use explicit vector; it's the only way

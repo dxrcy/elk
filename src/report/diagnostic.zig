@@ -64,7 +64,7 @@ fn policyResponse(
 pub const Diagnostic = union(enum) {
     // Fatal, assembly file
     invalid_source_byte: struct { byte: usize },
-    output_too_long: struct { line: Span },
+    output_too_long: struct { statement: Span },
 
     // Fatal, directives
     unsupported_directive: struct { directive: Span },
@@ -72,13 +72,13 @@ pub const Diagnostic = union(enum) {
     late_origin: struct { origin: Span, first_token: ?Span },
 
     // Fatal, line syntax
-    unexpected_eol: struct { span: Span, expected: []const TokenKinds.Kind },
-    expected_eol: struct { token: Token },
-    unexpected_token_kind: struct { token: Token, expected: []const TokenKinds.Kind },
+    unexpected_eol: struct { eol: Span, expected: []const TokenKinds.Kind },
+    expected_eol: struct { found: Token },
+    unexpected_token_kind: struct { found: Token, expected: []const TokenKinds.Kind },
     multiple_labels: struct { existing: Span, new: Span },
 
     // Fatal, token syntax
-    invalid_token: struct { token: Span, kind: ?TokenKinds.Kind },
+    invalid_token: struct { token: Span, guess: ?TokenKinds.Kind },
     unmatched_quote: struct { string: Span },
 
     // Fatal, integer syntax
@@ -88,23 +88,23 @@ pub const Diagnostic = union(enum) {
     unexpected_delimiter: struct { integer: Span },
 
     // Fatal, integer bounds
-    integer_too_large: struct { span: Span, integer: std.builtin.Type.Int },
+    integer_too_large: struct { integer: Span, type_info: std.builtin.Type.Int },
     offset_too_large: struct { definition: Span, reference: Span, offset: i17, bits: u16 },
     unexpected_negative_integer: struct { integer: Span },
 
     // Fatal, label resolution
     redeclared_label: struct { existing: Span, new: Span },
-    undeclared_label: struct { label: Span, near_match: ?Span },
+    undeclared_label: struct { reference: Span, nearest: ?Span },
 
     // Non-fatal
-    invalid_label_target: struct { label: Span, token: Span },
+    invalid_label_target: struct { label: Span, target: Span },
     // TODO: Merge with invalid_label_target
     eof_label: struct { label: Span },
     shadowed_label: struct { existing: Span, new: Span },
     invalid_string_escape: struct { string: Span, sequence: Span },
 
     // Policy, extension
-    stack_instruction: struct { instruction: Token.Value.Instruction, span: Span },
+    stack_instruction: struct { instruction: Span, kind: Token.Value.Instruction },
     missing_origin: struct { first_token: ?Span },
     missing_end: struct { last_token: ?Span },
     multiline_string: struct { string: Span },
@@ -114,14 +114,14 @@ pub const Diagnostic = union(enum) {
 
     // Policy, smells
     literal_pc_offset: struct { integer: Span },
-    explicit_trap_vect: struct { vect: u8, span: Span, alias: []const u8 },
-    undeclared_trap_vect: struct { vect: u8, span: Span },
+    explicit_trap_vect: struct { vect: Span, value: u8, alias: []const u8 },
+    undeclared_trap_vect: struct { vect: Span, value: u8 },
 
     // Policy, style
     undesirable_integer_form: struct { integer: Span, reason: enum { missing_zero, pre_radix_sign, post_radix_sign, implicit_radix } },
     missing_operand_comma: struct { operand: Span },
     whitespace_comma: struct { comma: Span },
-    unconventional_case: struct { ident: Span, kind: enum { directive, instruction, label, register, integer } },
+    unconventional_case: struct { token: Span, kind: enum { directive, instruction, label, register, integer } },
 
     pub fn getResponse(diag: Diagnostic, options: Reporter.Options) Reporter.Response {
         return switch (diag) {
@@ -189,12 +189,12 @@ pub const Diagnostic = union(enum) {
             },
             .output_too_long => |info| {
                 ctx.printTitle("Assembly file would emit too many words", .{});
-                ctx.deepen().printSourceNote("Line", .{}, info.line);
+                ctx.deepen().printSourceNote("Line", .{}, info.statement);
                 ctx.deepen().printNote("Object files cannot contain more than 0xffff words", .{});
             },
             .stack_instruction => |info| {
-                ctx.printTitle("Use of non-standard stack instruction `{t}`", .{info.instruction});
-                ctx.deepen().printSourceNote("Instruction is an ISA extension", .{}, info.span);
+                ctx.printTitle("Use of non-standard stack instruction `{t}`", .{info.kind});
+                ctx.deepen().printSourceNote("Instruction is an ISA extension", .{}, info.instruction);
             },
             .missing_origin => |info| {
                 ctx.printTitle("Missing .ORIG directive", .{});
@@ -244,12 +244,12 @@ pub const Diagnostic = union(enum) {
             .invalid_label_target => |info| {
                 ctx.printTitle("Label is useless in this position", .{});
                 ctx.deepen().printSourceNote("Label declared here", .{}, info.label);
-                ctx.deepen().printSourceNote("Token cannot be annotated with label", .{}, info.token);
+                ctx.deepen().printSourceNote("Token cannot be annotated with label", .{}, info.target);
             },
             .undeclared_label => |info| {
                 ctx.printTitle("Label is not declared", .{});
-                ctx.deepen().printSourceNote("Label used here", .{}, info.label);
-                if (info.near_match) |close_match| {
+                ctx.deepen().printSourceNote("Label used here", .{}, info.reference);
+                if (info.nearest) |close_match| {
                     ctx.deepen().printSourceNote("This label declaration is similar", .{}, close_match);
                     ctx.deepen().printNote("Label names are case-sensitive", .{});
                 }
@@ -271,24 +271,24 @@ pub const Diagnostic = union(enum) {
             },
             .unexpected_eol => |info| {
                 ctx.printTitle("Unexpected end of line", .{});
-                ctx.deepen().printSourceNote("Line ends too early", .{}, info.span);
+                ctx.deepen().printSourceNote("Line ends too early", .{}, info.eol);
                 ctx.deepen().printNote("Expected {f}", .{TokenKinds{ .kinds = info.expected }});
                 ctx.deepen().printNote("Instructions cannot span multiple lines", .{});
             },
             .unexpected_token_kind => |info| {
-                ctx.printTitle("Unexpected {s}", .{TokenKinds.name(info.token.value)});
-                ctx.deepen().printSourceNote("Token", .{}, info.token.span);
+                ctx.printTitle("Unexpected {s}", .{TokenKinds.name(info.found.value)});
+                ctx.deepen().printSourceNote("Token", .{}, info.found.span);
                 ctx.deepen().printNote("Expected {f}", .{TokenKinds{ .kinds = info.expected }});
             },
             .expected_eol => |info| {
-                ctx.printTitle("Unexpected {s}", .{TokenKinds.name(info.token.value)});
-                ctx.deepen().printSourceNote("Token", .{}, info.token.span);
+                ctx.printTitle("Unexpected {s}", .{TokenKinds.name(info.found.value)});
+                ctx.deepen().printSourceNote("Token", .{}, info.found.span);
                 ctx.deepen().printNote("Expected end of line", .{});
             },
             .invalid_token => |info| {
                 ctx.printTitle("Invalid token", .{});
                 ctx.deepen().printSourceNote("Token", .{}, info.token);
-                if (info.kind) |kind|
+                if (info.guess) |kind|
                     ctx.deepen().printNote("Cannot parse as {s}", .{TokenKinds.name(kind)})
                 else
                     ctx.deepen().printNote("Cannot parse as any valid token", .{});
@@ -328,9 +328,9 @@ pub const Diagnostic = union(enum) {
             },
             .integer_too_large => |info| {
                 ctx.printTitle("Integer operand is too large", .{});
-                ctx.deepen().printSourceNote("Operand", .{}, info.span);
-                ctx.deepen().printNote("Value cannot be represented in {} bits", .{info.integer.bits});
-                if (info.integer.signedness == .signed) {
+                ctx.deepen().printSourceNote("Operand", .{}, info.integer);
+                ctx.deepen().printNote("Value cannot be represented in {} bits", .{info.type_info.bits});
+                if (info.type_info.signedness == .signed) {
                     ctx.deepen().printNote("Since the operand is a signed integer, the highest bit is reserved as the sign bit", .{});
                 }
             },
@@ -361,13 +361,13 @@ pub const Diagnostic = union(enum) {
             },
             .explicit_trap_vect => |info| {
                 ctx.printTitle("Use of trap instruction with explicit vector operand", .{});
-                ctx.deepen().printSourceNote("Trap vector", .{}, info.span);
+                ctx.deepen().printSourceNote("Trap vector", .{}, info.vect);
                 ctx.deepen().printNote("Consider using trap alias `{s}`", .{info.alias});
             },
             .undeclared_trap_vect => |info| {
-                ctx.printTitle("Use of unknown trap vector 0x{x:02}", .{info.vect});
-                ctx.deepen().printSourceNote("Trap vector", .{}, info.span);
-                ctx.deepen().printNote("Traps vector 0x{x:02} is not recognized", .{info.vect});
+                ctx.printTitle("Use of unknown trap vector 0x{x:02}", .{info.value});
+                ctx.deepen().printSourceNote("Trap vector", .{}, info.vect);
+                ctx.deepen().printNote("Traps vector 0x{x:02} is not recognized", .{info.value});
             },
             .label_colon => |info| {
                 ctx.printTitle("Label followed by colon `:`", .{});
@@ -387,23 +387,23 @@ pub const Diagnostic = union(enum) {
             .unconventional_case => |info| switch (info.kind) {
                 .instruction => {
                     ctx.printTitle("Instruction mnemonic is not lowercase", .{});
-                    ctx.deepen().printSourceNote("Mnemonic", .{}, info.ident);
+                    ctx.deepen().printSourceNote("Mnemonic", .{}, info.token);
                 },
                 .directive => {
                     ctx.printTitle("Directive name is not uppercase", .{});
-                    ctx.deepen().printSourceNote("Directive", .{}, info.ident);
+                    ctx.deepen().printSourceNote("Directive", .{}, info.token);
                 },
                 .label => {
                     ctx.printTitle("Label name is not PascalCase", .{});
-                    ctx.deepen().printSourceNote("Label declared here", .{}, info.ident);
+                    ctx.deepen().printSourceNote("Label declared here", .{}, info.token);
                 },
                 .register => {
                     ctx.printTitle("Register name is not lowercase", .{});
-                    ctx.deepen().printSourceNote("Register", .{}, info.ident);
+                    ctx.deepen().printSourceNote("Register", .{}, info.token);
                 },
                 .integer => {
                     ctx.printTitle("Integer does not use lowercase letters", .{});
-                    ctx.deepen().printSourceNote("Integer", .{}, info.ident);
+                    ctx.deepen().printSourceNote("Integer", .{}, info.token);
                 },
             },
             .missing_operand_comma => |info| {

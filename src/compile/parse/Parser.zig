@@ -138,7 +138,7 @@ fn parseLine(parser: *Parser, air: *Air, gpa: Allocator) InnerError!Control {
 
             if (!case.isPascalCase(token.span.view(parser.source()))) {
                 try parser.reporter().report(.unconventional_case, .{
-                    .ident = token.span,
+                    .token = token.span,
                     .kind = .label,
                 }).handle();
             }
@@ -178,7 +178,7 @@ fn parseLine(parser: *Parser, air: *Air, gpa: Allocator) InnerError!Control {
 
         else => {
             try parser.reporter().report(.unexpected_token_kind, .{
-                .token = token,
+                .found = token,
                 .expected = &.{ .label, .instruction, .directive },
             }).abort();
         },
@@ -236,7 +236,7 @@ fn appendLineNTimes(
 fn ensureCanAppendLines(parser: *Parser, air: *Air, n: usize, span: Span) error{TooLong}!void {
     if (air.origin + air.lines.items.len + n > 0xffff) {
         parser.reporter().report(.output_too_long, .{
-            .line = span,
+            .statement = span,
         }).abort() catch
             return error.TooLong;
     }
@@ -254,7 +254,7 @@ fn parseDirective(
             if (parser.current_label) |label| {
                 try parser.reporter().report(.invalid_label_target, .{
                     .label = label,
-                    .token = span,
+                    .target = span,
                 }).handle();
             }
             return .@"break";
@@ -265,7 +265,7 @@ fn parseDirective(
             if (parser.current_label) |label| {
                 try parser.reporter().report(.invalid_label_target, .{
                     .label = label,
-                    .token = span,
+                    .target = span,
                 }).handle();
             }
 
@@ -396,8 +396,8 @@ fn parseInstruction(
             switch (regular) {
                 .push, .pop, .call, .rets => {
                     try parser.reporter().report(.stack_instruction, .{
-                        .instruction = instruction,
-                        .span = span,
+                        .instruction = span,
+                        .kind = instruction,
                     }).handle();
                 },
                 else => {},
@@ -504,8 +504,8 @@ fn resolveFieldLabel(
             _, const near_match =
                 parser.findLabelDefinition(air, string, .insensitive) orelse .{ {}, null };
             try parser.reporter().report(.undeclared_label, .{
-                .label = operand.span,
-                .near_match = near_match,
+                .reference = operand.span,
+                .nearest = near_match,
             }).abort();
         };
 
