@@ -19,8 +19,6 @@ pub const Line = struct {
     span: Span,
 };
 
-/// Note that some instructions (`Statement` variants) share the same 4-bit
-/// opcode, eg. `jsr` and `jsrr`, which are distinguished by a flag bit.
 pub const Statement = union(enum) {
     raw_word: u16,
     instruction: Instruction,
