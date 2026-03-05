@@ -7,26 +7,32 @@ const assert = std.debug.assert;
 const Traps = @import("../../Traps.zig");
 const Reporter = @import("../../report/Reporter.zig");
 const Air = @import("../Air.zig");
-const Statement = @import("../statement.zig").Statement;
 const Span = @import("../Span.zig");
+const Instruction = @import("../instruction.zig").Instruction;
+const Operand = @import("../Operand.zig");
 const TokenIter = @import("TokenIter.zig");
 const Token = @import("Token.zig");
 const case = @import("case.zig");
-const Operand = Air.Operand;
 
-air: *Air,
 tokens: TokenIter,
 current_label: ?Span,
 origin: ?Span,
 
 pub fn new(
-    air: *Air,
     traps: *const Traps,
     source_: []const u8,
     reporter_: *Reporter,
-) Parser {
+) ?Parser {
+    for (source_, 0..) |char, i| {
+        if (!Token.isValidChar(char)) {
+            reporter_.report(.invalid_source_byte, .{
+                .byte = i,
+            }).abort() catch
+                return null;
+        }
+    }
+
     return .{
-        .air = air,
         .tokens = .new(traps, source_, reporter_),
         .current_label = null,
         .origin = null,
@@ -45,14 +51,15 @@ const Control = enum { @"continue", @"break" };
 const InnerError = error{
     Reported,
     Eof,
+    TooLong,
     OutOfMemory,
 };
 
-pub fn parse(parser: *Parser, gpa: Allocator) error{OutOfMemory}!void {
+pub fn parse(parser: *Parser, air: *Air, gpa: Allocator) error{OutOfMemory}!void {
     var missing_end = false;
 
     while (true) {
-        const control = parser.parseLine(gpa) catch |err| switch (err) {
+        const control = parser.parseLine(air, gpa) catch |err| switch (err) {
             error.Reported => {
                 parser.tokens.discardRemainingLine();
                 continue;
@@ -60,6 +67,9 @@ pub fn parse(parser: *Parser, gpa: Allocator) error{OutOfMemory}!void {
             error.Eof => {
                 missing_end = true; // Report at end of function
                 break;
+            },
+            error.TooLong => {
+                return; // Give up, do not warn for anything else
             },
             error.OutOfMemory => |other| return other,
         };
@@ -72,13 +82,14 @@ pub fn parse(parser: *Parser, gpa: Allocator) error{OutOfMemory}!void {
 
     if (parser.origin == null) {
         parser.reporter().report(.missing_origin, .{
-            .first_token = parser.air.getFirstSpan(),
+            .first_token = air.getFirstSpan(),
         }).proceed(); // Can't return `error.Reported`
     }
 
     if (parser.current_label) |existing| {
-        parser.reporter().report(.eof_label, .{
+        parser.reporter().report(.invalid_label_target, .{
             .label = existing,
+            .target = null,
         }).proceed(); // Can't return `error.Reported`
     }
 
@@ -89,7 +100,7 @@ pub fn parse(parser: *Parser, gpa: Allocator) error{OutOfMemory}!void {
     }
 }
 
-fn parseLine(parser: *Parser, gpa: Allocator) InnerError!Control {
+fn parseLine(parser: *Parser, air: *Air, gpa: Allocator) InnerError!Control {
     const token = try parser.tokens.nextExcluding(&.{.newline});
 
     switch (token.value) {
@@ -101,8 +112,8 @@ fn parseLine(parser: *Parser, gpa: Allocator) InnerError!Control {
                 }).handle();
             }
 
-            if (parser.getExistingLabel(token.span.view(parser.source()))) |existing_label| {
-                try parser.reporter().report(.duplicate_label, .{
+            if (parser.getExistingLabel(air, token.span.view(parser.source()))) |existing_label| {
+                try parser.reporter().report(.redeclared_label, .{
                     .existing = existing_label,
                     .new = token.span,
                 }).abort();
@@ -111,7 +122,7 @@ fn parseLine(parser: *Parser, gpa: Allocator) InnerError!Control {
             }
 
             if (try parser.tokens.nextMatching(.colon)) |colon| {
-                try parser.reporter().report(.nonstandard_label_colon, .{
+                try parser.reporter().report(.label_colon, .{
                     .colon = colon.span,
                 }).handle();
             }
@@ -120,48 +131,55 @@ fn parseLine(parser: *Parser, gpa: Allocator) InnerError!Control {
             // This should also be checked when the second label is parsed, but
             // this reports a more appropriate message
             if (try parser.tokens.nextMatching(.label)) |label| {
-                try parser.reporter().report(.unexpected_label, .{
+                try parser.reporter().report(.multiple_labels, .{
                     .existing = token.span,
                     .new = label.span,
                 }).handle();
             }
 
             if (!case.isPascalCase(token.span.view(parser.source()))) {
-                try parser.reporter().report(.unconventional_case_ident, .{
-                    .ident = token.span,
+                try parser.reporter().report(.unconventional_case, .{
+                    .token = token.span,
                     .kind = .label,
                 }).handle();
             }
         },
 
         .directive => |directive| {
-            const control = try parser.parseDirective(directive, token.span, gpa);
+            const control = try parser.parseDirective(air, directive, token.span, gpa);
             try parser.tokens.expectEol();
             return control;
         },
 
         .instruction => |instruction| {
-            const statement = try parser.parseInstruction(instruction, token.span) orelse
+            const instr = try parser.parseInstruction(instruction, token.span) orelse
                 return error.Reported;
             const span: Span = .fromBounds(
                 token.span.offset,
                 parser.tokens.getIndex(),
             );
             try parser.tokens.expectEol();
-            try parser.appendLine(statement, span, gpa);
+            try parser.appendLine(air, .{ .instruction = instr }, span, gpa);
         },
 
         .trap_alias => |vect| {
-            const statement: Statement = .{ .trap = .{
-                .vect = .{ .span = token.span, .value = .{ .immediate = vect } },
-            } };
+            const statement: Air.Statement = .{
+                .instruction = .{ .trap = .{
+                    .vect = .{
+                        .span = token.span,
+                        .value = .{
+                            .immediate = .{ .integer = vect, .form = null },
+                        },
+                    },
+                } },
+            };
             try parser.tokens.expectEol();
-            try parser.appendLine(statement, token.span, gpa);
+            try parser.appendLine(air, statement, token.span, gpa);
         },
 
         else => {
             try parser.reporter().report(.unexpected_token_kind, .{
-                .token = token,
+                .found = token,
                 .expected = &.{ .label, .instruction, .directive },
             }).abort();
         },
@@ -171,11 +189,14 @@ fn parseLine(parser: *Parser, gpa: Allocator) InnerError!Control {
 
 fn appendLine(
     parser: *Parser,
-    statement: Statement,
+    air: *Air,
+    statement: Air.Statement,
     span: Span,
     gpa: Allocator,
-) error{OutOfMemory}!void {
-    try parser.air.lines.append(gpa, .{
+) error{ TooLong, OutOfMemory }!void {
+    try parser.ensureCanAppendLines(air, 1, span);
+
+    try air.lines.append(gpa, .{
         .label = parser.current_label,
         .statement = statement,
         .span = span,
@@ -188,31 +209,43 @@ fn appendLine(
 /// Equivalent to calling `appendLine` `n` times, but only resizes once at most.
 fn appendLineNTimes(
     parser: *Parser,
-    statement: Statement,
+    air: *Air,
+    statement: Air.Statement,
     span: Span,
     n: usize,
     gpa: Allocator,
-) error{OutOfMemory}!void {
+) error{ TooLong, OutOfMemory }!void {
     assert(n > 0);
+    try parser.ensureCanAppendLines(air, n, span);
 
-    try parser.air.lines.ensureUnusedCapacity(gpa, n);
+    try air.lines.ensureUnusedCapacity(gpa, n);
 
-    parser.air.lines.appendAssumeCapacity(.{
+    air.lines.appendAssumeCapacity(.{
         .label = parser.current_label,
         .statement = statement,
         .span = span,
     });
     parser.current_label = null;
 
-    parser.air.lines.appendNTimesAssumeCapacity(.{
+    air.lines.appendNTimesAssumeCapacity(.{
         .label = null,
         .statement = statement,
         .span = span,
     }, n - 1);
 }
 
+fn ensureCanAppendLines(parser: *Parser, air: *Air, n: usize, span: Span) error{TooLong}!void {
+    if (air.origin + air.lines.items.len + n > 0xffff) {
+        parser.reporter().report(.output_too_long, .{
+            .statement = span,
+        }).abort() catch
+            return error.TooLong;
+    }
+}
+
 fn parseDirective(
     parser: *Parser,
+    air: *Air,
     directive: Token.Value.Directive,
     span: Span,
     gpa: Allocator,
@@ -220,20 +253,19 @@ fn parseDirective(
     switch (directive) {
         .end => {
             if (parser.current_label) |label| {
-                try parser.reporter().report(.useless_label, .{
+                try parser.reporter().report(.invalid_label_target, .{
                     .label = label,
-                    .token = span,
+                    .target = span,
                 }).handle();
             }
             return .@"break";
         },
 
         .orig => {
-            // FIXME: This should technically be removed I think ??
             if (parser.current_label) |label| {
-                try parser.reporter().report(.useless_label, .{
+                try parser.reporter().report(.invalid_label_target, .{
                     .label = label,
-                    .token = span,
+                    .target = span,
                 }).handle();
             }
 
@@ -244,17 +276,17 @@ fn parseDirective(
                     .new = origin.span,
                 }).abort();
             }
-            parser.air.origin = origin.value.castToUnsigned() orelse {
+            air.origin = origin.value.castToUnsigned() orelse {
                 try parser.reporter().report(.unexpected_negative_integer, .{
                     .integer = origin.span,
                 }).abort();
             };
             parser.origin = origin.span;
 
-            if (parser.air.lines.items.len > 0) {
+            if (air.lines.items.len > 0) {
                 try parser.reporter().report(.late_origin, .{
                     .origin = origin.span,
-                    .first_token = parser.air.getFirstSpan(),
+                    .first_token = air.getFirstSpan(),
                 }).abort();
             }
         },
@@ -262,6 +294,7 @@ fn parseDirective(
         .fill => {
             const word = try parser.tokens.expectArgument(.word);
             try parser.appendLine(
+                air,
                 .{ .raw_word = word.value.underlying },
                 word.span,
                 gpa,
@@ -271,6 +304,7 @@ fn parseDirective(
         .blkw => {
             const size = try parser.tokens.expectArgument(.word);
             try parser.appendLineNTimes(
+                air,
                 .{ .raw_word = 0x00 },
                 size.span,
                 size.value.underlying,
@@ -311,6 +345,7 @@ fn parseDirective(
                 is_escaped = false;
 
                 try parser.appendLine(
+                    air,
                     .{ .raw_word = char_escaped },
                     string.span,
                     gpa,
@@ -319,6 +354,7 @@ fn parseDirective(
 
             // Null terminator
             try parser.appendLine(
+                air,
                 .{ .raw_word = 0x0000 },
                 string.span,
                 gpa,
@@ -333,7 +369,7 @@ fn parseInstruction(
     parser: *Parser,
     instruction: Token.Value.Instruction,
     span: Span,
-) InnerError!?Statement {
+) InnerError!?Instruction {
     switch (instruction) {
         inline // Automatic parsing for 'regular' instructions
         .add,
@@ -359,15 +395,15 @@ fn parseInstruction(
         => |regular| {
             switch (regular) {
                 .push, .pop, .call, .rets => {
-                    try parser.reporter().report(.nonstandard_stack_instruction, .{
-                        .instruction = instruction,
-                        .span = span,
+                    try parser.reporter().report(.stack_instruction, .{
+                        .instruction = span,
+                        .kind = instruction,
                     }).handle();
                 },
                 else => {},
             }
 
-            const Operands = @FieldType(Statement, @tagName(regular));
+            const Operands = @FieldType(Instruction, @tagName(regular));
             var operands: Operands = undefined;
 
             const fields = @typeInfo(Operands).@"struct".fields;
@@ -385,7 +421,7 @@ fn parseInstruction(
                     };
             }
 
-            return @unionInit(Statement, @tagName(regular), operands);
+            return @unionInit(Instruction, @tagName(regular), operands);
         },
 
         inline // Branch instructions
@@ -411,8 +447,8 @@ fn parseInstruction(
     }
 }
 
-fn getExistingLabel(parser: *const Parser, new_label: []const u8) ?Span {
-    for (parser.air.lines.items) |line| {
+fn getExistingLabel(parser: *const Parser, air: *Air, new_label: []const u8) ?Span {
+    for (air.lines.items) |line| {
         const existing_label = line.label orelse
             continue;
         if (std.mem.eql(u8, existing_label.view(parser.source()), new_label)) {
@@ -422,17 +458,21 @@ fn getExistingLabel(parser: *const Parser, new_label: []const u8) ?Span {
     return null;
 }
 
-pub fn resolveLabels(parser: *Parser) void {
-    for (parser.air.lines.items, 0..) |*line, index| {
-        _ = switch (line.statement) {
-            .br => |*operands| parser.resolveFieldLabel(&operands.dest, index),
-            .jsr => |*operands| parser.resolveFieldLabel(&operands.dest, index),
-            .ld => |*operands| parser.resolveFieldLabel(&operands.src, index),
-            .ldi => |*operands| parser.resolveFieldLabel(&operands.src, index),
-            .lea => |*operands| parser.resolveFieldLabel(&operands.src, index),
-            .st => |*operands| parser.resolveFieldLabel(&operands.dest, index),
-            .sti => |*operands| parser.resolveFieldLabel(&operands.dest, index),
-            .call => |*operands| parser.resolveFieldLabel(&operands.dest, index),
+pub fn resolveLabels(parser: *Parser, air: *Air) void {
+    for (air.lines.items, 0..) |*line, index| {
+        const instruction = switch (line.statement) {
+            .raw_word => continue,
+            .instruction => |*instruction| instruction,
+        };
+        _ = switch (instruction.*) {
+            .br => |*operands| parser.resolveFieldLabel(air, &operands.dest, index),
+            .jsr => |*operands| parser.resolveFieldLabel(air, &operands.dest, index),
+            .ld => |*operands| parser.resolveFieldLabel(air, &operands.src, index),
+            .ldi => |*operands| parser.resolveFieldLabel(air, &operands.src, index),
+            .lea => |*operands| parser.resolveFieldLabel(air, &operands.src, index),
+            .st => |*operands| parser.resolveFieldLabel(air, &operands.dest, index),
+            .sti => |*operands| parser.resolveFieldLabel(air, &operands.dest, index),
+            .call => |*operands| parser.resolveFieldLabel(air, &operands.dest, index),
             else => {},
         } catch |err| switch (err) {
             error.Reported => continue,
@@ -442,40 +482,62 @@ pub fn resolveLabels(parser: *Parser) void {
 
 fn resolveFieldLabel(
     parser: *Parser,
+    air: *const Air,
     operand: anytype,
     index: usize,
 ) error{Reported}!void {
     // Extract integer type from operand argument type
     const Spanned = @typeInfo(@TypeOf(operand)).pointer.child;
     const Value = @FieldType(Spanned, "value");
-    const Int = @FieldType(Value, "resolved");
+    const Formed = @FieldType(Value, "resolved");
+    const Int = @FieldType(Formed, "integer");
 
     switch (operand.value) {
         .unresolved => {},
         .resolved => return,
     }
 
-    const definition = parser.findLabelDefinition(operand.span.view(parser.source())) orelse {
-        try parser.reporter().report(.undeclared_label, .{
-            .label = operand.span,
-        }).abort();
-    };
+    const string = operand.span.view(parser.source());
+
+    const definition, const definition_span =
+        parser.findLabelDefinition(air, string, .sensitive) orelse {
+            _, const near_match =
+                parser.findLabelDefinition(air, string, .insensitive) orelse .{ {}, null };
+            try parser.reporter().report(.undeclared_label, .{
+                .reference = operand.span,
+                .nearest = near_match,
+            }).abort();
+        };
+
     const offset = calculateOffset(Int, definition, index) orelse {
         try parser.reporter().report(.offset_too_large, .{
             .reference = operand.span,
-            .definition = parser.air.lines.items[definition].label orelse
+            .definition = definition_span,
+            .offset = calculateOffset(i17, definition, index) orelse
                 unreachable,
+            .bits = @typeInfo(Int).int.bits,
         }).abort();
     };
-    operand.value = .{ .resolved = offset };
+
+    operand.value = .{ .resolved = .{ .integer = offset, .form = null } };
 }
 
-fn findLabelDefinition(parser: *const Parser, reference: []const u8) ?usize {
-    for (parser.air.lines.items, 0..) |*line, index| {
+fn findLabelDefinition(
+    parser: *const Parser,
+    air: *const Air,
+    reference: []const u8,
+    case_mode: enum { sensitive, insensitive },
+) ?struct { usize, Span } {
+    for (air.lines.items, 0..) |*line, index| {
         const label = line.label orelse
             continue;
-        if (std.mem.eql(u8, label.view(parser.source()), reference))
-            return index;
+        const string = label.view(parser.source());
+        const matches = switch (case_mode) {
+            .sensitive => std.mem.eql(u8, string, reference),
+            .insensitive => std.ascii.eqlIgnoreCase(string, reference),
+        };
+        if (matches)
+            return .{ index, label };
     }
     return null;
 }

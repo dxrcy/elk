@@ -3,14 +3,26 @@ const Ctx = @This();
 const std = @import("std");
 
 const Span = @import("../compile/Span.zig");
+const Token = @import("../compile/parse/Token.zig");
 const Reporter = @import("Reporter.zig");
+const Stderr = @import("Stderr.zig");
 
-reporter: *Reporter,
+reporter: *Stderr,
 level: ?Reporter.Level,
 depth: usize,
 item_count: ?*usize,
 
-pub fn new(reporter: *Reporter, level: ?Reporter.Level, item_count: ?*usize) Ctx {
+pub const Verbosity = enum {
+    normal,
+    quiet,
+    pub const default: Verbosity = .normal;
+};
+
+pub fn new(
+    reporter: *Stderr,
+    level: ?Reporter.Level,
+    item_count: ?*usize,
+) Ctx {
     return .{
         .reporter = reporter,
         .level = level,
@@ -20,12 +32,12 @@ pub fn new(reporter: *Reporter, level: ?Reporter.Level, item_count: ?*usize) Ctx
 }
 
 pub fn print(ctx: Ctx, comptime fmt: []const u8, args: anytype) void {
-    ctx.reporter.writer.interface.print(fmt, args) catch
+    ctx.reporter.writer.print(fmt, args) catch
         std.debug.panic("failed to write to reporter file", .{});
 }
 
 pub fn flush(ctx: Ctx) void {
-    ctx.reporter.writer.interface.flush() catch
+    ctx.reporter.writer.flush() catch
         std.debug.panic("failed to flush reporter file", .{});
 }
 
@@ -72,7 +84,7 @@ pub fn printTitle(
 
     ctx.print(fmt, args);
 
-    switch (ctx.reporter.options.verbosity) {
+    switch (ctx.reporter.verbosity) {
         .normal => {
             ctx.print("\n", .{});
         },
@@ -83,7 +95,7 @@ pub fn printTitle(
 pub fn printNote(ctx: Ctx, comptime fmt: []const u8, args: anytype) void {
     defer ctx.incrementItemCount();
 
-    switch (ctx.reporter.options.verbosity) {
+    switch (ctx.reporter.verbosity) {
         .normal => {},
         .quiet => return,
     }
@@ -110,7 +122,7 @@ fn printSource(ctx: Ctx, span: Span) void {
     const source = ctx.reporter.source orelse
         unreachable;
 
-    switch (ctx.reporter.options.verbosity) {
+    switch (ctx.reporter.verbosity) {
         .normal => {},
         .quiet => {
             // Scuffed!
@@ -139,15 +151,30 @@ fn printSource(ctx: Ctx, span: Span) void {
 
         {
             var was_in_span = false;
+            var was_non_valid = false;
+
             for (line_string, 0..) |char, i| {
                 const index = line.offset + i;
+
                 const in_span = span.containsIndex(index);
                 if (in_span and !was_in_span)
                     ctx.print("\x1b[22m", .{})
                 else if (!in_span and was_in_span)
                     ctx.print("\x1b[2m", .{});
-                ctx.print("{c}", .{char});
+
+                const non_valid = Token.isValidChar(char);
+                if (!non_valid and was_non_valid)
+                    ctx.print("\x1b[31m", .{})
+                else if (non_valid and !was_non_valid)
+                    ctx.print("\x1b[39m", .{});
+
+                if (non_valid)
+                    ctx.print("{c}", .{char})
+                else
+                    ctx.print("?", .{});
+
                 was_in_span = in_span;
+                was_non_valid = non_valid;
             }
         }
 

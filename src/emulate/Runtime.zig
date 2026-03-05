@@ -93,6 +93,26 @@ pub fn deinit(runtime: Runtime, gpa: Allocator) void {
     defer gpa.free(runtime.memory);
 }
 
+pub fn readFromFile(runtime: *Runtime, file: Io.File, buffer: []u8, io: Io) !void {
+    var reader = file.reader(io, buffer);
+    const metadata = try file.stat(io);
+
+    if (metadata.size < 2)
+        return error.FileTooSmall;
+    if (metadata.size % 2 != 0)
+        return error.FileNotAligned;
+
+    const origin = try reader.interface.takeInt(u16, .big);
+    runtime.pc = origin;
+
+    var i: usize = 0;
+    const words = metadata.size / 2 - 1;
+    while (i < words) : (i += 1) {
+        const raw = try reader.interface.takeInt(u16, .big);
+        runtime.memory[origin + i] = raw;
+    }
+}
+
 const Control = enum { @"continue", @"break" };
 
 pub fn run(runtime: *Runtime) Error!void {
@@ -123,16 +143,16 @@ pub fn run(runtime: *Runtime) Error!void {
 
 fn runInstruction(runtime: *Runtime, instr: Instruction) Error!Control {
     switch (instr) {
-        inline .add, .@"and" => |operands| {
+        inline .add, .@"and" => |operands, instr_subset| {
             const lhs = runtime.registers[operands.src_a];
             const rhs: u16 = switch (operands.src_b) {
                 .register => |register| runtime.registers[register],
                 .immediate => |immediate| signExtend(immediate),
             };
-            runtime.setRegister(operands.dest, switch (instr) {
+            runtime.setRegister(operands.dest, switch (instr_subset) {
                 .add => lhs +% rhs,
                 .@"and" => lhs & rhs,
-                else => unreachable,
+                else => comptime unreachable,
             });
         },
         .not => |operands| {
@@ -291,28 +311,17 @@ fn printIntegerForms(runtime: *Runtime, word: u16) error{WriteFailed}!void {
 }
 
 fn printDisplayChar(runtime: *Runtime, word: u16) error{WriteFailed}!void {
-    const display = switch (word) {
-        // Non-ascii and unimportant ascii
-        else => "---",
-        // ASCII control characters which are arbitrarily considered significant
-        // ᴀʙᴄᴅᴇꜰɢʜɪᴊᴋʟᴍɴᴏᴘꞯʀꜱᴛᴜᴠᴡxʏᴢ
-        0x00 => "ɴᴜʟ",
-        0x08 => " ʙꜱ",
-        0x09 => " ʜᴛ",
-        0x0a => " ʟꜰ",
-        0x0b => " ᴠᴛ",
-        0x0c => " ꜰꜰ",
-        0x0d => " ᴄʀ",
-        0x1b => "ᴇꜱᴄ",
-        0x7f => "ᴅᴇʟ",
-        // Space
-        0x20 => "[_]",
-        // Printable ASCII characters
-        0x21...0x7e => {
-            try runtime.writer.interface.print("{c:^3}", .{@as(u8, @truncate(word))});
-            return;
-        },
+    const ascii = [0x80]*const [3]u8{
+        "NUL", "SOH", "STX",  "ETX", "EOT", "ENQ", "ACK", "BEL", " BS", " HT", " LF", " VT", " FF",  " CR", " SO", " SI",
+        "DLE", "DC1", "DC2",  "DC3", "DC4", "NAK", "SYN", "ETB", "CAN", " EM", "SUB", "ESC", " FS",  " GS", " RS", " US",
+        " SP", " ! ", " \" ", " # ", " $ ", " % ", " & ", " ' ", " ( ", " ) ", " * ", " + ", " , ",  " - ", " . ", " / ",
+        " 0 ", " 1 ", " 2 ",  " 3 ", " 4 ", " 5 ", " 6 ", " 7 ", " 8 ", " 9 ", " : ", " ; ", " < ",  " = ", " > ", " ? ",
+        " @ ", " A ", " B ",  " C ", " D ", " E ", " F ", " G ", " H ", " I ", " J ", " K ", " L ",  " M ", " N ", " O ",
+        " P ", " Q ", " R ",  " S ", " T ", " U ", " V ", " W ", " X ", " Y ", " Z ", " [ ", " \\ ", " ] ", " ^ ", " _ ",
+        " ` ", " a ", " b ",  " c ", " d ", " e ", " f ", " g ", " h ", " i ", " j ", " k ", " l ",  " m ", " n ", " o ",
+        " p ", " q ", " r ",  " s ", " t ", " u ", " v ", " w ", " x ", " y ", " z ", " { ", " | ",  " } ", " ~ ", "DEL",
     };
+    const display = if (word > 0x80) "---" else ascii[word];
     try runtime.writer.interface.print("{s}", .{display});
 }
 

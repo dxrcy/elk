@@ -19,6 +19,15 @@ pub fn isUppercaseAlpha(string: []const u8) bool {
     return true;
 }
 
+pub fn hasUppercaseAlpha(string: []const u8) bool {
+    assert(string.len > 0);
+    for (string) |char| {
+        if (std.ascii.isUpper(char))
+            return true;
+    }
+    return false;
+}
+
 /// Allows single `_` to delimit words.
 /// Allows `[0-9]` in any place uppercase OR lowercase is allowed, but not BEFORE lowercase.
 pub fn isPascalCase(string: []const u8) bool {

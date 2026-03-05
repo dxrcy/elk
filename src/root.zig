@@ -9,7 +9,8 @@ test {
     const refAllDecls = @import("std").testing.refAllDecls;
     refAllDecls(@import("Policies.zig"));
     refAllDecls(@import("Traps.zig"));
-    refAllDecls(@import("compile/statement.zig"));
+    refAllDecls(@import("compile/instruction.zig"));
+    refAllDecls(@import("compile/Operand.zig"));
     refAllDecls(@import("compile/Span.zig"));
     refAllDecls(@import("compile/Air.zig"));
     refAllDecls(@import("compile/parse/TokenIter.zig"));

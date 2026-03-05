@@ -38,6 +38,8 @@ extension: struct {
 
 smell: struct {
     pc_offset_literals: Policy,
+    explicit_trap_instructions: Policy,
+    unknown_trap_vectors: Policy,
 
     pub const forbid_all = fillFields(@This(), .forbid);
     pub const permit_all = fillFields(@This(), .permit);
@@ -50,6 +52,8 @@ style: struct {
     unconventional_case_instructions: Policy,
     unconventional_case_directives: Policy,
     unconventional_case_labels: Policy,
+    unconventional_case_registers: Policy,
+    unconventional_case_integers: Policy,
 
     pub const forbid_all = fillFields(@This(), .forbid);
     pub const permit_all = fillFields(@This(), .permit);

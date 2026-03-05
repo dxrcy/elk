@@ -5,13 +5,12 @@ const assert = std.debug.assert;
 
 const Traps = @import("../../Traps.zig");
 const Reporter = @import("../../report/Reporter.zig");
-const Air = @import("../Air.zig");
+const Operand = @import("../Operand.zig");
 const Span = @import("../Span.zig");
 const Lexer = @import("Lexer.zig");
 const Token = @import("Token.zig");
 const SourceInt = @import("integers.zig").SourceInt;
 const case = @import("case.zig");
-const Operand = Air.Operand;
 
 lexer: Lexer,
 // Peek+peek or peek+next will parse same span as token multiple times, but this
@@ -35,6 +34,9 @@ pub fn new(
         if (entry.alias) |alias|
             assert(case.isLowercaseAlpha(alias));
     }
+
+    for (source) |char|
+        assert(Token.isValidChar(char));
 
     return .{
         .lexer = Lexer.new(source),
@@ -78,7 +80,7 @@ fn nextAny(tokens: *TokenIter) error{ Reported, Eof }!Token {
             => |err2| {
                 try tokens.reporter.report(.invalid_token, .{
                     .token = span,
-                    .kind = switch (err2) {
+                    .guess = switch (err2) {
                         error.InvalidLabel => .label,
                         error.InvalidDirective => .directive,
                         error.InvalidToken => null,
@@ -87,7 +89,7 @@ fn nextAny(tokens: *TokenIter) error{ Reported, Eof }!Token {
                 }).abort();
             },
             error.UnknownDirective => {
-                try tokens.reporter.report(.unknown_directive, .{
+                try tokens.reporter.report(.unsupported_directive, .{
                     .directive = span,
                 }).abort();
             },
@@ -120,7 +122,7 @@ fn nextAny(tokens: *TokenIter) error{ Reported, Eof }!Token {
             error.IntegerTooLarge => {
                 try tokens.reporter.report(.integer_too_large, .{
                     .integer = span,
-                    .bits = 16,
+                    .type_info = @typeInfo(u16).int,
                 }).abort();
             },
         }
@@ -205,8 +207,8 @@ pub fn expectEol(tokens: *TokenIter) error{Reported}!void {
         error.Eof => return,
     };
     if (token.value != .newline) {
-        try tokens.reporter.report(.unexpected_token, .{
-            .token = token,
+        try tokens.reporter.report(.expected_eol, .{
+            .found = token,
         }).abort();
     }
 }
@@ -259,9 +261,6 @@ pub const Argument = union(enum) {
                 Operand.value.RegImm5 => switch (token.value) {
                     .register => |register| .{ .register = .{ .code = register } },
                     .integer => |integer| .{
-                        // TODO: Allow +1 bit for unsigned literals, which will
-                        // be later bitcast to negative. Warn for this!
-                        // Same with Offset6, but probably not with PcOffset(_)
                         .immediate = try shrink(reporter, token.span, integer, i5),
                     },
                     else => try unexpected(reporter, token, &.{ .register, .integer }),
@@ -315,14 +314,18 @@ pub const Argument = union(enum) {
         span: Span,
         integer: SourceInt(16),
         comptime T: type,
-    ) error{Reported}!T {
-        return integer.castToSmaller(T) catch |err| switch (err) {
+    ) error{Reported}!Operand.Formed(T) {
+        const value = integer.castToSmaller(T) catch |err| switch (err) {
             error.IntegerTooLarge => {
                 try reporter.report(.integer_too_large, .{
                     .integer = span,
-                    .bits = @typeInfo(T).int.bits,
+                    .type_info = @typeInfo(T).int,
                 }).abort();
             },
+        };
+        return .{
+            .integer = value,
+            .form = integer.form,
         };
     }
 
@@ -332,13 +335,13 @@ pub const Argument = union(enum) {
         expected: []const TokenKind,
     ) error{Reported}!noreturn {
         if (token.value == .newline) {
-            try reporter.report(.unexpected_line_end, .{
-                .span = token.span,
+            try reporter.report(.unexpected_eol, .{
+                .eol = token.span,
                 .expected = expected,
             }).abort();
         } else {
             try reporter.report(.unexpected_token_kind, .{
-                .token = token,
+                .found = token,
                 .expected = expected,
             }).abort();
         }
@@ -357,8 +360,8 @@ fn ensureSupported(
             // Don't include initial `.`
             const string = token.span.view(tokens.source)[1..];
             if (!case.isUppercaseAlpha(string)) {
-                tokens.reporter.report(.unconventional_case_ident, .{
-                    .ident = token.span,
+                tokens.reporter.report(.unconventional_case, .{
+                    .token = token.span,
                     .kind = .directive,
                 }).collect(&result);
             }
@@ -366,8 +369,8 @@ fn ensureSupported(
 
         .instruction => {
             if (!case.isLowercaseAlpha(token.span.view(tokens.source))) {
-                tokens.reporter.report(.unconventional_case_ident, .{
-                    .ident = token.span,
+                tokens.reporter.report(.unconventional_case, .{
+                    .token = token.span,
                     .kind = .instruction,
                 }).collect(&result);
             }
@@ -386,7 +389,29 @@ fn ensureSupported(
             }
         },
 
+        .register => {
+            const string = token.span.view(tokens.source);
+            assert(string.len == 2);
+            switch (string[0]) {
+                'r' => {},
+                'R' => {
+                    tokens.reporter.report(.unconventional_case, .{
+                        .token = token.span,
+                        .kind = .register,
+                    }).collect(&result);
+                },
+                else => unreachable,
+            }
+        },
+
         .integer => |integer| {
+            if (case.hasUppercaseAlpha(token.span.view(tokens.source))) {
+                tokens.reporter.report(.unconventional_case, .{
+                    .token = token.span,
+                    .kind = .integer,
+                }).collect(&result);
+            }
+
             if (argument_opt) |argument| switch (argument) {
                 .operand => |operand| switch (operand) {
                     Operand.value.PcOffset(9),
@@ -396,6 +421,26 @@ fn ensureSupported(
                         tokens.reporter.report(.literal_pc_offset, .{
                             .integer = token.span,
                         }).collect(&result);
+                    },
+                    Operand.value.TrapVect => {
+                        // If vect is too big, it will be reported elsewhere
+                        if (integer.castToSmaller(u8) catch null) |vect| {
+                            const entry = tokens.traps.entries[vect];
+                            if (entry.alias) |alias| {
+                                tokens.reporter.report(.explicit_trap_vect, .{
+                                    .vect = token.span,
+                                    .value = vect,
+                                    .alias = alias,
+                                }).collect(&result);
+                            } else if (entry.callback == null) {
+                                tokens.reporter.report(.undeclared_trap_vect, .{
+                                    .vect = token.span,
+                                    .value = vect,
+                                }).collect(&result);
+                            } else {
+                                // Should use explicit vector; it's the only way
+                            }
+                        }
                     },
                     else => {},
                 },

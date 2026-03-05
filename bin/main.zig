@@ -7,18 +7,20 @@ const mcz = @import("mcz");
 pub fn main(init: std.process.Init) !u8 {
     const io, const gpa = .{ init.io, init.gpa };
 
-    var reporter = lcz.Reporter.new(io);
-    try reporter.init();
+    var reporter_buffer: [1024]u8 = undefined;
+    var reporter_writer = Io.File.stderr().writer(io, &reporter_buffer);
+    var reporter_impl = lcz.Reporter.Stderr.new(&reporter_writer.interface);
+    var reporter = reporter_impl.interface();
 
     const asm_path = "hw.asm";
 
     const source = try Io.Dir.cwd().readFileAlloc(io, asm_path, gpa, .unlimited);
     defer gpa.free(source);
 
-    reporter.setSource(source);
+    reporter_impl.setSource(source);
 
     // reporter.options.strictness = .normal;
-    // reporter.options.verbosity = .normal;
+    // reporter_impl.verbosity = .normal;
 
     const policies: lcz.Policies = .config_lace;
     reporter.options.policies = &policies;
@@ -50,17 +52,22 @@ pub fn main(init: std.process.Init) !u8 {
         });
     }
 
-    var parser: lcz.Parser = .new(&air, &traps, source, &reporter);
+    var parser = lcz.Parser.new(&traps, source, &reporter) orelse
+        return 1;
 
-    try parser.parse(gpa);
-    parser.resolveLabels();
-
-    {
-        if (reporter.endSection() == .err) {
-            std.log.info("stop", .{});
-            return 1;
-        }
+    try parser.parse(&air, gpa);
+    if (reporter.getLevel() == .err) {
+        reporter.showSummary();
+        return 1;
     }
+
+    parser.resolveLabels(&air);
+    if (reporter.getLevel() == .err) {
+        reporter.showSummary();
+        return 1;
+    }
+
+    reporter.showSummary();
 
     {
         const bin_path = "hw.obj";
@@ -110,7 +117,12 @@ pub fn main(init: std.process.Init) !u8 {
         );
         defer runtime.deinit(gpa);
 
-        try air.emitRuntime(&runtime);
+        const obj_path = "hw.obj";
+        const obj_file = try Io.Dir.cwd().openFile(io, obj_path, .{});
+        var read_buffer: [1024]u8 = undefined;
+
+        try runtime.readFromFile(obj_file, &read_buffer, io);
+        // try air.emitRuntime(&runtime);
 
         runtime.run() catch |err| switch (err) {
             error.WriteFailed,

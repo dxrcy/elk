@@ -1,9 +1,7 @@
-const Operand = @import("Air.zig").Operand;
-
-/// Note that some instructions (`Statement` variants) share the same 4-bit
-/// opcode, eg. `jsr` and `jsrr`, which are distinguished by a flag bit.
-pub const Statement = union(enum) {
-    raw_word: u16,
+/// Note that some instructions share the same 4-bit opcode, eg. `jsr` and `jsrr`, which are
+/// distinguished by a flag bit.
+pub const Instruction = union(enum) {
+    const Operand = @import("Operand.zig");
 
     add: struct {
         dest: Operand.Register,
@@ -78,11 +76,8 @@ pub const Statement = union(enum) {
     rets: struct {},
     rti: struct {},
 
-    pub fn encode(statement: Statement) u16 {
-        switch (statement) {
-            .raw_word => |raw| {
-                return raw;
-            },
+    pub fn encode(instruction: Instruction) u16 {
+        switch (instruction) {
             .add => |operands| {
                 var raw: u16 = 0x1000;
                 raw |= operands.dest.value.bits() << 9;
