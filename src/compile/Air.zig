@@ -6,9 +6,9 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const assert = std.debug.assert;
 
-const Runtime = @import("../../emulate/Runtime.zig");
-const Span = @import("../Span.zig");
-pub const Instruction = @import("../instruction.zig").Instruction;
+const Runtime = @import("../emulate/Runtime.zig");
+const Span = @import("Span.zig");
+pub const Instruction = @import("instruction.zig").Instruction;
 
 origin: u16,
 lines: ArrayList(Line),

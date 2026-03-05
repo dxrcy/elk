@@ -6,7 +6,7 @@ const assert = std.debug.assert;
 
 const Traps = @import("../../Traps.zig");
 const Reporter = @import("../../report/Reporter.zig");
-const Air = @import("../assemble/Air.zig");
+const Air = @import("../Air.zig");
 const Span = @import("../Span.zig");
 const Instruction = @import("../instruction.zig").Instruction;
 const Operand = @import("../Operand.zig");
