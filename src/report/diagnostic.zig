@@ -62,156 +62,66 @@ fn policyResponse(
 
 // TODO: Organise variants
 pub const Diagnostic = union(enum) {
-    invalid_byte: struct {
-        byte: usize,
-    },
-    output_too_long: struct {
-        line: Span,
-    },
-    nonstandard_stack_instruction: struct {
-        instruction: Token.Value.Instruction,
-        span: Span,
-    },
-    missing_origin: struct {
-        first_token: ?Span,
-    },
-    multiple_origins: struct {
-        existing: Span,
-        new: Span,
-    },
-    late_origin: struct {
-        origin: Span,
-        first_token: ?Span,
-    },
-    missing_end: struct {
-        last_token: ?Span,
-    },
-    duplicate_label: struct {
-        existing: Span,
-        new: Span,
-    },
-    unexpected_label: struct {
-        existing: Span,
-        new: Span,
-    },
-    shadowed_label: struct {
-        existing: Span,
-        new: Span,
-    },
-    useless_label: struct {
-        label: Span,
-        token: Span,
-    },
-    undeclared_label: struct {
-        label: Span,
-        near_match: ?Span,
-    },
-    offset_too_large: struct {
-        definition: Span,
-        reference: Span,
-        offset: i17,
-        bits: u16,
-    },
-    eof_label: struct {
-        label: Span,
-    },
-    unexpected_line_end: struct {
-        span: Span,
-        expected: []const TokenKinds.Kind,
-    },
-    unexpected_token_kind: struct {
-        token: Token,
-        expected: []const TokenKinds.Kind,
-    },
-    unexpected_token: struct {
-        token: Token,
-    },
-    invalid_token: struct {
-        token: Span,
-        kind: ?TokenKinds.Kind,
-    },
-    unknown_directive: struct {
-        directive: Span,
-    },
-    unmatched_quote: struct {
-        string: Span,
-    },
-    unexpected_negative_integer: struct {
-        integer: Span,
-    },
-    malformed_integer: struct {
-        integer: Span,
-    },
-    expected_digit: struct {
-        integer: Span,
-    },
-    invalid_digit: struct {
-        integer: Span,
-    },
-    unexpected_delimiter: struct {
-        integer: Span,
-    },
-    integer_too_large: struct {
-        span: Span,
-        integer: std.builtin.Type.Int,
-    },
-    invalid_string_escape: struct {
-        string: Span,
-        sequence: Span,
-    },
-    multiline_string: struct {
-        string: Span,
-    },
-    nonstandard_integer_radix: struct {
-        integer: Span,
-        radix: Radix,
-    },
-    nonstandard_integer_form: struct {
-        integer: Span,
-        reason: enum {
-            delimiter,
-        },
-    },
-    undesirable_integer_form: struct {
-        integer: Span,
-        reason: enum {
-            missing_zero,
-            pre_radix_sign,
-            post_radix_sign,
-            implicit_radix,
-        },
-    },
-    unconventional_case: struct {
-        ident: Span,
-        kind: enum {
-            directive,
-            instruction,
-            label,
-            register,
-            integer,
-        },
-    },
-    missing_operand_comma: struct {
-        operand: Span,
-    },
-    whitespace_comma: struct {
-        comma: Span,
-    },
-    literal_pc_offset: struct {
-        integer: Span,
-    },
-    explicit_trap_vect: struct {
-        vect: u8,
-        span: Span,
-        alias: []const u8,
-    },
-    unknown_trap_vect: struct {
-        vect: u8,
-        span: Span,
-    },
-    nonstandard_label_colon: struct {
-        colon: Span,
-    },
+    // Fatal, assembly file
+    invalid_byte: struct { byte: usize },
+    output_too_long: struct { line: Span },
+
+    // Fatal, directives
+    unknown_directive: struct { directive: Span },
+    multiple_origins: struct { existing: Span, new: Span },
+    late_origin: struct { origin: Span, first_token: ?Span },
+
+    // Fatal, line syntax
+    unexpected_line_end: struct { span: Span, expected: []const TokenKinds.Kind },
+    unexpected_token: struct { token: Token },
+    unexpected_token_kind: struct { token: Token, expected: []const TokenKinds.Kind },
+    unexpected_label: struct { existing: Span, new: Span },
+
+    // Fatal, token syntax
+    invalid_token: struct { token: Span, kind: ?TokenKinds.Kind },
+    unmatched_quote: struct { string: Span },
+
+    // Fatal, integer syntax
+    malformed_integer: struct { integer: Span },
+    expected_digit: struct { integer: Span },
+    invalid_digit: struct { integer: Span },
+    unexpected_delimiter: struct { integer: Span },
+
+    // Fatal, integer bounds
+    integer_too_large: struct { span: Span, integer: std.builtin.Type.Int },
+    offset_too_large: struct { definition: Span, reference: Span, offset: i17, bits: u16 },
+    unexpected_negative_integer: struct { integer: Span },
+
+    // Fatal, label resolution
+    duplicate_label: struct { existing: Span, new: Span },
+    undeclared_label: struct { label: Span, near_match: ?Span },
+
+    // Non-fatal
+    useless_label: struct { label: Span, token: Span },
+    // TODO: Merge with useless_label
+    eof_label: struct { label: Span },
+    shadowed_label: struct { existing: Span, new: Span },
+    invalid_string_escape: struct { string: Span, sequence: Span },
+
+    // Policy, extension
+    nonstandard_stack_instruction: struct { instruction: Token.Value.Instruction, span: Span },
+    missing_origin: struct { first_token: ?Span },
+    missing_end: struct { last_token: ?Span },
+    multiline_string: struct { string: Span },
+    nonstandard_integer_radix: struct { integer: Span, radix: Radix },
+    nonstandard_integer_form: struct { integer: Span, reason: enum { delimiter } },
+    nonstandard_label_colon: struct { colon: Span },
+
+    // Policy, smells
+    literal_pc_offset: struct { integer: Span },
+    explicit_trap_vect: struct { vect: u8, span: Span, alias: []const u8 },
+    unknown_trap_vect: struct { vect: u8, span: Span },
+
+    // Policy, style
+    undesirable_integer_form: struct { integer: Span, reason: enum { missing_zero, pre_radix_sign, post_radix_sign, implicit_radix } },
+    missing_operand_comma: struct { operand: Span },
+    whitespace_comma: struct { comma: Span },
+    unconventional_case: struct { ident: Span, kind: enum { directive, instruction, label, register, integer } },
 
     pub fn getResponse(diag: Diagnostic, options: Reporter.Options) Reporter.Response {
         return switch (diag) {
