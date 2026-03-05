@@ -87,8 +87,9 @@ pub fn parse(parser: *Parser, air: *Air, gpa: Allocator) error{OutOfMemory}!void
     }
 
     if (parser.current_label) |existing| {
-        parser.reporter().report(.eof_label, .{
+        parser.reporter().report(.invalid_label_target, .{
             .label = existing,
+            .target = null,
         }).proceed(); // Can't return `error.Reported`
     }
 

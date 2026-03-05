@@ -97,9 +97,7 @@ pub const Diagnostic = union(enum) {
     undeclared_label: struct { reference: Span, nearest: ?Span },
 
     // Non-fatal
-    invalid_label_target: struct { label: Span, target: Span },
-    // TODO: Merge with invalid_label_target
-    eof_label: struct { label: Span },
+    invalid_label_target: struct { label: Span, target: ?Span },
     shadowed_label: struct { existing: Span, new: Span },
     invalid_string_escape: struct { string: Span, sequence: Span },
 
@@ -150,7 +148,6 @@ pub const Diagnostic = union(enum) {
 
             .shadowed_label,
             .invalid_label_target,
-            .eof_label,
             .invalid_string_escape,
             => strictnessResponse(options),
 
@@ -244,7 +241,10 @@ pub const Diagnostic = union(enum) {
             .invalid_label_target => |info| {
                 ctx.printTitle("Label is useless in this position", .{});
                 ctx.deepen().printSourceNote("Label declared here", .{}, info.label);
-                ctx.deepen().printSourceNote("Token cannot be annotated with label", .{}, info.target);
+                if (info.target) |target|
+                    ctx.deepen().printSourceNote("Token cannot be annotated with label", .{}, target)
+                else
+                    ctx.deepen().printSourceNote("Label is not followed by any token", .{}, .lastCharOf(source));
             },
             .undeclared_label => |info| {
                 ctx.printTitle("Label is not declared", .{});
@@ -259,15 +259,6 @@ pub const Diagnostic = union(enum) {
                 ctx.deepen().printSourceNote("Label declared here", .{}, info.definition);
                 ctx.deepen().printSourceNote("Label used here", .{}, info.reference);
                 ctx.deepen().printNote("Address offset of {} words cannot be represented in {} bits", .{ info.offset, info.bits });
-            },
-            .eof_label => |info| {
-                ctx.printTitle("Label is useless in this position", .{});
-                ctx.deepen().printSourceNote("Label declared here", .{}, info.label);
-                ctx.deepen().printSourceNote(
-                    "Label is not followed by any token",
-                    .{},
-                    .lastCharOf(source),
-                );
             },
             .unexpected_eol => |info| {
                 ctx.printTitle("Unexpected end of line", .{});
