@@ -5,14 +5,22 @@ const std = @import("std");
 const Span = @import("../compile/Span.zig");
 const Token = @import("../compile/parse/Token.zig");
 const Reporter = @import("Reporter.zig");
+const Stderr = @import("Stderr.zig");
 
-reporter: *Reporter,
+reporter: *Stderr,
+options: Reporter.Options,
 level: ?Reporter.Level,
 depth: usize,
 item_count: ?*usize,
 
-pub fn new(reporter: *Reporter, level: ?Reporter.Level, item_count: ?*usize) Ctx {
+pub fn new(
+    reporter: *Stderr,
+    options: Reporter.Options,
+    level: ?Reporter.Level,
+    item_count: ?*usize,
+) Ctx {
     return .{
+        .options = options,
         .reporter = reporter,
         .level = level,
         .depth = 0,
@@ -21,12 +29,12 @@ pub fn new(reporter: *Reporter, level: ?Reporter.Level, item_count: ?*usize) Ctx
 }
 
 pub fn print(ctx: Ctx, comptime fmt: []const u8, args: anytype) void {
-    ctx.reporter.writer.interface.print(fmt, args) catch
+    ctx.reporter.writer.print(fmt, args) catch
         std.debug.panic("failed to write to reporter file", .{});
 }
 
 pub fn flush(ctx: Ctx) void {
-    ctx.reporter.writer.interface.flush() catch
+    ctx.reporter.writer.flush() catch
         std.debug.panic("failed to flush reporter file", .{});
 }
 
@@ -73,7 +81,7 @@ pub fn printTitle(
 
     ctx.print(fmt, args);
 
-    switch (ctx.reporter.options.verbosity) {
+    switch (ctx.options.verbosity) {
         .normal => {
             ctx.print("\n", .{});
         },
@@ -84,7 +92,7 @@ pub fn printTitle(
 pub fn printNote(ctx: Ctx, comptime fmt: []const u8, args: anytype) void {
     defer ctx.incrementItemCount();
 
-    switch (ctx.reporter.options.verbosity) {
+    switch (ctx.options.verbosity) {
         .normal => {},
         .quiet => return,
     }
@@ -111,7 +119,7 @@ fn printSource(ctx: Ctx, span: Span) void {
     const source = ctx.reporter.source orelse
         unreachable;
 
-    switch (ctx.reporter.options.verbosity) {
+    switch (ctx.options.verbosity) {
         .normal => {},
         .quiet => {
             // Scuffed!

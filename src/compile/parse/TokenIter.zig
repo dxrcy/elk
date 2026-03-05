@@ -5,13 +5,12 @@ const assert = std.debug.assert;
 
 const Traps = @import("../../Traps.zig");
 const Reporter = @import("../../report/Reporter.zig");
-const Air = @import("../Air.zig");
+const Operand = @import("../Operand.zig");
 const Span = @import("../Span.zig");
 const Lexer = @import("Lexer.zig");
 const Token = @import("Token.zig");
 const SourceInt = @import("integers.zig").SourceInt;
 const case = @import("case.zig");
-const Operand = Air.Operand;
 
 lexer: Lexer,
 // Peek+peek or peek+next will parse same span as token multiple times, but this
@@ -315,14 +314,18 @@ pub const Argument = union(enum) {
         span: Span,
         integer: SourceInt(16),
         comptime T: type,
-    ) error{Reported}!T {
-        return integer.castToSmaller(T) catch |err| switch (err) {
+    ) error{Reported}!Operand.Formed(T) {
+        const value = integer.castToSmaller(T) catch |err| switch (err) {
             error.IntegerTooLarge => {
                 try reporter.report(.integer_too_large, .{
                     .span = span,
                     .integer = @typeInfo(T).int,
                 }).abort();
             },
+        };
+        return .{
+            .integer = value,
+            .form = integer.form,
         };
     }
 

@@ -9,16 +9,31 @@ const Token = @import("../compile/parse/Token.zig");
 const Diagnostic = @import("diagnostic.zig").Diagnostic;
 const Ctx = @import("Ctx.zig");
 
+pub const Stderr = @import("Stderr.zig");
+pub const Discarding = @import("Discarding.zig");
+
 const BUFFER_SIZE = 1024;
 
 options: Options,
-source: ?[]const u8,
 count: std.EnumArray(Level, usize),
 
-file: Io.File,
-buffer: [BUFFER_SIZE]u8,
-writer: Io.File.Writer,
-io: Io,
+ptr: *anyopaque,
+vtable: *const VTable,
+
+const VTable = struct {
+    showReport: *const fn (
+        ptr: *anyopaque,
+        diag: Diagnostic,
+        options: Reporter.Options,
+        level: Reporter.Level,
+    ) void,
+
+    showSummary: *const fn (
+        ptr: *anyopaque,
+        count: *const std.EnumArray(Reporter.Level, usize),
+        options: Reporter.Options,
+    ) void,
+};
 
 pub const Level = enum { err, warn };
 
@@ -79,57 +94,13 @@ pub const Response = enum {
     }
 };
 
-pub fn new(io: Io) Reporter {
+pub fn fromImplementation(ptr: *anyopaque, vtable: *const VTable) Reporter {
     return .{
         .options = .{},
-        .source = null,
         .count = .initFill(0),
-        .file = undefined,
-        .buffer = undefined,
-        .writer = undefined,
-        .io = io,
+        .ptr = ptr,
+        .vtable = vtable,
     };
-}
-
-pub fn init(reporter: *Reporter) !void {
-    reporter.file = std.Io.File.stderr();
-    reporter.writer = reporter.file.writer(reporter.io, &reporter.buffer);
-}
-
-pub fn setSource(reporter: *Reporter, source: []const u8) void {
-    assert(reporter.source == null);
-    reporter.source = source;
-}
-
-pub fn getLevel(reporter: *const Reporter) ?Level {
-    if (reporter.count.get(.err) > 0)
-        return .err;
-    if (reporter.count.get(.warn) > 0)
-        return .warn;
-    return null;
-}
-
-pub fn showSummary(reporter: *Reporter) void {
-    const count_err = reporter.count.get(.err);
-    const count_warn = reporter.count.get(.warn);
-
-    const ctx: Ctx = .new(reporter, .warn, null);
-
-    if (count_err > 0) {
-        ctx.print("\x1b[31m", .{});
-        ctx.print("{} errors", .{count_err});
-        ctx.print("\x1b[0m", .{});
-        ctx.print("\n", .{});
-    }
-
-    if (count_warn > 0) {
-        ctx.print("\x1b[33m", .{});
-        ctx.print("{} warnings", .{count_warn});
-        ctx.print("\x1b[0m", .{});
-        ctx.print("\n", .{});
-    }
-
-    ctx.flush();
 }
 
 pub fn report(
@@ -151,14 +122,20 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
 
     reporter.count.getPtr(level).* += 1;
 
-    var ctx_items: usize = 0;
-    const ctx: Ctx = .new(reporter, level, &ctx_items);
-    const source = reporter.source orelse
-        unreachable;
-
-    diag.print(ctx, source);
-    ctx.flush();
+    reporter.vtable.showReport(reporter.ptr, diag, reporter.options, level);
 
     assert(response != .pass);
     return response;
+}
+
+pub fn showSummary(reporter: *Reporter) void {
+    reporter.vtable.showSummary(reporter.ptr, &reporter.count, reporter.options);
+}
+
+pub fn getLevel(reporter: *const Reporter) ?Level {
+    if (reporter.count.get(.err) > 0)
+        return .err;
+    if (reporter.count.get(.warn) > 0)
+        return .warn;
+    return null;
 }

@@ -19,6 +19,7 @@ Complete [LC-3](https://en.wikipedia.org/wiki/Little_Computer_3) toolchain (curr
 - [x] Extra-permissive assembly syntax
 - [x] Full support for arbitrary user-defined traps
 - [ ] Multiple file support (compatible with [Laser](https://github.com/PaperFanz/laser))
+- [ ] Preprocessor macros (compatible with [Leap](https://github.com/twhlynch/leap))
 
 ## Quality-of-Life Features
 

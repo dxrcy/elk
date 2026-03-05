@@ -9,8 +9,10 @@ const Cli = @import("Cli.zig");
 pub fn main(init: std.process.Init) !u8 {
     const io, const gpa = .{ init.io, init.gpa };
 
-    var reporter = lcz.Reporter.new(io);
-    try reporter.init();
+    var reporter_buffer: [1024]u8 = undefined;
+    var reporter_writer = Io.File.stderr().writer(io, &reporter_buffer);
+    var reporter_impl = lcz.Reporter.Stderr.new(&reporter_writer.interface);
+    var reporter = reporter_impl.interface();
 
     var args = try init.minimal.args.iterateAllocator(gpa);
     defer args.deinit();
@@ -41,6 +43,8 @@ pub fn main(init: std.process.Init) !u8 {
             const source = try Io.Dir.cwd().readFileAlloc(io, cli.filepath, gpa, .unlimited);
             defer gpa.free(source);
 
+            reporter_impl.setSource(source);
+
             var air = try assemble(source, &traps, &reporter, gpa);
             defer air.deinit(gpa);
 
@@ -65,6 +69,8 @@ pub fn main(init: std.process.Init) !u8 {
         .assemble_emulate => {
             const source = try Io.Dir.cwd().readFileAlloc(io, cli.filepath, gpa, .unlimited);
             defer gpa.free(source);
+
+            reporter_impl.setSource(source);
 
             var air = try assemble(source, &traps, &reporter, gpa);
             defer air.deinit(gpa);
@@ -91,21 +97,19 @@ fn assemble(
     reporter: *lcz.Reporter,
     gpa: Allocator,
 ) !lcz.Air {
-    reporter.setSource(source);
-
     var air: lcz.Air = .init();
     errdefer air.deinit(gpa);
 
-    var parser = lcz.Parser.new(&air, traps, source, reporter) orelse
+    var parser = lcz.Parser.new(traps, source, reporter) orelse
         return error.ProgramError;
 
-    try parser.parse(gpa);
+    try parser.parse(&air, gpa);
     if (reporter.getLevel() == .err) {
         reporter.showSummary();
         return error.ProgramError;
     }
 
-    parser.resolveLabels();
+    parser.resolveLabels(&air,);
     if (reporter.getLevel() == .err) {
         reporter.showSummary();
         return error.ProgramError;
