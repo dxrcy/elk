@@ -2,6 +2,7 @@ const std = @import("std");
 const assert = std.debug.assert;
 
 const Span = @import("Span.zig");
+const Form = @import("parse/integers.zig").Form;
 
 // Shorthand
 pub const Register = Spanned(value.Register);
@@ -20,6 +21,13 @@ pub fn Spanned(comptime K: type) type {
     };
 }
 
+pub fn Formed(comptime I: type) type {
+    return struct {
+        integer: I,
+        form: ?Form,
+    };
+}
+
 pub const value = struct {
     pub const Register = struct {
         code: u3,
@@ -30,27 +38,27 @@ pub const value = struct {
 
     pub const RegImm5 = union(enum) {
         register: value.Register,
-        immediate: i5,
+        immediate: Formed(i5),
         pub fn bits(self: @This()) u16 {
             return switch (self) {
                 .register => |register| register.bits(),
                 .immediate => |immediate| 0b100000 +
-                    @as(u16, @as(u5, @bitCast(immediate))),
+                    @as(u16, @as(u5, @bitCast(immediate.integer))),
             };
         }
     };
 
     pub const TrapVect = struct {
-        immediate: u8,
+        immediate: Formed(u8),
         pub fn bits(self: @This()) u16 {
-            return self.immediate;
+            return self.immediate.integer;
         }
     };
 
     pub const Offset6 = struct {
-        immediate: i6,
+        immediate: Formed(i6),
         pub fn bits(self: @This()) u16 {
-            return @as(u6, @bitCast(self.immediate));
+            return @as(u6, @bitCast(self.immediate.integer));
         }
     };
 
@@ -61,10 +69,10 @@ pub const value = struct {
         }
         return union(enum) {
             unresolved,
-            resolved: @Int(.signed, size),
+            resolved: Formed(@Int(.signed, size)),
             pub fn bits(self: @This()) u16 {
                 assert(self == .resolved);
-                return @as(@Int(.unsigned, size), @bitCast(self.resolved));
+                return @as(@Int(.unsigned, size), @bitCast(self.resolved.integer));
             }
         };
     }

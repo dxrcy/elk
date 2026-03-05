@@ -162,11 +162,16 @@ fn parseLine(parser: *Parser, air: *Air, gpa: Allocator) InnerError!Control {
         },
 
         .trap_alias => |vect| {
-            const statement: Air.Statement = .{ .instruction = .{
-                .trap = .{
-                    .vect = .{ .span = token.span, .value = .{ .immediate = vect } },
-                },
-            } };
+            const statement: Air.Statement = .{
+                .instruction = .{ .trap = .{
+                    .vect = .{
+                        .span = token.span,
+                        .value = .{
+                            .immediate = .{ .integer = vect, .form = null },
+                        },
+                    },
+                } },
+            };
             try parser.tokens.expectEol();
             try parser.appendLine(air, statement, token.span, gpa);
         },
@@ -484,7 +489,8 @@ fn resolveFieldLabel(
     // Extract integer type from operand argument type
     const Spanned = @typeInfo(@TypeOf(operand)).pointer.child;
     const Value = @FieldType(Spanned, "value");
-    const Int = @FieldType(Value, "resolved");
+    const Formed = @FieldType(Value, "resolved");
+    const Int = @FieldType(Formed, "integer");
 
     switch (operand.value) {
         .unresolved => {},
@@ -513,7 +519,7 @@ fn resolveFieldLabel(
         }).abort();
     };
 
-    operand.value = .{ .resolved = offset };
+    operand.value = .{ .resolved = .{ .integer = offset, .form = null } };
 }
 
 fn findLabelDefinition(

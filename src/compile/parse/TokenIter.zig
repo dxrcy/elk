@@ -314,14 +314,18 @@ pub const Argument = union(enum) {
         span: Span,
         integer: SourceInt(16),
         comptime T: type,
-    ) error{Reported}!T {
-        return integer.castToSmaller(T) catch |err| switch (err) {
+    ) error{Reported}!Operand.Formed(T) {
+        const value = integer.castToSmaller(T) catch |err| switch (err) {
             error.IntegerTooLarge => {
                 try reporter.report(.integer_too_large, .{
                     .span = span,
                     .integer = @typeInfo(T).int,
                 }).abort();
             },
+        };
+        return .{
+            .integer = value,
+            .form = integer.form,
         };
     }
 
