@@ -7,8 +7,8 @@ const assert = std.debug.assert;
 const Traps = @import("../../Traps.zig");
 const Reporter = @import("../../report/Reporter.zig");
 const Air = @import("../assemble/Air.zig");
-const Statement = @import("../assemble/statement.zig").Statement;
 const Span = @import("../Span.zig");
+const Instruction = @import("../instruction.zig").Instruction;
 const Operand = @import("../Operand.zig");
 const TokenIter = @import("TokenIter.zig");
 const Token = @import("Token.zig");
@@ -162,7 +162,7 @@ fn parseLine(parser: *Parser, air: *Air, gpa: Allocator) InnerError!Control {
         },
 
         .trap_alias => |vect| {
-            const statement: Statement = .{ .instruction = .{
+            const statement: Air.Statement = .{ .instruction = .{
                 .trap = .{
                     .vect = .{ .span = token.span, .value = .{ .immediate = vect } },
                 },
@@ -184,7 +184,7 @@ fn parseLine(parser: *Parser, air: *Air, gpa: Allocator) InnerError!Control {
 fn appendLine(
     parser: *Parser,
     air: *Air,
-    statement: Statement,
+    statement: Air.Statement,
     span: Span,
     gpa: Allocator,
 ) error{ TooLong, OutOfMemory }!void {
@@ -204,7 +204,7 @@ fn appendLine(
 fn appendLineNTimes(
     parser: *Parser,
     air: *Air,
-    statement: Statement,
+    statement: Air.Statement,
     span: Span,
     n: usize,
     gpa: Allocator,
@@ -364,7 +364,7 @@ fn parseInstruction(
     parser: *Parser,
     instruction: Token.Value.Instruction,
     span: Span,
-) InnerError!?Statement.Instruction {
+) InnerError!?Instruction {
     switch (instruction) {
         inline // Automatic parsing for 'regular' instructions
         .add,
@@ -398,7 +398,7 @@ fn parseInstruction(
                 else => {},
             }
 
-            const Operands = @FieldType(Statement.Instruction, @tagName(regular));
+            const Operands = @FieldType(Instruction, @tagName(regular));
             var operands: Operands = undefined;
 
             const fields = @typeInfo(Operands).@"struct".fields;
@@ -416,7 +416,7 @@ fn parseInstruction(
                     };
             }
 
-            return @unionInit(Statement.Instruction, @tagName(regular), operands);
+            return @unionInit(Instruction, @tagName(regular), operands);
         },
 
         inline // Branch instructions

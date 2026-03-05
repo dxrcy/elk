@@ -8,8 +8,7 @@ const assert = std.debug.assert;
 
 const Runtime = @import("../../emulate/Runtime.zig");
 const Span = @import("../Span.zig");
-const Operand = @import("../Operand.zig");
-const Statement = @import("statement.zig").Statement;
+pub const Instruction = @import("../instruction.zig").Instruction;
 
 origin: u16,
 lines: ArrayList(Line),
@@ -18,6 +17,20 @@ pub const Line = struct {
     label: ?Span,
     statement: Statement,
     span: Span,
+};
+
+/// Note that some instructions (`Statement` variants) share the same 4-bit
+/// opcode, eg. `jsr` and `jsrr`, which are distinguished by a flag bit.
+pub const Statement = union(enum) {
+    raw_word: u16,
+    instruction: Instruction,
+
+    pub fn encode(statement: Statement) u16 {
+        return switch (statement) {
+            .raw_word => |raw| raw,
+            .instruction => |instruction| instruction.encode(),
+        };
+    }
 };
 
 pub fn init() Air {
