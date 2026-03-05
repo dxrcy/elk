@@ -81,13 +81,11 @@ pub const Diagnostic = union(enum) {
     missing_origin: struct { first_token: ?Span },
     missing_end: struct { last_token: ?Span },
 
-    // Label syntax
+    // Label syntax and resolution
     multiple_labels: struct { existing: Span, new: Span },
     invalid_label_target: struct { label: Span, target: ?Span },
     shadowed_label: struct { existing: Span, new: Span },
     label_colon: struct { colon: Span },
-
-    // Label resolution
     redeclared_label: struct { existing: Span, new: Span },
     undeclared_label: struct { reference: Span, nearest: ?Span },
 
@@ -120,45 +118,46 @@ pub const Diagnostic = union(enum) {
         return switch (diag) {
             .invalid_source_byte,
             .output_too_long,
+            .invalid_token,
+            .unexpected_token_kind,
+            .unexpected_eol,
+            .expected_eol,
+            .unsupported_directive,
             .multiple_origins,
             .late_origin,
             .redeclared_label,
             .undeclared_label,
-            .offset_too_large,
-            .unexpected_eol,
-            .unexpected_token_kind,
-            .expected_eol,
-            .invalid_token,
-            .unsupported_directive,
-            .unmatched_quote,
-            .unexpected_negative_integer,
             .malformed_integer,
             .expected_digit,
             .invalid_digit,
             .unexpected_delimiter,
             .integer_too_large,
+            .offset_too_large,
+            .unexpected_negative_integer,
+            .unmatched_quote,
             => .fatal,
 
             .multiple_labels => .major,
 
-            .shadowed_label,
             .invalid_label_target,
+            .shadowed_label,
             .invalid_string_escape,
             => strictnessResponse(options),
 
-            .stack_instruction => policyResponse(options, .extension, .stack_instructions),
             .missing_origin => policyResponse(options, .extension, .implicit_origin),
             .missing_end => policyResponse(options, .extension, .implicit_end),
-            .multiline_string => policyResponse(options, .extension, .multiline_strings),
+            .label_colon => policyResponse(options, .extension, .label_declaration_colons),
             .nonstandard_integer_radix => policyResponse(options, .extension, .more_integer_radixes),
             .nonstandard_integer_form => policyResponse(options, .extension, .more_integer_forms),
-            .label_colon => policyResponse(options, .extension, .label_declaration_colons),
+            .multiline_string => policyResponse(options, .extension, .multiline_strings),
+            .stack_instruction => policyResponse(options, .extension, .stack_instructions),
 
             .literal_pc_offset => policyResponse(options, .smell, .pc_offset_literals),
             .explicit_trap_vect => policyResponse(options, .smell, .explicit_trap_instructions),
             .undeclared_trap_vect => policyResponse(options, .smell, .unknown_trap_vectors),
 
-            .undesirable_integer_form => policyResponse(options, .style, .undesirable_integer_forms),
+            .missing_operand_comma => policyResponse(options, .style, .missing_operand_commas),
+            .whitespace_comma => policyResponse(options, .style, .whitespace_commas),
             .unconventional_case => |info| switch (info.kind) {
                 .directive => policyResponse(options, .style, .unconventional_case_directives),
                 .instruction => policyResponse(options, .style, .unconventional_case_instructions),
@@ -166,8 +165,7 @@ pub const Diagnostic = union(enum) {
                 .register => policyResponse(options, .style, .unconventional_case_registers),
                 .integer => policyResponse(options, .style, .unconventional_case_integers),
             },
-            .missing_operand_comma => policyResponse(options, .style, .missing_operand_commas),
-            .whitespace_comma => policyResponse(options, .style, .whitespace_commas),
+            .undesirable_integer_form => policyResponse(options, .style, .undesirable_integer_forms),
         };
     }
 
@@ -184,93 +182,7 @@ pub const Diagnostic = union(enum) {
                 ctx.deepen().printSourceNote("Line", .{}, info.statement);
                 ctx.deepen().printNote("Object files cannot contain more than 0xffff words", .{});
             },
-            .stack_instruction => |info| {
-                ctx.printTitle("Use of non-standard stack instruction `{t}`", .{info.kind});
-                ctx.deepen().printSourceNote("Instruction is an ISA extension", .{}, info.instruction);
-            },
-            .missing_origin => |info| {
-                ctx.printTitle("Missing .ORIG directive", .{});
-                ctx.deepen().printSourceNote(
-                    "Origin should be declared before any instructions",
-                    .{},
-                    info.first_token orelse .firstCharOf(source),
-                );
-            },
-            .multiple_origins => |info| {
-                ctx.printTitle("Multiple .ORIG directives", .{});
-                ctx.deepen().printSourceNote("First declared here", .{}, info.existing);
-                ctx.deepen().printSourceNote("Tried to redeclare here", .{}, info.new);
-            },
-            .late_origin => |info| {
-                ctx.printTitle("Origin declared after statements", .{});
-                ctx.deepen().printSourceNote("Origin declared here", .{}, info.origin);
-                ctx.deepen().printSourceNote(
-                    "Origin must be declared at start of file",
-                    .{},
-                    info.first_token orelse .firstCharOf(source),
-                );
-            },
-            .missing_end => |info| {
-                ctx.printTitle("Missing .END directive", .{});
-                ctx.deepen().printSourceNote(
-                    "End should be declared after included all instructions",
-                    .{},
-                    info.last_token orelse .lastCharOf(source),
-                );
-            },
-            .redeclared_label => |info| {
-                ctx.printTitle("Label already declared", .{});
-                ctx.deepen().printSourceNote("Label is first declared here", .{}, info.existing);
-                ctx.deepen().printSourceNote("Tried to redeclare here", .{}, info.new);
-            },
-            .multiple_labels => |info| {
-                ctx.printTitle("Multiple labels cannot be declared on the same line", .{});
-                ctx.deepen().printSourceNote("First label declared here", .{}, info.existing);
-                ctx.deepen().printSourceNote("Another label declared on the same line", .{}, info.new);
-            },
-            .shadowed_label => |info| {
-                ctx.printTitle("Shadowed label has no use", .{});
-                ctx.deepen().printSourceNote("First label declared here", .{}, info.existing);
-                ctx.deepen().printSourceNote("Another label declared in the same position", .{}, info.new);
-            },
-            .invalid_label_target => |info| {
-                ctx.printTitle("Label is useless in this position", .{});
-                ctx.deepen().printSourceNote("Label declared here", .{}, info.label);
-                if (info.target) |target|
-                    ctx.deepen().printSourceNote("Token cannot be annotated with label", .{}, target)
-                else
-                    ctx.deepen().printSourceNote("Label is not followed by any token", .{}, .lastCharOf(source));
-            },
-            .undeclared_label => |info| {
-                ctx.printTitle("Label is not declared", .{});
-                ctx.deepen().printSourceNote("Label used here", .{}, info.reference);
-                if (info.nearest) |close_match| {
-                    ctx.deepen().printSourceNote("This label declaration is similar", .{}, close_match);
-                    ctx.deepen().printNote("Label names are case-sensitive", .{});
-                }
-            },
-            .offset_too_large => |info| {
-                ctx.printTitle("Calculated label offset is too large", .{});
-                ctx.deepen().printSourceNote("Label declared here", .{}, info.definition);
-                ctx.deepen().printSourceNote("Label used here", .{}, info.reference);
-                ctx.deepen().printNote("Address offset of {} words cannot be represented in {} bits", .{ info.offset, info.bits });
-            },
-            .unexpected_eol => |info| {
-                ctx.printTitle("Unexpected end of line", .{});
-                ctx.deepen().printSourceNote("Line ends too early", .{}, info.eol);
-                ctx.deepen().printNote("Expected {f}", .{TokenKinds{ .kinds = info.expected }});
-                ctx.deepen().printNote("Instructions cannot span multiple lines", .{});
-            },
-            .unexpected_token_kind => |info| {
-                ctx.printTitle("Unexpected {s}", .{TokenKinds.name(info.found.value)});
-                ctx.deepen().printSourceNote("Token", .{}, info.found.span);
-                ctx.deepen().printNote("Expected {f}", .{TokenKinds{ .kinds = info.expected }});
-            },
-            .expected_eol => |info| {
-                ctx.printTitle("Unexpected {s}", .{TokenKinds.name(info.found.value)});
-                ctx.deepen().printSourceNote("Token", .{}, info.found.span);
-                ctx.deepen().printNote("Expected end of line", .{});
-            },
+
             .invalid_token => |info| {
                 ctx.printTitle("Invalid token", .{});
                 ctx.deepen().printSourceNote("Token", .{}, info.token);
@@ -279,96 +191,31 @@ pub const Diagnostic = union(enum) {
                 else
                     ctx.deepen().printNote("Cannot parse as any valid token", .{});
             },
-            .unsupported_directive => |info| {
-                ctx.printTitle("Directive is not supported", .{});
-                ctx.deepen().printSourceNote("Tried to use directive here", .{}, info.directive);
+            .unexpected_token_kind => |info| {
+                ctx.printTitle("Unexpected {s}", .{TokenKinds.name(info.found.value)});
+                ctx.deepen().printSourceNote("Token", .{}, info.found.span);
+                ctx.deepen().printNote("Expected {f}", .{TokenKinds{ .kinds = info.expected }});
             },
-            .unmatched_quote => |info| {
-                ctx.printTitle("String literal does not end with quote `\"`", .{});
-                ctx.deepen().printSourceNote("String is used here", .{}, info.string);
-                ctx.deepen().printNote("Strings do not automatically stop at end of line", .{});
+            .unexpected_eol => |info| {
+                ctx.printTitle("Unexpected end of line", .{});
+                ctx.deepen().printSourceNote("Line ends too early", .{}, info.eol);
+                ctx.deepen().printNote("Expected {f}", .{TokenKinds{ .kinds = info.expected }});
+                ctx.deepen().printNote("Instructions cannot span multiple lines", .{});
             },
-            .unexpected_negative_integer => |info| {
-                ctx.printTitle("Integer operand cannot be negative", .{});
-                ctx.deepen().printSourceNote("Operand", .{}, info.integer);
+            .expected_eol => |info| {
+                ctx.printTitle("Unexpected {s}", .{TokenKinds.name(info.found.value)});
+                ctx.deepen().printSourceNote("Token", .{}, info.found.span);
+                ctx.deepen().printNote("Expected end of line", .{});
             },
-            .malformed_integer => |info| {
-                ctx.printTitle("Malformed integer operand", .{});
-                ctx.deepen().printSourceNote("Operand", .{}, info.integer);
-                ctx.deepen().printNote("Integer token is not in an valid form", .{});
+            .missing_operand_comma => |info| {
+                ctx.printTitle("Missing comma `,` after operand", .{});
+                ctx.deepen().printSourceNote("Operand", .{}, info.operand);
+                ctx.deepen().printNote("Operands should be separated with commas", .{});
             },
-            .expected_digit => |info| {
-                ctx.printTitle("Expected digit in integer operand", .{});
-                ctx.deepen().printSourceNote("Operand", .{}, info.integer);
-                ctx.deepen().printNote("Integer token ended unexpectedly", .{});
-            },
-            .invalid_digit => |info| {
-                ctx.printTitle("Invalid digit in integer operand", .{});
-                ctx.deepen().printSourceNote("Operand", .{}, info.integer);
-                ctx.deepen().printNote("Integer token contains a character which is not valid in the base", .{});
-            },
-            .unexpected_delimiter => |info| {
-                ctx.printTitle("Unexpected digit delimiter in integer operand", .{});
-                ctx.deepen().printSourceNote("Operand", .{}, info.integer);
-                ctx.deepen().printNote("Delimiter character `_` must appear between digits", .{});
-            },
-            .integer_too_large => |info| {
-                ctx.printTitle("Integer operand is too large", .{});
-                ctx.deepen().printSourceNote("Operand", .{}, info.integer);
-                ctx.deepen().printNote("Value cannot be represented in {} bits", .{info.type_info.bits});
-                if (info.type_info.signedness == .signed) {
-                    ctx.deepen().printNote("Since the operand is a signed integer, the highest bit is reserved as the sign bit", .{});
-                }
-            },
-            .invalid_string_escape => |info| {
-                ctx.printTitle("Invalid escape sequence", .{});
-                ctx.deepen().printSourceNote("String", .{}, info.string);
-                ctx.deepen().printSourceNote("Erroneous escape sequence", .{}, info.sequence);
-            },
-            .multiline_string => |info| {
-                ctx.printTitle("String covers multiple lines", .{});
-                ctx.deepen().printSourceNote("String", .{}, info.string);
-            },
-            .nonstandard_integer_radix => |info| {
-                ctx.printTitle("Integer uses non-standard base specifier '{t}'", .{info.radix});
-                ctx.deepen().printSourceNote("Integer", .{}, info.integer);
-            },
-            .nonstandard_integer_form => |info| {
-                ctx.printTitle("Integer uses non-standard syntax", .{});
-                ctx.deepen().printSourceNote("Integer", .{}, info.integer);
-                ctx.deepen().printNote("{s}", .{switch (info.reason) {
-                    .delimiter => "Delimiter character `_` is non-standard",
-                }});
-            },
-            .literal_pc_offset => |info| {
-                ctx.printTitle("Address operand is a literal offset", .{});
-                ctx.deepen().printSourceNote("Integer", .{}, info.integer);
-                ctx.deepen().printNote("PC-offset operand should be a label reference, instead of hardcoded offset value", .{});
-            },
-            .explicit_trap_vect => |info| {
-                ctx.printTitle("Use of trap instruction with explicit vector operand", .{});
-                ctx.deepen().printSourceNote("Trap vector", .{}, info.vect);
-                ctx.deepen().printNote("Consider using trap alias `{s}`", .{info.alias});
-            },
-            .undeclared_trap_vect => |info| {
-                ctx.printTitle("Use of unknown trap vector 0x{x:02}", .{info.value});
-                ctx.deepen().printSourceNote("Trap vector", .{}, info.vect);
-                ctx.deepen().printNote("Traps vector 0x{x:02} is not recognized", .{info.value});
-            },
-            .label_colon => |info| {
-                ctx.printTitle("Label followed by colon `:`", .{});
-                ctx.deepen().printSourceNote("Colon", .{}, info.colon);
-                ctx.deepen().printNote("A post-label colon is non-standard syntax", .{});
-            },
-            .undesirable_integer_form => |info| {
-                ctx.printTitle("Integer uses undesirable syntax", .{});
-                ctx.deepen().printSourceNote("Integer", .{}, info.integer);
-                ctx.deepen().printNote("{s}", .{switch (info.reason) {
-                    .missing_zero => "Leading zero should appear before base specifier",
-                    .pre_radix_sign => "Sign character should appear after decimal base specifier",
-                    .post_radix_sign => "Sign character should appear before non-decimal base specifier",
-                    .implicit_radix => "Decimal integer literal should begin with `#`",
-                }});
+            .whitespace_comma => |info| {
+                ctx.printTitle("Unexpected comma `,`", .{});
+                ctx.deepen().printSourceNote("Comma", .{}, info.comma);
+                ctx.deepen().printNote("Commas should only appear between instruction operands", .{});
             },
             .unconventional_case => |info| switch (info.kind) {
                 .instruction => {
@@ -392,15 +239,174 @@ pub const Diagnostic = union(enum) {
                     ctx.deepen().printSourceNote("Integer", .{}, info.token);
                 },
             },
-            .missing_operand_comma => |info| {
-                ctx.printTitle("Missing comma `,` after operand", .{});
-                ctx.deepen().printSourceNote("Operand", .{}, info.operand);
-                ctx.deepen().printNote("Operands should be separated with commas", .{});
+
+            .unsupported_directive => |info| {
+                ctx.printTitle("Directive is not supported", .{});
+                ctx.deepen().printSourceNote("Tried to use directive here", .{}, info.directive);
             },
-            .whitespace_comma => |info| {
-                ctx.printTitle("Unexpected comma `,`", .{});
-                ctx.deepen().printSourceNote("Comma", .{}, info.comma);
-                ctx.deepen().printNote("Commas should only appear between instruction operands", .{});
+            .multiple_origins => |info| {
+                ctx.printTitle("Multiple .ORIG directives", .{});
+                ctx.deepen().printSourceNote("First declared here", .{}, info.existing);
+                ctx.deepen().printSourceNote("Tried to redeclare here", .{}, info.new);
+            },
+            .late_origin => |info| {
+                ctx.printTitle("Origin declared after statements", .{});
+                ctx.deepen().printSourceNote("Origin declared here", .{}, info.origin);
+                ctx.deepen().printSourceNote(
+                    "Origin must be declared at start of file",
+                    .{},
+                    info.first_token orelse .firstCharOf(source),
+                );
+            },
+            .missing_origin => |info| {
+                ctx.printTitle("Missing .ORIG directive", .{});
+                ctx.deepen().printSourceNote(
+                    "Origin should be declared before any instructions",
+                    .{},
+                    info.first_token orelse .firstCharOf(source),
+                );
+            },
+            .missing_end => |info| {
+                ctx.printTitle("Missing .END directive", .{});
+                ctx.deepen().printSourceNote(
+                    "End should be declared after included all instructions",
+                    .{},
+                    info.last_token orelse .lastCharOf(source),
+                );
+            },
+
+            .multiple_labels => |info| {
+                ctx.printTitle("Multiple labels cannot be declared on the same line", .{});
+                ctx.deepen().printSourceNote("First label declared here", .{}, info.existing);
+                ctx.deepen().printSourceNote("Another label declared on the same line", .{}, info.new);
+            },
+            .invalid_label_target => |info| {
+                ctx.printTitle("Label is useless in this position", .{});
+                ctx.deepen().printSourceNote("Label declared here", .{}, info.label);
+                if (info.target) |target|
+                    ctx.deepen().printSourceNote("Token cannot be annotated with label", .{}, target)
+                else
+                    ctx.deepen().printSourceNote("Label is not followed by any token", .{}, .lastCharOf(source));
+            },
+            .shadowed_label => |info| {
+                ctx.printTitle("Shadowed label has no use", .{});
+                ctx.deepen().printSourceNote("First label declared here", .{}, info.existing);
+                ctx.deepen().printSourceNote("Another label declared in the same position", .{}, info.new);
+            },
+            .label_colon => |info| {
+                ctx.printTitle("Label followed by colon `:`", .{});
+                ctx.deepen().printSourceNote("Colon", .{}, info.colon);
+                ctx.deepen().printNote("A post-label colon is non-standard syntax", .{});
+            },
+
+            .redeclared_label => |info| {
+                ctx.printTitle("Label already declared", .{});
+                ctx.deepen().printSourceNote("Label is first declared here", .{}, info.existing);
+                ctx.deepen().printSourceNote("Tried to redeclare here", .{}, info.new);
+            },
+            .undeclared_label => |info| {
+                ctx.printTitle("Label is not declared", .{});
+                ctx.deepen().printSourceNote("Label used here", .{}, info.reference);
+                if (info.nearest) |close_match| {
+                    ctx.deepen().printSourceNote("This label declaration is similar", .{}, close_match);
+                    ctx.deepen().printNote("Label names are case-sensitive", .{});
+                }
+            },
+
+            .malformed_integer => |info| {
+                ctx.printTitle("Malformed integer operand", .{});
+                ctx.deepen().printSourceNote("Operand", .{}, info.integer);
+                ctx.deepen().printNote("Integer token is not in an valid form", .{});
+            },
+            .expected_digit => |info| {
+                ctx.printTitle("Expected digit in integer operand", .{});
+                ctx.deepen().printSourceNote("Operand", .{}, info.integer);
+                ctx.deepen().printNote("Integer token ended unexpectedly", .{});
+            },
+            .invalid_digit => |info| {
+                ctx.printTitle("Invalid digit in integer operand", .{});
+                ctx.deepen().printSourceNote("Operand", .{}, info.integer);
+                ctx.deepen().printNote("Integer token contains a character which is not valid in the base", .{});
+            },
+            .unexpected_delimiter => |info| {
+                ctx.printTitle("Unexpected digit delimiter in integer operand", .{});
+                ctx.deepen().printSourceNote("Operand", .{}, info.integer);
+                ctx.deepen().printNote("Delimiter character `_` must appear between digits", .{});
+            },
+            .nonstandard_integer_radix => |info| {
+                ctx.printTitle("Integer uses non-standard base specifier '{t}'", .{info.radix});
+                ctx.deepen().printSourceNote("Integer", .{}, info.integer);
+            },
+            .nonstandard_integer_form => |info| {
+                ctx.printTitle("Integer uses non-standard syntax", .{});
+                ctx.deepen().printSourceNote("Integer", .{}, info.integer);
+                ctx.deepen().printNote("{s}", .{switch (info.reason) {
+                    .delimiter => "Delimiter character `_` is non-standard",
+                }});
+            },
+            .undesirable_integer_form => |info| {
+                ctx.printTitle("Integer uses undesirable syntax", .{});
+                ctx.deepen().printSourceNote("Integer", .{}, info.integer);
+                ctx.deepen().printNote("{s}", .{switch (info.reason) {
+                    .missing_zero => "Leading zero should appear before base specifier",
+                    .pre_radix_sign => "Sign character should appear after decimal base specifier",
+                    .post_radix_sign => "Sign character should appear before non-decimal base specifier",
+                    .implicit_radix => "Decimal integer literal should begin with `#`",
+                }});
+            },
+
+            .integer_too_large => |info| {
+                ctx.printTitle("Integer operand is too large", .{});
+                ctx.deepen().printSourceNote("Operand", .{}, info.integer);
+                ctx.deepen().printNote("Value cannot be represented in {} bits", .{info.type_info.bits});
+                if (info.type_info.signedness == .signed) {
+                    ctx.deepen().printNote("Since the operand is a signed integer, the highest bit is reserved as the sign bit", .{});
+                }
+            },
+            .offset_too_large => |info| {
+                ctx.printTitle("Calculated label offset is too large", .{});
+                ctx.deepen().printSourceNote("Label declared here", .{}, info.definition);
+                ctx.deepen().printSourceNote("Label used here", .{}, info.reference);
+                ctx.deepen().printNote("Address offset of {} words cannot be represented in {} bits", .{ info.offset, info.bits });
+            },
+            .unexpected_negative_integer => |info| {
+                ctx.printTitle("Integer operand cannot be negative", .{});
+                ctx.deepen().printSourceNote("Operand", .{}, info.integer);
+            },
+
+            .unmatched_quote => |info| {
+                ctx.printTitle("String literal does not end with quote `\"`", .{});
+                ctx.deepen().printSourceNote("String is used here", .{}, info.string);
+                ctx.deepen().printNote("Strings do not automatically stop at end of line", .{});
+            },
+            .invalid_string_escape => |info| {
+                ctx.printTitle("Invalid escape sequence", .{});
+                ctx.deepen().printSourceNote("String", .{}, info.string);
+                ctx.deepen().printSourceNote("Erroneous escape sequence", .{}, info.sequence);
+            },
+            .multiline_string => |info| {
+                ctx.printTitle("String covers multiple lines", .{});
+                ctx.deepen().printSourceNote("String", .{}, info.string);
+            },
+
+            .stack_instruction => |info| {
+                ctx.printTitle("Use of non-standard stack instruction `{t}`", .{info.kind});
+                ctx.deepen().printSourceNote("Instruction is an ISA extension", .{}, info.instruction);
+            },
+            .literal_pc_offset => |info| {
+                ctx.printTitle("Address operand is a literal offset", .{});
+                ctx.deepen().printSourceNote("Integer", .{}, info.integer);
+                ctx.deepen().printNote("PC-offset operand should be a label reference, instead of hardcoded offset value", .{});
+            },
+            .explicit_trap_vect => |info| {
+                ctx.printTitle("Use of trap instruction with explicit vector operand", .{});
+                ctx.deepen().printSourceNote("Trap vector", .{}, info.vect);
+                ctx.deepen().printNote("Consider using trap alias `{s}`", .{info.alias});
+            },
+            .undeclared_trap_vect => |info| {
+                ctx.printTitle("Use of unknown trap vector 0x{x:02}", .{info.value});
+                ctx.deepen().printSourceNote("Trap vector", .{}, info.vect);
+                ctx.deepen().printNote("Traps vector 0x{x:02} is not recognized", .{info.value});
             },
         }
 
