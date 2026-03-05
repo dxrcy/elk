@@ -9,6 +9,7 @@ const assert = std.debug.assert;
 const Runtime = @import("../emulate/Runtime.zig");
 const Span = @import("Span.zig");
 pub const Instruction = @import("instruction.zig").Instruction;
+const SourceInt = @import("parse/integers.zig").SourceInt;
 
 lines: ArrayList(Line),
 
@@ -23,6 +24,9 @@ pub const Statement = union(enum) {
     instruction: Instruction,
 
     pub const Directive = union(enum) {
+        fill: struct {
+            word: SourceInt(16),
+        },
         // TODO:
     };
 

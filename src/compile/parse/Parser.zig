@@ -7,6 +7,7 @@ const assert = std.debug.assert;
 const Traps = @import("../../Traps.zig");
 const Reporter = @import("../../report/Reporter.zig");
 const Air = @import("../Air.zig");
+const Fir = @import("../Fir.zig");
 const Span = @import("../Span.zig");
 const Instruction = @import("../instruction.zig").Instruction;
 const Operand = @import("../Operand.zig");
@@ -97,6 +98,11 @@ pub fn parse(parser: *Parser, air: *Air, gpa: Allocator) error{OutOfMemory}!void
             .last_token = parser.tokens.latest,
         }).proceed(); // Can't return `error.Reported`
     }
+}
+
+pub fn parseFir(parser: *Parser, fir: *Fir, gpa: Allocator) error{OutOfMemory}!void {
+    _ = .{ parser, fir, gpa };
+    return;
 }
 
 fn parseLine(parser: *Parser, air: *Air, gpa: Allocator) InnerError!Control {

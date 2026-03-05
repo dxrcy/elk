@@ -24,8 +24,8 @@ pub fn main(init: std.process.Init) !u8 {
     const policies: lcz.Policies = .config_lace;
     reporter.options.policies = &policies;
 
-    var air: lcz.Air = .init();
-    defer air.deinit(gpa);
+    var fir: lcz.Fir = .init();
+    defer fir.deinit(gpa);
 
     const traps: lcz.Traps = comptime .initBuiltins(&.{
         lcz.Traps.Standard,
@@ -35,13 +35,7 @@ pub fn main(init: std.process.Init) !u8 {
     var parser = lcz.Parser.new(&traps, source, &reporter) orelse
         return 1;
 
-    try parser.parse(&air, gpa);
-    if (reporter.getLevel() == .err) {
-        reporter.showSummary();
-        return 1;
-    }
-
-    parser.resolveLabels(&air);
+    try parser.parseFir(&fir, gpa);
     if (reporter.getLevel() == .err) {
         reporter.showSummary();
         return 1;
@@ -49,70 +43,8 @@ pub fn main(init: std.process.Init) !u8 {
 
     reporter.showSummary();
 
-    {
-        const bin_path = "hw.obj";
-
-        var file = try Io.Dir.cwd().createFile(io, bin_path, .{});
-        defer file.close(io);
-
-        var buffer: [512]u8 = undefined;
-        var writer = file.writer(io, &buffer);
-
-        try air.emitWriter(&writer.interface);
-        try writer.flush();
-    }
-
-    {
-        var write_buffer: [64]u8 = undefined;
-        var writer = Io.File.stdout().writer(io, &write_buffer);
-        var reader = Io.File.stdin().reader(io, &.{});
-
-        var instr_count: InstrCount = .initFill(0);
-
-        const hooks: lcz.Runtime.Hooks = .{
-            // .pre_decode = .withoutData(preDecodeHook),
-            // .pre_execute = .withDataInit(*InstrCount, preExecuteHook, &instr_count),
-        };
-
-        var runtime = try lcz.Runtime.init(
-            &traps,
-            hooks,
-            &policies,
-            &writer.interface,
-            &reader.interface,
-            io,
-            gpa,
-        );
-        defer runtime.deinit(gpa);
-
-        const obj_path = "hw.obj";
-        const obj_file = try Io.Dir.cwd().openFile(io, obj_path, .{});
-        var read_buffer: [1024]u8 = undefined;
-
-        try runtime.readFromFile(obj_file, &read_buffer, io);
-        // try air.emitRuntime(&runtime);
-
-        runtime.run() catch |err| switch (err) {
-            error.WriteFailed,
-            error.ReadFailed,
-            error.TermiosFailed,
-            => |err2| return err2,
-            else => |err2| {
-                std.log.err("runtime threw exception: {t}", .{err2});
-            },
-        };
-
-        try runtime.writer.ensureNewline();
-        try runtime.writer.interface.flush();
-
-        for (runtime.registers, 0..) |register, i| {
-            std.debug.print("r{}: 0x{x:04}\n", .{ i, register });
-        }
-
-        for (std.meta.tags(std.meta.Tag(lcz.Runtime.Instruction))) |field| {
-            const count = instr_count.get(field);
-            std.debug.print("{t:20}: {}\n", .{ field, count });
-        }
+    for (fir.lines.items) |line| {
+        std.debug.print("{}\n", .{line});
     }
 
     return 0;
