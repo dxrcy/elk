@@ -9,6 +9,7 @@ pub const Command = enum {
     assemble_emulate,
     assemble,
     emulate,
+    debug,
 
     const default: Command = .assemble_emulate;
 };
@@ -37,6 +38,12 @@ pub fn parse(args: *std.process.Args.Iterator) anyerror!Cli {
                 if (partial.command != null)
                     return error.ConflictingOptionalArgument;
                 partial.command = .emulate;
+                continue;
+            }
+            if (std.mem.eql(u8, arg, "-d") or std.mem.eql(u8, arg, "--debug")) {
+                if (partial.command != null)
+                    return error.ConflictingOptionalArgument;
+                partial.command = .debug;
                 continue;
             }
 

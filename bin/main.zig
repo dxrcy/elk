@@ -77,6 +77,10 @@ pub fn main(init: std.process.Init) !u8 {
 
             try emulate(.{ .air = &air }, &traps, hooks, &policies, io, gpa);
         },
+
+        .debug => {
+            std.debug.print("todo: debug\n", .{});
+        },
     }
 
     return 0;
@@ -109,7 +113,9 @@ fn assemble(
         return error.ProgramError;
     }
 
-    parser.resolveLabels(&air,);
+    parser.resolveLabels(
+        &air,
+    );
     if (reporter.getLevel() == .err) {
         reporter.showSummary();
         return error.ProgramError;
