@@ -279,6 +279,15 @@ fn stackPop(runtime: *Runtime) u16 {
     return value;
 }
 
+pub fn readByte(runtime: *const Runtime) error{ EndOfStream, ReadFailed }!u8 {
+    var char: u8 = undefined;
+    runtime.reader.readSliceAll(@ptrCast(&char)) catch |err| switch (err) {
+        error.EndOfStream => return error.EndOfStream,
+        else => return error.ReadFailed,
+    };
+    return char;
+}
+
 pub fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
     try runtime.writer.ensureNewline();
     try runtime.writer.interface.print("+-----------------------------------+\n", .{});

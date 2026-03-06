@@ -27,7 +27,7 @@ fn readChar(runtime: *Runtime, comptime vect: enum { in, getc }) Traps.Result {
         try runtime.tty.init();
     try runtime.tty.enableRawMode();
 
-    const char = try readByte(runtime);
+    const char = try runtime.readByte();
 
     try runtime.tty.disableRawMode();
 
@@ -38,15 +38,6 @@ fn readChar(runtime: *Runtime, comptime vect: enum { in, getc }) Traps.Result {
     }
 
     runtime.registers[0] = char;
-}
-
-fn readByte(runtime: *const Runtime) error{ EndOfStream, ReadFailed }!u8 {
-    var char: u8 = undefined;
-    runtime.reader.readSliceAll(@ptrCast(&char)) catch |err| switch (err) {
-        error.EndOfStream => return error.EndOfStream,
-        else => return error.ReadFailed,
-    };
-    return char;
 }
 
 pub fn out(runtime: *Runtime) Traps.Result {
