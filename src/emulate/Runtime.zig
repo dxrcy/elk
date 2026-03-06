@@ -117,6 +117,11 @@ const Control = enum { @"continue", @"break" };
 
 pub fn run(runtime: *Runtime) Error!void {
     while (true) {
+        if (try runtime.invokeDebugger()) |control| switch (control) {
+            .@"continue" => continue,
+            .@"break" => break,
+        };
+
         switch (runtime.pc) {
             USER_MEMORY_START...USER_MEMORY_END => {},
             else => return error.PcOutOfBounds,
@@ -133,12 +138,23 @@ pub fn run(runtime: *Runtime) Error!void {
         if (runtime.hooks.pre_execute) |pre_execute|
             try pre_execute.call(.{ runtime, instr });
 
-        const control = try runtime.runInstruction(instr);
-        switch (control) {
+        switch (try runtime.runInstruction(instr)) {
             .@"continue" => continue,
             .@"break" => break,
         }
     }
+}
+
+fn invokeDebugger(runtime: *Runtime) !?Control {
+    std.debug.print("[INVOKE DEBUGGER]\n", .{});
+
+    try runtime.tty.enableRawMode();
+
+    _ = try runtime.readByte();
+
+    try runtime.tty.disableRawMode();
+
+    return null;
 }
 
 fn runInstruction(runtime: *Runtime, instr: Instruction) Error!Control {
