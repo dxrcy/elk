@@ -23,8 +23,6 @@ fn readChar(runtime: *Runtime, comptime vect: enum { in, getc }) Traps.Result {
         try runtime.writer.interface.flush();
     }
 
-    if (runtime.tty.state == .uninit)
-        try runtime.tty.init();
     try runtime.tty.enableRawMode();
 
     const char = try runtime.readByte();
