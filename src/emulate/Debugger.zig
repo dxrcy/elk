@@ -18,7 +18,7 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
 
     std.debug.print("[{s}]\n", .{command_string});
 
-    var lexer = Lexer.new(command_string);
+    var lexer = Lexer.new(command_string, false);
 
     while (lexer.next()) |span| {
         std.debug.print("[{s}]\n", .{span.view(command_string)});

@@ -39,7 +39,7 @@ pub fn new(
         assert(Token.isValidChar(char));
 
     return .{
-        .lexer = Lexer.new(source),
+        .lexer = Lexer.new(source, true),
         .peeked = null,
         .latest = null,
         .traps = traps,
