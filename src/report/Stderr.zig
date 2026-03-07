@@ -38,11 +38,7 @@ pub fn setSource(reporter: *Stderr, source: []const u8) void {
     reporter.source = source;
 }
 
-pub fn showReport(
-    ptr: *anyopaque,
-    diag: Diagnostic,
-    level: Reporter.Level,
-) void {
+pub fn showReport(ptr: *anyopaque, diag: Diagnostic, level: Reporter.Level) void {
     const reporter: *Stderr = @ptrCast(@alignCast(ptr));
 
     var ctx_items: usize = 0;
@@ -54,10 +50,7 @@ pub fn showReport(
     ctx.flush();
 }
 
-pub fn showSummary(
-    ptr: *anyopaque,
-    count: *const std.EnumArray(Reporter.Level, usize),
-) void {
+pub fn showSummary(ptr: *anyopaque, count: *const std.EnumArray(Reporter.Level, usize)) void {
     const reporter: *Stderr = @ptrCast(@alignCast(ptr));
 
     const count_err = count.get(.err);
