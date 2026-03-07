@@ -6,6 +6,7 @@ const Allocator = std.mem.Allocator;
 
 const Policies = @import("../Policies.zig");
 const Traps = @import("../Traps.zig");
+const Debugger = @import("Debugger.zig");
 const NewlineTracker = @import("NewlineTracker.zig");
 const Tty = @import("Tty.zig");
 
@@ -113,11 +114,11 @@ pub fn readFromFile(runtime: *Runtime, file: Io.File, buffer: []u8, io: Io) !voi
     }
 }
 
-const Control = enum { @"continue", @"break" };
+pub const Control = enum { @"continue", @"break" };
 
 pub fn run(runtime: *Runtime) Error!void {
     while (true) {
-        if (try runtime.invokeDebugger()) |control| switch (control) {
+        if (try Debugger.invoke(runtime)) |control| switch (control) {
             .@"continue" => continue,
             .@"break" => break,
         };
@@ -143,45 +144,6 @@ pub fn run(runtime: *Runtime) Error!void {
             .@"break" => break,
         }
     }
-}
-
-fn invokeDebugger(runtime: *Runtime) !?Control {
-    std.debug.print("[INVOKE DEBUGGER]\n", .{});
-
-    try runtime.tty.enableRawMode();
-
-    var buffer: [64]u8 = undefined;
-    var length: usize = 0;
-
-    while (true) {
-        std.debug.print("\r\x1b[K", .{});
-        std.debug.print("{s}", .{buffer[0..length]});
-
-        const char = try runtime.readByte();
-
-        switch (char) {
-            '\n' => break,
-
-            std.ascii.control_code.bs,
-            std.ascii.control_code.del,
-            => if (length > 0) {
-                length -= 1;
-            },
-
-            else => if (length < buffer.len) {
-                buffer[length] = char;
-                length += 1;
-            },
-        }
-    }
-
-    try runtime.tty.disableRawMode();
-
-    std.debug.print("\n", .{});
-
-    std.debug.print("[{s}]\n", .{buffer[0..length]});
-
-    return null;
 }
 
 fn runInstruction(runtime: *Runtime, instr: Instruction) Error!Control {
