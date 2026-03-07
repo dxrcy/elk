@@ -35,7 +35,7 @@ pub fn main(init: std.process.Init) !u8 {
     var parser = lcz.Parser.new(&traps, source, &reporter) orelse
         return 1;
 
-    try parser.parse(&air, gpa);
+    try parser.parse(gpa, &air);
     if (reporter.getLevel() == .err) {
         reporter.showSummary();
         return 1;
@@ -63,9 +63,9 @@ pub fn main(init: std.process.Init) !u8 {
     }
 
     {
+        var reader = Io.File.stdin().reader(io, &.{});
         var write_buffer: [64]u8 = undefined;
         var writer = Io.File.stdout().writer(io, &write_buffer);
-        var reader = Io.File.stdin().reader(io, &.{});
 
         var instr_count: InstrCount = .initFill(0);
 
@@ -75,13 +75,13 @@ pub fn main(init: std.process.Init) !u8 {
         };
 
         var runtime = try lcz.Runtime.init(
+            io,
+            gpa,
+            &reader.interface,
+            &writer.interface,
             &traps,
             hooks,
             &policies,
-            &writer.interface,
-            &reader.interface,
-            io,
-            gpa,
         );
         defer runtime.deinit(gpa);
 
@@ -89,7 +89,7 @@ pub fn main(init: std.process.Init) !u8 {
         const obj_file = try Io.Dir.cwd().openFile(io, obj_path, .{});
         var read_buffer: [1024]u8 = undefined;
 
-        try runtime.readFromFile(obj_file, &read_buffer, io);
+        try runtime.readFromFile(io, obj_file, &read_buffer);
         // try air.emitRuntime(&runtime);
 
         runtime.run() catch |err| switch (err) {

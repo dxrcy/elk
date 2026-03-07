@@ -63,13 +63,13 @@ pub const Hooks = struct {
 };
 
 pub fn init(
+    io: Io,
+    gpa: Allocator,
+    reader: *Io.Reader,
+    writer: *Io.Writer,
     traps: *const Traps,
     hooks: Hooks,
     policies: *const Policies,
-    writer: *Io.Writer,
-    reader: *Io.Reader,
-    io: Io,
-    gpa: Allocator,
 ) !Runtime {
     const buffer = try gpa.alloc(u16, MEMORY_SIZE);
     @memset(buffer, 0x0000);
@@ -93,7 +93,7 @@ pub fn deinit(runtime: Runtime, gpa: Allocator) void {
     defer gpa.free(runtime.memory);
 }
 
-pub fn readFromFile(runtime: *Runtime, file: Io.File, buffer: []u8, io: Io) !void {
+pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !void {
     var reader = file.reader(io, buffer);
     const metadata = try file.stat(io);
 

@@ -55,11 +55,11 @@ const InnerError = error{
     OutOfMemory,
 };
 
-pub fn parse(parser: *Parser, air: *Air, gpa: Allocator) error{OutOfMemory}!void {
+pub fn parse(parser: *Parser, gpa: Allocator, air: *Air) error{OutOfMemory}!void {
     var missing_end = false;
 
     while (true) {
-        const control = parser.parseLine(air, gpa) catch |err| switch (err) {
+        const control = parser.parseLine(gpa, air) catch |err| switch (err) {
             error.Reported => {
                 parser.tokens.discardRemainingLine();
                 continue;
@@ -100,7 +100,7 @@ pub fn parse(parser: *Parser, air: *Air, gpa: Allocator) error{OutOfMemory}!void
     }
 }
 
-fn parseLine(parser: *Parser, air: *Air, gpa: Allocator) InnerError!Control {
+fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
     const token = try parser.tokens.nextExcluding(&.{.newline});
 
     switch (token.value) {
@@ -146,7 +146,7 @@ fn parseLine(parser: *Parser, air: *Air, gpa: Allocator) InnerError!Control {
         },
 
         .directive => |directive| {
-            const control = try parser.parseDirective(air, directive, token.span, gpa);
+            const control = try parser.parseDirective(gpa, air, directive, token.span);
             try parser.tokens.expectEol();
             return control;
         },
@@ -159,7 +159,7 @@ fn parseLine(parser: *Parser, air: *Air, gpa: Allocator) InnerError!Control {
                 parser.tokens.getIndex(),
             );
             try parser.tokens.expectEol();
-            try parser.appendLine(air, .{ .instruction = instr }, span, gpa);
+            try parser.appendLine(gpa, air, .{ .instruction = instr }, span);
         },
 
         .trap_alias => |vect| {
@@ -174,7 +174,7 @@ fn parseLine(parser: *Parser, air: *Air, gpa: Allocator) InnerError!Control {
                 } },
             };
             try parser.tokens.expectEol();
-            try parser.appendLine(air, statement, token.span, gpa);
+            try parser.appendLine(gpa, air, statement, token.span);
         },
 
         else => {
@@ -189,10 +189,10 @@ fn parseLine(parser: *Parser, air: *Air, gpa: Allocator) InnerError!Control {
 
 fn appendLine(
     parser: *Parser,
+    gpa: Allocator,
     air: *Air,
     statement: Air.Statement,
     span: Span,
-    gpa: Allocator,
 ) error{ TooLong, OutOfMemory }!void {
     try parser.ensureCanAppendLines(air, 1, span);
 
@@ -209,11 +209,11 @@ fn appendLine(
 /// Equivalent to calling `appendLine` `n` times, but only resizes once at most.
 fn appendLineNTimes(
     parser: *Parser,
+    gpa: Allocator,
     air: *Air,
     statement: Air.Statement,
     span: Span,
     n: usize,
-    gpa: Allocator,
 ) error{ TooLong, OutOfMemory }!void {
     assert(n > 0);
     try parser.ensureCanAppendLines(air, n, span);
@@ -245,10 +245,10 @@ fn ensureCanAppendLines(parser: *Parser, air: *Air, n: usize, span: Span) error{
 
 fn parseDirective(
     parser: *Parser,
+    gpa: Allocator,
     air: *Air,
     directive: Token.Value.Directive,
     span: Span,
-    gpa: Allocator,
 ) InnerError!Control {
     switch (directive) {
         .end => {
@@ -294,21 +294,21 @@ fn parseDirective(
         .fill => {
             const word = try parser.tokens.expectArgument(.word);
             try parser.appendLine(
+                gpa,
                 air,
                 .{ .raw_word = word.value.underlying },
                 word.span,
-                gpa,
             );
         },
 
         .blkw => {
             const size = try parser.tokens.expectArgument(.word);
             try parser.appendLineNTimes(
+                gpa,
                 air,
                 .{ .raw_word = 0x00 },
                 size.span,
                 size.value.underlying,
-                gpa,
             );
         },
 
@@ -345,19 +345,19 @@ fn parseDirective(
                 is_escaped = false;
 
                 try parser.appendLine(
+                    gpa,
                     air,
                     .{ .raw_word = char_escaped },
                     string.span,
-                    gpa,
                 );
             }
 
             // Null terminator
             try parser.appendLine(
+                gpa,
                 air,
                 .{ .raw_word = 0x0000 },
                 string.span,
-                gpa,
             );
         },
     }
