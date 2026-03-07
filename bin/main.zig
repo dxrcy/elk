@@ -78,6 +78,7 @@ pub fn main(init: std.process.Init) !u8 {
             &traps,
             hooks,
             &policies,
+            true,
             &writer.interface,
             &reader.interface,
             io,

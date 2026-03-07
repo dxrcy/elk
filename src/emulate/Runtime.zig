@@ -26,7 +26,7 @@ traps: *const Traps,
 hooks: Hooks,
 policies: *const Policies,
 
-debugger: Debugger,
+debugger: ?Debugger,
 writer: NewlineTracker,
 reader: *Io.Reader,
 tty: Tty,
@@ -68,6 +68,7 @@ pub fn init(
     traps: *const Traps,
     hooks: Hooks,
     policies: *const Policies,
+    debugger: bool,
     writer: *Io.Writer,
     reader: *Io.Reader,
     io: Io,
@@ -84,7 +85,7 @@ pub fn init(
         .traps = traps,
         .hooks = hooks,
         .policies = policies,
-        .debugger = .new(),
+        .debugger = if (debugger) .new() else null,
         .writer = .new(writer),
         .reader = reader,
         .tty = .uninit,
@@ -120,10 +121,12 @@ pub const Control = enum { @"continue", @"break" };
 
 pub fn run(runtime: *Runtime) Error!void {
     while (true) {
-        if (try runtime.debugger.invoke(runtime)) |control| switch (control) {
-            .@"continue" => continue,
-            .@"break" => break,
-        };
+        if (runtime.debugger) |*debugger| {
+            if (try debugger.invoke(runtime)) |control| switch (control) {
+                .@"continue" => continue,
+                .@"break" => break,
+            };
+        }
 
         switch (runtime.pc) {
             USER_MEMORY_START...USER_MEMORY_END => {},
