@@ -244,64 +244,64 @@ pub const Argument = union(enum) {
         return switch (argument) {
             .word => return switch (token.value) {
                 .integer => |integer| integer,
-                else => try unexpected(reporter, token, &.{.integer}),
+                else => try unexpected(token, &.{.integer}, reporter),
             },
 
             .string => return switch (token.value) {
                 .string => |string| string,
-                else => try unexpected(reporter, token, &.{.string}),
+                else => try unexpected(token, &.{.string}, reporter),
             },
 
             .operand => |operand| switch (operand) {
                 Operand.value.Register => switch (token.value) {
                     .register => |register| .{ .code = register },
-                    else => try unexpected(reporter, token, &.{.register}),
+                    else => try unexpected(token, &.{.register}, reporter),
                 },
 
                 Operand.value.RegImm5 => switch (token.value) {
                     .register => |register| .{ .register = .{ .code = register } },
                     .integer => |integer| .{
-                        .immediate = try shrink(reporter, token.span, integer, i5),
+                        .immediate = try shrink(i5, integer, token.span, reporter),
                     },
-                    else => try unexpected(reporter, token, &.{ .register, .integer }),
+                    else => try unexpected(token, &.{ .register, .integer }, reporter),
                 },
 
                 Operand.value.TrapVect => switch (token.value) {
                     .integer => |integer| .{
-                        .immediate = try shrink(reporter, token.span, integer, u8),
+                        .immediate = try shrink(u8, integer, token.span, reporter),
                     },
-                    else => try unexpected(reporter, token, &.{.integer}),
+                    else => try unexpected(token, &.{.integer}, reporter),
                 },
 
                 Operand.value.Offset6 => switch (token.value) {
                     .integer => |integer| .{
-                        .immediate = try shrink(reporter, token.span, integer, i6),
+                        .immediate = try shrink(i6, integer, token.span, reporter),
                     },
-                    else => try unexpected(reporter, token, &.{.integer}),
+                    else => try unexpected(token, &.{.integer}, reporter),
                 },
 
                 Operand.value.PcOffset(9) => switch (token.value) {
                     .integer => |integer| .{
-                        .resolved = try shrink(reporter, token.span, integer, i9),
+                        .resolved = try shrink(i9, integer, token.span, reporter),
                     },
                     .label => .unresolved,
-                    else => try unexpected(reporter, token, &.{ .label, .integer }),
+                    else => try unexpected(token, &.{ .label, .integer }, reporter),
                 },
 
                 Operand.value.PcOffset(10) => switch (token.value) {
                     .integer => |integer| .{
-                        .resolved = try shrink(reporter, token.span, integer, i10),
+                        .resolved = try shrink(i10, integer, token.span, reporter),
                     },
                     .label => .unresolved,
-                    else => try unexpected(reporter, token, &.{ .label, .integer }),
+                    else => try unexpected(token, &.{ .label, .integer }, reporter),
                 },
 
                 Operand.value.PcOffset(11) => switch (token.value) {
                     .integer => |integer| .{
-                        .resolved = try shrink(reporter, token.span, integer, i11),
+                        .resolved = try shrink(i11, integer, token.span, reporter),
                     },
                     .label => .unresolved,
-                    else => try unexpected(reporter, token, &.{ .label, .integer }),
+                    else => try unexpected(token, &.{ .label, .integer }, reporter),
                 },
 
                 else => comptime unreachable,
@@ -310,10 +310,10 @@ pub const Argument = union(enum) {
     }
 
     fn shrink(
-        reporter: *Reporter,
-        span: Span,
-        integer: SourceInt(16),
         comptime T: type,
+        integer: SourceInt(16),
+        span: Span,
+        reporter: *Reporter,
     ) error{Reported}!Operand.Formed(T) {
         const value = integer.castToSmaller(T) catch |err| switch (err) {
             error.IntegerTooLarge => {
@@ -330,9 +330,9 @@ pub const Argument = union(enum) {
     }
 
     fn unexpected(
-        reporter: *Reporter,
         token: Token,
         expected: []const TokenKind,
+        reporter: *Reporter,
     ) error{Reported}!noreturn {
         if (token.value == .newline) {
             try reporter.report(.unexpected_eol, .{

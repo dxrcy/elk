@@ -38,8 +38,8 @@ pub fn init() Air {
     };
 }
 
-pub fn deinit(air: *Air, allocator: Allocator) void {
-    air.lines.deinit(allocator);
+pub fn deinit(air: *Air, gpa: Allocator) void {
+    air.lines.deinit(gpa);
 }
 
 pub fn getFirstSpan(air: *const Air) ?Span {

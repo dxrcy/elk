@@ -276,11 +276,7 @@ pub fn tryInteger(string: []const u8) Error!?Word {
     return try Word.from(oversize, form);
 }
 
-fn appendDigit(
-    oversize: *Word.Oversize,
-    radix: Form.Radix,
-    digit: u8,
-) error{Overflow}!void {
+fn appendDigit(oversize: *Word.Oversize, radix: Form.Radix, digit: u8) error{Overflow}!void {
     oversize.* = try math.mul(Word.Oversize, oversize.*, @intFromEnum(radix));
     oversize.* = try math.add(Word.Oversize, oversize.*, digit);
 }
