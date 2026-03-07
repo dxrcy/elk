@@ -2,12 +2,50 @@ const Debugger = @This();
 
 const std = @import("std");
 
-const Runtime = @import("Runtime.zig");
+const Span = @import("../compile/Span.zig");
 const Lexer = @import("../compile/parse/Lexer.zig");
+const Runtime = @import("Runtime.zig");
 
 pub fn new() Debugger {
     return .{};
 }
+
+pub const Command = union(enum) {
+    help,
+    step_over,
+    step_into: struct { count: u16 },
+    step_out,
+    @"continue",
+    registers,
+    print: struct { location: Location },
+    move: struct { location: Location, value: u16 },
+    goto: struct { location: Location.Memory },
+    assembly: struct { location: Location.Memory },
+    eval: struct { instruction: Span },
+    Echo: struct { string: Span },
+    Reset,
+    Quit,
+    Exit,
+    BreakList,
+    breakadd: struct { location: Location.Memory },
+    breakremove: struct { location: Location.Memory },
+
+    pub const Location = union(enum) {
+        register: u3,
+        memory: Memory,
+
+        pub const Memory = union(enum) {
+            pc_offset: i16,
+            address: u16,
+            label: Label,
+        };
+    };
+
+    pub const Label = struct {
+        name: Span,
+        offset: i16,
+    };
+};
 
 pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
     std.debug.print("[INVOKE DEBUGGER]\n", .{});
