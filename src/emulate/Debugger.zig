@@ -3,20 +3,26 @@ const Debugger = @This();
 const std = @import("std");
 
 const Runtime = @import("Runtime.zig");
-const Control = Runtime.Control;
+const Lexer = @import("../compile/parse/Lexer.zig");
 
 pub fn new() Debugger {
     return .{};
 }
 
-pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Control {
+pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
     std.debug.print("[INVOKE DEBUGGER]\n", .{});
 
-    var command_buffer: [10]u8 = undefined;
+    var command_buffer: [20]u8 = undefined;
 
     const command_string = try debugger.readCommand(runtime, &command_buffer);
 
     std.debug.print("[{s}]\n", .{command_string});
+
+    var lexer = Lexer.new(command_string);
+
+    while (lexer.next()) |span| {
+        std.debug.print("[{s}]\n", .{span.view(command_string)});
+    }
 
     return null;
 }
