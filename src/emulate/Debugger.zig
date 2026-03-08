@@ -30,6 +30,8 @@ pub const Command = union(enum) {
     break_add: struct { location: Location.Memory },
     break_remove: struct { location: Location.Memory },
 
+    pub const Tag = std.meta.Tag(@This());
+
     pub const Location = union(enum) {
         register: u3,
         memory: Memory,
@@ -46,7 +48,7 @@ pub const Command = union(enum) {
         offset: i16,
     };
 
-    pub fn tagString(command: std.meta.Tag(Command)) [:0]const u8 {
+    pub fn tagString(command: Tag) [:0]const u8 {
         return switch (command) {
             .help => "help",
             .@"continue" => "continue",
@@ -70,126 +72,126 @@ pub const Command = union(enum) {
     }
 };
 
-const tag_maps = struct {
+const tags = struct {
     pub const Candidates = []const []const u8;
-    pub const TagMap = std.EnumArray(
-        std.meta.Tag(Command),
-        struct { Candidates, Candidates },
-    );
-    const Subcommand = struct {
-        first: tag_maps.Candidates,
-        second: tag_maps.TagMap,
-        default: ?std.meta.Tag(Command),
+
+    pub const SingleMap = std.EnumArray(Command.Tag, SingleEntry);
+
+    pub const SingleEntry = struct {
+        aliases: Candidates = &.{},
+        suggestions: Candidates = &.{},
     };
 
-    pub const single: TagMap = .init(.{
+    const DoubleEntry = struct {
+        first: Candidates,
+        second: SingleMap,
+        default: ?Command.Tag,
+    };
+
+    pub const single: SingleMap = .init(.{
         .help = .{
-            &.{ "h", "help", "--help", "-h", ":h", "man", "info", "wtf" },
-            &.{},
+            .aliases = &.{ "h", "help", "--help", "-h", ":h", "man", "info", "wtf" },
         },
         .@"continue" = .{
-            &.{ "c", "continue", "cont" },
-            &.{ "con", "proceed" },
+            .aliases = &.{ "c", "continue", "cont" },
+            .suggestions = &.{ "con", "proceed" },
         },
         .print = .{
-            &.{ "p", "print" },
-            &.{ "get", "show", "display", "put", "puts", "out" },
+            .aliases = &.{ "p", "print" },
+            .suggestions = &.{ "get", "show", "display", "put", "puts", "out" },
         },
         .move = .{
-            &.{ "m", "move" },
-            &.{ "set", "mov", "mv", "assign" },
+            .aliases = &.{ "m", "move" },
+            .suggestions = &.{ "set", "mov", "mv", "assign" },
         },
         .registers = .{
-            &.{ "r", "registers", "reg" },
-            &.{ "dump", "register", "regs" },
+            .aliases = &.{ "r", "registers", "reg" },
+            .suggestions = &.{ "dump", "register", "regs" },
         },
         .goto = .{
-            &.{ "g", "goto" },
-            &.{ "jump", "call", "go", "go-to", "jsr", "jsrr", "br", "brn", "brz", "brp", "brnz", "brnp", "brzp", "brnzp" },
+            .aliases = &.{ "g", "goto" },
+            .suggestions = &.{ "jump", "call", "go", "go-to", "jsr", "jsrr", "br", "brn", "brz", "brp", "brnz", "brnp", "brzp", "brnzp" },
         },
         .assembly = .{
-            &.{ "a", "assembly", "asm" },
-            &.{ "source", "src", "ass", "inspect" },
+            .aliases = &.{ "a", "assembly", "asm" },
+            .suggestions = &.{ "source", "src", "ass", "inspect" },
         },
         .eval = .{
-            &.{ "e", "eval", "evil", "evaluate" },
-            &.{ "run", "exec", "execute", "sim", "simulate", "instruction", "instr" },
+            .aliases = &.{ "e", "eval", "evil", "evaluate" },
+            .suggestions = &.{ "run", "exec", "execute", "sim", "simulate", "instruction", "instr" },
         },
         .reset = .{
-            &.{ "z", "reset" },
-            &.{ "restart", "refresh", "reboot" },
+            .aliases = &.{ "z", "reset" },
+            .suggestions = &.{ "restart", "refresh", "reboot" },
         },
         .echo = .{
-            &.{"echo"},
-            &.{},
+            .aliases = &.{"echo"},
         },
         .quit = .{
-            &.{ "q", "quit" },
-            &.{},
+            .aliases = &.{ "q", "quit" },
         },
         .exit = .{
-            &.{ "x", "exit", ":q", ":wq", "^C" },
-            &.{ "halt", "end", "stop" },
+            .aliases = &.{ "x", "exit", ":q", ":wq", "^C" },
+            .suggestions = &.{ "halt", "end", "stop" },
         },
         .step_over = .{
-            &.{},
-            &.{ "next", "step-over", "stepover" },
+            .aliases = &.{},
+            .suggestions = &.{ "next", "step-over", "stepover" },
         },
         .step_into = .{
-            &.{ "si", "stepinto" },
-            &.{ "into", "in", "stepin", "step-into", "step-in", "stepi", "step-i", "sin" },
+            .aliases = &.{ "si", "stepinto" },
+            .suggestions = &.{ "into", "in", "stepin", "step-into", "step-in", "stepi", "step-i", "sin" },
         },
         .step_out = .{
-            &.{ "so", "stepout" },
-            &.{ "finish", "fin", "out", "step-out", "stepo", "step-o", "sout" },
+            .aliases = &.{ "so", "stepout" },
+            .suggestions = &.{ "finish", "fin", "out", "step-out", "stepo", "step-o", "sout" },
         },
         .break_list = .{
-            &.{ "bl", "breaklist" },
-            &.{ "break-list", "break-ls", "blist", "bls", "bp", "breakpoint", "breakpointlist", "breakpoint-list" },
+            .aliases = &.{ "bl", "breaklist" },
+            .suggestions = &.{ "break-list", "break-ls", "blist", "bls", "bp", "breakpoint", "breakpointlist", "breakpoint-list" },
         },
         .break_add = .{
-            &.{ "ba", "breakadd" },
-            &.{ "break-add", "badd", "breakpointadd", "breakpoint-add" },
+            .aliases = &.{ "ba", "breakadd" },
+            .suggestions = &.{ "break-add", "badd", "breakpointadd", "breakpoint-add" },
         },
         .break_remove = .{
-            &.{ "br", "breakremove" },
-            &.{ "break-remove", "break-rm", "bremove", "brm", "breakpointremove", "breakpoint-remove" },
+            .aliases = &.{ "br", "breakremove" },
+            .suggestions = &.{ "break-remove", "break-rm", "bremove", "brm", "breakpointremove", "breakpoint-remove" },
         },
     });
 
-    const subcommands = [_]Subcommand{
+    const double = [_]DoubleEntry{
         .{
             .first = &.{ "s", "step" },
-            .second = .initDefault(.{ &.{}, &.{} }, .{
+            .second = .initDefault(.{}, .{
                 .step_over = .{
-                    &.{},
-                    &.{"next"},
+                    .suggestions = &.{"next"},
                 },
                 .step_into = .{
-                    &.{ "i", "into" },
-                    &.{"in"},
+                    .aliases = &.{ "i", "into" },
+                    .suggestions = &.{"in"},
                 },
                 .step_out = .{
-                    &.{ "o", "out" },
-                    &.{ "finish", "fin" },
+                    .aliases = &.{ "o", "out" },
+                    .suggestions = &.{ "finish", "fin" },
                 },
             }),
             .default = .step_over,
         },
         .{
             .first = &.{ "b", "break" },
-            .second = .initDefault(.{ &.{}, &.{} }, .{
+            .second = .initDefault(.{}, .{
                 .break_list = .{
-                    &.{ "l", "list" },
-                    &.{ "print", "show", "display", "dump", "ls" },
+                    .aliases = &.{ "l", "list" },
+                    .suggestions = &.{ "print", "show", "display", "dump", "ls" },
                 },
                 .break_add = .{
-                    &.{ "a", "add" },
-                    &.{ "set", "move" },
+                    .aliases = &.{ "a", "add" },
+                    .suggestions = &.{ "set", "move" },
                 },
                 .break_remove = .{
-                    &.{ "r", "remove" },
-                    &.{ "delete", "rm" },
+                    .aliases = &.{ "r", "remove" },
+                    .suggestions = &.{ "delete", "rm" },
                 },
             }),
             .default = null,
@@ -207,40 +209,37 @@ fn parseCommand(string: []const u8) !Command {
     return error.Unimplemented;
 }
 
-fn parseCommandTag(lexer: *Lexer, source: []const u8) !std.meta.Tag(Command) {
+fn parseCommandTag(lexer: *Lexer, source: []const u8) !Command.Tag {
     const first = lexer.next() orelse
         return error.EmptyCommand;
-
-    for (tag_maps.subcommands) |subcommand| {
-        if (try matchTagSubcommand(first, lexer, source, subcommand)) |tag|
+    for (tags.double) |double| {
+        if (try findDoubleMatch(double, first, lexer, source)) |tag|
             return tag;
     }
-
-    return findTagMatch(&tag_maps.single, first.view(source)) orelse
+    return findSingleMatch(&tags.single, first.view(source)) orelse
         error.InvalidCommand;
 }
 
-fn matchTagSubcommand(
+fn findDoubleMatch(
+    double: tags.DoubleEntry,
     first: Span,
     lexer: *Lexer,
     source: []const u8,
-    subcommand: tag_maps.Subcommand,
-) !?std.meta.Tag(Command) {
-    if (tagMatches(subcommand.first, first.view(source))) {
-        const second = lexer.next() orelse
-            return subcommand.default orelse error.MissingSubcommand;
-        return findTagMatch(&subcommand.second, second.view(source)) orelse
-            error.InvalidSubcommand;
-    }
-    return null;
+) !?Command.Tag {
+    if (!anyCandidateMatches(double.first, first.view(source)))
+        return null;
+    const second = lexer.next() orelse
+        return double.default orelse error.MissingSubcommand;
+    return findSingleMatch(&double.second, second.view(source)) orelse
+        error.InvalidSubcommand;
 }
 
-fn findTagMatch(map: *const tag_maps.TagMap, string: []const u8) ?std.meta.Tag(Command) {
-    for (std.meta.tags(std.meta.Tag(Command))) |tag| {
-        const aliases, const suggestions = map.get(tag);
-        if (tagMatches(aliases, string))
+fn findSingleMatch(singles: *const tags.SingleMap, string: []const u8) ?Command.Tag {
+    for (std.meta.tags(Command.Tag)) |tag| {
+        const entry = singles.get(tag);
+        if (anyCandidateMatches(entry.aliases, string))
             return tag;
-        if (tagMatches(suggestions, string)) {
+        if (anyCandidateMatches(entry.suggestions, string)) {
             std.debug.print("DID YOU MEAN: {s}\n", .{Command.tagString(tag)});
             return null;
         }
@@ -248,7 +247,7 @@ fn findTagMatch(map: *const tag_maps.TagMap, string: []const u8) ?std.meta.Tag(C
     return null;
 }
 
-fn tagMatches(candidates: []const []const u8, string: []const u8) bool {
+fn anyCandidateMatches(candidates: []const []const u8, string: []const u8) bool {
     for (candidates) |candidate| {
         if (std.ascii.eqlIgnoreCase(string, candidate))
             return true;
