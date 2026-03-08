@@ -35,17 +35,14 @@ pub fn showReport(
     ptr: *anyopaque,
     diag: Diagnostic,
     level: Reporter.Level,
-    source_opt: ?[]const u8,
+    source: ?[]const u8,
 ) void {
     const reporter: *Stderr = @ptrCast(@alignCast(ptr));
-
-    const source = source_opt orelse
-        unreachable;
 
     var ctx_items: usize = 0;
     const ctx: Ctx = .new(reporter, level, &ctx_items, source);
 
-    diag.print(ctx, source);
+    diag.print(ctx);
     ctx.flush();
 }
 

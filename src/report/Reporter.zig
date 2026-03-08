@@ -26,7 +26,7 @@ const VTable = struct {
         ptr: *anyopaque,
         diag: Diagnostic,
         level: Reporter.Level,
-        source_opt: ?[]const u8,
+        source: ?[]const u8,
     ) void,
 
     showSummary: *const fn (

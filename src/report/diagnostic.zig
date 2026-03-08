@@ -169,7 +169,10 @@ pub const Diagnostic = union(enum) {
         };
     }
 
-    pub fn print(diag: Diagnostic, ctx: Ctx, source: []const u8) void {
+    pub fn print(diag: Diagnostic, ctx: Ctx) void {
+        const source = ctx.source orelse
+            unreachable;
+
         switch (diag) {
             .invalid_source_byte => |info| {
                 ctx.printTitle("Assembly file contains invalid bytes", .{});
