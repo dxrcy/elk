@@ -28,12 +28,10 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
 
         debugger.reporter.source = command_string;
 
-        const command = parseCommand(command_string, debugger.reporter) catch |err| {
-            debugger.reporter.report(.debugger_any_err, .{
-                .code = err,
-                .span = .{ .offset = 0, .len = command_string.len },
-            }).abort() catch
-                continue;
+        const command = parseCommand(command_string, debugger.reporter) catch |err| switch (err) {
+            error.Reported => continue,
+            // TODO: Remove once all command parsing is implemented
+            error.Unimplemented => continue,
         } orelse
             continue; // No tokens lexed
 

@@ -6,7 +6,10 @@ const Lexer = @import("../../compile/parse/Lexer.zig");
 const Command = @import("command.zig").Command;
 const tags = @import("tags.zig");
 
-pub fn parseCommand(string: []const u8, reporter: *Reporter) !?Command {
+pub fn parseCommand(
+    string: []const u8,
+    reporter: *Reporter,
+) error{ Reported, Unimplemented }!?Command {
     var lexer = Lexer.new(string, false);
 
     const tag = try parseCommandTag(&lexer, string, reporter) orelse
@@ -14,10 +17,16 @@ pub fn parseCommand(string: []const u8, reporter: *Reporter) !?Command {
 
     std.debug.print("{t}\n", .{tag});
 
+    // TODO:
+
     return error.Unimplemented;
 }
 
-fn parseCommandTag(lexer: *Lexer, source: []const u8, reporter: *Reporter) !?Command.Tag {
+fn parseCommandTag(
+    lexer: *Lexer,
+    source: []const u8,
+    reporter: *Reporter,
+) error{Reported}!?Command.Tag {
     const first = lexer.next() orelse
         return null;
 
@@ -40,7 +49,7 @@ fn findDoubleMatch(
     lexer: *Lexer,
     source: []const u8,
     reporter: *Reporter,
-) !?Command.Tag {
+) error{Reported}!?Command.Tag {
     if (!anyCandidateMatches(double.first, first.view(source)))
         return null;
 
