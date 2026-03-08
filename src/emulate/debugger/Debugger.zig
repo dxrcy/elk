@@ -1,6 +1,7 @@
 const Debugger = @This();
 
 const std = @import("std");
+const control_code = std.ascii.control_code;
 
 const Runtime = @import("../Runtime.zig");
 const parseCommand = @import("parse.zig").parseCommand;
@@ -45,16 +46,25 @@ fn readCommand(debugger: *Debugger, runtime: *Runtime, buffer: []u8) ![]const u8
         switch (char) {
             '\n' => break,
 
-            std.ascii.control_code.bs,
-            std.ascii.control_code.del,
+            control_code.bs,
+            control_code.del,
             => if (length > 0) {
                 length -= 1;
             },
 
-            else => if (length < buffer.len) {
+            control_code.esc => {
+                if (try runtime.readByte() == '[') {
+                    const command = try runtime.readByte();
+                    _ = command;
+                }
+            },
+
+            0x20...0x7e => if (length < buffer.len) {
                 buffer[length] = char;
                 length += 1;
             },
+
+            else => {},
         }
     }
 
