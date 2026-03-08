@@ -33,11 +33,6 @@ pub fn interface(reporter: *Stderr) Reporter {
     });
 }
 
-pub fn setSource(reporter: *Stderr, source: []const u8) void {
-    assert(reporter.source == null);
-    reporter.source = source;
-}
-
 pub fn showReport(ptr: *anyopaque, diag: Diagnostic, level: Reporter.Level) void {
     const reporter: *Stderr = @ptrCast(@alignCast(ptr));
 
