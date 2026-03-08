@@ -3,26 +3,25 @@ const Debugger = @This();
 const std = @import("std");
 const Io = std.Io;
 
+const Reporter = @import("../../report/Reporter.zig");
 const Runtime = @import("../Runtime.zig");
 const Input = @import("Input.zig");
 const parseCommand = @import("parse.zig").parseCommand;
 
 input: Input,
+reporter: *Reporter,
 
-pub fn new(reader: *Io.Reader, writer: *Io.Writer) Debugger {
+pub fn new(reader: *Io.Reader, writer: *Io.Writer, reporter: *Reporter) Debugger {
     return .{
         .input = .new(reader, writer),
+        .reporter = reporter,
     };
 }
 
 pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
-    std.debug.print("[INVOKE DEBUGGER]\n", .{});
-
     var command_buffer: [20]u8 = undefined;
 
     while (true) {
-        std.debug.print("\n", .{});
-
         const command_string = try debugger.readCommand(runtime, &command_buffer);
 
         const command = parseCommand(command_string) catch |err| {

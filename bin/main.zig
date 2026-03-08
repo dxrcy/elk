@@ -82,6 +82,7 @@ pub fn main(init: std.process.Init) !u8 {
             &traps,
             hooks,
             &policies,
+            &reporter,
             true,
         );
         defer runtime.deinit(gpa);
