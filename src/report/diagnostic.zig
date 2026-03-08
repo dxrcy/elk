@@ -115,7 +115,11 @@ pub const Diagnostic = union(enum) {
     undeclared_trap_vect: struct { vect: Span, value: u8 },
 
     // Emulator debugger
-    debugger_any: struct {
+    debugger_any_err: struct {
+        code: anyerror,
+        span: ?Span,
+    },
+    debugger_any_warn: struct {
         code: anyerror,
         span: ?Span,
     },
@@ -173,7 +177,8 @@ pub const Diagnostic = union(enum) {
             },
             .undesirable_integer_form => policyResponse(options, .style, .undesirable_integer_forms),
 
-            .debugger_any => .fatal,
+            .debugger_any_err => .fatal,
+            .debugger_any_warn => .minor,
         };
     }
 
@@ -420,8 +425,13 @@ pub const Diagnostic = union(enum) {
                 ctx.deepen().printNote("Traps vector 0x{x:02} is not recognized", .{info.value});
             },
 
-            .debugger_any => |info| {
+            .debugger_any_err => |info| {
                 ctx.printTitle("Debugger error: {t}", .{info.code});
+                if (info.span) |span|
+                    ctx.deepen().printSourceNote("Here", .{}, span);
+            },
+            .debugger_any_warn => |info| {
+                ctx.printTitle("Debugger warning: {t}", .{info.code});
                 if (info.span) |span|
                     ctx.deepen().printSourceNote("Here", .{}, span);
             },

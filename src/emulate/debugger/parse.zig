@@ -26,8 +26,8 @@ fn parseCommandTag(lexer: *Lexer, source: []const u8, reporter: *Reporter) !?Com
             return tag;
     }
 
-    return findSingleMatch(&tags.single, first.view(source)) orelse {
-        try reporter.report(.debugger_any, .{
+    return findSingleMatch(&tags.single, first, source, reporter) orelse {
+        try reporter.report(.debugger_any_err, .{
             .code = error.InvalidCommand,
             .span = first,
         }).abort();
@@ -46,29 +46,39 @@ fn findDoubleMatch(
 
     const second = lexer.next() orelse
         return double.default orelse {
-            try reporter.report(.debugger_any, .{
+            try reporter.report(.debugger_any_err, .{
                 .code = error.MissingSubcommand,
                 .span = .emptyAt(source.len),
             }).abort();
         };
 
-    return findSingleMatch(&double.second, second.view(source)) orelse {
-        try reporter.report(.debugger_any, .{
+    return findSingleMatch(&double.second, second, source, reporter) orelse {
+        try reporter.report(.debugger_any_err, .{
             .code = error.InvalidSubcommand,
             .span = second,
         }).abort();
     };
 }
 
-fn findSingleMatch(singles: *const tags.SingleMap, string: []const u8) ?Command.Tag {
+fn findSingleMatch(
+    singles: *const tags.SingleMap,
+    span: Span,
+    source: []const u8,
+    reporter: *Reporter,
+) ?Command.Tag {
+    const string = span.view(source);
+
     for (std.meta.tags(Command.Tag)) |tag| {
         if (anyCandidateMatches(singles.get(tag).aliases, string))
             return tag;
     }
+
     for (std.meta.tags(Command.Tag)) |tag| {
         if (anyCandidateMatches(singles.get(tag).suggestions, string)) {
-            // TODO: Report
-            std.debug.print("HELP: DID YOU MEAN: {s}\n", .{Command.tagString(tag)});
+            reporter.report(.debugger_any_warn, .{
+                .code = error.CommandSuggestion,
+                .span = span,
+            }).proceed();
             return null;
         }
     }
