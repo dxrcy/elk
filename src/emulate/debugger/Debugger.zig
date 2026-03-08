@@ -11,13 +11,10 @@ const parseCommand = @import("parse.zig").parseCommand;
 input: Input,
 reporter: *Reporter,
 
-io: Io,
-
-pub fn new(io: Io, reader: *Io.Reader, writer: *Io.Writer, reporter: *Reporter) Debugger {
+pub fn new(reader: *Io.Reader, writer: *Io.Writer, reporter: *Reporter) Debugger {
     return .{
         .input = .new(reader, writer),
         .reporter = reporter,
-        .io = io,
     };
 }
 

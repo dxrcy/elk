@@ -75,7 +75,6 @@ pub fn main(init: std.process.Init) !u8 {
         };
 
         const debugger: lcz.Runtime.Debugger = .new(
-            io,
             &reader.interface,
             &writer.interface,
             &reporter,
