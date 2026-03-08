@@ -17,9 +17,35 @@ pub fn parseCommand(
 
     std.debug.print("{t}\n", .{tag});
 
-    // TODO:
+    const command: Command = switch (tag) {
+        // Allow trailing arguments
+        .help => return .help,
 
-    return error.Unimplemented;
+        inline .@"continue",
+        .registers,
+        .reset,
+        .quit,
+        .exit,
+        .step_over,
+        .step_out,
+        .break_list,
+        => |void_tag| @unionInit(Command, @tagName(void_tag), {}),
+
+        // TODO:
+
+        else => {
+            return error.Unimplemented;
+        },
+    };
+
+    if (lexer.next()) |span| {
+        try reporter.report(.debugger_any_err, .{
+            .code = error.UnexpectedArgument,
+            .span = span,
+        }).abort();
+    }
+
+    return command;
 }
 
 fn parseCommandTag(
@@ -31,11 +57,11 @@ fn parseCommandTag(
         return null;
 
     for (tags.double) |double| {
-        if (try findDoubleMatch(double, first, lexer, source, reporter)) |tag|
+        if (try findDoubleTagMatch(double, first, lexer, source, reporter)) |tag|
             return tag;
     }
 
-    return findSingleMatch(&tags.single, first, source, reporter) orelse {
+    return findSingleTagMatch(&tags.single, first, source, reporter) orelse {
         try reporter.report(.debugger_any_err, .{
             .code = error.InvalidCommand,
             .span = first,
@@ -43,7 +69,7 @@ fn parseCommandTag(
     };
 }
 
-fn findDoubleMatch(
+fn findDoubleTagMatch(
     double: tags.DoubleEntry,
     first: Span,
     lexer: *Lexer,
@@ -61,7 +87,7 @@ fn findDoubleMatch(
             }).abort();
         };
 
-    return findSingleMatch(&double.second, second, source, reporter) orelse {
+    return findSingleTagMatch(&double.second, second, source, reporter) orelse {
         try reporter.report(.debugger_any_err, .{
             .code = error.InvalidSubcommand,
             .span = second,
@@ -69,7 +95,7 @@ fn findDoubleMatch(
     };
 }
 
-fn findSingleMatch(
+fn findSingleTagMatch(
     singles: *const tags.SingleMap,
     span: Span,
     source: []const u8,

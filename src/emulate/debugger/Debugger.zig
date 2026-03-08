@@ -36,7 +36,6 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
             continue; // No tokens lexed
 
         std.debug.print("Command: {}\n", .{command});
-        return null;
     }
 }
 
