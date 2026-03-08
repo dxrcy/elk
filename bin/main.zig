@@ -82,7 +82,6 @@ pub fn main(init: std.process.Init) !u8 {
         );
 
         var runtime = try lcz.Runtime.init(
-            io,
             gpa,
             &reader.interface,
             &writer.interface,

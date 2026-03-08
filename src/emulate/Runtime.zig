@@ -31,7 +31,6 @@ debugger: ?Debugger,
 reader: *Io.Reader,
 writer: NewlineTracker,
 tty: Tty,
-io: Io,
 
 pub const Error = ProgramError || IoError;
 
@@ -66,7 +65,6 @@ pub const Hooks = struct {
 };
 
 pub fn init(
-    io: Io,
     gpa: Allocator,
     reader: *Io.Reader,
     writer: *Io.Writer,
@@ -90,7 +88,6 @@ pub fn init(
         .reader = reader,
         .writer = .new(writer),
         .tty = .uninit,
-        .io = io,
     };
 }
 
