@@ -76,6 +76,11 @@ const tag_maps = struct {
         std.meta.Tag(Command),
         struct { Candidates, Candidates },
     );
+    const Subcommand = struct {
+        first: tag_maps.Candidates,
+        second: tag_maps.TagMap,
+        default: ?std.meta.Tag(Command),
+    };
 
     pub const single: TagMap = .init(.{
         .help = .{
@@ -152,42 +157,44 @@ const tag_maps = struct {
         },
     });
 
-    pub const first_step: Candidates = &.{
-        "s", "step",
+    const subcommands = [_]Subcommand{
+        .{
+            .first = &.{ "s", "step" },
+            .second = .initDefault(.{ &.{}, &.{} }, .{
+                .step_over = .{
+                    &.{},
+                    &.{"next"},
+                },
+                .step_into = .{
+                    &.{ "i", "into" },
+                    &.{"in"},
+                },
+                .step_out = .{
+                    &.{ "o", "out" },
+                    &.{ "finish", "fin" },
+                },
+            }),
+            .default = .step_over,
+        },
+        .{
+            .first = &.{ "b", "break" },
+            .second = .initDefault(.{ &.{}, &.{} }, .{
+                .break_list = .{
+                    &.{ "l", "list" },
+                    &.{ "print", "show", "display", "dump", "ls" },
+                },
+                .break_add = .{
+                    &.{ "a", "add" },
+                    &.{ "set", "move" },
+                },
+                .break_remove = .{
+                    &.{ "r", "remove" },
+                    &.{ "delete", "rm" },
+                },
+            }),
+            .default = null,
+        },
     };
-    pub const first_break: Candidates = &.{
-        "b", "break",
-    };
-
-    pub const second_step: TagMap = .initDefault(.{ &.{}, &.{} }, .{
-        .step_over = .{
-            &.{},
-            &.{"next"},
-        },
-        .step_into = .{
-            &.{ "i", "into" },
-            &.{"in"},
-        },
-        .step_out = .{
-            &.{ "o", "out" },
-            &.{ "finish", "fin" },
-        },
-    });
-
-    pub const second_break: TagMap = .initDefault(.{ &.{}, &.{} }, .{
-        .break_list = .{
-            &.{ "l", "list" },
-            &.{ "print", "show", "display", "dump", "ls" },
-        },
-        .break_add = .{
-            &.{ "a", "add" },
-            &.{ "set", "move" },
-        },
-        .break_remove = .{
-            &.{ "r", "remove" },
-            &.{ "delete", "rm" },
-        },
-    });
 };
 
 fn parseCommand(string: []const u8) !Command {
@@ -204,25 +211,10 @@ fn parseCommandTag(lexer: *Lexer, source: []const u8) !std.meta.Tag(Command) {
     const first = lexer.next() orelse
         return error.EmptyCommand;
 
-    if (try matchTagSubcommand(
-        first,
-        lexer,
-        source,
-        tag_maps.first_step,
-        &tag_maps.second_step,
-        .step_over,
-    )) |tag|
-        return tag;
-
-    if (try matchTagSubcommand(
-        first,
-        lexer,
-        source,
-        tag_maps.first_break,
-        &tag_maps.second_break,
-        null,
-    )) |tag|
-        return tag;
+    for (tag_maps.subcommands) |subcommand| {
+        if (try matchTagSubcommand(first, lexer, source, subcommand)) |tag|
+            return tag;
+    }
 
     return findTagMatch(&tag_maps.single, first.view(source)) orelse
         error.InvalidCommand;
@@ -232,14 +224,12 @@ fn matchTagSubcommand(
     first: Span,
     lexer: *Lexer,
     source: []const u8,
-    candidates: tag_maps.Candidates,
-    map: *const tag_maps.TagMap,
-    default: ?std.meta.Tag(Command),
+    subcommand: tag_maps.Subcommand,
 ) !?std.meta.Tag(Command) {
-    if (tagMatches(candidates, first.view(source))) {
+    if (tagMatches(subcommand.first, first.view(source))) {
         const second = lexer.next() orelse
-            return default orelse error.MissingSubcommand;
-        return findTagMatch(map, second.view(source)) orelse
+            return subcommand.default orelse error.MissingSubcommand;
+        return findTagMatch(&subcommand.second, second.view(source)) orelse
             error.InvalidSubcommand;
     }
     return null;
