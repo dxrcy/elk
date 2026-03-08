@@ -11,6 +11,7 @@ reporter: *Stderr,
 level: ?Reporter.Level,
 depth: usize,
 item_count: ?*usize,
+source: ?[]const u8,
 
 pub const Verbosity = enum {
     normal,
@@ -22,12 +23,14 @@ pub fn new(
     reporter: *Stderr,
     level: ?Reporter.Level,
     item_count: ?*usize,
+    source: ?[]const u8,
 ) Ctx {
     return .{
         .reporter = reporter,
         .level = level,
         .depth = 0,
         .item_count = item_count,
+        .source = source,
     };
 }
 
@@ -119,7 +122,7 @@ pub fn printSourceNote(
 }
 
 fn printSource(ctx: Ctx, span: Span) void {
-    const source = ctx.reporter.source orelse
+    const source = ctx.source orelse
         unreachable;
 
     switch (ctx.reporter.verbosity) {

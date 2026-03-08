@@ -16,7 +16,7 @@ pub fn main(init: std.process.Init) !u8 {
     const source = try Io.Dir.cwd().readFileAlloc(io, asm_path, gpa, .unlimited);
     defer gpa.free(source);
 
-    reporter_impl.setSource(source);
+    reporter.source = source;
 
     // reporter.options.strictness = .normal;
     // reporter_impl.verbosity = .normal;
