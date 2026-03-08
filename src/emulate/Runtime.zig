@@ -73,7 +73,7 @@ pub fn init(
     traps: *const Traps,
     hooks: Hooks,
     policies: *const Policies,
-    debugger: bool,
+    enable_debugger: bool,
 ) !Runtime {
     const buffer = try gpa.alloc(u16, MEMORY_SIZE);
     @memset(buffer, 0x0000);
@@ -86,7 +86,7 @@ pub fn init(
         .traps = traps,
         .hooks = hooks,
         .policies = policies,
-        .debugger = if (debugger) .new(reader, writer) else null,
+        .debugger = if (enable_debugger) .new(io, reader, writer) else null,
         .reader = reader,
         .writer = .new(writer),
         .tty = .uninit,

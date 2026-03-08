@@ -114,6 +114,12 @@ pub const Diagnostic = union(enum) {
     explicit_trap_vect: struct { vect: Span, value: u8, alias: []const u8 },
     undeclared_trap_vect: struct { vect: Span, value: u8 },
 
+    // Emulator debugger
+    debugger_any: struct {
+        code: anyerror,
+        span: ?Span,
+    },
+
     pub fn getResponse(diag: Diagnostic, options: Reporter.Options) Reporter.Response {
         return switch (diag) {
             .invalid_source_byte,
@@ -166,6 +172,8 @@ pub const Diagnostic = union(enum) {
                 .integer => policyResponse(options, .style, .unconventional_case_integers),
             },
             .undesirable_integer_form => policyResponse(options, .style, .undesirable_integer_forms),
+
+            .debugger_any => .fatal,
         };
     }
 
@@ -407,6 +415,12 @@ pub const Diagnostic = union(enum) {
                 ctx.printTitle("Use of unknown trap vector 0x{x:02}", .{info.value});
                 ctx.deepen().printSourceNote("Trap vector", .{}, info.vect);
                 ctx.deepen().printNote("Traps vector 0x{x:02} is not recognized", .{info.value});
+            },
+
+            .debugger_any => |info| {
+                ctx.printTitle("Debugger error: {t}", .{info.code});
+                if (info.span) |span|
+                    ctx.deepen().printSourceNote("Here", .{}, span);
             },
         }
 
