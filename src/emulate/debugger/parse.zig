@@ -79,6 +79,7 @@ const Parser = struct {
     source: []const u8,
     reporter: *Reporter,
 
+    // TODO: Ignore commas
     fn next(parser: *Parser) error{Reported}!Span {
         return parser.lexer.next() orelse {
             try parser.reporter.report(.debugger_any_err, .{
@@ -98,17 +99,7 @@ const Parser = struct {
         const argument = parser.lexer.next() orelse
             return 1;
 
-        const integer = integers.tryInteger(argument.view(parser.source)) catch |err| {
-            try parser.reporter.report(.debugger_any_err, .{
-                .code = err,
-                .span = argument,
-            }).abort();
-        } orelse {
-            try parser.reporter.report(.debugger_any_err, .{
-                .code = error.InvalidArgumentKind,
-                .span = argument,
-            }).abort();
-        };
+        const integer = try parser.parseInteger(argument);
 
         if (integer.underlying == 0) {
             try parser.reporter.report(.debugger_any_err, .{
@@ -173,12 +164,7 @@ const Parser = struct {
     }
 
     fn parseAddress(parser: *Parser, argument: Span) error{Reported}!?u16 {
-        const integer = integers.tryInteger(argument.view(parser.source)) catch |err| {
-            try parser.reporter.report(.debugger_any_err, .{
-                .code = err,
-                .span = argument,
-            }).abort();
-        } orelse
+        const integer = try parser.tryParseInteger(argument) orelse
             return null;
 
         return integer.castToUnsigned() orelse {
@@ -226,17 +212,7 @@ const Parser = struct {
             .len = offset_string.len + 1,
         };
 
-        const integer = integers.tryInteger(offset_string) catch |err| {
-            try parser.reporter.report(.debugger_any_err, .{
-                .code = err,
-                .span = offset_span,
-            }).abort();
-        } orelse {
-            try parser.reporter.report(.debugger_any_err, .{
-                .code = error.ExpectedInteger,
-                .span = offset_span,
-            }).abort();
-        };
+        const integer = try parser.parseInteger(offset_span);
 
         assert(integer.form.sign.?.position == .pre_radix);
 
@@ -250,6 +226,8 @@ const Parser = struct {
         return .{ .name = label, .offset = offset };
     }
 };
+
+// TODO: Move below to `Parser` ?
 
 fn parseCommandTag(
     lexer: *Lexer,
