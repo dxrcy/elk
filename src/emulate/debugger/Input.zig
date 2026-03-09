@@ -152,6 +152,10 @@ fn writePrompt(input: *Input, buffer: []u8) !void {
 }
 
 fn pushHistory(input: *Input, line: []const u8) void {
+    const trimmed = std.mem.trim(u8, line, &std.ascii.whitespace);
+    if (trimmed.len == 0)
+        return;
+
     input.history.ensureUnusedCapacity(input.gpa, line.len + 1) catch
         return;
     input.history.appendSliceAssumeCapacity(line);
