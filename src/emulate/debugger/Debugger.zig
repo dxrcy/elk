@@ -9,6 +9,7 @@ const Air = @import("../../compile/Air.zig");
 const Span = @import("../../compile/Span.zig");
 const Runtime = @import("../Runtime.zig");
 const Input = @import("Input.zig");
+const Command = @import("command.zig").Command;
 const parseCommand = @import("parse.zig").parseCommand;
 
 input: Input,
@@ -131,31 +132,8 @@ fn runCommand(debugger: *Debugger, runtime: *Runtime) !?Action {
                 },
 
                 .memory => |memory| {
-                    // TODO: Move to method
-                    const address = address: switch (memory) {
-                        .address => |address| address,
-                        // TODO:
-                        .pc_offset => continue,
-                        .label => |label| {
-                            const assembly = debugger.getAssembly(label.name) catch
-                                continue;
-
-                            const address, _ = assembly.air.findLabelDefinition(
-                                label.name.view(command_string),
-                                .sensitive,
-                                assembly.source,
-                            ) orelse {
-                                debugger.reporter.report(.debugger_any_err, .{
-                                    .code = error.UndeclaredLabel,
-                                    .span = label.name,
-                                }).abort() catch
-                                    continue;
-                            };
-
-                            break :address address + assembly.air.origin;
-                        },
-                    };
-
+                    const address = debugger.resolveMemoryLocation(memory, command_string) catch
+                        continue;
                     try runtime.writer.interface.print("Memory at address 0x{x:04}:", .{address});
                     try runtime.printInteger(runtime.memory[address]);
                     try runtime.writer.interface.flush();
@@ -169,6 +147,37 @@ fn runCommand(debugger: *Debugger, runtime: *Runtime) !?Action {
                 return null;
             },
         }
+    }
+}
+
+fn resolveMemoryLocation(
+    debugger: *const Debugger,
+    memory: Command.Location.Memory,
+    source: []const u8,
+) error{Reported}!u16 {
+    switch (memory) {
+        .address => |address| return address,
+
+        // TODO: Implement
+        .pc_offset => return error.Reported,
+
+        .label => |label| {
+            const assembly = try debugger.getAssembly(label.name);
+
+            const address, _ = assembly.air.findLabelDefinition(
+                label.name.view(source),
+                .sensitive,
+                assembly.source,
+            ) orelse {
+                try debugger.reporter.report(.debugger_any_err, .{
+                    .code = error.UndeclaredLabel,
+                    .span = label.name,
+                }).abort();
+            };
+
+            // FIXME: Handle cast failure
+            return @intCast(address + assembly.air.origin);
+        },
     }
 }
 
