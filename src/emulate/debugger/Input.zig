@@ -12,6 +12,7 @@ length: usize,
 cursor: usize,
 
 history: std.ArrayList(u8),
+scrollback: ?usize,
 
 reader: *Io.Reader,
 writer: *Io.Writer,
@@ -22,6 +23,7 @@ pub fn init(gpa: Allocator, reader: *Io.Reader, writer: *Io.Writer) Input {
         .length = 0,
         .cursor = 0,
         .history = .empty,
+        .scrollback = null,
         .reader = reader,
         .writer = writer,
         .gpa = gpa,
@@ -65,7 +67,7 @@ pub fn readLine(input: *Input, buffer: []u8) ![]const u8 {
         return error.EndOfStream;
 
     const line = buffer[0..input.length];
-    input.pushHistory(line);
+    input.historyPush(line);
     return line;
 }
 
@@ -91,6 +93,8 @@ fn readLineChar(input: *Input, buffer: []u8) !Runtime.Control {
         control_code.esc => {
             if (try input.readByte() == '[') {
                 switch (try input.readByte()) {
+                    'A' => input.historyBack(),
+                    'B' => input.historyForward(),
                     'C' => input.seek(.left),
                     'D' => input.seek(.right),
                     else => {},
@@ -117,9 +121,10 @@ fn writePrompt(input: *Input, buffer: []u8) !void {
     const prompt = "> ";
 
     try input.writer.print("\r\x1b[K", .{});
+    try input.writer.print("{?:04}", .{input.scrollback});
     try input.writer.print(prompt, .{});
     try input.writer.print("{s}", .{buffer[0..input.length]});
-    try input.writer.print("\x1b[{}G", .{input.cursor + prompt.len + 1});
+    try input.writer.print("\x1b[{}G", .{input.cursor + prompt.len + 1 + 4});
 }
 
 fn insert(input: *Input, buffer: []u8, char: u8) void {
@@ -156,7 +161,26 @@ fn seek(input: *Input, direction: enum { left, right }) void {
     }
 }
 
-fn pushHistory(input: *Input, line: []const u8) void {
+fn historyBack(input: *Input) void {
+    if (input.history.items.len == 0)
+        return;
+
+    if (input.scrollback) |*scrollback| {
+        if (scrollback.* + 1 < input.historyLength())
+            scrollback.* += 1;
+    } else {
+        input.scrollback = 0;
+    }
+}
+
+fn historyForward(input: *Input) void {
+    const scrollback = input.scrollback orelse
+        return;
+
+    input.scrollback = if (scrollback == 0) null else scrollback - 1;
+}
+
+fn historyPush(input: *Input, line: []const u8) void {
     const trimmed = std.mem.trim(u8, line, &std.ascii.whitespace);
     if (trimmed.len == 0)
         return;
@@ -168,4 +192,8 @@ fn pushHistory(input: *Input, line: []const u8) void {
 
     input.history.appendSliceAssumeCapacity(line);
     input.history.appendAssumeCapacity('\n');
+}
+
+fn historyLength(input: *const Input) usize {
+    return std.mem.countScalar(u8, input.history.items, '\n');
 }
