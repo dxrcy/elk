@@ -68,7 +68,11 @@ pub fn SourceInt(comptime bits: u16) type {
         }
 
         pub fn castToSmaller(integer: Self, comptime T: type) error{IntegerTooLarge}!T {
-            assert(@typeInfo(T).int.bits < bits);
+            comptime switch (@typeInfo(T).int.signedness) {
+                .unsigned => assert(@typeInfo(T).int.bits < bits),
+                .signed => assert(@typeInfo(T).int.bits - 1 < bits),
+            };
+
             return switch (integer.getSign()) {
                 .positive => math.cast(T, integer.asPositive()),
                 .negative => math.cast(T, integer.asNegative()),
