@@ -74,11 +74,13 @@ pub fn main(init: std.process.Init) !u8 {
             // .pre_execute = .withDataInit(*InstrCount, preExecuteHook, &instr_count),
         };
 
-        const debugger: lcz.Runtime.Debugger = .new(
+        var debugger: lcz.Runtime.Debugger = .init(
+            gpa,
             &reader.interface,
             &writer.interface,
             &reporter,
         );
+        defer debugger.deinit();
 
         var runtime = try lcz.Runtime.init(
             gpa,

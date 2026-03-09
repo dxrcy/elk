@@ -2,6 +2,7 @@ const Input = @This();
 
 const std = @import("std");
 const Io = std.Io;
+const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 const control_code = std.ascii.control_code;
 
@@ -10,16 +11,25 @@ const Runtime = @import("../Runtime.zig");
 length: usize,
 cursor: usize,
 
+history: std.ArrayList(u8),
+
 reader: *Io.Reader,
 writer: *Io.Writer,
+gpa: Allocator,
 
-pub fn new(reader: *Io.Reader, writer: *Io.Writer) Input {
+pub fn init(gpa: Allocator, reader: *Io.Reader, writer: *Io.Writer) Input {
     return .{
         .length = 0,
         .cursor = 0,
+        .history = .empty,
         .reader = reader,
         .writer = writer,
+        .gpa = gpa,
     };
+}
+
+pub fn deinit(input: *Input) void {
+    input.history.deinit(input.gpa);
 }
 
 pub fn clear(input: *Input) void {
@@ -41,7 +51,9 @@ pub fn readLine(input: *Input, buffer: []u8) ![]const u8 {
     try input.writer.print("\n", .{});
     try input.writer.flush();
 
-    return buffer[0..input.length];
+    const line = buffer[0..input.length];
+    input.pushHistory(line);
+    return line;
 }
 
 fn readLineChar(input: *Input, buffer: []u8) !Runtime.Control {
@@ -110,4 +122,11 @@ fn writePrompt(input: *Input, buffer: []u8) !void {
     try input.writer.print(prompt, .{});
     try input.writer.print("{s}", .{buffer[0..input.length]});
     try input.writer.print("\x1b[{}G", .{input.cursor + prompt.len + 1});
+}
+
+fn pushHistory(input: *Input, line: []const u8) void {
+    input.history.ensureUnusedCapacity(input.gpa, line.len + 1) catch
+        return;
+    input.history.appendSliceAssumeCapacity(line);
+    input.history.appendAssumeCapacity('\n');
 }

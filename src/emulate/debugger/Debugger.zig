@@ -11,16 +11,23 @@ const parseCommand = @import("parse.zig").parseCommand;
 input: Input,
 reporter: *Reporter,
 
-pub fn new(reader: *Io.Reader, writer: *Io.Writer, reporter: *Reporter) Debugger {
+pub fn init(
+    gpa: std.mem.Allocator,
+    reader: *Io.Reader,
+    writer: *Io.Writer,
+    reporter: *Reporter,
+) Debugger {
     return .{
-        .input = .new(reader, writer),
+        .input = .init(gpa, reader, writer),
         .reporter = reporter,
     };
 }
 
-pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
-    std.debug.print("[INVOKE DEBUGGER]\n", .{});
+pub fn deinit(debugger: *Debugger) void {
+    debugger.input.deinit();
+}
 
+pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
     var command_buffer: [20]u8 = undefined;
 
     while (true) {
