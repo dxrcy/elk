@@ -159,6 +159,21 @@ fn runCommand(
             },
         },
 
+        .move => |arguments| switch (arguments.location) {
+            .register => |register| {
+                runtime.registers[register] = arguments.value;
+                try runtime.writer.interface.print("Updated register R{} to 0x{x:04}.\n", .{ register, arguments.value });
+                try runtime.writer.interface.flush();
+            },
+            .memory => |memory| {
+                const address = debugger.resolveMemoryLocation(memory, source) catch
+                    return null;
+                runtime.memory[address] = arguments.value;
+                try runtime.writer.interface.print("Updated memory at address 0x{x:04} to 0x{x:04}.\n:", .{ address, arguments.value });
+                try runtime.writer.interface.flush();
+            },
+        },
+
         .step_into => |arguments| {
             debugger.status = .{ .step_into = .{
                 .count = arguments.count - 1,
