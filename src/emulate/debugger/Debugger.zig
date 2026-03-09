@@ -5,6 +5,7 @@ const Io = std.Io;
 const assert = std.debug.assert;
 
 const Reporter = @import("../../report/Reporter.zig");
+const Air = @import("../../compile/Air.zig");
 const Runtime = @import("../Runtime.zig");
 const Input = @import("Input.zig");
 const parseCommand = @import("parse.zig").parseCommand;
@@ -12,6 +13,7 @@ const parseCommand = @import("parse.zig").parseCommand;
 input: Input,
 status: Status,
 
+air: ?*Air,
 reporter: *Reporter,
 
 const Status = union(enum) {
@@ -31,10 +33,12 @@ pub fn init(
     reader: *Io.Reader,
     writer: *Io.Writer,
     reporter: *Reporter,
+    air: ?*Air,
 ) Debugger {
     return .{
         .input = .init(gpa, reader, writer),
         .status = .get_action,
+        .air = air,
         .reporter = reporter,
     };
 }
