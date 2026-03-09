@@ -175,8 +175,12 @@ fn resolveMemoryLocation(
                 }).abort();
             };
 
-            // FIXME: Handle cast failure
-            return @intCast(address + assembly.air.origin);
+            return std.math.cast(u16, address + assembly.air.origin) orelse {
+                try debugger.reporter.report(.debugger_any_err, .{
+                    .code = error.AddressTooLarge,
+                    .span = label.name,
+                }).abort();
+            };
         },
     }
 }
