@@ -30,7 +30,7 @@ pub fn deinit(debugger: *Debugger) void {
 pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
     var command_buffer: [20]u8 = undefined;
 
-    while (true) {
+    while (!debugger.input.eof) {
         const command_string = try debugger.readCommand(runtime, &command_buffer);
 
         debugger.reporter.source = command_string;
@@ -44,6 +44,8 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
 
         std.debug.print("Command: {}\n", .{command});
     }
+
+    return .@"continue";
 }
 
 fn readCommand(debugger: *Debugger, runtime: *Runtime, buffer: []u8) ![]const u8 {

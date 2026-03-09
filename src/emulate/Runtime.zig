@@ -121,7 +121,7 @@ pub fn run(runtime: *Runtime) Error!void {
     while (true) {
         if (runtime.debugger) |*debugger| {
             if (try debugger.invoke(runtime)) |control| switch (control) {
-                .@"continue" => continue,
+                .@"continue" => {},
                 .@"break" => break,
             };
         }

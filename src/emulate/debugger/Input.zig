@@ -10,6 +10,7 @@ const Runtime = @import("../Runtime.zig");
 
 length: usize,
 cursor: usize,
+eof: bool,
 
 history: std.ArrayList(u8),
 
@@ -21,6 +22,7 @@ pub fn init(gpa: Allocator, reader: *Io.Reader, writer: *Io.Writer) Input {
     return .{
         .length = 0,
         .cursor = 0,
+        .eof = false,
         .history = .empty,
         .reader = reader,
         .writer = writer,
@@ -65,6 +67,12 @@ fn readLineChar(input: *Input, buffer: []u8) !Runtime.Control {
     switch (char) {
         '\n',
         => return .@"break",
+
+        control_code.eot,
+        => {
+            input.eof = true;
+            return .@"break";
+        },
 
         0x20...0x7e,
         => input.insert(buffer, char),
