@@ -19,7 +19,7 @@ assembly: ?Assembly,
 reporter: *Reporter,
 
 const Assembly = struct {
-    air: *Air,
+    air: *const Air,
     source: []const u8,
 };
 
@@ -77,7 +77,7 @@ fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
         switch (debugger.status) {
             .inactive => unreachable,
             .get_action => {
-                return try debugger.runCommand(runtime) orelse
+                return try debugger.runCommandLoop(runtime) orelse
                     continue;
             },
             .step_into => |*info| {
@@ -93,7 +93,7 @@ fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
     }
 }
 
-fn runCommand(debugger: *Debugger, runtime: *Runtime) !?Action {
+fn runCommandLoop(debugger: *Debugger, runtime: *Runtime) !?Action {
     assert(debugger.status == .get_action);
 
     var command_buffer: [20]u8 = undefined;
@@ -115,39 +115,50 @@ fn runCommand(debugger: *Debugger, runtime: *Runtime) !?Action {
         } orelse
             continue; // No tokens lexed
 
-        switch (command) {
-            // TODO: Implement all commands
-            else => {
-                std.debug.print("Command: {}\n", .{command});
-            },
-
-            .quit => return .disable_debugger,
-            .exit => return .stop_runtime,
-
-            .print => |arguments| switch (arguments.location) {
-                .register => |register| {
-                    try runtime.writer.interface.print("Register R{}:", .{register});
-                    try runtime.printInteger(runtime.registers[register]);
-                    try runtime.writer.interface.flush();
-                },
-
-                .memory => |memory| {
-                    const address = debugger.resolveMemoryLocation(memory, command_string) catch
-                        continue;
-                    try runtime.writer.interface.print("Memory at address 0x{x:04}:", .{address});
-                    try runtime.printInteger(runtime.memory[address]);
-                    try runtime.writer.interface.flush();
-                },
-            },
-
-            .step_into => |arguments| {
-                debugger.status = .{ .step_into = .{
-                    .count = arguments.count - 1,
-                } };
-                return null;
-            },
-        }
+        if (try debugger.runCommand(runtime, command, command_string)) |action|
+            return action;
     }
+}
+
+fn runCommand(
+    debugger: *Debugger,
+    runtime: *Runtime,
+    command: Command,
+    source: []const u8,
+) !?Action {
+    switch (command) {
+        // TODO: Implement all commands
+        else => {
+            std.debug.print("Command: {}\n", .{command});
+        },
+
+        .quit => return .disable_debugger,
+        .exit => return .stop_runtime,
+
+        .print => |arguments| switch (arguments.location) {
+            .register => |register| {
+                try runtime.writer.interface.print("Register R{}:", .{register});
+                try runtime.printInteger(runtime.registers[register]);
+                try runtime.writer.interface.flush();
+            },
+
+            .memory => |memory| {
+                const address = debugger.resolveMemoryLocation(memory, source) catch
+                    return null;
+                try runtime.writer.interface.print("Memory at address 0x{x:04}:", .{address});
+                try runtime.printInteger(runtime.memory[address]);
+                try runtime.writer.interface.flush();
+            },
+        },
+
+        .step_into => |arguments| {
+            debugger.status = .{ .step_into = .{
+                .count = arguments.count - 1,
+            } };
+        },
+    }
+
+    return null;
 }
 
 fn resolveMemoryLocation(
@@ -163,17 +174,7 @@ fn resolveMemoryLocation(
 
         .label => |label| {
             const assembly = try debugger.getAssembly(label.name);
-
-            const address, _ = assembly.air.findLabelDefinition(
-                label.name.view(source),
-                .sensitive,
-                assembly.source,
-            ) orelse {
-                try debugger.reporter.report(.debugger_any_err, .{
-                    .code = error.UndeclaredLabel,
-                    .span = label.name,
-                }).abort();
-            };
+            const address = try debugger.resolveLabelIndex(assembly, label.name, source);
 
             return std.math.cast(u16, address + assembly.air.origin) orelse {
                 try debugger.reporter.report(.debugger_any_err, .{
@@ -183,6 +184,31 @@ fn resolveMemoryLocation(
             };
         },
     }
+}
+
+fn resolveLabelIndex(
+    debugger: *const Debugger,
+    assembly: Assembly,
+    label: Span,
+    source: []const u8,
+) error{Reported}!usize {
+    const string = label.view(source);
+
+    if (assembly.air.findLabelDefinition(string, .sensitive, assembly.source)) |result|
+        return result[0];
+
+    if (assembly.air.findLabelDefinition(string, .insensitive, assembly.source)) |result| {
+        debugger.reporter.report(.debugger_any_warn, .{
+            .code = error.IncorrectLabelCase,
+            .span = label,
+        }).proceed();
+        return result[0];
+    }
+
+    try debugger.reporter.report(.debugger_any_err, .{
+        .code = error.UndeclaredLabel,
+        .span = label,
+    }).abort();
 }
 
 fn getAssembly(debugger: *const Debugger, span: Span) error{Reported}!Assembly {
