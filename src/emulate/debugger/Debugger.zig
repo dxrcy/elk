@@ -6,6 +6,7 @@ const assert = std.debug.assert;
 
 const Reporter = @import("../../report/Reporter.zig");
 const Air = @import("../../compile/Air.zig");
+const Span = @import("../../compile/Span.zig");
 const Runtime = @import("../Runtime.zig");
 const Input = @import("Input.zig");
 const parseCommand = @import("parse.zig").parseCommand;
@@ -128,13 +129,33 @@ fn runCommand(debugger: *Debugger, runtime: *Runtime) !?Action {
                     try runtime.printInteger(runtime.registers[register]);
                     try runtime.writer.interface.flush();
                 },
+
                 .memory => |memory| {
-                    const address = switch (memory) {
+                    // TODO: Move to method
+                    const address = address: switch (memory) {
                         .address => |address| address,
                         // TODO:
                         .pc_offset => continue,
-                        .label => continue,
+                        .label => |label| {
+                            const assembly = debugger.getAssembly(label.name) catch
+                                continue;
+
+                            const address, _ = assembly.air.findLabelDefinition(
+                                label.name.view(command_string),
+                                .sensitive,
+                                assembly.source,
+                            ) orelse {
+                                debugger.reporter.report(.debugger_any_err, .{
+                                    .code = error.UndeclaredLabel,
+                                    .span = label.name,
+                                }).abort() catch
+                                    continue;
+                            };
+
+                            break :address address + assembly.air.origin;
+                        },
                     };
+
                     try runtime.writer.interface.print("Memory at address 0x{x:04}:", .{address});
                     try runtime.printInteger(runtime.memory[address]);
                     try runtime.writer.interface.flush();
@@ -149,6 +170,15 @@ fn runCommand(debugger: *Debugger, runtime: *Runtime) !?Action {
             },
         }
     }
+}
+
+fn getAssembly(debugger: *const Debugger, span: Span) error{Reported}!Assembly {
+    return debugger.assembly orelse {
+        try debugger.reporter.report(.debugger_any_err, .{
+            .code = error.RequiresAssembly,
+            .span = span,
+        }).abort();
+    };
 }
 
 fn readCommand(debugger: *Debugger, runtime: *Runtime, buffer: []u8) ![]const u8 {
