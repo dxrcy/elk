@@ -41,7 +41,7 @@ pub fn readLine(input: *Input) ![]const u8 {
         try input.writePrompt();
         try input.writer.flush();
 
-        const control: Runtime.Control = input.readLineChar() catch |err| switch (err) {
+        const control: Runtime.Control = input.handleNextKey() catch |err| switch (err) {
             else => |err2| return err2,
             error.EndOfStream => {
                 eof = true;
@@ -67,44 +67,68 @@ pub fn readLine(input: *Input) ![]const u8 {
     return line;
 }
 
-fn readLineChar(input: *Input) !Runtime.Control {
+fn handleNextKey(input: *Input) error{ EndOfStream, ReadFailed }!Runtime.Control {
     assert(input.cursor <= input.getCurrent().len);
 
-    const char = try input.readByte();
+    const key = try input.readKey() orelse
+        return .@"continue";
 
-    switch (char) {
-        '\n',
-        => return .@"break",
+    switch (key) {
+        .enter => return .@"break",
+        .eot => return error.EndOfStream,
 
-        control_code.eot,
-        => return error.EndOfStream,
+        .char => |char| input.insert(char),
+        .bs => input.remove(),
 
-        0x20...0x7e,
-        => input.insert(char),
-
-        control_code.bs,
-        control_code.del,
-        => input.remove(),
-
-        control_code.esc => {
-            if (try input.readByte() == '[') {
-                switch (try input.readByte()) {
-                    'A' => input.historyBack(),
-                    'B' => input.historyForward(),
-                    'C' => input.seek(.right),
-                    'D' => input.seek(.left),
-                    else => {},
-                }
-            }
+        .escape => |escape| switch (escape) {
+            .cursor_up => input.historyBack(),
+            .cursor_down => input.historyForward(),
+            .cursor_forward => input.seek(.right),
+            .cursor_back => input.seek(.left),
         },
-
-        else => {},
     }
-
     return .@"continue";
 }
 
-fn readByte(input: *Input) !u8 {
+const Key = union(enum) {
+    char: u8,
+    enter,
+    eot,
+    bs,
+    escape: Escape,
+
+    pub const Escape = enum {
+        cursor_up,
+        cursor_down,
+        cursor_forward,
+        cursor_back,
+    };
+};
+
+fn readKey(input: *Input) error{ EndOfStream, ReadFailed }!?Key {
+    return switch (try input.readByte()) {
+        0x20...0x7e => |char| .{ .char = char },
+
+        '\n' => .enter,
+        control_code.eot => .eot,
+        control_code.bs, control_code.del => .bs,
+
+        control_code.esc => if (try input.readByte() == '[') {
+            const escape: Key.Escape = switch (try input.readByte()) {
+                'A' => .cursor_up,
+                'B' => .cursor_down,
+                'C' => .cursor_forward,
+                'D' => .cursor_back,
+                else => return null,
+            };
+            return .{ .escape = escape };
+        } else null,
+
+        else => null,
+    };
+}
+
+fn readByte(input: *Input) error{ EndOfStream, ReadFailed }!u8 {
     var char: u8 = undefined;
     input.reader.readSliceAll(@ptrCast(&char)) catch |err| switch (err) {
         error.EndOfStream => return error.EndOfStream,
