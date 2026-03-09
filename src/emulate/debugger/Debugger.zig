@@ -146,14 +146,14 @@ fn runCommand(
 
         .print => |arguments| switch (arguments.location) {
             .register => |register| {
-                try runtime.writer.interface.print("Register R{}:", .{register});
+                try runtime.writer.interface.print("Register R{}:\n", .{register});
                 try runtime.printInteger(runtime.registers[register]);
                 try runtime.writer.interface.flush();
             },
             .memory => |memory| {
                 const address = debugger.resolveMemoryLocation(memory, source) catch
                     return null;
-                try runtime.writer.interface.print("Memory at address 0x{x:04}:", .{address});
+                try runtime.writer.interface.print("Memory at address 0x{x:04}:\n", .{address});
                 try runtime.printInteger(runtime.memory[address]);
                 try runtime.writer.interface.flush();
             },
@@ -246,6 +246,7 @@ fn getAssembly(debugger: *const Debugger, span: Span) error{Reported}!Assembly {
 }
 
 fn readCommand(debugger: *Debugger, runtime: *Runtime, buffer: []u8) ![]const u8 {
+    try runtime.writer.ensureNewline();
     try runtime.tty.enableRawMode();
     const line = debugger.input.readLine(buffer);
     try runtime.tty.disableRawMode();
