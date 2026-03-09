@@ -135,13 +135,16 @@ fn runCommand(
         .quit => return .disable_debugger,
         .exit => return .stop_runtime,
 
+        .registers => {
+            try runtime.printRegisters();
+        },
+
         .print => |arguments| switch (arguments.location) {
             .register => |register| {
                 try runtime.writer.interface.print("Register R{}:", .{register});
                 try runtime.printInteger(runtime.registers[register]);
                 try runtime.writer.interface.flush();
             },
-
             .memory => |memory| {
                 const address = debugger.resolveMemoryLocation(memory, source) catch
                     return null;
