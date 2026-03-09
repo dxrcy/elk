@@ -500,9 +500,10 @@ fn resolveFieldLabel(
     const string = operand.span.view(parser.source());
 
     const definition, const definition_span =
-        parser.findLabelDefinition(air, string, .sensitive) orelse {
+        air.findLabelDefinition(string, .sensitive, parser.source()) orelse {
             _, const near_match =
-                parser.findLabelDefinition(air, string, .insensitive) orelse .{ {}, null };
+                air.findLabelDefinition(string, .insensitive, parser.source()) orelse
+                .{ {}, null };
             try parser.reporter().report(.undeclared_label, .{
                 .reference = operand.span,
                 .nearest = near_match,
@@ -520,26 +521,6 @@ fn resolveFieldLabel(
     };
 
     operand.value = .{ .resolved = .{ .integer = offset, .form = null } };
-}
-
-fn findLabelDefinition(
-    parser: *const Parser,
-    air: *const Air,
-    reference: []const u8,
-    case_mode: enum { sensitive, insensitive },
-) ?struct { usize, Span } {
-    for (air.lines.items, 0..) |*line, index| {
-        const label = line.label orelse
-            continue;
-        const string = label.view(parser.source());
-        const matches = switch (case_mode) {
-            .sensitive => std.mem.eql(u8, string, reference),
-            .insensitive => std.ascii.eqlIgnoreCase(string, reference),
-        };
-        if (matches)
-            return .{ index, label };
-    }
-    return null;
 }
 
 fn calculateOffset(comptime T: type, definition: usize, reference: usize) ?T {
