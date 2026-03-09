@@ -14,9 +14,10 @@ status: Status,
 
 reporter: *Reporter,
 
-const Status = enum {
+const Status = union(enum) {
     inactive,
     get_action,
+    step_into: struct { count: u32 },
 };
 
 const Action = enum {
@@ -61,15 +62,27 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
 }
 
 fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
-    switch (debugger.status) {
-        .inactive => unreachable,
-        .get_action => {
-            return debugger.runCommand(runtime);
-        },
+    while (true) {
+        switch (debugger.status) {
+            .inactive => unreachable,
+            .get_action => {
+                return try debugger.runCommand(runtime) orelse
+                    continue;
+            },
+            .step_into => |*info| {
+                if (info.count > 0) {
+                    info.count -= 1;
+                } else {
+                    debugger.status = .get_action;
+                }
+                return .proceed;
+            },
+        }
+        comptime unreachable;
     }
 }
 
-fn runCommand(debugger: *Debugger, runtime: *Runtime) !Action {
+fn runCommand(debugger: *Debugger, runtime: *Runtime) !?Action {
     assert(debugger.status == .get_action);
 
     var command_buffer: [20]u8 = undefined;
@@ -99,6 +112,13 @@ fn runCommand(debugger: *Debugger, runtime: *Runtime) !Action {
 
             .quit => return .disable_debugger,
             .exit => return .stop_runtime,
+
+            .step_into => |arguments| {
+                debugger.status = .{ .step_into = .{
+                    .count = arguments.count - 1,
+                } };
+                return null;
+            },
         }
     }
 }
