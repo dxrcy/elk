@@ -11,6 +11,8 @@ const Runtime = @import("../Runtime.zig");
 length: usize,
 cursor: usize,
 
+buffer: []u8,
+
 history: std.ArrayList(u8),
 scrollback: ?usize,
 
@@ -22,6 +24,7 @@ pub fn init(gpa: Allocator, reader: *Io.Reader, writer: *Io.Writer) Input {
     return .{
         .length = 0,
         .cursor = 0,
+        .buffer = &.{},
         .history = .empty,
         .scrollback = null,
         .reader = reader,
@@ -39,14 +42,14 @@ pub fn clear(input: *Input) void {
     input.cursor = 0;
 }
 
-pub fn readLine(input: *Input, buffer: []u8) ![]const u8 {
+pub fn readLine(input: *Input) ![]const u8 {
     var eof = false;
 
     while (true) {
-        try input.writePrompt(buffer);
+        try input.writePrompt();
         try input.writer.flush();
 
-        const control: Runtime.Control = input.readLineChar(buffer) catch |err| switch (err) {
+        const control: Runtime.Control = input.readLineChar() catch |err| switch (err) {
             else => |err2| return err2,
             error.EndOfStream => {
                 eof = true;
@@ -66,12 +69,12 @@ pub fn readLine(input: *Input, buffer: []u8) ![]const u8 {
     if (eof)
         return error.EndOfStream;
 
-    const line = buffer[0..input.length];
+    const line = input.buffer[0..input.length];
     input.historyPush(line);
     return line;
 }
 
-fn readLineChar(input: *Input, buffer: []u8) !Runtime.Control {
+fn readLineChar(input: *Input) !Runtime.Control {
     assert(input.cursor <= input.length);
 
     const char = try input.readByte();
@@ -84,11 +87,11 @@ fn readLineChar(input: *Input, buffer: []u8) !Runtime.Control {
         => return error.EndOfStream,
 
         0x20...0x7e,
-        => input.insert(buffer, char),
+        => input.insert(char),
 
         control_code.bs,
         control_code.del,
-        => input.remove(buffer),
+        => input.remove(),
 
         control_code.esc => {
             if (try input.readByte() == '[') {
@@ -117,40 +120,40 @@ fn readByte(input: *Input) !u8 {
     return char;
 }
 
-fn writePrompt(input: *const Input, buffer: []u8) !void {
+fn writePrompt(input: *const Input) !void {
     const prompt = "> ";
 
     try input.writer.print("\r\x1b[K", .{});
     try input.writer.print("{?:04}", .{input.scrollback});
     try input.writer.print(prompt, .{});
-    try input.writer.print("{s}", .{input.getCurrent(buffer)});
+    try input.writer.print("{s}", .{input.getCurrent()});
     try input.writer.print("\x1b[{}G", .{input.cursor + prompt.len + 1 + 4});
 }
 
-pub fn getCurrent(input: *const Input, buffer: []u8) []const u8 {
+pub fn getCurrent(input: *const Input) []const u8 {
     if (input.scrollback) |scrollback| {
         return input.historyGet(scrollback);
     } else {
-        return buffer[0..input.length];
+        return input.buffer[0..input.length];
     }
 }
 
-fn insert(input: *Input, buffer: []u8, char: u8) void {
-    if (input.length >= buffer.len)
+fn insert(input: *Input, char: u8) void {
+    if (input.length >= input.buffer.len)
         return;
-    buffer[input.length] = char;
+    input.buffer[input.length] = char;
     input.length += 1;
     input.cursor += 1;
 }
 
-fn remove(input: *Input, buffer: []u8) void {
+fn remove(input: *Input) void {
     if (input.cursor == 0)
         return;
 
     // Shift characters down
     if (input.cursor < input.length) {
         for (input.cursor..input.length) |i| {
-            buffer[i - 1] = buffer[i];
+            input.buffer[i - 1] = input.buffer[i];
         }
     }
 

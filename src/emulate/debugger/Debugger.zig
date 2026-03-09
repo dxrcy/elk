@@ -97,9 +97,10 @@ fn runCommandLoop(debugger: *Debugger, runtime: *Runtime) !?Action {
     assert(debugger.status == .get_action);
 
     var command_buffer: [20]u8 = undefined;
+    debugger.input.buffer = &command_buffer;
 
     while (true) {
-        const command_string = debugger.readCommand(runtime, &command_buffer) catch |err| switch (err) {
+        const command_string = debugger.readCommand(runtime) catch |err| switch (err) {
             else => |err2| return err2,
             error.EndOfStream => {
                 return .disable_debugger;
@@ -242,10 +243,10 @@ fn getAssembly(debugger: *const Debugger, span: Span) error{Reported}!Assembly {
     };
 }
 
-fn readCommand(debugger: *Debugger, runtime: *Runtime, buffer: []u8) ![]const u8 {
+fn readCommand(debugger: *Debugger, runtime: *Runtime) ![]const u8 {
     try runtime.writer.ensureNewline();
     try runtime.tty.enableRawMode();
-    const line = debugger.input.readLine(buffer);
+    const line = debugger.input.readLine();
     try runtime.tty.disableRawMode();
     debugger.input.clear();
     return line;
