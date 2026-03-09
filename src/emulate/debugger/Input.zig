@@ -69,13 +69,14 @@ pub fn readLine(input: *Input) ![]const u8 {
     if (eof)
         return error.EndOfStream;
 
-    const line = input.buffer[0..input.length];
+    input.becomeActive();
+    const line = input.getCurrent();
     input.historyPush(line);
     return line;
 }
 
 fn readLineChar(input: *Input) !Runtime.Control {
-    assert(input.cursor <= input.length);
+    assert(input.cursor <= input.getCurrent().len);
 
     const char = try input.readByte();
 
@@ -130,7 +131,7 @@ fn writePrompt(input: *const Input) !void {
     try input.writer.print("\x1b[{}G", .{input.cursor + prompt.len + 1 + 4});
 }
 
-pub fn getCurrent(input: *const Input) []const u8 {
+fn getCurrent(input: *const Input) []const u8 {
     if (input.scrollback) |scrollback| {
         return input.historyGet(scrollback);
     } else {
@@ -138,9 +139,29 @@ pub fn getCurrent(input: *const Input) []const u8 {
     }
 }
 
+fn resetCursor(input: *Input) void {
+    input.cursor = input.getCurrent().len;
+}
+
+fn becomeActive(input: *Input) void {
+    const scrollback = input.scrollback orelse
+        return;
+
+    const historic = input.historyGet(scrollback);
+
+    const length = @min(historic.len, input.buffer.len);
+    @memcpy(input.buffer[0..length], historic[0..length]);
+    input.length = length;
+
+    input.scrollback = null;
+}
+
 fn insert(input: *Input, char: u8) void {
     if (input.length >= input.buffer.len)
         return;
+
+    input.becomeActive();
+
     input.buffer[input.length] = char;
     input.length += 1;
     input.cursor += 1;
@@ -149,6 +170,8 @@ fn insert(input: *Input, char: u8) void {
 fn remove(input: *Input) void {
     if (input.cursor == 0)
         return;
+
+    input.becomeActive();
 
     // Shift characters down
     if (input.cursor < input.length) {
@@ -182,6 +205,8 @@ fn historyBack(input: *Input) void {
     } else {
         input.scrollback = 0;
     }
+
+    input.resetCursor();
 }
 
 fn historyForward(input: *Input) void {
@@ -189,6 +214,8 @@ fn historyForward(input: *Input) void {
         return;
 
     input.scrollback = if (scrollback == 0) null else scrollback - 1;
+
+    input.resetCursor();
 }
 
 fn historyPush(input: *Input, line: []const u8) void {
