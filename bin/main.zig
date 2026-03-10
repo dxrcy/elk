@@ -77,10 +77,6 @@ pub fn main(init: std.process.Init) !u8 {
 
             try emulate(.{ .air = &air }, &traps, hooks, &policies, io, gpa);
         },
-
-        .debug => {
-            std.debug.print("todo: debug\n", .{});
-        },
     }
 
     return 0;

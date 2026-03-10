@@ -4,12 +4,12 @@ const std = @import("std");
 
 filepath: []const u8,
 command: Command,
+debug: bool,
 
 pub const Command = enum {
     assemble_emulate,
     assemble,
     emulate,
-    debug,
 
     const default: Command = .assemble_emulate;
 };
@@ -18,6 +18,7 @@ pub fn parse(args: *std.process.Args.Iterator) anyerror!Cli {
     var partial: struct {
         filepath: ?[]const u8 = null,
         command: ?Command = null,
+        debug: bool = false,
     } = .{};
 
     _ = args.next();
@@ -40,10 +41,11 @@ pub fn parse(args: *std.process.Args.Iterator) anyerror!Cli {
                 partial.command = .emulate;
                 continue;
             }
+
             if (std.mem.eql(u8, arg, "-d") or std.mem.eql(u8, arg, "--debug")) {
-                if (partial.command != null)
-                    return error.ConflictingOptionalArgument;
-                partial.command = .debug;
+                if (partial.debug)
+                    return error.DuplicateOptionalArgument;
+                partial.debug = true;
                 continue;
             }
 
@@ -59,5 +61,6 @@ pub fn parse(args: *std.process.Args.Iterator) anyerror!Cli {
         .filepath = partial.filepath orelse
             return error.ExpectedPositionalArgument,
         .command = partial.command orelse .default,
+        .debug = partial.debug,
     };
 }
