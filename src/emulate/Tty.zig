@@ -30,6 +30,8 @@ pub fn init(tty: *Tty) error{TermiosFailed}!void {
 }
 
 pub fn enableRawMode(tty: *Tty) error{TermiosFailed}!void {
+    if (tty.state == .uninit)
+        try tty.init();
     const termios = switch (tty.state) {
         .not_a_tty => return,
         .uninit, .modified => unreachable,

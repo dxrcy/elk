@@ -114,6 +114,16 @@ pub const Diagnostic = union(enum) {
     explicit_trap_vect: struct { vect: Span, value: u8, alias: []const u8 },
     undeclared_trap_vect: struct { vect: Span, value: u8 },
 
+    // Emulator debugger
+    debugger_any_err: struct {
+        code: anyerror,
+        span: ?Span,
+    },
+    debugger_any_warn: struct {
+        code: anyerror,
+        span: ?Span,
+    },
+
     pub fn getResponse(diag: Diagnostic, options: Reporter.Options) Reporter.Response {
         return switch (diag) {
             .invalid_source_byte,
@@ -166,10 +176,16 @@ pub const Diagnostic = union(enum) {
                 .integer => policyResponse(options, .style, .unconventional_case_integers),
             },
             .undesirable_integer_form => policyResponse(options, .style, .undesirable_integer_forms),
+
+            .debugger_any_err => .fatal,
+            .debugger_any_warn => .minor,
         };
     }
 
-    pub fn print(diag: Diagnostic, ctx: Ctx, source: []const u8) void {
+    pub fn print(diag: Diagnostic, ctx: Ctx) void {
+        const source = ctx.source orelse
+            unreachable;
+
         switch (diag) {
             .invalid_source_byte => |info| {
                 ctx.printTitle("Assembly file contains invalid bytes", .{});
@@ -407,6 +423,17 @@ pub const Diagnostic = union(enum) {
                 ctx.printTitle("Use of unknown trap vector 0x{x:02}", .{info.value});
                 ctx.deepen().printSourceNote("Trap vector", .{}, info.vect);
                 ctx.deepen().printNote("Traps vector 0x{x:02} is not recognized", .{info.value});
+            },
+
+            .debugger_any_err => |info| {
+                ctx.printTitle("Debugger error: {t}", .{info.code});
+                if (info.span) |span|
+                    ctx.deepen().printSourceNote("Here", .{}, span);
+            },
+            .debugger_any_warn => |info| {
+                ctx.printTitle("Debugger warning: {t}", .{info.code});
+                if (info.span) |span|
+                    ctx.deepen().printSourceNote("Here", .{}, span);
             },
         }
 

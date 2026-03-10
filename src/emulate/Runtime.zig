@@ -10,6 +10,7 @@ const NewlineTracker = @import("NewlineTracker.zig");
 const Tty = @import("Tty.zig");
 
 pub const Callback = @import("../callback.zig").Callback;
+pub const Debugger = @import("debugger/Debugger.zig");
 pub const Instruction = @import("decode.zig").Instruction;
 
 const MEMORY_SIZE = 0x1_0000;
@@ -25,10 +26,11 @@ traps: *const Traps,
 hooks: Hooks,
 policies: *const Policies,
 
-writer: NewlineTracker,
+debugger: ?*Debugger,
+
 reader: *Io.Reader,
+writer: NewlineTracker,
 tty: Tty,
-io: Io,
 
 pub const Error = ProgramError || IoError;
 
@@ -63,13 +65,13 @@ pub const Hooks = struct {
 };
 
 pub fn init(
+    gpa: Allocator,
+    reader: *Io.Reader,
+    writer: *Io.Writer,
     traps: *const Traps,
     hooks: Hooks,
     policies: *const Policies,
-    writer: *Io.Writer,
-    reader: *Io.Reader,
-    io: Io,
-    gpa: Allocator,
+    debugger: ?*Debugger,
 ) !Runtime {
     const buffer = try gpa.alloc(u16, MEMORY_SIZE);
     @memset(buffer, 0x0000);
@@ -82,10 +84,10 @@ pub fn init(
         .traps = traps,
         .hooks = hooks,
         .policies = policies,
-        .writer = .new(writer),
+        .debugger = debugger,
         .reader = reader,
+        .writer = .new(writer),
         .tty = .uninit,
-        .io = io,
     };
 }
 
@@ -93,7 +95,7 @@ pub fn deinit(runtime: Runtime, gpa: Allocator) void {
     defer gpa.free(runtime.memory);
 }
 
-pub fn readFromFile(runtime: *Runtime, file: Io.File, buffer: []u8, io: Io) !void {
+pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !void {
     var reader = file.reader(io, buffer);
     const metadata = try file.stat(io);
 
@@ -113,10 +115,17 @@ pub fn readFromFile(runtime: *Runtime, file: Io.File, buffer: []u8, io: Io) !voi
     }
 }
 
-const Control = enum { @"continue", @"break" };
+pub const Control = enum { @"continue", @"break" };
 
 pub fn run(runtime: *Runtime) Error!void {
     while (true) {
+        if (runtime.debugger) |debugger| {
+            if (try debugger.invoke(runtime)) |control| switch (control) {
+                .@"continue" => {},
+                .@"break" => break,
+            };
+        }
+
         switch (runtime.pc) {
             USER_MEMORY_START...USER_MEMORY_END => {},
             else => return error.PcOutOfBounds,
@@ -133,8 +142,7 @@ pub fn run(runtime: *Runtime) Error!void {
         if (runtime.hooks.pre_execute) |pre_execute|
             try pre_execute.call(.{ runtime, instr });
 
-        const control = try runtime.runInstruction(instr);
-        switch (control) {
+        switch (try runtime.runInstruction(instr)) {
             .@"continue" => continue,
             .@"break" => break,
         }
@@ -279,6 +287,15 @@ fn stackPop(runtime: *Runtime) u16 {
     return value;
 }
 
+pub fn readByte(runtime: *const Runtime) error{ EndOfStream, ReadFailed }!u8 {
+    var char: u8 = undefined;
+    runtime.reader.readSliceAll(@ptrCast(&char)) catch |err| switch (err) {
+        error.EndOfStream => return error.EndOfStream,
+        else => return error.ReadFailed,
+    };
+    return char;
+}
+
 pub fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
     try runtime.writer.ensureNewline();
     try runtime.writer.interface.print("+-----------------------------------+\n", .{});
@@ -300,6 +317,18 @@ pub fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
         } },
     );
     try runtime.writer.interface.print("+-----------------+-----------------+\n", .{});
+}
+
+pub fn printInteger(runtime: *Runtime, integer: u16) error{WriteFailed}!void {
+    try runtime.writer.ensureNewline();
+    try runtime.writer.interface.print("+-------------------------------+\n", .{});
+    try runtime.writer.interface.print("|    hex      int    uint   chr |\n", .{});
+
+    try runtime.writer.interface.print("| ", .{});
+    try runtime.printIntegerForms(integer);
+    try runtime.writer.interface.print(" |\n", .{});
+
+    try runtime.writer.interface.print("+-------------------------------+\n", .{});
 }
 
 fn printIntegerForms(runtime: *Runtime, word: u16) error{WriteFailed}!void {

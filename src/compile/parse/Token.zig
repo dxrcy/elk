@@ -7,6 +7,7 @@ const testing = std.testing;
 
 const Traps = @import("../../Traps.zig");
 const Span = @import("../Span.zig");
+const parsing = @import("parsing.zig");
 const integers = @import("integers.zig");
 
 span: Span,
@@ -131,16 +132,8 @@ pub const Value = union(enum) {
     }
 
     fn tryRegister(string: []const u8) Error!?Value {
-        if (string.len != 2)
+        const register = parsing.tryRegister(string) orelse
             return null;
-        switch (string[0]) {
-            'r', 'R' => {},
-            else => return null,
-        }
-        const register: u3 = switch (string[1]) {
-            '0'...'7' => |char| @intCast(char - '0'),
-            else => return null,
-        };
         return .{ .register = register };
     }
 
@@ -166,7 +159,7 @@ pub const Value = union(enum) {
         if (string.len < 2 or string[0] != '.')
             return null;
         const rest = string[1..];
-        if (!isIdent(rest))
+        if (!parsing.isIdent(rest))
             return error.InvalidDirective;
         if (matchTagName(Directive, rest)) |directive| {
             return .{ .directive = directive };
@@ -182,6 +175,10 @@ pub const Value = union(enum) {
         return null;
     }
 
+    fn tryLabel(string: []const u8) Error!?Value {
+        return if (try parsing.isLabel(string)) .label else null;
+    }
+
     fn tryTrap(string: []const u8, traps: *const Traps) Error!?Value {
         assert(string.len > 0);
         for (traps.entries, 0..) |entry, vect| {
@@ -192,31 +189,11 @@ pub const Value = union(enum) {
         return null;
     }
 
-    fn tryLabel(string: []const u8) Error!?Value {
-        assert(string.len > 0);
-        if (!isIdent(string[0..1]))
-            return null;
-        if (!isIdent(string))
-            return error.InvalidLabel;
-        return .label;
-    }
-
     fn matchTagName(comptime T: type, string: []const u8) ?T {
         for (std.meta.tags(T)) |tag| {
             if (std.ascii.eqlIgnoreCase(string, @tagName(tag)))
                 return tag;
         }
         return null;
-    }
-
-    fn isIdent(string: []const u8) bool {
-        for (string, 0..) |char, i| {
-            switch (char) {
-                'a'...'z', 'A'...'Z', '_' => {},
-                '0'...'9' => if (i == 0) return false,
-                else => return false,
-            }
-        }
-        return true;
     }
 };

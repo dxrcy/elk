@@ -43,7 +43,7 @@ pub fn main(init: std.process.Init) !u8 {
             const source = try Io.Dir.cwd().readFileAlloc(io, cli.filepath, gpa, .unlimited);
             defer gpa.free(source);
 
-            reporter_impl.setSource(source);
+            reporter.source = source;
 
             var air = try assemble(source, &traps, &reporter, gpa);
             defer air.deinit(gpa);
@@ -70,7 +70,7 @@ pub fn main(init: std.process.Init) !u8 {
             const source = try Io.Dir.cwd().readFileAlloc(io, cli.filepath, gpa, .unlimited);
             defer gpa.free(source);
 
-            reporter_impl.setSource(source);
+            reporter.source = source;
 
             var air = try assemble(source, &traps, &reporter, gpa);
             defer air.deinit(gpa);
@@ -107,15 +107,13 @@ fn assemble(
     var parser = lcz.Parser.new(traps, source, reporter) orelse
         return error.ProgramError;
 
-    try parser.parse(&air, gpa);
+    try parser.parse(gpa, &air);
     if (reporter.getLevel() == .err) {
         reporter.showSummary();
         return error.ProgramError;
     }
 
-    parser.resolveLabels(
-        &air,
-    );
+    parser.resolveLabels(&air);
     if (reporter.getLevel() == .err) {
         reporter.showSummary();
         return error.ProgramError;
@@ -142,20 +140,20 @@ fn emulate(
     var reader = Io.File.stdin().reader(io, &.{});
 
     var runtime = try lcz.Runtime.init(
+        gpa,
+        &reader.interface,
+        &writer.interface,
         traps,
         hooks,
         policies,
-        &writer.interface,
-        &reader.interface,
-        io,
-        gpa,
+        null,
     );
     defer runtime.deinit(gpa);
 
     switch (runtime_source) {
         .file => |file| {
             var read_buffer: [1024]u8 = undefined;
-            try runtime.readFromFile(file, &read_buffer, io);
+            try runtime.readFromFile(io, file, &read_buffer);
         },
         .air => |air| {
             try air.emitRuntime(&runtime);

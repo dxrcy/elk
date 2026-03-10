@@ -8,7 +8,6 @@ const Reporter = @import("Reporter.zig");
 const Ctx = @import("Ctx.zig");
 const Diagnostic = @import("diagnostic.zig").Diagnostic;
 
-source: ?[]const u8,
 writer: *Io.Writer,
 verbosity: Verbosity,
 
@@ -20,7 +19,6 @@ pub const Verbosity = enum {
 
 pub fn new(writer: *Io.Writer) Stderr {
     return .{
-        .source = null,
         .writer = writer,
         .verbosity = .default,
     };
@@ -33,37 +31,28 @@ pub fn interface(reporter: *Stderr) Reporter {
     });
 }
 
-pub fn setSource(reporter: *Stderr, source: []const u8) void {
-    assert(reporter.source == null);
-    reporter.source = source;
-}
-
 pub fn showReport(
     ptr: *anyopaque,
     diag: Diagnostic,
     level: Reporter.Level,
+    source: ?[]const u8,
 ) void {
     const reporter: *Stderr = @ptrCast(@alignCast(ptr));
 
     var ctx_items: usize = 0;
-    const ctx: Ctx = .new(reporter, level, &ctx_items);
-    const source = reporter.source orelse
-        unreachable;
+    const ctx: Ctx = .new(reporter, level, &ctx_items, source);
 
-    diag.print(ctx, source);
+    diag.print(ctx);
     ctx.flush();
 }
 
-pub fn showSummary(
-    ptr: *anyopaque,
-    count: *const std.EnumArray(Reporter.Level, usize),
-) void {
+pub fn showSummary(ptr: *anyopaque, count: *const std.EnumArray(Reporter.Level, usize)) void {
     const reporter: *Stderr = @ptrCast(@alignCast(ptr));
 
     const count_err = count.get(.err);
     const count_warn = count.get(.warn);
 
-    const ctx: Ctx = .new(reporter, .warn, null);
+    const ctx: Ctx = .new(reporter, .warn, null, null);
 
     if (count_err > 0) {
         ctx.print("\x1b[31m", .{});
