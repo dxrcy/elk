@@ -9,6 +9,10 @@ const integers = @import("../../compile/parse/integers.zig");
 const Command = @import("command.zig").Command;
 const tags = @import("tags.zig");
 
+pub fn Spanned(comptime K: type) type {
+    return struct { span: Span, value: K };
+}
+
 pub fn parseCommand(
     string: []const u8,
     reporter: *Reporter,
@@ -24,12 +28,12 @@ pub fn parseCommand(
         .reporter = reporter,
     };
 
-    const command: Command = switch (tag) {
+    const command: Command = switch (tag.value) {
         // TODO: Parse all commands
         else => {
             try reporter.report(.debugger_any_err, .{
                 .code = error.UnimplementedCommand,
-                .span = .emptyAt(0),
+                .span = tag.span,
             }).abort();
         },
 
@@ -263,7 +267,7 @@ fn parseCommandTag(
     lexer: *Lexer,
     source: []const u8,
     reporter: *Reporter,
-) error{Reported}!?Command.Tag {
+) error{Reported}!?Spanned(Command.Tag) {
     const first = lexer.next() orelse
         return null;
 
@@ -297,20 +301,22 @@ fn findDoubleTagMatch(
     lexer: *Lexer,
     source: []const u8,
     reporter: *Reporter,
-) error{Reported}!?Command.Tag {
+) error{Reported}!?Spanned(Command.Tag) {
     if (!anyCandidateMatches(double.first, first.view(source)))
         return null;
 
-    const second = lexer.next() orelse
-        return double.default orelse {
+    const second = lexer.next() orelse {
+        const tag = double.default orelse {
             try reporter.report(.debugger_any_err, .{
                 .code = error.MissingSubcommand,
                 .span = .emptyAt(source.len),
             }).abort();
         };
+        return .{ .span = first, .value = tag };
+    };
 
     if (findSingleTagMatch(.exact, &double.second, second, source)) |tag|
-        return tag;
+        return .{ .span = first.join(second), .value = tag.value };
 
     const result = reporter.report(.debugger_any_err, .{
         .code = error.InvalidSubcommand,
@@ -333,14 +339,14 @@ fn findSingleTagMatch(
     singles: *const tags.SingleMap,
     span: Span,
     source: []const u8,
-) ?Command.Tag {
+) ?Spanned(Command.Tag) {
     const string = span.view(source);
 
     switch (mode) {
         .exact => {
             for (std.meta.tags(Command.Tag)) |tag| {
                 if (anyCandidateMatches(singles.get(tag).aliases, string))
-                    return tag;
+                    return .{ .span = span, .value = tag };
             }
         },
 
@@ -348,7 +354,7 @@ fn findSingleTagMatch(
             assert(findSingleTagMatch(.exact, singles, span, source) == null);
             for (std.meta.tags(Command.Tag)) |tag| {
                 if (anyCandidateMatches(singles.get(tag).suggestions, string))
-                    return tag;
+                    return .{ .span = span, .value = tag };
             }
             // TODO: Find suggestion with low edit distance
         },
