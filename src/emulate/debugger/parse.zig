@@ -12,7 +12,7 @@ const tags = @import("tags.zig");
 pub fn parseCommand(
     string: []const u8,
     reporter: *Reporter,
-) error{ Reported, Unimplemented }!?Command {
+) error{Reported}!?Command {
     var lexer = Lexer.new(string, false);
 
     const tag = try parseCommandTag(&lexer, string, reporter) orelse
@@ -25,6 +25,14 @@ pub fn parseCommand(
     };
 
     const command: Command = switch (tag) {
+        // TODO: Parse all commands
+        else => {
+            try reporter.report(.debugger_any_err, .{
+                .code = error.UnimplementedCommand,
+                .span = .emptyAt(0),
+            }).abort();
+        },
+
         // Allow trailing arguments
         .help => return .help,
 
@@ -54,12 +62,6 @@ pub fn parseCommand(
         .step_into => .{ .step_into = .{
             .count = try parser.nextOptionalPositiveInt(),
         } },
-
-        // TODO:
-
-        else => {
-            return error.Unimplemented;
-        },
     };
 
     if (lexer.next()) |span| {

@@ -111,8 +111,6 @@ fn runCommandLoop(debugger: *Debugger, runtime: *Runtime) !?Action {
 
         const command = parseCommand(command_string, debugger.reporter) catch |err| switch (err) {
             error.Reported => continue,
-            // TODO: Remove once all command parsing is implemented
-            error.Unimplemented => continue,
         } orelse
             continue; // No tokens lexed
 
@@ -132,7 +130,11 @@ fn runCommand(
     switch (command) {
         // TODO: Implement all commands
         else => {
-            std.debug.print("Command: {}\n", .{command});
+            debugger.reporter.report(.debugger_any_err, .{
+                .code = error.UnimplementedCommand,
+                .span = .emptyAt(0),
+            }).abort() catch
+                return null;
         },
 
         .quit => return .disable_debugger,
