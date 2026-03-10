@@ -8,34 +8,32 @@ const control_code = std.ascii.control_code;
 
 const Runtime = @import("../Runtime.zig");
 
-edit: Edit,
-history: History,
-
-cursor: usize,
-scrollback: ?usize,
+lines: Lines,
 
 reader: *Io.Reader,
 writer: *Io.Writer,
 
 pub fn init(gpa: Allocator, reader: *Io.Reader, writer: *Io.Writer) Input {
     return .{
-        .edit = .{
-            .buffer = &.{},
-            .length = 0,
+        .lines = .{
+            .edit = .{
+                .buffer = &.{},
+                .length = 0,
+            },
+            .history = .{
+                .store = .empty,
+                .gpa = gpa,
+            },
+            .cursor = 0,
+            .scrollback = null,
         },
-        .history = .{
-            .store = .empty,
-            .gpa = gpa,
-        },
-        .cursor = 0,
-        .scrollback = null,
         .reader = reader,
         .writer = writer,
     };
 }
 
 pub fn deinit(input: *Input) void {
-    input.history.store.deinit(input.history.gpa);
+    input.lines.history.store.deinit(input.lines.history.gpa);
 }
 
 pub fn readLine(input: *Input) ![]const u8 {
@@ -67,12 +65,12 @@ pub fn readLine(input: *Input) ![]const u8 {
 
     input.becomeActive();
     const line = input.getCurrent();
-    input.history.push(line);
+    input.lines.history.push(line);
     return line;
 }
 
 fn handleNextKey(input: *Input) error{ EndOfStream, ReadFailed }!Runtime.Control {
-    assert(input.cursor <= input.getCurrent().len);
+    assert(input.lines.cursor <= input.getCurrent().len);
 
     const key = try input.readKey() orelse
         return .@"continue";
@@ -145,103 +143,110 @@ fn writePrompt(input: *const Input) !void {
     const prompt = "> ";
 
     try input.writer.print("\r\x1b[K", .{});
-    try input.writer.print("{?:04}", .{input.scrollback});
+    try input.writer.print("{?:04}", .{input.lines.scrollback});
     try input.writer.print(prompt, .{});
     try input.writer.print("{s}", .{input.getCurrent()});
-    try input.writer.print("\x1b[{}G", .{input.cursor + prompt.len + 1 + 4});
+    try input.writer.print("\x1b[{}G", .{input.lines.cursor + prompt.len + 1 + 4});
 }
 
 fn getCurrent(input: *const Input) []const u8 {
-    if (input.scrollback) |scrollback| {
-        return input.history.getLast(scrollback);
+    if (input.lines.scrollback) |scrollback| {
+        return input.lines.history.getLast(scrollback);
     } else {
-        return input.edit.buffer[0..input.edit.length];
+        return input.lines.edit.buffer[0..input.lines.edit.length];
     }
 }
 
 fn resetCursor(input: *Input) void {
-    input.cursor = input.getCurrent().len;
+    input.lines.cursor = input.getCurrent().len;
 }
 
 fn becomeActive(input: *Input) void {
-    const scrollback = input.scrollback orelse
+    const scrollback = input.lines.scrollback orelse
         return;
 
-    const historic = input.history.getLast(scrollback);
+    const historic = input.lines.history.getLast(scrollback);
 
-    const length = @min(historic.len, input.edit.buffer.len);
-    @memcpy(input.edit.buffer[0..length], historic[0..length]);
-    input.edit.length = length;
+    const length = @min(historic.len, input.lines.edit.buffer.len);
+    @memcpy(input.lines.edit.buffer[0..length], historic[0..length]);
+    input.lines.edit.length = length;
 
-    input.scrollback = null;
+    input.lines.scrollback = null;
 }
 
 pub fn clear(input: *Input) void {
-    input.edit.length = 0;
-    input.cursor = 0;
+    input.lines.edit.length = 0;
+    input.lines.cursor = 0;
 }
 
 fn insert(input: *Input, char: u8) void {
-    if (input.edit.length >= input.edit.buffer.len)
+    if (input.lines.edit.length >= input.lines.edit.buffer.len)
         return;
 
     input.becomeActive();
 
-    input.edit.buffer[input.edit.length] = char;
-    input.edit.length += 1;
-    input.cursor += 1;
+    input.lines.edit.buffer[input.lines.edit.length] = char;
+    input.lines.edit.length += 1;
+    input.lines.cursor += 1;
 }
 
 fn remove(input: *Input) void {
-    if (input.cursor == 0)
+    if (input.lines.cursor == 0)
         return;
 
     input.becomeActive();
 
     // Shift characters down
-    if (input.cursor < input.edit.length) {
-        for (input.cursor..input.edit.length) |i| {
-            input.edit.buffer[i - 1] = input.edit.buffer[i];
+    if (input.lines.cursor < input.lines.edit.length) {
+        for (input.lines.cursor..input.lines.edit.length) |i| {
+            input.lines.edit.buffer[i - 1] = input.lines.edit.buffer[i];
         }
     }
 
-    input.edit.length -= 1;
-    input.cursor -= 1;
+    input.lines.edit.length -= 1;
+    input.lines.cursor -= 1;
 }
 
 fn seek(input: *Input, direction: enum { left, right }) void {
     switch (direction) {
-        .left => if (input.cursor > 0) {
-            input.cursor -= 1;
+        .left => if (input.lines.cursor > 0) {
+            input.lines.cursor -= 1;
         },
-        .right => if (input.cursor < input.edit.length) {
-            input.cursor += 1;
+        .right => if (input.lines.cursor < input.lines.edit.length) {
+            input.lines.cursor += 1;
         },
     }
 }
 
 fn historyBack(input: *Input) void {
-    if (input.history.length() == 0)
+    if (input.lines.history.length() == 0)
         return;
 
-    if (input.scrollback) |*scrollback| {
-        if (scrollback.* + 1 < input.history.length())
+    if (input.lines.scrollback) |*scrollback| {
+        if (scrollback.* + 1 < input.lines.history.length())
             scrollback.* += 1;
     } else {
-        input.scrollback = 0;
+        input.lines.scrollback = 0;
     }
 
     input.resetCursor();
 }
 
 fn historyForward(input: *Input) void {
-    const scrollback = input.scrollback orelse
+    const scrollback = input.lines.scrollback orelse
         return;
 
-    input.scrollback = if (scrollback == 0) null else scrollback - 1;
+    input.lines.scrollback = if (scrollback == 0) null else scrollback - 1;
 
     input.resetCursor();
 }
+
+const Lines = struct {
+    edit: Edit,
+    history: History,
+    cursor: usize,
+    scrollback: ?usize,
+};
 
 const Edit = struct {
     buffer: []u8,
