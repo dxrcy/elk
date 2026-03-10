@@ -35,19 +35,19 @@ fn readChar(runtime: *Runtime, comptime vect: enum { in, getc }) Traps.Result {
         try runtime.writer.interface.flush();
     }
 
-    runtime.registers[0] = char;
+    runtime.state.registers[0] = char;
 }
 
 pub fn out(runtime: *Runtime) Traps.Result {
-    const word: u8 = @truncate(runtime.registers[0]);
+    const word: u8 = @truncate(runtime.state.registers[0]);
     try runtime.writer.interface.writeByte(word);
     try runtime.writer.interface.flush();
 }
 
 pub fn puts(runtime: *Runtime) Traps.Result {
-    var i: usize = runtime.registers[0];
+    var i: usize = runtime.state.registers[0];
     while (true) : (i += 1) {
-        const word: u8 = @truncate(runtime.memory[i]);
+        const word: u8 = @truncate(runtime.state.memory[i]);
         if (word == 0x00)
             break;
         try runtime.writer.interface.writeByte(word);
@@ -56,9 +56,9 @@ pub fn puts(runtime: *Runtime) Traps.Result {
 }
 
 pub fn putsp(runtime: *Runtime) Traps.Result {
-    var i: usize = runtime.registers[0];
+    var i: usize = runtime.state.registers[0];
     while (true) : (i += 1) {
-        const words: [2]u8 = @bitCast(runtime.memory[i]);
+        const words: [2]u8 = @bitCast(runtime.state.memory[i]);
         if (words[0] == 0x00)
             break;
         try runtime.writer.interface.writeByte(words[0]);
@@ -71,7 +71,7 @@ pub fn putsp(runtime: *Runtime) Traps.Result {
 
 pub fn putn(runtime: *Runtime) Traps.Result {
     try runtime.writer.ensureNewline();
-    try runtime.writer.interface.print("{}\n", .{runtime.registers[0]});
+    try runtime.writer.interface.print("{}\n", .{runtime.state.registers[0]});
     try runtime.writer.interface.flush();
 }
 

@@ -148,25 +148,25 @@ fn runCommand(
         .print => |arguments| switch (arguments.location) {
             .register => |register| {
                 try runtime.writer.interface.print("Register R{}:\n", .{register});
-                try runtime.printInteger(runtime.registers[register]);
+                try runtime.printInteger(runtime.state.registers[register]);
             },
             .memory => |memory| {
                 const address = debugger.resolveMemoryLocation(runtime, memory, source) catch
                     return null;
                 try runtime.writer.interface.print("Memory at address 0x{x:04}:\n", .{address});
-                try runtime.printInteger(runtime.memory[address]);
+                try runtime.printInteger(runtime.state.memory[address]);
             },
         },
 
         .move => |arguments| switch (arguments.location) {
             .register => |register| {
-                runtime.registers[register] = arguments.value;
+                runtime.state.registers[register] = arguments.value;
                 try runtime.writer.interface.print("Updated register R{} to 0x{x:04}.n", .{ register, arguments.value });
             },
             .memory => |memory| {
                 const address = debugger.resolveMemoryLocation(runtime, memory, source) catch
                     return null;
-                runtime.memory[address] = arguments.value;
+                runtime.state.memory[address] = arguments.value;
                 try runtime.writer.interface.print("Updated memory at address 0x{x:04} to 0x{x:04}.\n:", .{ address, arguments.value });
             },
         },
@@ -174,7 +174,7 @@ fn runCommand(
         .goto => |arguments| {
             const address = debugger.resolveMemoryLocation(runtime, arguments.location, source) catch
                 return null;
-            runtime.pc = address;
+            runtime.state.pc = address;
             try runtime.writer.interface.print("Set program counter to 0x{x:04}.\n:", .{address});
         },
 
@@ -198,7 +198,7 @@ fn resolveMemoryLocation(
         .address => |address| return address,
 
         .pc_offset => |pc_offset| {
-            const combined = @as(isize, runtime.pc) + pc_offset;
+            const combined = @as(isize, runtime.state.pc) + pc_offset;
 
             return std.math.cast(u16, combined) orelse {
                 try debugger.reporter.report(.debugger_any_err, .{

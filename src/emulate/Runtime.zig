@@ -17,20 +17,23 @@ const MEMORY_SIZE = 0x1_0000;
 const USER_MEMORY_START = 0x3000;
 const USER_MEMORY_END = 0xFDFF;
 
-memory: *[MEMORY_SIZE]u16,
-registers: [8]u16,
-pc: u16,
-condition: Condition,
+state: State,
 
 traps: *const Traps,
 hooks: Hooks,
 policies: *const Policies,
-
 debugger: ?*Debugger,
 
 reader: *Io.Reader,
 writer: NewlineTracker,
 tty: Tty,
+
+const State = struct {
+    memory: *[MEMORY_SIZE]u16,
+    registers: [8]u16,
+    pc: u16,
+    condition: Condition,
+};
 
 pub const Error = ProgramError || IoError;
 
@@ -77,10 +80,12 @@ pub fn init(
     @memset(buffer, 0x0000);
 
     return .{
-        .memory = buffer[0..MEMORY_SIZE],
-        .registers = .{ 0, 0, 0, 0, 0, 0, 0, USER_MEMORY_END },
-        .pc = 0x0000,
-        .condition = .zero,
+        .state = .{
+            .memory = buffer[0..MEMORY_SIZE],
+            .registers = .{ 0, 0, 0, 0, 0, 0, 0, USER_MEMORY_END },
+            .pc = 0x0000,
+            .condition = .zero,
+        },
         .traps = traps,
         .hooks = hooks,
         .policies = policies,
@@ -92,7 +97,7 @@ pub fn init(
 }
 
 pub fn deinit(runtime: Runtime, gpa: Allocator) void {
-    defer gpa.free(runtime.memory);
+    defer gpa.free(runtime.state.memory);
 }
 
 pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !void {
@@ -105,13 +110,13 @@ pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !voi
         return error.FileNotAligned;
 
     const origin = try reader.interface.takeInt(u16, .big);
-    runtime.pc = origin;
+    runtime.state.pc = origin;
 
     var i: usize = 0;
     const words = metadata.size / 2 - 1;
     while (i < words) : (i += 1) {
         const raw = try reader.interface.takeInt(u16, .big);
-        runtime.memory[origin + i] = raw;
+        runtime.state.memory[origin + i] = raw;
     }
 }
 
@@ -126,13 +131,13 @@ pub fn run(runtime: *Runtime) Error!void {
             };
         }
 
-        switch (runtime.pc) {
+        switch (runtime.state.pc) {
             USER_MEMORY_START...USER_MEMORY_END => {},
             else => return error.PcOutOfBounds,
         }
 
-        const word = runtime.memory[runtime.pc];
-        runtime.pc += 1;
+        const word = runtime.state.memory[runtime.state.pc];
+        runtime.state.pc += 1;
 
         if (runtime.hooks.pre_decode) |pre_decode|
             try pre_decode.call(.{ runtime, word });
@@ -152,9 +157,9 @@ pub fn run(runtime: *Runtime) Error!void {
 fn runInstruction(runtime: *Runtime, instr: Instruction) Error!Control {
     switch (instr) {
         inline .add, .@"and" => |operands, instr_subset| {
-            const lhs = runtime.registers[operands.src_a];
+            const lhs = runtime.state.registers[operands.src_a];
             const rhs: u16 = switch (operands.src_b) {
-                .register => |register| runtime.registers[register],
+                .register => |register| runtime.state.registers[register],
                 .immediate => |immediate| signExtend(immediate),
             };
             runtime.setRegister(operands.dest, switch (instr_subset) {
@@ -164,59 +169,59 @@ fn runInstruction(runtime: *Runtime, instr: Instruction) Error!Control {
             });
         },
         .not => |operands| {
-            runtime.setRegister(operands.dest, ~runtime.registers[operands.src]);
+            runtime.setRegister(operands.dest, ~runtime.state.registers[operands.src]);
         },
 
         .br => |operands| {
             // No-op case
             if (operands.mask == 0b000)
                 return .@"continue";
-            if (@intFromEnum(runtime.condition) & operands.mask != 0)
-                runtime.pc +%= signExtend(operands.pc_offset);
+            if (@intFromEnum(runtime.state.condition) & operands.mask != 0)
+                runtime.state.pc +%= signExtend(operands.pc_offset);
         },
 
         .jmp_ret => |operands| {
-            runtime.pc = runtime.registers[operands.base];
+            runtime.state.pc = runtime.state.registers[operands.base];
         },
         .jsr_jsrr => |variant| {
-            runtime.registers[7] = runtime.pc;
+            runtime.state.registers[7] = runtime.state.pc;
             switch (variant) {
                 .jsr => |operands| {
-                    runtime.pc +%= signExtend(operands.pc_offset);
+                    runtime.state.pc +%= signExtend(operands.pc_offset);
                 },
                 .jsrr => |operands| {
-                    runtime.pc = runtime.registers[operands.base];
+                    runtime.state.pc = runtime.state.registers[operands.base];
                 },
             }
         },
 
         .lea => |operands| {
-            const address = runtime.pc +% signExtend(operands.pc_offset);
+            const address = runtime.state.pc +% signExtend(operands.pc_offset);
             runtime.setRegister(operands.dest, address);
         },
         .ld => |operands| {
-            const address = runtime.pc +% signExtend(operands.pc_offset);
-            runtime.setRegister(operands.dest, runtime.memory[address]);
+            const address = runtime.state.pc +% signExtend(operands.pc_offset);
+            runtime.setRegister(operands.dest, runtime.state.memory[address]);
         },
         .ldi => |operands| {
-            const address = runtime.memory[runtime.pc +% signExtend(operands.pc_offset)];
-            runtime.setRegister(operands.dest, runtime.memory[address]);
+            const address = runtime.state.memory[runtime.state.pc +% signExtend(operands.pc_offset)];
+            runtime.setRegister(operands.dest, runtime.state.memory[address]);
         },
         .ldr => |operands| {
-            const address = runtime.registers[operands.base] + signExtend(operands.offset);
-            runtime.setRegister(operands.dest, runtime.memory[address]);
+            const address = runtime.state.registers[operands.base] + signExtend(operands.offset);
+            runtime.setRegister(operands.dest, runtime.state.memory[address]);
         },
         .st => |operands| {
-            const address = runtime.pc +% signExtend(operands.pc_offset);
-            runtime.memory[address] = runtime.registers[operands.src];
+            const address = runtime.state.pc +% signExtend(operands.pc_offset);
+            runtime.state.memory[address] = runtime.state.registers[operands.src];
         },
         .sti => |operands| {
-            const address = runtime.memory[runtime.pc +% signExtend(operands.pc_offset)];
-            runtime.memory[address] = runtime.registers[operands.src];
+            const address = runtime.state.memory[runtime.state.pc +% signExtend(operands.pc_offset)];
+            runtime.state.memory[address] = runtime.state.registers[operands.src];
         },
         .str => |operands| {
-            const address = runtime.registers[operands.base] + signExtend(operands.offset);
-            runtime.memory[address] = runtime.registers[operands.src];
+            const address = runtime.state.registers[operands.base] + signExtend(operands.offset);
+            runtime.state.memory[address] = runtime.state.registers[operands.src];
         },
 
         .trap => |operands| {
@@ -242,18 +247,18 @@ fn runInstruction(runtime: *Runtime, instr: Instruction) Error!Control {
             switch (variant) {
                 .pop => |operands| {
                     const value = runtime.stackPop();
-                    runtime.registers[operands.dest] = value;
+                    runtime.state.registers[operands.dest] = value;
                 },
                 .push => |operands| {
-                    const value = runtime.registers[operands.src];
+                    const value = runtime.state.registers[operands.src];
                     runtime.stackPush(value);
                 },
                 .rets => {
-                    runtime.pc = runtime.stackPop();
+                    runtime.state.pc = runtime.stackPop();
                 },
                 .call => |operands| {
-                    runtime.stackPush(runtime.pc);
-                    runtime.pc +%= signExtend(operands.pc_offset);
+                    runtime.stackPush(runtime.state.pc);
+                    runtime.state.pc +%= signExtend(operands.pc_offset);
                 },
             }
         },
@@ -263,9 +268,9 @@ fn runInstruction(runtime: *Runtime, instr: Instruction) Error!Control {
 }
 
 fn setRegister(runtime: *Runtime, register: u3, value: u16) void {
-    runtime.registers[register] = value;
+    runtime.state.registers[register] = value;
 
-    runtime.condition =
+    runtime.state.condition =
         if (@as(i16, @bitCast(value)) < 0)
             .negative
         else if (value == 0)
@@ -275,15 +280,15 @@ fn setRegister(runtime: *Runtime, register: u3, value: u16) void {
 }
 
 fn stackPush(runtime: *Runtime, value: u16) void {
-    runtime.registers[7] -%= 1;
-    const stack_ptr = runtime.registers[7];
-    runtime.memory[stack_ptr] = value;
+    runtime.state.registers[7] -%= 1;
+    const stack_ptr = runtime.state.registers[7];
+    runtime.state.memory[stack_ptr] = value;
 }
 
 fn stackPop(runtime: *Runtime) u16 {
-    const stack_ptr = runtime.registers[7];
-    const value = runtime.memory[stack_ptr];
-    runtime.registers[7] +%= 1;
+    const stack_ptr = runtime.state.registers[7];
+    const value = runtime.state.memory[stack_ptr];
+    runtime.state.registers[7] +%= 1;
     return value;
 }
 
@@ -301,7 +306,7 @@ pub fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
     try runtime.writer.interface.print("+-----------------------------------+\n", .{});
     try runtime.writer.interface.print("|        hex      int    uint   chr |\n", .{});
 
-    for (runtime.registers, 0..8) |word, i| {
+    for (runtime.state.registers, 0..8) |word, i| {
         try runtime.writer.interface.print("| R{}  ", .{i});
         try runtime.printIntegerForms(word);
         try runtime.writer.interface.print(" |\n", .{});
@@ -310,7 +315,7 @@ pub fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
     try runtime.writer.interface.print("+-----------------+-----------------+\n", .{});
     try runtime.writer.interface.print(
         "|    PC 0x{x:04}    |   CC {s}   |\n",
-        .{ runtime.pc, switch (runtime.condition) {
+        .{ runtime.state.pc, switch (runtime.state.condition) {
             .negative => "NEGATIVE",
             .zero => "  ZERO  ",
             .positive => "POSITIVE",
