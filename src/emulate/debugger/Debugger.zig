@@ -18,7 +18,7 @@ status: Status,
 assembly: ?Assembly,
 reporter: *Reporter,
 
-const Assembly = struct {
+pub const Assembly = struct {
     air: *const Air,
     source: []const u8,
 };
