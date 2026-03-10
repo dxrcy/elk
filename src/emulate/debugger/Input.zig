@@ -8,10 +8,9 @@ const control_code = std.ascii.control_code;
 
 const Runtime = @import("../Runtime.zig");
 
-buffer: []u8,
+edit: Edit,
 history: History,
 
-length: usize,
 cursor: usize,
 scrollback: ?usize,
 
@@ -20,9 +19,14 @@ writer: *Io.Writer,
 
 pub fn init(gpa: Allocator, reader: *Io.Reader, writer: *Io.Writer) Input {
     return .{
-        .buffer = &.{},
-        .history = .{ .store = .empty, .gpa = gpa },
-        .length = 0,
+        .edit = .{
+            .buffer = &.{},
+            .length = 0,
+        },
+        .history = .{
+            .store = .empty,
+            .gpa = gpa,
+        },
         .cursor = 0,
         .scrollback = null,
         .reader = reader,
@@ -151,7 +155,7 @@ fn getCurrent(input: *const Input) []const u8 {
     if (input.scrollback) |scrollback| {
         return input.history.getLast(scrollback);
     } else {
-        return input.buffer[0..input.length];
+        return input.edit.buffer[0..input.edit.length];
     }
 }
 
@@ -165,26 +169,26 @@ fn becomeActive(input: *Input) void {
 
     const historic = input.history.getLast(scrollback);
 
-    const length = @min(historic.len, input.buffer.len);
-    @memcpy(input.buffer[0..length], historic[0..length]);
-    input.length = length;
+    const length = @min(historic.len, input.edit.buffer.len);
+    @memcpy(input.edit.buffer[0..length], historic[0..length]);
+    input.edit.length = length;
 
     input.scrollback = null;
 }
 
 pub fn clear(input: *Input) void {
-    input.length = 0;
+    input.edit.length = 0;
     input.cursor = 0;
 }
 
 fn insert(input: *Input, char: u8) void {
-    if (input.length >= input.buffer.len)
+    if (input.edit.length >= input.edit.buffer.len)
         return;
 
     input.becomeActive();
 
-    input.buffer[input.length] = char;
-    input.length += 1;
+    input.edit.buffer[input.edit.length] = char;
+    input.edit.length += 1;
     input.cursor += 1;
 }
 
@@ -195,14 +199,14 @@ fn remove(input: *Input) void {
     input.becomeActive();
 
     // Shift characters down
-    if (input.cursor < input.length) {
-        for (input.cursor..input.length) |i| {
-            input.buffer[i - 1] = input.buffer[i];
+    if (input.cursor < input.edit.length) {
+        for (input.cursor..input.edit.length) |i| {
+            input.edit.buffer[i - 1] = input.edit.buffer[i];
         }
     }
 
+    input.edit.length -= 1;
     input.cursor -= 1;
-    input.length -= 1;
 }
 
 fn seek(input: *Input, direction: enum { left, right }) void {
@@ -210,7 +214,7 @@ fn seek(input: *Input, direction: enum { left, right }) void {
         .left => if (input.cursor > 0) {
             input.cursor -= 1;
         },
-        .right => if (input.cursor < input.length) {
+        .right => if (input.cursor < input.edit.length) {
             input.cursor += 1;
         },
     }
@@ -238,6 +242,11 @@ fn historyForward(input: *Input) void {
 
     input.resetCursor();
 }
+
+const Edit = struct {
+    buffer: []u8,
+    length: usize,
+};
 
 const History = struct {
     store: std.ArrayList(u8),

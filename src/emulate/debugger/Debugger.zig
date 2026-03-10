@@ -97,7 +97,7 @@ fn runCommandLoop(debugger: *Debugger, runtime: *Runtime) !?Action {
     assert(debugger.status == .get_action);
 
     var command_buffer: [20]u8 = undefined;
-    debugger.input.buffer = &command_buffer;
+    debugger.input.edit.buffer = &command_buffer;
 
     while (true) {
         const command_string = debugger.readCommand(runtime) catch |err| switch (err) {
