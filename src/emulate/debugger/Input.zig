@@ -10,31 +10,19 @@ const Runtime = @import("../Runtime.zig");
 const Editor = @import("editor/Editor.zig");
 
 editor: Editor,
-
 reader: *Io.Reader,
 writer: *Io.Writer,
 
 pub fn init(gpa: Allocator, reader: *Io.Reader, writer: *Io.Writer) Input {
     return .{
-        .editor = .{
-            .live = .{
-                .buffer = &.{},
-                .length = 0,
-            },
-            .history = .{
-                .store = .empty,
-                .gpa = gpa,
-            },
-            .cursor = 0,
-            .scrollback = null,
-        },
+        .editor = .init(gpa),
         .reader = reader,
         .writer = writer,
     };
 }
 
 pub fn deinit(input: *Input) void {
-    input.editor.history.store.deinit(input.editor.history.gpa);
+    input.editor.deinit();
 }
 
 pub fn readLine(input: *Input) ![]const u8 {

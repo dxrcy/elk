@@ -1,5 +1,8 @@
 const Editor = @This();
 
+const std = @import("std");
+const Allocator = std.mem.Allocator;
+
 const Live = @import("Live.zig");
 const History = @import("History.zig");
 
@@ -7,6 +10,25 @@ live: Live,
 history: History,
 cursor: usize,
 scrollback: ?usize,
+
+pub fn init(gpa: Allocator) Editor {
+    return .{
+        .live = .{
+            .buffer = &.{},
+            .length = 0,
+        },
+        .history = .{
+            .store = .empty,
+            .gpa = gpa,
+        },
+        .cursor = 0,
+        .scrollback = null,
+    };
+}
+
+pub fn deinit(editor: *Editor) void {
+    editor.history.store.deinit(editor.history.gpa);
+}
 
 pub fn getString(editor: *const Editor) []const u8 {
     return if (editor.scrollback) |scrollback|
