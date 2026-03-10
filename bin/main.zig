@@ -119,8 +119,8 @@ pub fn main(init: std.process.Init) !u8 {
 
         var runtime = try lcz.Runtime.init(
             gpa,
-            &runtime_writer.interface,
             &runtime_reader.interface,
+            &runtime_writer.interface,
             &traps,
             hooks,
             &policies,
@@ -185,7 +185,7 @@ const mcz_traps = struct {
     fn chat(runtime: *lcz.Runtime, conn: *mcz.Connection) lcz.Traps.Result {
         const memory_str: MemoryStr = .{
             .runtime = runtime,
-            .start = runtime.registers[0],
+            .start = runtime.state.registers[0],
         };
         conn.postToChatFmt("{f}", .{memory_str}) catch
             return error.TrapFailed;
@@ -195,16 +195,16 @@ const mcz_traps = struct {
         const player = conn.getPlayerPosition() catch
             return error.TrapFailed;
 
-        runtime.registers[0] = toWord(player.x);
-        runtime.registers[1] = toWord(player.y);
-        runtime.registers[2] = toWord(player.z);
+        runtime.state.registers[0] = toWord(player.x);
+        runtime.state.registers[1] = toWord(player.y);
+        runtime.state.registers[2] = toWord(player.z);
     }
 
     fn setp(runtime: *lcz.Runtime, conn: *mcz.Connection) lcz.Traps.Result {
         const player: mcz.Coordinate = .{
-            .x = fromWord(runtime.registers[0]),
-            .y = fromWord(runtime.registers[1]),
-            .z = fromWord(runtime.registers[2]),
+            .x = fromWord(runtime.state.registers[0]),
+            .y = fromWord(runtime.state.registers[1]),
+            .z = fromWord(runtime.state.registers[2]),
         };
 
         conn.setPlayerPosition(player) catch
@@ -213,26 +213,26 @@ const mcz_traps = struct {
 
     fn getb(runtime: *lcz.Runtime, conn: *mcz.Connection) lcz.Traps.Result {
         const coordinate: mcz.Coordinate = .{
-            .x = fromWord(runtime.registers[0]),
-            .y = fromWord(runtime.registers[1]),
-            .z = fromWord(runtime.registers[2]),
+            .x = fromWord(runtime.state.registers[0]),
+            .y = fromWord(runtime.state.registers[1]),
+            .z = fromWord(runtime.state.registers[2]),
         };
 
         const block = conn.getBlock(coordinate) catch
             return error.TrapFailed;
 
-        runtime.registers[3] = @truncate(block.id);
+        runtime.state.registers[3] = @truncate(block.id);
     }
 
     fn setb(runtime: *lcz.Runtime, conn: *mcz.Connection) lcz.Traps.Result {
         const coordinate: mcz.Coordinate = .{
-            .x = fromWord(runtime.registers[0]),
-            .y = fromWord(runtime.registers[1]),
-            .z = fromWord(runtime.registers[2]),
+            .x = fromWord(runtime.state.registers[0]),
+            .y = fromWord(runtime.state.registers[1]),
+            .z = fromWord(runtime.state.registers[2]),
         };
 
         const block: mcz.Block = .{
-            .id = runtime.registers[3],
+            .id = runtime.state.registers[3],
             .mod = 0,
         };
 
@@ -242,14 +242,14 @@ const mcz_traps = struct {
 
     fn geth(runtime: *lcz.Runtime, conn: *mcz.Connection) lcz.Traps.Result {
         const coordinate: mcz.Coordinate2D = .{
-            .x = fromWord(runtime.registers[0]),
-            .z = fromWord(runtime.registers[2]),
+            .x = fromWord(runtime.state.registers[0]),
+            .z = fromWord(runtime.state.registers[2]),
         };
 
         const height = conn.getHeight(coordinate) catch
             return error.TrapFailed;
 
-        runtime.registers[1] = toWord(height);
+        runtime.state.registers[1] = toWord(height);
     }
 
     fn toWord(value: i32) u16 {
@@ -264,7 +264,7 @@ const mcz_traps = struct {
         start: u16,
 
         pub fn format(memory_str: *const MemoryStr, writer: *Io.Writer) Io.Writer.Error!void {
-            for (memory_str.runtime.memory[memory_str.start..]) |word| {
+            for (memory_str.runtime.state.memory[memory_str.start..]) |word| {
                 if (word == 0x0000)
                     break;
                 const byte: u8 = @truncate(word);
