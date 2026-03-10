@@ -16,6 +16,7 @@ const BUFFER_SIZE = 1024;
 
 options: Options,
 count: std.EnumArray(Level, usize),
+source: ?[]const u8,
 
 ptr: *anyopaque,
 vtable: *const VTable,
@@ -25,6 +26,7 @@ const VTable = struct {
         ptr: *anyopaque,
         diag: Diagnostic,
         level: Reporter.Level,
+        source: ?[]const u8,
     ) void,
 
     showSummary: *const fn (
@@ -89,6 +91,7 @@ pub fn fromImplementation(ptr: *anyopaque, vtable: *const VTable) Reporter {
     return .{
         .options = .{},
         .count = .initFill(0),
+        .source = null,
         .ptr = ptr,
         .vtable = vtable,
     };
@@ -113,7 +116,7 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
 
     reporter.count.getPtr(level).* += 1;
 
-    reporter.vtable.showReport(reporter.ptr, diag, level);
+    reporter.vtable.showReport(reporter.ptr, diag, level, reporter.source);
 
     assert(response != .pass);
     return response;

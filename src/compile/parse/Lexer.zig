@@ -7,9 +7,14 @@ const Span = @import("../Span.zig");
 
 source: []const u8,
 index: usize,
+exclude_comments: bool,
 
-pub fn new(source: []const u8) Lexer {
-    return Lexer{ .source = source, .index = 0 };
+pub fn new(source: []const u8, exclude_comments: bool) Lexer {
+    return Lexer{
+        .source = source,
+        .index = 0,
+        .exclude_comments = exclude_comments,
+    };
 }
 
 pub fn next(lexer: *Lexer) ?Span {
@@ -20,7 +25,7 @@ pub fn next(lexer: *Lexer) ?Span {
         return null;
 
     assert(first.kind != .whitespace);
-    assert(first.value != ';');
+    if (lexer.exclude_comments) assert(first.value != ';');
     if (first.kind == .atomic)
         return .fromBounds(start, lexer.getIndex());
 
@@ -34,7 +39,7 @@ pub fn next(lexer: *Lexer) ?Span {
 
 fn discardWhitespaceAndComments(lexer: *Lexer) void {
     while (lexer.peekChar()) |char| {
-        if (char.value == ';') {
+        if (lexer.exclude_comments and char.value == ';') {
             lexer.discardComment();
             continue;
         }

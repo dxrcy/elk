@@ -1,0 +1,72 @@
+------- LCZ DEBUGGER -------
+Available Commands:
+
+    help(h)
+        Show this message.
+
+    step(s)
+        Execute next instruction or whole subroutine (including any nested
+            subroutine calls).
+
+    step into(si) COUNT?
+        Execute next instruction or jump into subroutine. Repeats COUNT times.
+          - COUNT: Integer (default: 1)
+
+    step out(so)
+        Continue execution until HALT, breakpoint, or end of current subroutine.
+        Note: Only supports 'well-formed' functions using RET.
+
+    continue(c)
+        Continue execution until HALT or breakpoint.
+
+    registers(r)
+        Show the value of all registers. Equivalent to eval reg.
+
+    print(p) LOCATION?
+        Show the value at a register or address.
+          - LOCATION: Register | Address+ (default: PC)
+
+    move(m) LOCATION VALUE
+        Set the value at a register or address.
+          - LOCATION: Register | Address+
+          - VALUE: Integer
+
+    goto(g) LOCATION
+        Unconditionally jump to an address.
+          - LOCATION: Address+
+
+    break add(ba) LOCATION
+        Add breakpoint at an address.
+          - LOCATION: Address+
+
+    break remove(br) LOCATION
+        Remove breakpoint at an address.
+          - LOCATION: Address+
+
+    break list(bl)
+        List all breakpoints. Includes breakpoints declared with .BREAK.
+
+    assembly(a) LOCATION?
+        Print line of assembly source code corresponding to address.
+          - LOCATION: Address+ (default: PC)
+
+    eval(e) INSTRUCTION
+        Simulate an assembly instruction.
+          - INSTRUCTION: Mnemonic, Operands...
+        Note: Labels cannot be created or modified.
+        Note: Branch (BR*) instructions cannot be simulated, use jump instead.
+        Note: HALT trap cannot be simulated, use exit instead.
+
+    reset(z)
+        Reset all memory and registers to initial state.
+
+    quit(q)
+        Stop debugger and continue execution as normal.
+
+    exit(x)
+        Exit debugger and simulator.
+
+Note: An Address+ argument can be one of the following:
+    1. An absolute address value            x3010
+    2. A label with an optional offset      Foo, Hello+4
+    3. An offset from the program counter   ^, ^3, ^-x10

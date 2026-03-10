@@ -18,6 +18,12 @@ pub fn fromSlice(slice: []const u8, source: []const u8) Span {
     return .{ .offset = slice.ptr - source.ptr, .len = slice.len };
 }
 
+pub fn join(lhs: Span, rhs: Span) Span {
+    assert(!lhs.overlaps(rhs));
+    assert(lhs.offset <= rhs.offset);
+    return .fromBounds(lhs.offset, rhs.end());
+}
+
 pub fn firstCharOf(source: []const u8) Span {
     var offset: usize = 0;
     while (offset < source.len) : (offset += 1) {

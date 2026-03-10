@@ -16,6 +16,7 @@ pub fn showReport(
     _: *anyopaque,
     _: Diagnostic,
     _: Reporter.Level,
+    _: ?[]const u8,
 ) void {
     return;
 }

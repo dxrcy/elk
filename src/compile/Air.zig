@@ -38,8 +38,8 @@ pub fn init() Air {
     };
 }
 
-pub fn deinit(air: *Air, allocator: Allocator) void {
-    air.lines.deinit(allocator);
+pub fn deinit(air: *Air, gpa: Allocator) void {
+    air.lines.deinit(gpa);
 }
 
 pub fn getFirstSpan(air: *const Air) ?Span {
@@ -62,9 +62,29 @@ pub fn emitWriter(air: *const Air, writer: *Io.Writer) !void {
 pub fn emitRuntime(air: *const Air, runtime: *Runtime) !void {
     assert(air.lines.items.len <= 0xffff);
 
-    runtime.pc = air.origin;
+    runtime.state.pc = air.origin;
     for (air.lines.items, 0..) |line, i| {
         const raw = line.statement.encode();
-        runtime.memory[air.origin + i] = raw;
+        runtime.state.memory[air.origin + i] = raw;
     }
+}
+
+pub fn findLabelDefinition(
+    air: *const Air,
+    reference: []const u8,
+    case_mode: enum { sensitive, insensitive },
+    source: []const u8,
+) ?struct { usize, Span } {
+    for (air.lines.items, 0..) |*line, index| {
+        const label = line.label orelse
+            continue;
+        const string = label.view(source);
+        const matches = switch (case_mode) {
+            .sensitive => std.mem.eql(u8, string, reference),
+            .insensitive => std.ascii.eqlIgnoreCase(string, reference),
+        };
+        if (matches)
+            return .{ index, label };
+    }
+    return null;
 }

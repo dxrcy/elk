@@ -17,7 +17,7 @@ pub fn main(init: std.process.Init) !u8 {
     const source = try Io.Dir.cwd().readFileAlloc(io, asm_path, gpa, .unlimited);
     defer gpa.free(source);
 
-    reporter_impl.setSource(source);
+    reporter.source = source;
 
     // reporter.options.strictness = .normal;
     // reporter_impl.verbosity = .normal;
@@ -55,7 +55,7 @@ pub fn main(init: std.process.Init) !u8 {
     var parser = lcz.Parser.new(&traps, source, &reporter) orelse
         return 1;
 
-    try parser.parse(&air, gpa);
+    try parser.parse(gpa, &air);
     if (reporter.getLevel() == .err) {
         reporter.showSummary();
         return 1;
@@ -101,19 +101,30 @@ pub fn main(init: std.process.Init) !u8 {
             .trap_count = @splat(0),
         };
 
+        // var instr_count: InstrCount = .initFill(0);
+
         const hooks: lcz.Runtime.Hooks = .{
             .pre_decode = .withoutData(preDecodeHook),
             .pre_execute = .withDataInit(*CallbackData, preExecuteHook, &callback_data),
         };
 
+        var debugger: lcz.Runtime.Debugger = .init(
+            gpa,
+            &runtime_reader.interface,
+            &runtime_writer.interface,
+            &reporter,
+            .{ .air = &air, .source = source },
+        );
+        defer debugger.deinit();
+
         var runtime = try lcz.Runtime.init(
+            gpa,
+            &runtime_writer.interface,
+            &runtime_reader.interface,
             &traps,
             hooks,
             &policies,
-            &runtime_writer.interface,
-            &runtime_reader.interface,
-            io,
-            gpa,
+            &debugger,
         );
         defer runtime.deinit(gpa);
 
@@ -121,7 +132,7 @@ pub fn main(init: std.process.Init) !u8 {
         const obj_file = try Io.Dir.cwd().openFile(io, obj_path, .{});
         var read_buffer: [1024]u8 = undefined;
 
-        try runtime.readFromFile(obj_file, &read_buffer, io);
+        try runtime.readFromFile(io, obj_file, &read_buffer);
         // try air.emitRuntime(&runtime);
 
         runtime.run() catch |err| switch (err) {
@@ -136,22 +147,6 @@ pub fn main(init: std.process.Init) !u8 {
 
         try runtime.writer.ensureNewline();
         try runtime.writer.interface.flush();
-
-        for (runtime.registers, 0..) |register, i| {
-            std.debug.print("r{}: 0x{x:04}\n", .{ i, register });
-        }
-
-        std.debug.print("\n",.{});
-        for (std.meta.tags(std.meta.Tag(lcz.Runtime.Instruction))) |field| {
-            const count = callback_data.instr_count.get(field);
-            std.debug.print("{t:20}: {}\n", .{ field, count });
-        }
-         std.debug.print("\n",.{});
-        for (callback_data.trap_count, 0..) |count, vect| {
-            if (count == 0)
-                continue;
-            std.debug.print("\t trap 0x{x:04}: {}\n", .{ vect, count });
-        }
     }
 
     return 0;
