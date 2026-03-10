@@ -85,11 +85,13 @@ const Parser = struct {
     source: []const u8,
     reporter: *Reporter,
 
-    // TODO: Ignore commas
-
     fn next(parser: *Parser) error{Eof}!Span {
-        return parser.lexer.next() orelse
-            return error.Eof;
+        while (true) {
+            const token = parser.lexer.next() orelse
+                return error.Eof;
+            if (!std.mem.eql(u8, token.view(parser.source), ","))
+                return token;
+        }
     }
 
     fn nextInteger(parser: *Parser) error{Reported}!u16 {
