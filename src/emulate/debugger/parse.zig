@@ -47,6 +47,10 @@ pub fn parseCommand(
             .value = try parser.nextInteger(),
         } },
 
+        .goto => .{ .goto = .{
+            .location = try parser.nextMemoryLocation(),
+        } },
+
         .step_into => .{ .step_into = .{
             .count = try parser.nextOptionalPositiveInt(),
         } },
@@ -112,16 +116,27 @@ const Parser = struct {
 
     fn nextLocation(parser: *Parser) error{Reported}!Command.Location {
         const argument = try parser.next();
-        const string = argument.view(parser.source);
 
-        if (parsing.tryRegister(string)) |register|
+        if (parsing.tryRegister(argument.view(parser.source))) |register|
             return .{ .register = register };
 
         if (try parser.parseMemoryLocation(argument)) |memory|
             return .{ .memory = memory };
 
         try parser.reporter.report(.debugger_any_err, .{
-            .code = error.invalidargumentkind,
+            .code = error.InvalidArgumentKind,
+            .span = argument,
+        }).abort();
+    }
+
+    fn nextMemoryLocation(parser: *Parser) error{Reported}!Command.Location.Memory {
+        const argument = try parser.next();
+
+        if (try parser.parseMemoryLocation(argument)) |memory|
+            return memory;
+
+        try parser.reporter.report(.debugger_any_err, .{
+            .code = error.InvalidArgumentKind,
             .span = argument,
         }).abort();
     }

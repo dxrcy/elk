@@ -172,6 +172,13 @@ fn runCommand(
             },
         },
 
+        .goto => |arguments| {
+            const address = debugger.resolveMemoryLocation(arguments.location, source) catch
+                return null;
+            runtime.pc = address;
+            try runtime.writer.interface.print("Set program counter to 0x{x:04}.\n:", .{address});
+        },
+
         .step_into => |arguments| {
             debugger.status = .{ .step_into = .{
                 .count = arguments.count - 1,
