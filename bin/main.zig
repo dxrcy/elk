@@ -96,16 +96,16 @@ pub fn main(init: std.process.Init) !u8 {
         var runtime_writer = Io.File.stdout().writer(io, &runtime_write_buffer);
         var runtime_reader = Io.File.stdin().reader(io, &.{});
 
-        var callback_data: CallbackData = .{
-            .instr_count = .initFill(0),
-            .trap_count = @splat(0),
-        };
+        // var callback_data: CallbackData = .{
+        //     .instr_count = .initFill(0),
+        //     .trap_count = @splat(0),
+        // };
 
         // var instr_count: InstrCount = .initFill(0);
 
         const hooks: lcz.Runtime.Hooks = .{
-            .pre_decode = .withoutData(preDecodeHook),
-            .pre_execute = .withDataInit(*CallbackData, preExecuteHook, &callback_data),
+            // .pre_decode = .withoutData(preDecodeHook),
+            // .pre_execute = .withDataInit(*CallbackData, preExecuteHook, &callback_data),
         };
 
         var debugger: lcz.Runtime.Debugger = .init(
@@ -124,7 +124,7 @@ pub fn main(init: std.process.Init) !u8 {
             &traps,
             hooks,
             &policies,
-            &debugger,
+            null,
         );
         defer runtime.deinit(gpa);
 
