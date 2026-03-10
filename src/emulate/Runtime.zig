@@ -71,7 +71,7 @@ pub fn init(
     traps: *const Traps,
     hooks: Hooks,
     policies: *const Policies,
-    debugger: *Debugger,
+    debugger: ?*Debugger,
 ) !Runtime {
     const buffer = try gpa.alloc(u16, MEMORY_SIZE);
     @memset(buffer, 0x0000);
