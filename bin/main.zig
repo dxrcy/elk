@@ -45,7 +45,7 @@ pub fn main(init: std.process.Init) !u8 {
 
             reporter.source = source;
 
-            var air = try assemble(source, &traps, &reporter, gpa);
+            var air = try assemble(gpa, source, &traps, &reporter);
             defer air.deinit(gpa);
 
             var obj_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
@@ -63,7 +63,7 @@ pub fn main(init: std.process.Init) !u8 {
 
         .emulate => {
             const file = try Io.Dir.cwd().openFile(io, cli.filepath, .{});
-            try emulate(.{ .file = file }, &traps, hooks, &policies, io, gpa, cli.debug, &reporter);
+            try emulate(io, gpa, .{ .file = file }, cli.debug, &traps, hooks, &policies, &reporter);
         },
 
         .assemble_emulate => {
@@ -72,10 +72,10 @@ pub fn main(init: std.process.Init) !u8 {
 
             reporter.source = source;
 
-            var air = try assemble(source, &traps, &reporter, gpa);
+            var air = try assemble(gpa, source, &traps, &reporter);
             defer air.deinit(gpa);
 
-            try emulate(.{ .air = &air }, &traps, hooks, &policies, io, gpa, cli.debug, &reporter);
+            try emulate(io, gpa, .{ .air = &air }, cli.debug, &traps, hooks, &policies, &reporter);
         },
     }
 
@@ -92,10 +92,10 @@ fn replacePathExtension(buffer: []u8, path: []const u8, extension: []const u8) [
 }
 
 fn assemble(
+    gpa: Allocator,
     source: []const u8,
     traps: *const lcz.Traps,
     reporter: *lcz.Reporter,
-    gpa: Allocator,
 ) !lcz.Air {
     var air: lcz.Air = .init();
     errdefer air.deinit(gpa);
@@ -121,16 +121,16 @@ fn assemble(
 }
 
 fn emulate(
+    io: Io,
+    gpa: Allocator,
     runtime_source: union(enum) {
         file: Io.File,
         air: *const lcz.Air,
     },
+    debug: bool,
     traps: *const lcz.Traps,
     hooks: lcz.Runtime.Hooks,
     policies: *const lcz.Policies,
-    io: Io,
-    gpa: Allocator,
-    debug: bool,
     reporter: *lcz.Reporter,
 ) !void {
     var write_buffer: [64]u8 = undefined;
