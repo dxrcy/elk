@@ -63,7 +63,7 @@ pub fn main(init: std.process.Init) !u8 {
 
         .emulate => {
             const file = try Io.Dir.cwd().openFile(io, cli.filepath, .{});
-            try emulate(.{ .file = file }, &traps, hooks, &policies, io, gpa);
+            try emulate(.{ .file = file }, &traps, hooks, &policies, io, gpa, cli.debug, &reporter);
         },
 
         .assemble_emulate => {
@@ -75,7 +75,7 @@ pub fn main(init: std.process.Init) !u8 {
             var air = try assemble(source, &traps, &reporter, gpa);
             defer air.deinit(gpa);
 
-            try emulate(.{ .air = &air }, &traps, hooks, &policies, io, gpa);
+            try emulate(.{ .air = &air }, &traps, hooks, &policies, io, gpa, cli.debug, &reporter);
         },
     }
 
@@ -130,10 +130,26 @@ fn emulate(
     policies: *const lcz.Policies,
     io: Io,
     gpa: Allocator,
+    debug: bool,
+    reporter: *lcz.Reporter,
 ) !void {
     var write_buffer: [64]u8 = undefined;
     var writer = Io.File.stdout().writer(io, &write_buffer);
     var reader = Io.File.stdin().reader(io, &.{});
+
+    var debugger_opt: ?lcz.Runtime.Debugger = if (debug) .init(
+        gpa,
+        &reader.interface,
+        &writer.interface,
+        reporter,
+        // TODO:
+        null,
+        // switch (runtime_source) {
+        //     .file => null,
+        //     .air => |air| .{ .air = &air, .source = source },
+        // },
+    ) else null;
+    defer if (debugger_opt) |*debugger| debugger.deinit();
 
     var runtime = try lcz.Runtime.init(
         gpa,
@@ -142,7 +158,7 @@ fn emulate(
         traps,
         hooks,
         policies,
-        null,
+        if (debugger_opt) |*debugger| debugger else null,
     );
     defer runtime.deinit(gpa);
 
