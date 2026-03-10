@@ -63,14 +63,14 @@ pub fn readLine(input: *Input) ![]const u8 {
     if (eof)
         return error.EndOfStream;
 
-    input.becomeActive();
-    const line = input.getCurrent();
+    input.lines.becomeActive();
+    const line = input.lines.getCurrent();
     input.lines.history.push(line);
     return line;
 }
 
 fn handleNextKey(input: *Input) error{ EndOfStream, ReadFailed }!Runtime.Control {
-    assert(input.lines.cursor <= input.getCurrent().len);
+    assert(input.lines.cursor <= input.lines.getCurrent().len);
 
     const key = try input.readKey() orelse
         return .@"continue";
@@ -79,14 +79,14 @@ fn handleNextKey(input: *Input) error{ EndOfStream, ReadFailed }!Runtime.Control
         .enter => return .@"break",
         .eot => return error.EndOfStream,
 
-        .char => |char| input.insert(char),
-        .bs => input.remove(),
+        .char => |char| input.lines.insert(char),
+        .bs => input.lines.remove(),
 
         .escape => |escape| switch (escape) {
-            .cursor_up => input.historyBack(),
-            .cursor_down => input.historyForward(),
-            .cursor_forward => input.seek(.right),
-            .cursor_back => input.seek(.left),
+            .cursor_up => input.lines.historyBack(),
+            .cursor_down => input.lines.historyForward(),
+            .cursor_forward => input.lines.seek(.right),
+            .cursor_back => input.lines.seek(.left),
         },
     }
     return .@"continue";
@@ -145,100 +145,8 @@ fn writePrompt(input: *const Input) !void {
     try input.writer.print("\r\x1b[K", .{});
     try input.writer.print("{?:04}", .{input.lines.scrollback});
     try input.writer.print(prompt, .{});
-    try input.writer.print("{s}", .{input.getCurrent()});
+    try input.writer.print("{s}", .{input.lines.getCurrent()});
     try input.writer.print("\x1b[{}G", .{input.lines.cursor + prompt.len + 1 + 4});
-}
-
-fn getCurrent(input: *const Input) []const u8 {
-    if (input.lines.scrollback) |scrollback| {
-        return input.lines.history.getLast(scrollback);
-    } else {
-        return input.lines.edit.buffer[0..input.lines.edit.length];
-    }
-}
-
-fn resetCursor(input: *Input) void {
-    input.lines.cursor = input.getCurrent().len;
-}
-
-fn becomeActive(input: *Input) void {
-    const scrollback = input.lines.scrollback orelse
-        return;
-
-    const historic = input.lines.history.getLast(scrollback);
-
-    const length = @min(historic.len, input.lines.edit.buffer.len);
-    @memcpy(input.lines.edit.buffer[0..length], historic[0..length]);
-    input.lines.edit.length = length;
-
-    input.lines.scrollback = null;
-}
-
-pub fn clear(input: *Input) void {
-    input.lines.edit.length = 0;
-    input.lines.cursor = 0;
-}
-
-fn insert(input: *Input, char: u8) void {
-    if (input.lines.edit.length >= input.lines.edit.buffer.len)
-        return;
-
-    input.becomeActive();
-
-    input.lines.edit.buffer[input.lines.edit.length] = char;
-    input.lines.edit.length += 1;
-    input.lines.cursor += 1;
-}
-
-fn remove(input: *Input) void {
-    if (input.lines.cursor == 0)
-        return;
-
-    input.becomeActive();
-
-    // Shift characters down
-    if (input.lines.cursor < input.lines.edit.length) {
-        for (input.lines.cursor..input.lines.edit.length) |i| {
-            input.lines.edit.buffer[i - 1] = input.lines.edit.buffer[i];
-        }
-    }
-
-    input.lines.edit.length -= 1;
-    input.lines.cursor -= 1;
-}
-
-fn seek(input: *Input, direction: enum { left, right }) void {
-    switch (direction) {
-        .left => if (input.lines.cursor > 0) {
-            input.lines.cursor -= 1;
-        },
-        .right => if (input.lines.cursor < input.lines.edit.length) {
-            input.lines.cursor += 1;
-        },
-    }
-}
-
-fn historyBack(input: *Input) void {
-    if (input.lines.history.length() == 0)
-        return;
-
-    if (input.lines.scrollback) |*scrollback| {
-        if (scrollback.* + 1 < input.lines.history.length())
-            scrollback.* += 1;
-    } else {
-        input.lines.scrollback = 0;
-    }
-
-    input.resetCursor();
-}
-
-fn historyForward(input: *Input) void {
-    const scrollback = input.lines.scrollback orelse
-        return;
-
-    input.lines.scrollback = if (scrollback == 0) null else scrollback - 1;
-
-    input.resetCursor();
 }
 
 const Lines = struct {
@@ -246,6 +154,98 @@ const Lines = struct {
     history: History,
     cursor: usize,
     scrollback: ?usize,
+
+    pub fn getCurrent(lines: *const Lines) []const u8 {
+        if (lines.scrollback) |scrollback| {
+            return lines.history.getLast(scrollback);
+        } else {
+            return lines.edit.buffer[0..lines.edit.length];
+        }
+    }
+
+    pub fn becomeActive(lines: *Lines) void {
+        const scrollback = lines.scrollback orelse
+            return;
+
+        const historic = lines.history.getLast(scrollback);
+
+        const length = @min(historic.len, lines.edit.buffer.len);
+        @memcpy(lines.edit.buffer[0..length], historic[0..length]);
+        lines.edit.length = length;
+
+        lines.scrollback = null;
+    }
+
+    pub fn resetCursor(lines: *Lines) void {
+        lines.cursor = lines.getCurrent().len;
+    }
+
+    pub fn clear(lines: *Lines) void {
+        lines.edit.length = 0;
+        lines.cursor = 0;
+    }
+
+    pub fn insert(lines: *Lines, char: u8) void {
+        if (lines.edit.length >= lines.edit.buffer.len)
+            return;
+
+        lines.becomeActive();
+
+        lines.edit.buffer[lines.edit.length] = char;
+        lines.edit.length += 1;
+        lines.cursor += 1;
+    }
+
+    pub fn remove(lines: *Lines) void {
+        if (lines.cursor == 0)
+            return;
+
+        lines.becomeActive();
+
+        // Shift characters down
+        if (lines.cursor < lines.edit.length) {
+            for (lines.cursor..lines.edit.length) |i| {
+                lines.edit.buffer[i - 1] = lines.edit.buffer[i];
+            }
+        }
+
+        lines.edit.length -= 1;
+        lines.cursor -= 1;
+    }
+
+    pub fn seek(lines: *Lines, direction: enum { left, right }) void {
+        switch (direction) {
+            .left => if (lines.cursor > 0) {
+                lines.cursor -= 1;
+            },
+            .right => if (lines.cursor < lines.edit.length) {
+                lines.cursor += 1;
+            },
+        }
+    }
+
+    pub fn historyBack(lines: *Lines) void {
+        if (lines.history.length() == 0)
+            return;
+
+        if (lines.scrollback) |*scrollback| {
+            if (scrollback.* + 1 < lines.history.length())
+                scrollback.* += 1;
+        } else {
+            lines.scrollback = 0;
+        }
+
+        lines.resetCursor();
+    }
+
+    pub fn historyForward(lines: *Lines) void {
+        const scrollback = lines.scrollback orelse
+            return;
+
+        lines.scrollback = if (scrollback == 0) null else scrollback - 1;
+
+        lines.resetCursor();
+    }
 };
 
 const Edit = struct {
