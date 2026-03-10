@@ -248,6 +248,5 @@ fn readCommand(debugger: *Debugger, runtime: *Runtime) ![]const u8 {
     try runtime.tty.enableRawMode();
     const line = debugger.input.readLine();
     try runtime.tty.disableRawMode();
-    debugger.input.editor.clear();
     return line;
 }

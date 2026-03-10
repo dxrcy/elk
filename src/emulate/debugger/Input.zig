@@ -49,12 +49,15 @@ pub fn readLine(input: *Input) ![]const u8 {
     try input.writer.print("\n", .{});
     try input.writer.flush();
 
-    if (eof)
+    if (eof) {
+        input.editor.clear();
         return error.EndOfStream;
+    }
 
     input.editor.makeLive();
     const line = input.editor.getString();
     input.editor.history.push(line);
+    input.editor.clear();
     return line;
 }
 
