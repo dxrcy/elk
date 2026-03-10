@@ -181,7 +181,7 @@ const Lines = struct {
     }
 
     pub fn clear(lines: *Lines) void {
-        lines.edit.length = 0;
+        lines.edit.clear();
         lines.cursor = 0;
     }
 
@@ -190,9 +190,7 @@ const Lines = struct {
             return;
 
         lines.becomeActive();
-
-        lines.edit.buffer[lines.edit.length] = char;
-        lines.edit.length += 1;
+        lines.edit.insert(char);
         lines.cursor += 1;
     }
 
@@ -201,15 +199,7 @@ const Lines = struct {
             return;
 
         lines.becomeActive();
-
-        // Shift characters down
-        if (lines.cursor < lines.edit.length) {
-            for (lines.cursor..lines.edit.length) |i| {
-                lines.edit.buffer[i - 1] = lines.edit.buffer[i];
-            }
-        }
-
-        lines.edit.length -= 1;
+        lines.edit.remove(lines.cursor);
         lines.cursor -= 1;
     }
 
@@ -251,6 +241,24 @@ const Lines = struct {
 const Edit = struct {
     buffer: []u8,
     length: usize,
+
+    pub fn clear(edit: *Edit) void {
+        edit.length = 0;
+    }
+
+    pub fn insert(edit: *Edit, char: u8) void {
+        edit.buffer[edit.length] = char;
+        edit.length += 1;
+    }
+
+    pub fn remove(edit: *Edit, index: usize) void {
+        // Shift characters down
+        if (index < edit.length) {
+            for (index..edit.length) |i|
+                edit.buffer[i - 1] = edit.buffer[i];
+        }
+        edit.length -= 1;
+    }
 };
 
 const History = struct {
