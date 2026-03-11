@@ -216,8 +216,6 @@ fn runCommand(
             // FIXME: Handle OOB
             const line = assembly.air.lines.items[index];
 
-            std.debug.print("{s}\n", .{line.span.view(assembly.source)});
-
             // HACK: What the hell is this
             const reporter = debugger.reporter;
             reporter.source = assembly.source;
@@ -269,7 +267,7 @@ fn resolveMemoryLocation(
 
             const combined = @as(isize, @intCast(address + assembly.air.origin)) + label.offset;
 
-            return std.math.cast(u1, combined) orelse {
+            return std.math.cast(u16, combined) orelse {
                 try debugger.reporter.report(.debugger_any_err, .{
                     .code = error.AddressTooLarge,
                     .span = span,
