@@ -84,6 +84,9 @@ const Parser = struct {
                 .count = try parser.nextOptionalPositiveInt(),
             } },
 
+            .eval => .{ .eval = .{
+                .instruction = try parser.remainingString(),
+            } },
             .echo => .{ .echo = .{
                 .string = try parser.remainingString(),
             } },
