@@ -83,6 +83,12 @@ pub fn printTitle(
             ctx.print("Warning: ", .{});
             ctx.print("\x1b[0m", .{});
         },
+        .info => {
+            ctx.print("\x1b[34m", .{});
+            ctx.print("\x1b[1m", .{});
+            ctx.print("Info: ", .{});
+            ctx.print("\x1b[0m", .{});
+        },
     }
 
     ctx.print(fmt, args);

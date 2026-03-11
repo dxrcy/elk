@@ -68,5 +68,7 @@ pub fn showSummary(ptr: *anyopaque, count: *const std.EnumArray(Reporter.Level, 
         ctx.print("\n", .{});
     }
 
+    // Don't show `info`
+
     ctx.flush();
 }
