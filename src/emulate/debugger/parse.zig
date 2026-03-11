@@ -32,8 +32,10 @@ pub fn parseCommand(
     const value = try parser.parseCommandArguments(tag);
 
     return .{
-        .line = .emptyAt(0),
-        .tag = .emptyAt(0),
+        // This is redundant for now, but will be useful when a line can contain multiple commands
+        .line = .fromBounds(0, string.len),
+
+        .tag = tag.span,
         .value = value,
     };
 }

@@ -130,12 +130,12 @@ fn runCommand(
         else => {
             debugger.reporter.report(.debugger_any_err, .{
                 .code = error.UnimplementedCommand,
-                .span = .emptyAt(0),
+                .span = command.tag,
             }).abort() catch
                 return null;
         },
 
-        .quit => return .disable_debugger,
+        // .quit => return .disable_debugger,
         .exit => return .stop_runtime,
 
         .help => {
