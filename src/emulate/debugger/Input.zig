@@ -118,7 +118,8 @@ fn readByte(input: *Input) error{ EndOfStream, ReadFailed }!u8 {
 fn writePrompt(input: *const Input) !void {
     const prompt = "> ";
     try input.writer.print("\r\x1b[K", .{});
+    try input.writer.print("{t:8}", .{input.editor.mode});
     try input.writer.print(prompt, .{});
     try input.writer.print("{s}", .{input.editor.getString()});
-    try input.writer.print("\x1b[{}G", .{input.editor.cursor + prompt.len + 1});
+    try input.writer.print("\x1b[{}G", .{input.editor.cursor + prompt.len + 1 + 8});
 }

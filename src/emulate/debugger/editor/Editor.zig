@@ -13,6 +13,13 @@ history: History,
 cursor: usize,
 scrollback: ?usize,
 
+comptime mode: Mode = .insert,
+
+pub const Mode = enum {
+    normal,
+    insert,
+};
+
 pub fn init(gpa: Allocator) Editor {
     return .{
         .live = .{
