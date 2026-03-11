@@ -46,14 +46,6 @@ const Parser = struct {
         tag: Spanned(Command.Tag),
     ) error{Reported}!Command.Value {
         const value: Command.Value = switch (tag.value) {
-            // TODO: Parse all commands
-            else => {
-                try parser.reporter.report(.debugger_any_err, .{
-                    .code = error.UnimplementedCommand,
-                    .span = tag.span,
-                }).abort();
-            },
-
             // Allow trailing arguments
             .help => return .help,
 
@@ -82,6 +74,12 @@ const Parser = struct {
             } },
             .step_into => .{ .step_into = .{
                 .count = try parser.nextOptionalPositiveInt(),
+            } },
+            .break_add => .{ .break_add = .{
+                .location = try parser.nextMemoryLocation(),
+            } },
+            .break_remove => .{ .break_remove = .{
+                .location = try parser.nextMemoryLocation(),
             } },
 
             .eval => .{ .eval = .{
