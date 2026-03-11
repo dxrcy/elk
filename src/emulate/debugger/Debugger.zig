@@ -222,7 +222,7 @@ fn runCommand(
             const reporter = debugger.reporter;
             reporter.source = assembly.source;
 
-            reporter.report(.debugger_any_warn, .{
+            reporter.report(.debugger_any_info, .{
                 .code = error.ShowAssembly,
                 .span = line.span,
             }).proceed();
