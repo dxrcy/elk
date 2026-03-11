@@ -244,15 +244,7 @@ fn getAssemblyLine(
     address: u16,
     span: Span,
 ) error{Reported}!*const Air.Line {
-    if (address < Runtime.USER_MEMORY_START or
-        address > Runtime.USER_MEMORY_END)
-    {
-        try debugger.reporter.report(.debugger_any_err, .{
-            .code = error.AddressNotInUserMemory,
-            .span = span,
-        }).abort();
-    }
-
+    try debugger.ensureUserAddress(address, span);
     // Overflow is not possible since address is in user memory
     const index = address - assembly.air.origin;
     if (index >= assembly.air.lines.items.len) {
@@ -261,7 +253,6 @@ fn getAssemblyLine(
             .span = span,
         }).abort();
     }
-
     return &assembly.air.lines.items[index];
 }
 
@@ -334,6 +325,18 @@ fn getAssembly(debugger: *const Debugger, span: Span) error{Reported}!Assembly {
             .span = span,
         }).abort();
     };
+}
+
+fn ensureUserAddress(debugger: *Debugger, address: u16, span: Span) error{Reported}!void {
+    switch (address) {
+        Runtime.USER_MEMORY_START...Runtime.USER_MEMORY_END => {},
+        else => {
+            try debugger.reporter.report(.debugger_any_err, .{
+                .code = error.AddressNotInUserMemory,
+                .span = span,
+            }).abort();
+        },
+    }
 }
 
 fn readCommand(debugger: *Debugger, runtime: *Runtime) ![]const u8 {
