@@ -151,7 +151,12 @@ fn runCommand(
                 try runtime.printInteger(runtime.state.registers[register]);
             },
             .memory => |memory| {
-                const address = debugger.resolveMemoryLocation(runtime, memory, source) catch
+                const address = debugger.resolveMemoryLocation(
+                    runtime,
+                    memory,
+                    arguments.location.span,
+                    source,
+                ) catch
                     return null;
                 try runtime.writer.interface.print("Memory at address 0x{x:04}:\n", .{address});
                 try runtime.printInteger(runtime.state.memory[address]);
@@ -167,7 +172,12 @@ fn runCommand(
                 );
             },
             .memory => |memory| {
-                const address = debugger.resolveMemoryLocation(runtime, memory, source) catch
+                const address = debugger.resolveMemoryLocation(
+                    runtime,
+                    memory,
+                    arguments.location.span,
+                    source,
+                ) catch
                     return null;
                 runtime.state.memory[address] = arguments.value.value;
                 try runtime.writer.interface.print(
@@ -178,7 +188,12 @@ fn runCommand(
         },
 
         .goto => |arguments| {
-            const address = debugger.resolveMemoryLocation(runtime, arguments.location.value, source) catch
+            const address = debugger.resolveMemoryLocation(
+                runtime,
+                arguments.location.value,
+                arguments.location.span,
+                source,
+            ) catch
                 return null;
             runtime.state.pc = address;
             try runtime.writer.interface.print("Set program counter to 0x{x:04}.\n:", .{address});
@@ -198,6 +213,7 @@ fn resolveMemoryLocation(
     debugger: *const Debugger,
     runtime: *const Runtime,
     memory: Command.Location.Memory,
+    span: Span,
     source: []const u8,
 ) error{Reported}!u16 {
     switch (memory) {
@@ -209,8 +225,7 @@ fn resolveMemoryLocation(
             return std.math.cast(u16, combined) orelse {
                 try debugger.reporter.report(.debugger_any_err, .{
                     .code = error.AddressTooLarge,
-                    // TODO: Include proper span
-                    .span = .emptyAt(0),
+                    .span = span,
                 }).abort();
             };
         },
@@ -221,11 +236,10 @@ fn resolveMemoryLocation(
 
             const combined = @as(isize, @intCast(address + assembly.air.origin)) + label.offset;
 
-            return std.math.cast(u16, combined) orelse {
+            return std.math.cast(u1, combined) orelse {
                 try debugger.reporter.report(.debugger_any_err, .{
                     .code = error.AddressTooLarge,
-                    // TODO: Include proper span
-                    .span = label.name,
+                    .span = span,
                 }).abort();
             };
         },
