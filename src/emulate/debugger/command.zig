@@ -2,6 +2,12 @@ const std = @import("std");
 
 const Span = @import("../../compile/Span.zig");
 
+pub const CommandSpanned = struct {
+    line: Span,
+    tag: Span,
+    value: Command,
+};
+
 pub const Command = union(enum) {
     help,
     @"continue",

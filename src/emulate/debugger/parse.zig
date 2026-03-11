@@ -7,6 +7,7 @@ const Lexer = @import("../../compile/parse/Lexer.zig");
 const parsing = @import("../../compile/parse/parsing.zig");
 const integers = @import("../../compile/parse/integers.zig");
 const Command = @import("command.zig").Command;
+const CommandSpanned = @import("command.zig").CommandSpanned;
 const tags = @import("tags.zig");
 
 pub fn Spanned(comptime K: type) type {
@@ -16,7 +17,7 @@ pub fn Spanned(comptime K: type) type {
 pub fn parseCommand(
     string: []const u8,
     reporter: *Reporter,
-) error{Reported}!?Command {
+) error{Reported}!?CommandSpanned {
     var lexer = Lexer.new(string, false);
 
     var parser: Parser = .{
@@ -28,62 +29,72 @@ pub fn parseCommand(
     const tag = try parser.parseCommandTag() orelse
         return null;
 
-    const command: Command = switch (tag.value) {
-        // TODO: Parse all commands
-        else => {
-            try reporter.report(.debugger_any_err, .{
-                .code = error.UnimplementedCommand,
-                .span = tag.span,
-            }).abort();
-        },
+    const value = try parser.parseCommandArguments(tag);
 
-        // Allow trailing arguments
-        .help => return .help,
-
-        inline .@"continue",
-        .registers,
-        .reset,
-        .quit,
-        .exit,
-        .step_over,
-        .step_out,
-        .break_list,
-        => |void_tag| @unionInit(Command, @tagName(void_tag), {}),
-
-        .print => .{ .print = .{
-            .location = try parser.nextLocation(),
-        } },
-
-        .move => .{ .move = .{
-            .location = try parser.nextLocation(),
-            .value = try parser.nextInteger(),
-        } },
-
-        .goto => .{ .goto = .{
-            .location = try parser.nextMemoryLocation(),
-        } },
-
-        .step_into => .{ .step_into = .{
-            .count = try parser.nextOptionalPositiveInt(),
-        } },
+    return .{
+        .line = .emptyAt(0),
+        .tag = .emptyAt(0),
+        .value = value,
     };
-
-    if (parser.next()) |span| {
-        try reporter.report(.debugger_any_err, .{
-            .code = error.UnexpectedArgument,
-            .span = span,
-        }).abort();
-    } else |err| switch (err) {
-        error.Eof => {}, // Good
-    }
-
-    return command;
 }
 
 const Parser = struct {
     lexer: *Lexer,
     source: []const u8,
     reporter: *Reporter,
+
+    fn parseCommandArguments(parser: *Parser, tag: Spanned(Command.Tag)) !Command {
+        const value: Command = switch (tag.value) {
+            // TODO: Parse all commands
+            else => {
+                try parser.reporter.report(.debugger_any_err, .{
+                    .code = error.UnimplementedCommand,
+                    .span = tag.span,
+                }).abort();
+            },
+
+            // Allow trailing arguments
+            .help => return .help,
+
+            inline .@"continue",
+            .registers,
+            .reset,
+            .quit,
+            .exit,
+            .step_over,
+            .step_out,
+            .break_list,
+            => |void_tag| @unionInit(Command, @tagName(void_tag), {}),
+
+            .print => .{ .print = .{
+                .location = try parser.nextLocation(),
+            } },
+
+            .move => .{ .move = .{
+                .location = try parser.nextLocation(),
+                .value = try parser.nextInteger(),
+            } },
+
+            .goto => .{ .goto = .{
+                .location = try parser.nextMemoryLocation(),
+            } },
+
+            .step_into => .{ .step_into = .{
+                .count = try parser.nextOptionalPositiveInt(),
+            } },
+        };
+
+        if (parser.next()) |span| {
+            try parser.reporter.report(.debugger_any_err, .{
+                .code = error.UnexpectedArgument,
+                .span = span,
+            }).abort();
+        } else |err| switch (err) {
+            error.Eof => {}, // Good
+        }
+
+        return value;
+    }
 
     fn next(parser: *Parser) error{Eof}!Span {
         while (true) {

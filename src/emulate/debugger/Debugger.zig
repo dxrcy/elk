@@ -10,6 +10,7 @@ const Span = @import("../../compile/Span.zig");
 const Runtime = @import("../Runtime.zig");
 const Input = @import("Input.zig");
 const Command = @import("command.zig").Command;
+const CommandSpanned = @import("command.zig").CommandSpanned;
 const parseCommand = @import("parse.zig").parseCommand;
 
 input: Input,
@@ -121,10 +122,10 @@ fn tryNextAction(debugger: *Debugger, runtime: *Runtime) !?Action {
 fn runCommand(
     debugger: *Debugger,
     runtime: *Runtime,
-    command: Command,
+    command: CommandSpanned,
     source: []const u8,
 ) !?Action {
-    switch (command) {
+    switch (command.value) {
         // TODO: Implement all commands
         else => {
             debugger.reporter.report(.debugger_any_err, .{
