@@ -211,9 +211,27 @@ fn runCommand(
                 source,
             ) catch return null;
 
-            // FIXME: Handle overflow
+            if (address < Runtime.USER_MEMORY_START or
+                address > Runtime.USER_MEMORY_END)
+            {
+                debugger.reporter.report(.debugger_any_err, .{
+                    .code = error.AddressNotInUserMemory,
+                    .span = arguments.location.span,
+                }).abort() catch
+                    return null;
+            }
+
+            // Overflow is not possible since address is in user memory
             const index = address - assembly.air.origin;
-            // FIXME: Handle OOB
+
+            if (index >= assembly.air.lines.items.len) {
+                debugger.reporter.report(.debugger_any_err, .{
+                    .code = error.AddressNotInAssembly,
+                    .span = arguments.location.span,
+                }).abort() catch
+                    return null;
+            }
+
             const line = assembly.air.lines.items[index];
 
             // This is NOT a hack, I promise.

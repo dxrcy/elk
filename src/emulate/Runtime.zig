@@ -13,9 +13,9 @@ pub const Callback = @import("../callback.zig").Callback;
 pub const Debugger = @import("debugger/Debugger.zig");
 pub const Instruction = @import("decode.zig").Instruction;
 
-const MEMORY_SIZE = 0x1_0000;
-const USER_MEMORY_START = 0x3000;
-const USER_MEMORY_END = 0xFDFF;
+pub const MEMORY_SIZE = 0x1_0000;
+pub const USER_MEMORY_START = 0x3000;
+pub const USER_MEMORY_END = 0xFDFF;
 
 state: State,
 
