@@ -12,8 +12,11 @@ const Input = @import("Input.zig");
 const Command = @import("Command.zig");
 const parseCommand = @import("parse.zig").parseCommand;
 
-input: Input,
 status: Status,
+instruction_count: usize,
+should_echo_pc: bool,
+
+input: Input,
 
 assembly: ?Assembly,
 reporter: *Reporter,
@@ -43,8 +46,10 @@ pub fn init(
     assembly: ?Assembly,
 ) Debugger {
     return .{
-        .input = .init(gpa, reader, writer),
         .status = .get_action,
+        .instruction_count = 0,
+        .should_echo_pc = true,
+        .input = .init(gpa, reader, writer),
         .assembly = assembly,
         .reporter = reporter,
     };
@@ -60,6 +65,7 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
 
     switch (try debugger.nextAction(runtime)) {
         .proceed => {
+            debugger.instruction_count += 1;
             return .@"continue";
         },
         .disable_debugger => {
@@ -95,6 +101,17 @@ fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
 
 fn tryNextAction(debugger: *Debugger, runtime: *Runtime) !?Action {
     assert(debugger.status == .get_action);
+
+    if (debugger.should_echo_pc)
+        std.debug.print("| Program counter is at: 0x{x:04}.\n", .{runtime.state.pc});
+    if (debugger.instruction_count > 0)
+        std.debug.print("| Executed {} instruction{s}.\n", .{
+            debugger.instruction_count,
+            if (debugger.instruction_count == 1) "" else "s",
+        });
+
+    debugger.should_echo_pc = false;
+    debugger.instruction_count = 0;
 
     var command_buffer: [20]u8 = undefined;
     debugger.input.editor.setBuffer(&command_buffer);
@@ -204,6 +221,7 @@ fn runCommand(
                 return null;
             runtime.state.pc = address;
             try runtime.writer.interface.print("Set program counter to 0x{x:04}.\n", .{address});
+            // debugger.should_echo_pc = true;
         },
 
         .assembly => |arguments| {
@@ -236,6 +254,7 @@ fn runCommand(
             debugger.status = .{ .step_into = .{
                 .count = arguments.count.value - 1,
             } };
+            debugger.should_echo_pc = true;
         },
     }
 
