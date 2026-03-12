@@ -167,7 +167,7 @@ fn runCommand(
 
         .print => |arguments| switch (arguments.location.value) {
             .register => |register| {
-                try runtime.writer.interface.print("Register R{}:\n", .{register});
+                try runtime.writer.interface.print("| Register R{}:\n", .{register});
                 try runtime.printInteger(runtime.state.registers[register]);
             },
             .memory => |memory| {
@@ -178,7 +178,7 @@ fn runCommand(
                     source,
                 ) catch
                     return null;
-                try runtime.writer.interface.print("Memory at address 0x{x:04}:\n", .{address});
+                try runtime.writer.interface.print("| Memory at address 0x{x:04}:\n", .{address});
                 try runtime.printInteger(runtime.state.memory[address]);
             },
         },
@@ -187,7 +187,7 @@ fn runCommand(
             .register => |register| {
                 runtime.state.registers[register] = arguments.value.value;
                 try runtime.writer.interface.print(
-                    "Updated register R{} to 0x{x:04}.n",
+                    "| Updated register R{} to 0x{x:04}.n",
                     .{ register, arguments.value.value },
                 );
             },
@@ -203,7 +203,7 @@ fn runCommand(
                     return null;
                 runtime.state.memory[address] = arguments.value.value;
                 try runtime.writer.interface.print(
-                    "Updated memory at address 0x{x:04} to 0x{x:04}.\n",
+                    "| Updated memory at address 0x{x:04} to 0x{x:04}.\n",
                     .{ address, arguments.value.value },
                 );
             },
@@ -220,7 +220,7 @@ fn runCommand(
             debugger.ensureUserAddress(address, arguments.location.span) catch
                 return null;
             runtime.state.pc = address;
-            try runtime.writer.interface.print("Set program counter to 0x{x:04}.\n", .{address});
+            try runtime.writer.interface.print("| Set program counter to 0x{x:04}.\n", .{address});
             // debugger.should_echo_pc = true;
         },
 
