@@ -45,7 +45,7 @@ pub const State = struct {
         };
     }
 
-    pub fn deinit(state: *State, gpa: Allocator) void {
+    pub fn deinit(state: State, gpa: Allocator) void {
         defer gpa.free(state.memory);
     }
 };
@@ -103,7 +103,7 @@ pub fn init(
     };
 }
 
-pub fn deinit(runtime: *Runtime, gpa: Allocator) void {
+pub fn deinit(runtime: Runtime, gpa: Allocator) void {
     runtime.state.deinit(gpa);
 }
 
