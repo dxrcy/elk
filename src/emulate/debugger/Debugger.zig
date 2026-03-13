@@ -16,6 +16,7 @@ const parseCommand = @import("parse.zig").parseCommand;
 status: Status,
 instruction_count: usize,
 should_echo_pc: bool,
+halt_address: ?u16,
 
 input: Input,
 
@@ -50,6 +51,7 @@ pub fn init(
         .status = .get_action,
         .instruction_count = 0,
         .should_echo_pc = true,
+        .halt_address = null,
         .input = .init(gpa, reader, writer),
         .assembly = assembly,
         .reporter = reporter,
@@ -64,10 +66,13 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
     if (debugger.status == .inactive)
         return .@"continue";
 
+    if (debugger.halt_address) |address| {
+        if (address == runtime.state.pc)
+            std.log.debug("at halt address", .{});
+    }
+
     switch (try debugger.nextAction(runtime)) {
-        .proceed => {
-            debugger.instruction_count += 1;
-        },
+        .proceed => {},
         .disable_debugger => {
             debugger.status = .inactive;
             return .@"continue";
@@ -77,12 +82,21 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
         },
     }
 
-    if (debugger.checkInstruction(runtime) == .halt) {
-        std.log.debug("reached halt", .{});
-        return .@"continue";
+    if (debugger.halt_address) |address| {
+        if (address == runtime.state.pc)
+            return .@"continue";
+        debugger.halt_address = null;
     }
 
+    debugger.instruction_count += 1;
+
     return null;
+}
+
+pub fn catchHalt(debugger: *Debugger, runtime: *const Runtime) void {
+    std.log.debug("caught halt", .{});
+    debugger.status = .get_action;
+    debugger.halt_address = runtime.state.pc;
 }
 
 const DebuggerInstruction = enum { halt, ret };

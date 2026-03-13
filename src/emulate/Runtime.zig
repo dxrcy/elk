@@ -229,9 +229,15 @@ fn runInstruction(runtime: *Runtime, instr: Instruction) Error!Control {
                 // No trap callback declared
                 // Either trap was never registered, or only registered for alias
                 return error.UnhandledTrap;
+
             callback.call(.{runtime}) catch |err| switch (err) {
-                error.Halt => return .@"break",
                 else => |err2| return err2,
+
+                error.Halt => {
+                    const debugger = runtime.debugger orelse
+                        return .@"break";
+                    debugger.catchHalt(runtime);
+                },
             };
         },
 
