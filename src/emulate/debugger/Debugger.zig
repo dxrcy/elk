@@ -31,6 +31,7 @@ pub const Assembly = struct {
 const Status = union(enum) {
     inactive,
     get_action,
+    step_over: struct { return_address: u16 },
     step_into: struct { count: u32 },
     @"continue",
 };
@@ -123,6 +124,13 @@ fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
             .get_action => {
                 return try debugger.tryNextAction(runtime) orelse
                     continue;
+            },
+            .step_over => |*info| {
+                if (runtime.state.pc != info.return_address)
+                    return .proceed;
+                std.log.debug("DONE", .{});
+                debugger.status = .get_action;
+                continue;
             },
             .step_into => |*info| {
                 if (info.count > 0) {
@@ -315,8 +323,12 @@ fn runCommand(
             try runtime.writer.interface.print("[{s}]\n", .{arguments.string.view(source)});
         },
 
-        // TODO:
-        // .step_over => {},
+        .step_over => {
+            debugger.status = .{ .step_over = .{
+                .return_address = runtime.state.pc + 1,
+            } };
+            debugger.should_echo_pc = true;
+        },
 
         .step_into => |arguments| {
             debugger.status = .{ .step_into = .{
