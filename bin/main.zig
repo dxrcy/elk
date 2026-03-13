@@ -81,7 +81,7 @@ pub fn main(init: std.process.Init) !u8 {
             &reporter,
             .{ .air = &air, .source = source },
         );
-        defer debugger.deinit();
+        defer debugger.deinit(gpa);
 
         var runtime = try lcz.Runtime.init(
             gpa,
@@ -100,6 +100,8 @@ pub fn main(init: std.process.Init) !u8 {
 
         try runtime.readFromFile(io, obj_file, &read_buffer);
         // try air.emitRuntime(&runtime);
+
+        try debugger.initState(gpa, &runtime);
 
         runtime.run() catch |err| switch (err) {
             error.WriteFailed,

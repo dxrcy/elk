@@ -2,6 +2,7 @@ const Debugger = @This();
 
 const std = @import("std");
 const Io = std.Io;
+const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
 const Reporter = @import("../../report/Reporter.zig");
@@ -58,8 +59,18 @@ pub fn init(
     };
 }
 
-pub fn deinit(debugger: *Debugger) void {
+pub fn deinit(debugger: *Debugger, gpa: Allocator) void {
     debugger.input.deinit();
+    if (debugger.initial_state) |state|
+        state.deinit(gpa);
+}
+
+pub fn initState(
+    debugger: *Debugger,
+    gpa: Allocator,
+    runtime: *const Runtime,
+) error{OutOfMemory}!void {
+    debugger.initial_state = try runtime.state.dupe(gpa);
 }
 
 pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
