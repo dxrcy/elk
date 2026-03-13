@@ -8,6 +8,7 @@ const Reporter = @import("../../report/Reporter.zig");
 const Air = @import("../../compile/Air.zig");
 const Span = @import("../../compile/Span.zig");
 const Runtime = @import("../Runtime.zig");
+const Instruction = @import("../decode.zig").Instruction;
 const Input = @import("Input.zig");
 const Command = @import("Command.zig");
 const parseCommand = @import("parse.zig").parseCommand;
@@ -66,7 +67,6 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
     switch (try debugger.nextAction(runtime)) {
         .proceed => {
             debugger.instruction_count += 1;
-            return .@"continue";
         },
         .disable_debugger => {
             debugger.status = .inactive;
@@ -76,6 +76,38 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
             return .@"break";
         },
     }
+
+    if (debugger.checkInstruction(runtime) == .halt) {
+        std.log.debug("reached halt", .{});
+        return .@"continue";
+    }
+
+    return null;
+}
+
+const DebuggerInstruction = enum { halt, ret };
+
+fn checkInstruction(debugger: *Debugger, runtime: *const Runtime) ?DebuggerInstruction {
+    _ = debugger;
+
+    const word = runtime.state.memory[runtime.state.pc];
+    const instruction = Instruction.decode(word) catch
+        return null;
+
+    switch (instruction) {
+        .trap => |operands| {
+            switch (operands.vect) {
+                // FIXME: Do not hardcode trap vector for HALT !!!!!!!
+                // Idk what to do since traps are entirely user-defined. May need to tag trap
+                // implementations as "haltable" ???
+                // Or simulate the trap on a dummy Runtime, and check return value.
+                0x25 => return .halt,
+                else => {},
+            }
+        },
+        else => {},
+    }
+    return null;
 }
 
 fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
