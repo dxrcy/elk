@@ -80,6 +80,8 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
     if (debugger.status == .inactive)
         return .@"continue";
 
+    try runtime.writer.ensureNewline();
+
     if (debugger.isHalted(runtime))
         debugger.should_echo_pc = false
     else
