@@ -70,7 +70,8 @@ pub fn initState(
     gpa: Allocator,
     runtime: *const Runtime,
 ) error{OutOfMemory}!void {
-    debugger.initial_state = try runtime.state.dupe(gpa);
+    debugger.initial_state = try .init(gpa);
+    debugger.initial_state.?.copyFrom(runtime.state);
 }
 
 pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {

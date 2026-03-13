@@ -45,14 +45,13 @@ pub const State = struct {
         };
     }
 
-    pub fn dupe(state: State, gpa: Allocator) error{OutOfMemory}!State {
-        const memory = try gpa.alloc(u16, MEMORY_SIZE);
-        @memcpy(memory, state.memory);
-        return .{
-            .memory = memory,
-            .registers = .{ 0, 0, 0, 0, 0, 0, 0, USER_MEMORY_END },
-            .pc = 0x0000,
-            .condition = .zero,
+    pub fn copyFrom(dest: *State, src: State) void {
+        @memcpy(dest.memory, src.memory);
+        dest.* = .{
+            .memory = dest.memory,
+            .registers = src.registers,
+            .pc = src.pc,
+            .condition = src.condition,
         };
     }
 
