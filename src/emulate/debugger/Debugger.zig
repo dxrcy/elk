@@ -34,6 +34,7 @@ const Status = union(enum) {
     get_action,
     step_over: struct { return_address: u16 },
     step_into: struct { count: u32 },
+    step_out,
     @"continue",
 };
 
@@ -135,7 +136,6 @@ fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
             .step_over => |*info| {
                 if (runtime.state.pc != info.return_address)
                     return .proceed;
-                std.log.debug("DONE", .{});
                 debugger.status = .get_action;
                 continue;
             },
@@ -145,6 +145,9 @@ fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
                 } else {
                     debugger.status = .get_action;
                 }
+                return .proceed;
+            },
+            .step_out => {
                 return .proceed;
             },
             .@"continue" => {
@@ -332,6 +335,7 @@ fn runCommand(
                 .return_address = runtime.state.pc + 1,
             } };
             debugger.should_echo_pc = true;
+            // TODO: Print description
         },
 
         .step_into => |arguments| {
@@ -341,8 +345,12 @@ fn runCommand(
             debugger.should_echo_pc = true;
         },
 
-        // TODO:
-        // .step_out => {},
+        .step_out => {
+            debugger.status = .step_out;
+            debugger.should_echo_pc = true;
+            if (!debugger.isHalted(runtime))
+                try runtime.writer.interface.print("| Finishing subroutine execution...\n", .{});
+        },
 
         // TODO:
         // .break_list => {},
