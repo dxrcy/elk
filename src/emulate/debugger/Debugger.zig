@@ -47,6 +47,7 @@ pub fn init(
     reader: *Io.Reader,
     writer: *Io.Writer,
     reporter: *Reporter,
+    command_buffer: []u8,
     assembly: ?Assembly,
 ) Debugger {
     return .{
@@ -56,7 +57,7 @@ pub fn init(
         .halt_address = null,
         .initial_state = null,
         .assembly = assembly,
-        .input = .init(gpa, reader, writer),
+        .input = .init(gpa, reader, writer, command_buffer),
         .reporter = reporter,
     };
 }
@@ -165,9 +166,6 @@ fn tryNextAction(debugger: *Debugger, runtime: *Runtime) !?Action {
 
     debugger.instruction_count = 0;
     debugger.should_echo_pc = false;
-
-    var command_buffer: [20]u8 = undefined;
-    debugger.input.editor.setBuffer(&command_buffer);
 
     const command_string = debugger.readCommand(runtime) catch |err| switch (err) {
         else => |err2| return err2,

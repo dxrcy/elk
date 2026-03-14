@@ -13,10 +13,10 @@ history: History,
 cursor: usize,
 scrollback: ?usize,
 
-pub fn init(gpa: Allocator) Editor {
+pub fn init(gpa: Allocator, buffer: []u8) Editor {
     return .{
         .live = .{
-            .buffer = &.{},
+            .buffer = buffer,
             .length = 0,
         },
         .history = .{

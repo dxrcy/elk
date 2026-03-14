@@ -74,11 +74,13 @@ pub fn main(init: std.process.Init) !u8 {
             // .pre_execute = .withDataInit(*InstrCount, preExecuteHook, &instr_count),
         };
 
+        var debugger_buffer: [20]u8 = undefined;
         var debugger: lcz.Runtime.Debugger = .init(
             gpa,
             &reader.interface,
             &writer.interface,
             &reporter,
+            &debugger_buffer,
             .{ .air = &air, .source = source },
         );
         defer debugger.deinit(gpa);
