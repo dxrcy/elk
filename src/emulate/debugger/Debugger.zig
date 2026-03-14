@@ -113,6 +113,8 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
 }
 
 pub fn catchHalt(debugger: *Debugger, runtime: *Runtime) error{WriteFailed}!void {
+    // PC was incremented after decoding instruction; reverse that
+    runtime.state.pc -= 1;
     try runtime.writer.interface.print("| Program halted at 0x{x:04}.\n", .{runtime.state.pc});
     debugger.status = .get_action;
     debugger.halt_address = runtime.state.pc;
