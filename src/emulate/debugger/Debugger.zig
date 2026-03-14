@@ -11,13 +11,14 @@ const Span = @import("../../compile/Span.zig");
 const Runtime = @import("../Runtime.zig");
 const Input = @import("Input.zig");
 const Command = @import("Command.zig");
-const parseCommand = @import("parse.zig").parseCommand;
+const parse = @import("parse.zig");
 
 status: Status,
 instruction_count: usize,
 should_echo_pc: bool,
 halt_address: ?u16,
 
+current_line: []const u8,
 initial_state: ?Runtime.State,
 assembly: ?Assembly,
 input: Input,
@@ -55,6 +56,7 @@ pub fn init(
         .instruction_count = 0,
         .should_echo_pc = true,
         .halt_address = null,
+        .current_line = "",
         .initial_state = null,
         .assembly = assembly,
         .input = .init(gpa, reader, writer, command_buffer),
@@ -176,7 +178,7 @@ fn tryNextAction(debugger: *Debugger, runtime: *Runtime) !?Action {
 
     debugger.reporter.source = command_string;
 
-    const command = parseCommand(command_string, debugger.reporter) catch |err| switch (err) {
+    const command = parse.parseCommand(command_string, debugger.reporter) catch |err| switch (err) {
         error.Reported => return null,
     } orelse
         return null; // No tokens lexed
@@ -455,6 +457,16 @@ fn ensureUserAddress(debugger: *Debugger, address: u16, span: Span) error{Report
 }
 
 fn readCommand(debugger: *Debugger, runtime: *Runtime) ![]const u8 {
+    const line = try debugger.readInputLine(runtime);
+    const first, const rest = parse.splitCommandLine(line);
+    debugger.current_line = rest;
+    return first;
+}
+
+fn readInputLine(debugger: *Debugger, runtime: *Runtime) ![]const u8 {
+    if (debugger.current_line.len > 0)
+        return debugger.current_line;
+
     try runtime.writer.ensureNewline();
     try runtime.tty.enableRawMode();
     const line = debugger.input.readLine();

@@ -10,6 +10,19 @@ const Command = @import("Command.zig");
 const tags = @import("tags.zig");
 const Spanned = Command.Spanned;
 
+pub fn splitCommandLine(line: []const u8) struct { []const u8, []const u8 } {
+    var lexer: Lexer = .new(line, false);
+    const token_len = while (lexer.next()) |token| {
+        if (std.mem.eql(u8, token.view(line), ";"))
+            break token.len;
+    } else 0;
+
+    return .{
+        line[0 .. lexer.index - token_len],
+        line[lexer.index..],
+    };
+}
+
 pub fn parseCommand(
     string: []const u8,
     reporter: *Reporter,
@@ -28,9 +41,7 @@ pub fn parseCommand(
     const value = try parser.parseCommandArguments(tag);
 
     return .{
-        // This is redundant for now, but will be useful when a line can contain multiple commands
-        .line = .fromBounds(0, string.len),
-
+        .line = .fromBounds(0, parser.lexer.index),
         .tag = tag.span,
         .value = value,
     };
@@ -108,8 +119,11 @@ const Parser = struct {
         while (true) {
             const token = parser.lexer.next() orelse
                 return error.Eof;
-            if (!std.mem.eql(u8, token.view(parser.source), ","))
-                return token;
+            if (std.mem.eql(u8, token.view(parser.source), ";"))
+                unreachable;
+            if (std.mem.eql(u8, token.view(parser.source), ","))
+                continue;
+            return token;
         }
     }
 
