@@ -137,7 +137,8 @@ fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
             .step_over => |*info| {
                 if (runtime.state.pc != info.return_address)
                     return .proceed;
-                // TODO: Print description
+                if (debugger.instruction_count > 1)
+                    try runtime.writer.interface.print("| Reached end of subroutine.\n", .{});
                 debugger.status = .get_action;
                 continue;
             },
@@ -152,7 +153,7 @@ fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
             .step_out => {
                 const instruction = getNextInstruction(runtime);
                 if (instruction == .ret_rets) {
-                    // TODO: Print description
+                    try runtime.writer.interface.print("| Reached end of subroutine.\n", .{});
                     debugger.status = .get_action;
                 }
                 return .proceed;
@@ -356,7 +357,7 @@ fn runCommand(
                 .return_address = runtime.state.pc + 1,
             } };
             debugger.should_echo_pc = true;
-            // TODO: Print description
+            // Don't print message here, we can't know if next instruction will change PC.
         },
 
         .step_into => |arguments| {
