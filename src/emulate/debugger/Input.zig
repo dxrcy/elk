@@ -18,6 +18,7 @@ pub const Key = union(enum) {
     enter,
     eot,
     bs,
+    ctrl_c,
     escape: Escape,
 
     pub const Escape = enum {

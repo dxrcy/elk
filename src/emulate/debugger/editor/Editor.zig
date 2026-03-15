@@ -43,6 +43,8 @@ pub fn handleKey(editor: *Editor, key: Key) !void {
     assert(editor.cursor <= editor.getString().len);
 
     switch (key) {
+        .ctrl_c => std.process.exit(0),
+
         .enter => return error.EndOfLine,
         .eot => return error.EndOfStream,
 
