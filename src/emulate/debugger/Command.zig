@@ -14,8 +14,11 @@ value: Value,
 
 pub const Value = union(enum) {
     help,
-    @"continue",
+    quit,
+    exit,
+    reset,
     registers,
+    @"continue",
     print: struct {
         location: Spanned(Location),
     },
@@ -35,9 +38,6 @@ pub const Value = union(enum) {
     echo: struct {
         string: Span,
     },
-    reset,
-    quit,
-    exit,
     step_over,
     step_into: struct {
         count: Spanned(u16),

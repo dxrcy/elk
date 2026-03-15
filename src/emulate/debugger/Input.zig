@@ -28,9 +28,9 @@ pub const Key = union(enum) {
     };
 };
 
-pub fn init(gpa: Allocator, reader: *Io.Reader, writer: *Io.Writer) Input {
+pub fn init(gpa: Allocator, reader: *Io.Reader, writer: *Io.Writer, buffer: []u8) Input {
     return .{
-        .editor = .init(gpa),
+        .editor = .init(gpa, buffer),
         .reader = reader,
         .writer = writer,
     };
@@ -41,6 +41,7 @@ pub fn deinit(input: *Input) void {
 }
 
 pub fn readLine(input: *Input) ![]const u8 {
+    input.editor.clear();
     var eof = false;
 
     while (true) {
@@ -79,7 +80,6 @@ pub fn readLine(input: *Input) ![]const u8 {
     input.editor.makeLive();
     const line = input.editor.getString();
     input.editor.history.push(line);
-    input.editor.clear();
     return line;
 }
 

@@ -6,16 +6,15 @@ const Allocator = std.mem.Allocator;
 
 const Policies = @import("../Policies.zig");
 const Traps = @import("../Traps.zig");
-const NewlineTracker = @import("NewlineTracker.zig");
 const Tty = @import("Tty.zig");
 
 pub const Callback = @import("../callback.zig").Callback;
 pub const Debugger = @import("debugger/Debugger.zig");
 pub const Instruction = @import("decode.zig").Instruction;
 
-const MEMORY_SIZE = 0x1_0000;
-const USER_MEMORY_START = 0x3000;
-const USER_MEMORY_END = 0xFDFF;
+pub const MEMORY_SIZE = 0x1_0000;
+pub const USER_MEMORY_START = 0x3000;
+pub const USER_MEMORY_END = 0xFDFF;
 
 state: State,
 
@@ -25,14 +24,40 @@ policies: *const Policies,
 debugger: ?*Debugger,
 
 reader: *Io.Reader,
-writer: NewlineTracker,
+writer: *Io.Writer,
+writer_is_newline: bool,
 tty: Tty,
 
-const State = struct {
+pub const State = struct {
     memory: []u16,
     registers: [8]u16,
     pc: u16,
     condition: Condition,
+
+    pub fn init(gpa: Allocator) error{OutOfMemory}!State {
+        const memory = try gpa.alloc(u16, MEMORY_SIZE);
+        @memset(memory, 0x0000);
+        return .{
+            .memory = memory,
+            .registers = .{ 0, 0, 0, 0, 0, 0, 0, USER_MEMORY_END },
+            .pc = 0x0000,
+            .condition = .zero,
+        };
+    }
+
+    pub fn copyFrom(dest: *State, src: State) void {
+        @memcpy(dest.memory, src.memory);
+        dest.* = .{
+            .memory = dest.memory,
+            .registers = src.registers,
+            .pc = src.pc,
+            .condition = src.condition,
+        };
+    }
+
+    pub fn deinit(state: State, gpa: Allocator) void {
+        defer gpa.free(state.memory);
+    }
 };
 
 pub const Error = ProgramError || IoError;
@@ -76,28 +101,21 @@ pub fn init(
     policies: *const Policies,
     debugger: ?*Debugger,
 ) !Runtime {
-    const memory = try gpa.alloc(u16, MEMORY_SIZE);
-    @memset(memory, 0x0000);
-
     return .{
-        .state = .{
-            .memory = memory,
-            .registers = .{ 0, 0, 0, 0, 0, 0, 0, USER_MEMORY_END },
-            .pc = 0x0000,
-            .condition = .zero,
-        },
+        .state = try .init(gpa),
         .traps = traps,
         .hooks = hooks,
         .policies = policies,
         .debugger = debugger,
         .reader = reader,
-        .writer = .new(writer),
+        .writer = writer,
+        .writer_is_newline = true,
         .tty = .uninit,
     };
 }
 
 pub fn deinit(runtime: Runtime, gpa: Allocator) void {
-    defer gpa.free(runtime.state.memory);
+    runtime.state.deinit(gpa);
 }
 
 pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !void {
@@ -126,7 +144,7 @@ pub fn run(runtime: *Runtime) Error!void {
     while (true) {
         if (runtime.debugger) |debugger| {
             if (try debugger.invoke(runtime)) |control| switch (control) {
-                .@"continue" => {},
+                .@"continue" => continue,
                 .@"break" => break,
             };
         }
@@ -229,9 +247,15 @@ fn runInstruction(runtime: *Runtime, instr: Instruction) Error!Control {
                 // No trap callback declared
                 // Either trap was never registered, or only registered for alias
                 return error.UnhandledTrap;
+
             callback.call(.{runtime}) catch |err| switch (err) {
-                error.Halt => return .@"break",
                 else => |err2| return err2,
+
+                error.Halt => {
+                    const debugger = runtime.debugger orelse
+                        return .@"break";
+                    try debugger.catchHalt(runtime);
+                },
             };
         },
 
@@ -301,19 +325,31 @@ pub fn readByte(runtime: *const Runtime) error{ EndOfStream, ReadFailed }!u8 {
     return char;
 }
 
+pub fn ensureWriterNewline(runtime: *Runtime) error{WriteFailed}!void {
+    if (runtime.writer_is_newline)
+        return;
+    try runtime.writer.writeByte('\n');
+    runtime.writer_is_newline = true;
+}
+
+pub fn writeProgramChar(runtime: *Runtime, char: u8) error{WriteFailed}!void {
+    try runtime.writer.writeByte(char);
+    runtime.writer_is_newline = char == '\n';
+}
+
 pub fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
-    try runtime.writer.ensureNewline();
-    try runtime.writer.interface.print("+-----------------------------------+\n", .{});
-    try runtime.writer.interface.print("|        hex      int    uint   chr |\n", .{});
+    try runtime.ensureWriterNewline();
+    try runtime.writer.print("+-----------------------------------+\n", .{});
+    try runtime.writer.print("|        hex      int    uint   chr |\n", .{});
 
     for (runtime.state.registers, 0..8) |word, i| {
-        try runtime.writer.interface.print("| R{}  ", .{i});
+        try runtime.writer.print("| R{}  ", .{i});
         try runtime.printIntegerForms(word);
-        try runtime.writer.interface.print(" |\n", .{});
+        try runtime.writer.print(" |\n", .{});
     }
 
-    try runtime.writer.interface.print("+-----------------+-----------------+\n", .{});
-    try runtime.writer.interface.print(
+    try runtime.writer.print("+-----------------+-----------------+\n", .{});
+    try runtime.writer.print(
         "|    PC 0x{x:04}    |   CC {s}   |\n",
         .{ runtime.state.pc, switch (runtime.state.condition) {
             .negative => "NEGATIVE",
@@ -321,23 +357,23 @@ pub fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
             .positive => "POSITIVE",
         } },
     );
-    try runtime.writer.interface.print("+-----------------+-----------------+\n", .{});
+    try runtime.writer.print("+-----------------+-----------------+\n", .{});
 }
 
 pub fn printInteger(runtime: *Runtime, integer: u16) error{WriteFailed}!void {
-    try runtime.writer.ensureNewline();
-    try runtime.writer.interface.print("+-------------------------------+\n", .{});
-    try runtime.writer.interface.print("|    hex      int    uint   chr |\n", .{});
+    try runtime.ensureWriterNewline();
+    try runtime.writer.print("+-------------------------------+\n", .{});
+    try runtime.writer.print("|    hex      int    uint   chr |\n", .{});
 
-    try runtime.writer.interface.print("| ", .{});
+    try runtime.writer.print("| ", .{});
     try runtime.printIntegerForms(integer);
-    try runtime.writer.interface.print(" |\n", .{});
+    try runtime.writer.print(" |\n", .{});
 
-    try runtime.writer.interface.print("+-------------------------------+\n", .{});
+    try runtime.writer.print("+-------------------------------+\n", .{});
 }
 
 fn printIntegerForms(runtime: *Runtime, word: u16) error{WriteFailed}!void {
-    try runtime.writer.interface.print(
+    try runtime.writer.print(
         "0x{x:04}  {:7}  {:6}   ",
         .{ word, @as(i16, @bitCast(word)), word },
     );
@@ -356,7 +392,7 @@ fn printDisplayChar(runtime: *Runtime, word: u16) error{WriteFailed}!void {
         " p ", " q ", " r ",  " s ", " t ", " u ", " v ", " w ", " x ", " y ", " z ", " { ", " | ",  " } ", " ~ ", "DEL",
     };
     const display = if (word > 0x80) "---" else ascii[word];
-    try runtime.writer.interface.print("{s}", .{display});
+    try runtime.writer.print("{s}", .{display});
 }
 
 fn signExtend(value: anytype) u16 {

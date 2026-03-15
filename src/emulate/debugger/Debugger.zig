@@ -2,20 +2,27 @@ const Debugger = @This();
 
 const std = @import("std");
 const Io = std.Io;
+const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
 const Reporter = @import("../../report/Reporter.zig");
 const Air = @import("../../compile/Air.zig");
 const Span = @import("../../compile/Span.zig");
 const Runtime = @import("../Runtime.zig");
+const Instruction = @import("../decode.zig").Instruction;
 const Input = @import("Input.zig");
 const Command = @import("Command.zig");
-const parseCommand = @import("parse.zig").parseCommand;
+const parse = @import("parse.zig");
 
-input: Input,
 status: Status,
+instruction_count: usize,
+should_echo_pc: bool,
+halt_address: ?u16,
 
+current_line: []const u8,
+initial_state: ?Runtime.State,
 assembly: ?Assembly,
+input: Input,
 reporter: *Reporter,
 
 pub const Assembly = struct {
@@ -26,7 +33,10 @@ pub const Assembly = struct {
 const Status = union(enum) {
     inactive,
     get_action,
+    step_over: struct { return_address: u16 },
     step_into: struct { count: u32 },
+    step_out,
+    @"continue",
 };
 
 const Action = enum {
@@ -40,28 +50,50 @@ pub fn init(
     reader: *Io.Reader,
     writer: *Io.Writer,
     reporter: *Reporter,
+    command_buffer: []u8,
     assembly: ?Assembly,
 ) Debugger {
     return .{
-        .input = .init(gpa, reader, writer),
         .status = .get_action,
+        .instruction_count = 0,
+        .should_echo_pc = true,
+        .halt_address = null,
+        .current_line = "",
+        .initial_state = null,
         .assembly = assembly,
+        .input = .init(gpa, reader, writer, command_buffer),
         .reporter = reporter,
     };
 }
 
-pub fn deinit(debugger: *Debugger) void {
+pub fn deinit(debugger: *Debugger, gpa: Allocator) void {
     debugger.input.deinit();
+    if (debugger.initial_state) |state|
+        state.deinit(gpa);
+}
+
+pub fn initState(
+    debugger: *Debugger,
+    gpa: Allocator,
+    runtime: *const Runtime,
+) error{OutOfMemory}!void {
+    debugger.initial_state = try .init(gpa);
+    debugger.initial_state.?.copyFrom(runtime.state);
 }
 
 pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
     if (debugger.status == .inactive)
         return .@"continue";
 
+    try runtime.ensureWriterNewline();
+
+    if (debugger.isHalted(runtime))
+        debugger.should_echo_pc = false
+    else
+        debugger.halt_address = null;
+
     switch (try debugger.nextAction(runtime)) {
-        .proceed => {
-            return .@"continue";
-        },
+        .proceed => {},
         .disable_debugger => {
             debugger.status = .inactive;
             return .@"continue";
@@ -70,6 +102,28 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
             return .@"break";
         },
     }
+
+    if (debugger.isHalted(runtime)) {
+        try runtime.writer.print("| Currently halted at 0x{x:04}.\n", .{runtime.state.pc});
+        debugger.status = .get_action;
+        return .@"continue";
+    }
+
+    debugger.instruction_count += 1;
+
+    return null;
+}
+
+pub fn catchHalt(debugger: *Debugger, runtime: *Runtime) error{WriteFailed}!void {
+    // PC was incremented after decoding instruction; reverse that
+    runtime.state.pc -= 1;
+    try runtime.writer.print("| Program halted at 0x{x:04}.\n", .{runtime.state.pc});
+    debugger.status = .get_action;
+    debugger.halt_address = runtime.state.pc;
+}
+
+fn isHalted(debugger: *const Debugger, runtime: *const Runtime) bool {
+    return debugger.halt_address == runtime.state.pc;
 }
 
 fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
@@ -80,6 +134,14 @@ fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
                 return try debugger.tryNextAction(runtime) orelse
                     continue;
             },
+            .step_over => |*info| {
+                if (runtime.state.pc != info.return_address)
+                    return .proceed;
+                if (debugger.instruction_count > 1)
+                    try runtime.writer.print("| Reached end of subroutine.\n", .{});
+                debugger.status = .get_action;
+                continue;
+            },
             .step_into => |*info| {
                 if (info.count > 0) {
                     info.count -= 1;
@@ -88,16 +150,51 @@ fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
                 }
                 return .proceed;
             },
+            .step_out => {
+                const instruction = getNextInstruction(runtime);
+                if (instruction == .ret_rets) {
+                    try runtime.writer.print("| Reached end of subroutine.\n", .{});
+                    debugger.status = .get_action;
+                }
+                return .proceed;
+            },
+            .@"continue" => {
+                return .proceed;
+            },
         }
         comptime unreachable;
     }
 }
 
+fn getNextInstruction(runtime: *const Runtime) ?enum { ret_rets } {
+    const word = runtime.state.memory[runtime.state.pc];
+    const instruction = Instruction.decode(word) catch
+        return null;
+    switch (instruction) {
+        .jmp_ret => |operands| if (operands.base == 7)
+            return .ret_rets,
+        .pop_push_rets_call => |variant| if (variant == .rets)
+            return .ret_rets,
+        else => {},
+    }
+    return null;
+}
+
 fn tryNextAction(debugger: *Debugger, runtime: *Runtime) !?Action {
     assert(debugger.status == .get_action);
 
-    var command_buffer: [20]u8 = undefined;
-    debugger.input.editor.setBuffer(&command_buffer);
+    if (debugger.instruction_count > 0)
+        try runtime.writer.print("| Executed {} instruction{s}.\n", .{
+            debugger.instruction_count,
+            if (debugger.instruction_count == 1) "" else "s",
+        });
+    if (debugger.should_echo_pc)
+        try runtime.writer.print("| Program counter is at 0x{x:04}.\n", .{
+            runtime.state.pc,
+        });
+
+    debugger.instruction_count = 0;
+    debugger.should_echo_pc = false;
 
     const command_string = debugger.readCommand(runtime) catch |err| switch (err) {
         else => |err2| return err2,
@@ -108,7 +205,7 @@ fn tryNextAction(debugger: *Debugger, runtime: *Runtime) !?Action {
 
     debugger.reporter.source = command_string;
 
-    const command = parseCommand(command_string, debugger.reporter) catch |err| switch (err) {
+    const command = parse.parseCommand(command_string, debugger.reporter) catch |err| switch (err) {
         error.Reported => return null,
     } orelse
         return null; // No tokens lexed
@@ -117,7 +214,7 @@ fn tryNextAction(debugger: *Debugger, runtime: *Runtime) !?Action {
         error.Reported => return null,
         else => |err2| return err2,
     };
-    try runtime.writer.interface.flush();
+    try runtime.writer.flush();
     return action;
 }
 
@@ -128,7 +225,6 @@ fn runCommand(
     source: []const u8,
 ) !?Action {
     switch (command.value) {
-        // TODO: Implement all commands
         else => {
             debugger.reporter.report(.debugger_any_err, .{
                 .code = error.UnimplementedCommand,
@@ -137,20 +233,40 @@ fn runCommand(
                 return null;
         },
 
+        .help => {
+            try runtime.writer.writeAll(@embedFile("help.txt"));
+        },
+
         .quit => return .disable_debugger,
         .exit => return .stop_runtime,
 
-        .help => {
-            try runtime.writer.interface.writeAll(@embedFile("help.txt"));
+        .reset => {
+            const state = debugger.initial_state orelse {
+                debugger.reporter.report(.debugger_any_err, .{
+                    .code = error.NoInitialState,
+                    .span = command.tag,
+                }).abort() catch
+                    return null;
+            };
+            runtime.state.copyFrom(state);
+            try runtime.writer.print("| Reset registers and memory to initial state.\n", .{});
+            debugger.should_echo_pc = true;
         },
 
         .registers => {
             try runtime.printRegisters();
         },
 
+        .@"continue" => {
+            debugger.status = .@"continue";
+            debugger.should_echo_pc = true;
+            if (!debugger.isHalted(runtime))
+                try runtime.writer.print("| Continuing program execution...\n", .{});
+        },
+
         .print => |arguments| switch (arguments.location.value) {
             .register => |register| {
-                try runtime.writer.interface.print("Register R{}:\n", .{register});
+                try runtime.writer.print("| Register R{}:\n", .{register});
                 try runtime.printInteger(runtime.state.registers[register]);
             },
             .memory => |memory| {
@@ -161,7 +277,7 @@ fn runCommand(
                     source,
                 ) catch
                     return null;
-                try runtime.writer.interface.print("Memory at address 0x{x:04}:\n", .{address});
+                try runtime.writer.print("| Memory at address 0x{x:04}:\n", .{address});
                 try runtime.printInteger(runtime.state.memory[address]);
             },
         },
@@ -169,8 +285,8 @@ fn runCommand(
         .move => |arguments| switch (arguments.location.value) {
             .register => |register| {
                 runtime.state.registers[register] = arguments.value.value;
-                try runtime.writer.interface.print(
-                    "Updated register R{} to 0x{x:04}.n",
+                try runtime.writer.print(
+                    "| Updated register R{} to 0x{x:04}.n",
                     .{ register, arguments.value.value },
                 );
             },
@@ -182,9 +298,11 @@ fn runCommand(
                     source,
                 ) catch
                     return null;
+                debugger.ensureUserAddress(address, arguments.location.span) catch
+                    return null;
                 runtime.state.memory[address] = arguments.value.value;
-                try runtime.writer.interface.print(
-                    "Updated memory at address 0x{x:04} to 0x{x:04}.\n",
+                try runtime.writer.print(
+                    "| Updated memory at address 0x{x:04} to 0x{x:04}.\n",
                     .{ address, arguments.value.value },
                 );
             },
@@ -198,8 +316,11 @@ fn runCommand(
                 source,
             ) catch
                 return null;
+            debugger.ensureUserAddress(address, arguments.location.span) catch
+                return null;
             runtime.state.pc = address;
-            try runtime.writer.interface.print("Set program counter to 0x{x:04}.\n", .{address});
+            try runtime.writer.print("| Set program counter to 0x{x:04}.\n", .{address});
+            // debugger.should_echo_pc = true;
         },
 
         .assembly => |arguments| {
@@ -211,13 +332,11 @@ fn runCommand(
                 source,
             ) catch return null;
 
-            // FIXME: Handle overflow
-            const index = address - assembly.air.origin;
-            // FIXME: Handle OOB
-            const line = assembly.air.lines.items[index];
+            const line = debugger.getAssemblyLine(&assembly, address, arguments.location.span) catch
+                return null;
 
-            // HACK: What the hell is this
-            const reporter = debugger.reporter;
+            // This is NOT a hack, I promise.
+            var reporter = debugger.reporter.copyImplementation();
             reporter.source = assembly.source;
 
             reporter.report(.debugger_any_info, .{
@@ -226,18 +345,64 @@ fn runCommand(
             }).proceed();
         },
 
+        // TODO:
+        // .eval => {},
+
         .echo => |arguments| {
-            try runtime.writer.interface.print("[{s}]\n", .{arguments.string.view(source)});
+            try runtime.writer.print("[{s}]\n", .{arguments.string.view(source)});
+        },
+
+        .step_over => {
+            debugger.status = .{ .step_over = .{
+                .return_address = runtime.state.pc + 1,
+            } };
+            debugger.should_echo_pc = true;
+            // Don't print message here, we can't know if next instruction will change PC.
         },
 
         .step_into => |arguments| {
             debugger.status = .{ .step_into = .{
                 .count = arguments.count.value - 1,
             } };
+            debugger.should_echo_pc = true;
         },
+
+        .step_out => {
+            debugger.status = .step_out;
+            debugger.should_echo_pc = true;
+            if (!debugger.isHalted(runtime))
+                try runtime.writer.print("| Finishing subroutine execution...\n", .{});
+        },
+
+        // TODO:
+        // .break_list => {},
+
+        // TODO:
+        // .break_add => {},
+
+        // TODO:
+        // .break_remove => {},
     }
 
     return null;
+}
+
+fn getAssemblyLine(
+    debugger: *Debugger,
+    assembly: *const Assembly,
+    address: u16,
+    span: Span,
+) error{Reported}!*const Air.Line {
+    try debugger.ensureUserAddress(address, span);
+    // Overflow is not possible since address is in user memory
+    const index = address - assembly.air.origin;
+    if (index >= assembly.air.lines.items.len) {
+        try debugger.reporter.report(.debugger_any_err, .{
+            .code = error.AddressNotInAssembly,
+            .span = span,
+        }).abort();
+    }
+    return &assembly.air.lines.items[index];
 }
 
 fn resolveMemoryLocation(
@@ -311,8 +476,30 @@ fn getAssembly(debugger: *const Debugger, span: Span) error{Reported}!Assembly {
     };
 }
 
+fn ensureUserAddress(debugger: *Debugger, address: u16, span: Span) error{Reported}!void {
+    switch (address) {
+        Runtime.USER_MEMORY_START...Runtime.USER_MEMORY_END => {},
+        else => {
+            try debugger.reporter.report(.debugger_any_err, .{
+                .code = error.AddressNotInUserMemory,
+                .span = span,
+            }).abort();
+        },
+    }
+}
+
 fn readCommand(debugger: *Debugger, runtime: *Runtime) ![]const u8 {
-    try runtime.writer.ensureNewline();
+    const line = try debugger.readInputLine(runtime);
+    const first, const rest = parse.splitCommandLine(line);
+    debugger.current_line = rest;
+    return first;
+}
+
+fn readInputLine(debugger: *Debugger, runtime: *Runtime) ![]const u8 {
+    if (debugger.current_line.len > 0)
+        return debugger.current_line;
+
+    try runtime.ensureWriterNewline();
     try runtime.tty.enableRawMode();
     const line = debugger.input.readLine();
     try runtime.tty.disableRawMode();

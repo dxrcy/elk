@@ -98,6 +98,16 @@ pub fn fromImplementation(ptr: *anyopaque, vtable: *const VTable) Reporter {
     };
 }
 
+pub fn copyImplementation(reporter: *const Reporter) Reporter {
+    return .{
+        .options = .{},
+        .count = .initFill(0),
+        .source = null,
+        .ptr = reporter.ptr,
+        .vtable = reporter.vtable,
+    };
+}
+
 pub fn report(
     reporter: *Reporter,
     comptime tag: std.meta.Tag(Diagnostic),

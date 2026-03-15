@@ -1,6 +1,8 @@
 # LC-Z
 
-Complete [LC-3](https://en.wikipedia.org/wiki/Little_Computer_3) toolchain (currently incomplete).
+Complete [LC-3](https://en.wikipedia.org/wiki/Little_Computer_3) toolchain
+(currently incomplete).
+Available as a both Zig library and a command-line program.
 
 > This project is *currently* unlicensed, so **do not** use, modify, or
 > distribute without my prior express permission.
@@ -9,7 +11,7 @@ Complete [LC-3](https://en.wikipedia.org/wiki/Little_Computer_3) toolchain (curr
 
 - [x] Assembler (includes linting)
 - [x] Emulator
-- [ ] Debugger
+- [x] Debugger
 - [ ] Formatter
 
 ## Optional Extension Features
