@@ -115,8 +115,37 @@ const KeyReader = struct {
         try key_reader.readSequence(&sequence);
 
         const slice = sequence.buffer[0..sequence.len];
+        assert(slice.len > 0);
 
-        std.debug.print("[{x}]\n", .{slice});
+        switch (slice[0]) {
+            control_code.esc => {},
+            control_code.cr, control_code.lf => return .enter,
+            control_code.bs, control_code.del => return .bs,
+            else => return .{ .char = slice[0] },
+        }
+
+        if (slice.len < 2 or slice[1] != '[')
+            return null;
+
+        const csi = slice[2..];
+
+        if (std.mem.eql(u8, csi, "99;5u"))
+            return .ctrl_c;
+
+        const escape_sequences = [_]struct { []const u8, Key.Escape }{
+            .{ "A", .cursor_up },
+            .{ "B", .cursor_down },
+            .{ "C", .cursor_forward },
+            .{ "D", .cursor_back },
+        };
+
+        for (escape_sequences) |entry| {
+            const key, const value = entry;
+            if (std.mem.eql(u8, csi, key))
+                return .{ .escape = value };
+        }
+
+        std.debug.print("[{s}]\n", .{csi});
 
         return null;
     }
