@@ -9,7 +9,7 @@ Complete [LC-3](https://en.wikipedia.org/wiki/Little_Computer_3) toolchain (curr
 
 - [x] Assembler (includes linting)
 - [x] Emulator
-- [ ] Debugger
+- [x] Debugger
 - [ ] Formatter
 
 ## Optional Extension Features
