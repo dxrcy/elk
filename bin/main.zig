@@ -152,6 +152,7 @@ fn emulate(
     reporter: *lcz.Reporter,
 ) !void {
     var write_buffer: [64]u8 = undefined;
+    var debugger_buffer: [64]u8 = undefined;
     var writer = Io.File.stdout().writer(io, &write_buffer);
     var reader = Io.File.stdin().reader(io, &.{});
 
@@ -160,12 +161,13 @@ fn emulate(
         &reader.interface,
         &writer.interface,
         reporter,
+        &debugger_buffer,
         switch (runtime_source) {
             .object => null,
             .assembly => |assembly| assembly,
         },
     ) else null;
-    defer if (debugger_opt) |*debugger| debugger.deinit();
+    defer if (debugger_opt) |*debugger| debugger.deinit(gpa);
 
     var runtime = try lcz.Runtime.init(
         gpa,
@@ -198,6 +200,6 @@ fn emulate(
         },
     };
 
-    try runtime.writer.ensureNewline();
-    try runtime.writer.interface.flush();
+    try runtime.ensureWriterNewline();
+    try runtime.writer.flush();
 }
