@@ -85,7 +85,7 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
     if (debugger.status == .inactive)
         return .@"continue";
 
-    try runtime.writer.ensureNewline();
+    try runtime.ensureWriterNewline();
 
     if (debugger.isHalted(runtime))
         debugger.should_echo_pc = false
@@ -104,7 +104,7 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
     }
 
     if (debugger.isHalted(runtime)) {
-        try runtime.writer.interface.print("| Currently halted at 0x{x:04}.\n", .{runtime.state.pc});
+        try runtime.writer.print("| Currently halted at 0x{x:04}.\n", .{runtime.state.pc});
         debugger.status = .get_action;
         return .@"continue";
     }
@@ -117,7 +117,7 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
 pub fn catchHalt(debugger: *Debugger, runtime: *Runtime) error{WriteFailed}!void {
     // PC was incremented after decoding instruction; reverse that
     runtime.state.pc -= 1;
-    try runtime.writer.interface.print("| Program halted at 0x{x:04}.\n", .{runtime.state.pc});
+    try runtime.writer.print("| Program halted at 0x{x:04}.\n", .{runtime.state.pc});
     debugger.status = .get_action;
     debugger.halt_address = runtime.state.pc;
 }
@@ -138,7 +138,7 @@ fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
                 if (runtime.state.pc != info.return_address)
                     return .proceed;
                 if (debugger.instruction_count > 1)
-                    try runtime.writer.interface.print("| Reached end of subroutine.\n", .{});
+                    try runtime.writer.print("| Reached end of subroutine.\n", .{});
                 debugger.status = .get_action;
                 continue;
             },
@@ -153,7 +153,7 @@ fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
             .step_out => {
                 const instruction = getNextInstruction(runtime);
                 if (instruction == .ret_rets) {
-                    try runtime.writer.interface.print("| Reached end of subroutine.\n", .{});
+                    try runtime.writer.print("| Reached end of subroutine.\n", .{});
                     debugger.status = .get_action;
                 }
                 return .proceed;
@@ -184,12 +184,12 @@ fn tryNextAction(debugger: *Debugger, runtime: *Runtime) !?Action {
     assert(debugger.status == .get_action);
 
     if (debugger.instruction_count > 0)
-        try runtime.writer.interface.print("| Executed {} instruction{s}.\n", .{
+        try runtime.writer.print("| Executed {} instruction{s}.\n", .{
             debugger.instruction_count,
             if (debugger.instruction_count == 1) "" else "s",
         });
     if (debugger.should_echo_pc)
-        try runtime.writer.interface.print("| Program counter is at 0x{x:04}.\n", .{
+        try runtime.writer.print("| Program counter is at 0x{x:04}.\n", .{
             runtime.state.pc,
         });
 
@@ -214,7 +214,7 @@ fn tryNextAction(debugger: *Debugger, runtime: *Runtime) !?Action {
         error.Reported => return null,
         else => |err2| return err2,
     };
-    try runtime.writer.interface.flush();
+    try runtime.writer.flush();
     return action;
 }
 
@@ -234,7 +234,7 @@ fn runCommand(
         },
 
         .help => {
-            try runtime.writer.interface.writeAll(@embedFile("help.txt"));
+            try runtime.writer.writeAll(@embedFile("help.txt"));
         },
 
         .quit => return .disable_debugger,
@@ -249,7 +249,7 @@ fn runCommand(
                     return null;
             };
             runtime.state.copyFrom(state);
-            try runtime.writer.interface.print("| Reset registers and memory to initial state.\n", .{});
+            try runtime.writer.print("| Reset registers and memory to initial state.\n", .{});
             debugger.should_echo_pc = true;
         },
 
@@ -261,12 +261,12 @@ fn runCommand(
             debugger.status = .@"continue";
             debugger.should_echo_pc = true;
             if (!debugger.isHalted(runtime))
-                try runtime.writer.interface.print("| Continuing program execution...\n", .{});
+                try runtime.writer.print("| Continuing program execution...\n", .{});
         },
 
         .print => |arguments| switch (arguments.location.value) {
             .register => |register| {
-                try runtime.writer.interface.print("| Register R{}:\n", .{register});
+                try runtime.writer.print("| Register R{}:\n", .{register});
                 try runtime.printInteger(runtime.state.registers[register]);
             },
             .memory => |memory| {
@@ -277,7 +277,7 @@ fn runCommand(
                     source,
                 ) catch
                     return null;
-                try runtime.writer.interface.print("| Memory at address 0x{x:04}:\n", .{address});
+                try runtime.writer.print("| Memory at address 0x{x:04}:\n", .{address});
                 try runtime.printInteger(runtime.state.memory[address]);
             },
         },
@@ -285,7 +285,7 @@ fn runCommand(
         .move => |arguments| switch (arguments.location.value) {
             .register => |register| {
                 runtime.state.registers[register] = arguments.value.value;
-                try runtime.writer.interface.print(
+                try runtime.writer.print(
                     "| Updated register R{} to 0x{x:04}.n",
                     .{ register, arguments.value.value },
                 );
@@ -301,7 +301,7 @@ fn runCommand(
                 debugger.ensureUserAddress(address, arguments.location.span) catch
                     return null;
                 runtime.state.memory[address] = arguments.value.value;
-                try runtime.writer.interface.print(
+                try runtime.writer.print(
                     "| Updated memory at address 0x{x:04} to 0x{x:04}.\n",
                     .{ address, arguments.value.value },
                 );
@@ -319,7 +319,7 @@ fn runCommand(
             debugger.ensureUserAddress(address, arguments.location.span) catch
                 return null;
             runtime.state.pc = address;
-            try runtime.writer.interface.print("| Set program counter to 0x{x:04}.\n", .{address});
+            try runtime.writer.print("| Set program counter to 0x{x:04}.\n", .{address});
             // debugger.should_echo_pc = true;
         },
 
@@ -349,7 +349,7 @@ fn runCommand(
         // .eval => {},
 
         .echo => |arguments| {
-            try runtime.writer.interface.print("[{s}]\n", .{arguments.string.view(source)});
+            try runtime.writer.print("[{s}]\n", .{arguments.string.view(source)});
         },
 
         .step_over => {
@@ -371,7 +371,7 @@ fn runCommand(
             debugger.status = .step_out;
             debugger.should_echo_pc = true;
             if (!debugger.isHalted(runtime))
-                try runtime.writer.interface.print("| Finishing subroutine execution...\n", .{});
+                try runtime.writer.print("| Finishing subroutine execution...\n", .{});
         },
 
         // TODO:
@@ -499,7 +499,7 @@ fn readInputLine(debugger: *Debugger, runtime: *Runtime) ![]const u8 {
     if (debugger.current_line.len > 0)
         return debugger.current_line;
 
-    try runtime.writer.ensureNewline();
+    try runtime.ensureWriterNewline();
     try runtime.tty.enableRawMode();
     const line = debugger.input.readLine();
     try runtime.tty.disableRawMode();

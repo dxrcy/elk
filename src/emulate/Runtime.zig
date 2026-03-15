@@ -6,7 +6,6 @@ const Allocator = std.mem.Allocator;
 
 const Policies = @import("../Policies.zig");
 const Traps = @import("../Traps.zig");
-const NewlineTracker = @import("NewlineTracker.zig");
 const Tty = @import("Tty.zig");
 
 pub const Callback = @import("../callback.zig").Callback;
@@ -25,7 +24,8 @@ policies: *const Policies,
 debugger: ?*Debugger,
 
 reader: *Io.Reader,
-writer: NewlineTracker,
+writer: *Io.Writer,
+writer_is_newline: bool,
 tty: Tty,
 
 pub const State = struct {
@@ -108,7 +108,8 @@ pub fn init(
         .policies = policies,
         .debugger = debugger,
         .reader = reader,
-        .writer = .new(writer),
+        .writer = writer,
+        .writer_is_newline = true,
         .tty = .uninit,
     };
 }
@@ -324,19 +325,31 @@ pub fn readByte(runtime: *const Runtime) error{ EndOfStream, ReadFailed }!u8 {
     return char;
 }
 
+pub fn ensureWriterNewline(runtime: *Runtime) error{WriteFailed}!void {
+    if (runtime.writer_is_newline)
+        return;
+    try runtime.writer.writeByte('\n');
+    runtime.writer_is_newline = true;
+}
+
+pub fn writeProgramChar(runtime: *Runtime, char: u8) error{WriteFailed}!void {
+    try runtime.writer.writeByte(char);
+    runtime.writer_is_newline = char == '\n';
+}
+
 pub fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
-    try runtime.writer.ensureNewline();
-    try runtime.writer.interface.print("+-----------------------------------+\n", .{});
-    try runtime.writer.interface.print("|        hex      int    uint   chr |\n", .{});
+    try runtime.ensureWriterNewline();
+    try runtime.writer.print("+-----------------------------------+\n", .{});
+    try runtime.writer.print("|        hex      int    uint   chr |\n", .{});
 
     for (runtime.state.registers, 0..8) |word, i| {
-        try runtime.writer.interface.print("| R{}  ", .{i});
+        try runtime.writer.print("| R{}  ", .{i});
         try runtime.printIntegerForms(word);
-        try runtime.writer.interface.print(" |\n", .{});
+        try runtime.writer.print(" |\n", .{});
     }
 
-    try runtime.writer.interface.print("+-----------------+-----------------+\n", .{});
-    try runtime.writer.interface.print(
+    try runtime.writer.print("+-----------------+-----------------+\n", .{});
+    try runtime.writer.print(
         "|    PC 0x{x:04}    |   CC {s}   |\n",
         .{ runtime.state.pc, switch (runtime.state.condition) {
             .negative => "NEGATIVE",
@@ -344,23 +357,23 @@ pub fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
             .positive => "POSITIVE",
         } },
     );
-    try runtime.writer.interface.print("+-----------------+-----------------+\n", .{});
+    try runtime.writer.print("+-----------------+-----------------+\n", .{});
 }
 
 pub fn printInteger(runtime: *Runtime, integer: u16) error{WriteFailed}!void {
-    try runtime.writer.ensureNewline();
-    try runtime.writer.interface.print("+-------------------------------+\n", .{});
-    try runtime.writer.interface.print("|    hex      int    uint   chr |\n", .{});
+    try runtime.ensureWriterNewline();
+    try runtime.writer.print("+-------------------------------+\n", .{});
+    try runtime.writer.print("|    hex      int    uint   chr |\n", .{});
 
-    try runtime.writer.interface.print("| ", .{});
+    try runtime.writer.print("| ", .{});
     try runtime.printIntegerForms(integer);
-    try runtime.writer.interface.print(" |\n", .{});
+    try runtime.writer.print(" |\n", .{});
 
-    try runtime.writer.interface.print("+-------------------------------+\n", .{});
+    try runtime.writer.print("+-------------------------------+\n", .{});
 }
 
 fn printIntegerForms(runtime: *Runtime, word: u16) error{WriteFailed}!void {
-    try runtime.writer.interface.print(
+    try runtime.writer.print(
         "0x{x:04}  {:7}  {:6}   ",
         .{ word, @as(i16, @bitCast(word)), word },
     );
@@ -379,7 +392,7 @@ fn printDisplayChar(runtime: *Runtime, word: u16) error{WriteFailed}!void {
         " p ", " q ", " r ",  " s ", " t ", " u ", " v ", " w ", " x ", " y ", " z ", " { ", " | ",  " } ", " ~ ", "DEL",
     };
     const display = if (word > 0x80) "---" else ascii[word];
-    try runtime.writer.interface.print("{s}", .{display});
+    try runtime.writer.print("{s}", .{display});
 }
 
 fn signExtend(value: anytype) u16 {

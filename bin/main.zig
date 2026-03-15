@@ -115,8 +115,8 @@ pub fn main(init: std.process.Init) !u8 {
             },
         };
 
-        try runtime.writer.ensureNewline();
-        try runtime.writer.interface.flush();
+        try runtime.ensureWriterNewline();
+        try runtime.writer.flush();
 
         // for (runtime.registers, 0..) |register, i| {
         //     std.debug.print("r{}: 0x{x:04}\n", .{ i, register });
