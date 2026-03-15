@@ -83,37 +83,77 @@ pub fn readLine(input: *Input) ![]const u8 {
     return line;
 }
 
-fn readKey(input: *Input) error{ EndOfStream, ReadFailed }!?Key {
-    return switch (try input.readByte()) {
-        0x20...0x7e => |char| .{ .char = char },
-
-        '\n' => .enter,
-        control_code.eot => .eot,
-        control_code.bs, control_code.del => .bs,
-
-        control_code.esc => if (try input.readByte() == '[') {
-            const escape: Key.Escape = switch (try input.readByte()) {
-                'A' => .cursor_up,
-                'B' => .cursor_down,
-                'C' => .cursor_forward,
-                'D' => .cursor_back,
-                else => return null,
-            };
-            return .{ .escape = escape };
-        } else null,
-
-        else => null,
-    };
+fn readKey(input: *Input) error{ EndOfStream, ReadFailed, WriteFailed }!?Key {
+    var reader: KeyReader = .{ .reader = input.reader, .writer = input.writer };
+    try reader.enableKittyProtocol();
+    const key = try reader.readKey();
+    try reader.disableKittyProtocol();
+    return key;
 }
 
-fn readByte(input: *Input) error{ EndOfStream, ReadFailed }!u8 {
-    var char: u8 = undefined;
-    input.reader.readSliceAll(@ptrCast(&char)) catch |err| switch (err) {
-        error.EndOfStream => return error.EndOfStream,
-        else => return error.ReadFailed,
+const KeyReader = struct {
+    reader: *Io.Reader,
+    writer: *Io.Writer,
+
+    pub fn enableKittyProtocol(key_reader: *KeyReader) error{WriteFailed}!void {
+        key_reader.writer.writeAll("\x1b[>1u") catch
+            return error.WriteFailed;
+    }
+
+    pub fn disableKittyProtocol(key_reader: *KeyReader) error{WriteFailed}!void {
+        key_reader.writer.writeAll("\x1b[<u") catch
+            return error.WriteFailed;
+    }
+
+    pub fn readKey(key_reader: *KeyReader) error{ EndOfStream, ReadFailed, WriteFailed }!?Key {
+        var sequence: Sequence = .{ .buffer = undefined, .len = 0 };
+        try key_reader.readSequence(&sequence);
+
+        const slice = sequence.buffer[0..sequence.len];
+
+        std.debug.print("[{x}]\n", .{slice});
+
+        return null;
+    }
+
+    fn readSequence(key_reader: *KeyReader, sequence: *Sequence) error{ EndOfStream, ReadFailed }!void {
+        switch (try key_reader.readByte(sequence)) {
+            else => {},
+
+            control_code.esc => {
+                if (try key_reader.readByte(sequence) != '[')
+                    return;
+
+                var i: usize = 0;
+                while (i < 10) : (i += 1) {
+                    const char = try key_reader.readByte(sequence);
+
+                    switch (char) {
+                        '0'...'9' => {},
+                        ';' => {},
+                        else => break,
+                    }
+                }
+            },
+        }
+    }
+
+    const Sequence = struct {
+        buffer: [20]u8,
+        len: usize,
     };
-    return char;
-}
+
+    fn readByte(key_reader: *KeyReader, sequence: *Sequence) error{ EndOfStream, ReadFailed }!u8 {
+        assert(sequence.buffer.len > sequence.len);
+        const byte = &sequence.buffer[sequence.len];
+        key_reader.reader.readSliceAll(@ptrCast(byte)) catch |err| switch (err) {
+            error.EndOfStream => return error.EndOfStream,
+            else => return error.ReadFailed,
+        };
+        sequence.len += 1;
+        return byte.*;
+    }
+};
 
 fn writePrompt(input: *const Input) !void {
     const prompt = "> ";
