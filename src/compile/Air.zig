@@ -62,10 +62,10 @@ pub fn emitWriter(air: *const Air, writer: *Io.Writer) !void {
 pub fn emitRuntime(air: *const Air, runtime: *Runtime) !void {
     assert(air.lines.items.len <= 0xffff);
 
-    runtime.pc = air.origin;
+    runtime.state.pc = air.origin;
     for (air.lines.items, 0..) |line, i| {
         const raw = line.statement.encode();
-        runtime.memory[air.origin + i] = raw;
+        runtime.state.memory[air.origin + i] = raw;
     }
 }
 

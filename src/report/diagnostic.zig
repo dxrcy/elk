@@ -123,6 +123,10 @@ pub const Diagnostic = union(enum) {
         code: anyerror,
         span: ?Span,
     },
+    debugger_any_info: struct {
+        code: anyerror,
+        span: ?Span,
+    },
 
     pub fn getResponse(diag: Diagnostic, options: Reporter.Options) Reporter.Response {
         return switch (diag) {
@@ -179,6 +183,7 @@ pub const Diagnostic = union(enum) {
 
             .debugger_any_err => .fatal,
             .debugger_any_warn => .minor,
+            .debugger_any_info => .info,
         };
     }
 
@@ -432,6 +437,11 @@ pub const Diagnostic = union(enum) {
             },
             .debugger_any_warn => |info| {
                 ctx.printTitle("Debugger warning: {t}", .{info.code});
+                if (info.span) |span|
+                    ctx.deepen().printSourceNote("Here", .{}, span);
+            },
+            .debugger_any_info => |info| {
+                ctx.printTitle("Debugger info: {t}", .{info.code});
                 if (info.span) |span|
                     ctx.deepen().printSourceNote("Here", .{}, span);
             },

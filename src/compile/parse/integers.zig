@@ -250,7 +250,10 @@ pub fn tryInteger(string: []const u8) Error!?Word {
             '_' => {
                 switch (last_char) {
                     .digit => {},
-                    .none, .delimiter => return error.UnexpectedDelimiter,
+                    .delimiter => return error.UnexpectedDelimiter,
+                    .none => {
+                        return endOfInteger(form, '_');
+                    },
                 }
                 last_char = .delimiter;
                 form.delimited = true;
@@ -294,7 +297,10 @@ fn endOfInteger(form: Form, char: ?u8) !?Word {
         form.zero or
         (form.radix orelse .decimal) == .decimal)
     {
-        return if (char == null) error.ExpectedDigit else error.InvalidDigit;
+        return if (char) |c| switch (c) {
+            '_' => error.UnexpectedDelimiter,
+            else => error.InvalidDigit,
+        } else error.ExpectedDigit;
     } else {
         return null;
     }
@@ -456,6 +462,10 @@ test tryInteger {
         .{ "x", null },
         .{ "_", null },
         .{ "_123", null },
+        .{ "x_", null },
+        .{ "x_1", null },
+        .{ "x_hh", null },
+        .{ "o_99", null },
         // Invalid integers
         .{ "-", error.ExpectedDigit },
         .{ "+", error.ExpectedDigit },
@@ -527,9 +537,7 @@ test tryInteger {
         .{ "1_", error.UnexpectedDelimiter },
         .{ "123_", error.UnexpectedDelimiter },
         .{ "0x_", error.UnexpectedDelimiter },
-        .{ "x_", error.UnexpectedDelimiter },
         .{ "x123_", error.UnexpectedDelimiter },
-        .{ "x_1", error.UnexpectedDelimiter },
         .{ "0x_123", error.UnexpectedDelimiter },
         .{ "1__23", error.UnexpectedDelimiter },
         .{ "#_23", error.UnexpectedDelimiter },

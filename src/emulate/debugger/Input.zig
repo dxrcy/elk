@@ -13,78 +13,7 @@ editor: Editor,
 reader: *Io.Reader,
 writer: *Io.Writer,
 
-pub fn init(gpa: Allocator, reader: *Io.Reader, writer: *Io.Writer) Input {
-    return .{
-        .editor = .init(gpa),
-        .reader = reader,
-        .writer = writer,
-    };
-}
-
-pub fn deinit(input: *Input) void {
-    input.editor.deinit();
-}
-
-pub fn readLine(input: *Input) ![]const u8 {
-    var eof = false;
-
-    while (true) {
-        try input.writePrompt();
-        try input.writer.flush();
-
-        const control: Runtime.Control = input.handleNextKey() catch |err| switch (err) {
-            else => |err2| return err2,
-            error.EndOfStream => {
-                eof = true;
-                break;
-            },
-        };
-
-        switch (control) {
-            .@"continue" => continue,
-            .@"break" => break,
-        }
-    }
-
-    try input.writer.print("\n", .{});
-    try input.writer.flush();
-
-    if (eof) {
-        input.editor.clear();
-        return error.EndOfStream;
-    }
-
-    input.editor.makeLive();
-    const line = input.editor.getString();
-    input.editor.history.push(line);
-    input.editor.clear();
-    return line;
-}
-
-fn handleNextKey(input: *Input) error{ EndOfStream, ReadFailed }!Runtime.Control {
-    assert(input.editor.cursor <= input.editor.getString().len);
-
-    const key = try input.readKey() orelse
-        return .@"continue";
-
-    switch (key) {
-        .enter => return .@"break",
-        .eot => return error.EndOfStream,
-
-        .char => |char| input.editor.insert(char),
-        .bs => input.editor.remove(),
-
-        .escape => |escape| switch (escape) {
-            .cursor_up => input.editor.seekHistory(.backward),
-            .cursor_down => input.editor.seekHistory(.forward),
-            .cursor_forward => input.editor.seekLine(.right),
-            .cursor_back => input.editor.seekLine(.left),
-        },
-    }
-    return .@"continue";
-}
-
-const Key = union(enum) {
+pub const Key = union(enum) {
     char: u8,
     enter,
     eot,
@@ -98,6 +27,61 @@ const Key = union(enum) {
         cursor_back,
     };
 };
+
+pub fn init(gpa: Allocator, reader: *Io.Reader, writer: *Io.Writer, buffer: []u8) Input {
+    return .{
+        .editor = .init(gpa, buffer),
+        .reader = reader,
+        .writer = writer,
+    };
+}
+
+pub fn deinit(input: *Input) void {
+    input.editor.deinit();
+}
+
+pub fn readLine(input: *Input) ![]const u8 {
+    input.editor.clear();
+    var eof = false;
+
+    while (true) {
+        try input.writePrompt();
+        try input.writer.flush();
+
+        const key = input.readKey() catch |err| switch (err) {
+            else => |err2| return err2,
+            error.EndOfStream => {
+                eof = true;
+                break;
+            },
+        } orelse
+            continue;
+
+        input.editor.handleKey(key) catch |err| switch (err) {
+            else => |err2| return err2,
+            error.EndOfLine => {
+                break;
+            },
+            error.EndOfStream => {
+                eof = true;
+                break;
+            },
+        };
+    }
+
+    try input.writer.print("\n", .{});
+    try input.writer.flush();
+
+    if (eof) {
+        input.editor.clear();
+        return error.EndOfStream;
+    }
+
+    input.editor.makeLive();
+    const line = input.editor.getString();
+    input.editor.history.push(line);
+    return line;
+}
 
 fn readKey(input: *Input) error{ EndOfStream, ReadFailed }!?Key {
     return switch (try input.readByte()) {

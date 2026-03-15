@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const Command = @import("command.zig").Command;
+const Command = @import("Command.zig");
 
 pub const Candidates = []const []const u8;
 
