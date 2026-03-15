@@ -99,10 +99,14 @@ const KeyReader = struct {
     pub fn enableKittyProtocol(key_reader: *KeyReader) error{WriteFailed}!void {
         key_reader.writer.writeAll("\x1b[>1u") catch
             return error.WriteFailed;
+        key_reader.writer.flush() catch
+            return error.WriteFailed;
     }
 
     pub fn disableKittyProtocol(key_reader: *KeyReader) error{WriteFailed}!void {
         key_reader.writer.writeAll("\x1b[<u") catch
+            return error.WriteFailed;
+        key_reader.writer.flush() catch
             return error.WriteFailed;
     }
 
