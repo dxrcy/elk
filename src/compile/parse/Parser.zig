@@ -224,6 +224,13 @@ pub fn parseInstructionLine(parser: *Parser) error{Reported}!Instruction {
     }
 }
 
+fn takeCurrentLabel(parser: *Parser) ?Air.Line.Label {
+    const label = parser.current_label orelse
+        return null;
+    parser.current_label = null;
+    return .{ .span = label, .references = 0 };
+}
+
 fn appendLine(
     parser: *Parser,
     gpa: Allocator,
@@ -234,7 +241,7 @@ fn appendLine(
     try parser.ensureCanAppendLines(air, 1, span);
 
     try air.lines.append(gpa, .{
-        .label = if (parser.current_label) |label| .{ .span = label } else null,
+        .label = parser.takeCurrentLabel(),
         .statement = statement,
         .span = span,
     });
@@ -258,7 +265,7 @@ fn appendLineNTimes(
     try air.lines.ensureUnusedCapacity(gpa, n);
 
     air.lines.appendAssumeCapacity(.{
-        .label = if (parser.current_label) |label| .{ .span = label } else null,
+        .label = parser.takeCurrentLabel(),
         .statement = statement,
         .span = span,
     });

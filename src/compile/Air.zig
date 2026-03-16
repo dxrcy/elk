@@ -20,6 +20,7 @@ pub const Line = struct {
 
     pub const Label = struct {
         span: Span,
+        references: usize,
     };
 };
 
