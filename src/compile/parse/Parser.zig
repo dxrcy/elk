@@ -199,8 +199,18 @@ pub fn parseInstructionLine(parser: *Parser) !Instruction {
             return instr;
         },
 
-        // TODO:
-        // .trap_alias => |vect| {},
+        .trap_alias => |vect| {
+            return .{
+                .trap = .{
+                    .vect = .{
+                        .span = token.span,
+                        .value = .{
+                            .immediate = .{ .integer = vect, .form = null },
+                        },
+                    },
+                },
+            };
+        },
 
         else => {
             try parser.reporter().report(.unexpected_token_kind, .{
