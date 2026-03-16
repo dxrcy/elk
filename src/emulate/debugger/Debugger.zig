@@ -357,16 +357,13 @@ fn runCommand(
 
             const assembly_source = arguments.instruction.view(source);
 
-            // TODO: Use user-provided traps!
-            const traps: Traps = comptime .initBuiltins(&.{ Traps.Standard, Traps.Debug });
-
             // This is NOT a hack, I promise.
             // TODO: use `source` as reporter/parser source, but advance past `eval` tag
             // TODO: Suppress warnings ? ie. use low strictness and permissive policies
             var reporter = debugger.reporter.copyImplementation();
             reporter.source = assembly_source;
 
-            var parser = Parser.new(&traps, assembly_source, &reporter) orelse
+            var parser = Parser.new(debugger.traps, assembly_source, &reporter) orelse
                 return null;
 
             const instr = parser.parseInstructionLine() catch
