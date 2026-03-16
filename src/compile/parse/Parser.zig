@@ -19,6 +19,7 @@ tokens: TokenIter,
 current_label: ?Span,
 origin: ?Span,
 
+// TODO: Return `error.Reported` instead of `null`
 pub fn new(
     traps: *const Traps,
     source_: []const u8,
@@ -401,7 +402,7 @@ fn parseInstruction(
     parser: *Parser,
     instruction: Token.Value.Instruction,
     span: Span,
-) error{ Reported, Eof }!Instruction {
+) error{Reported}!Instruction {
     switch (instruction) {
         inline // Automatic parsing for 'regular' instructions
         .add,
