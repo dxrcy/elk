@@ -234,7 +234,7 @@ fn appendLine(
     try parser.ensureCanAppendLines(air, 1, span);
 
     try air.lines.append(gpa, .{
-        .label = parser.current_label,
+        .label = if (parser.current_label) |label| .{ .span = label } else null,
         .statement = statement,
         .span = span,
     });
@@ -258,7 +258,7 @@ fn appendLineNTimes(
     try air.lines.ensureUnusedCapacity(gpa, n);
 
     air.lines.appendAssumeCapacity(.{
-        .label = parser.current_label,
+        .label = if (parser.current_label) |label| .{ .span = label } else null,
         .statement = statement,
         .span = span,
     });
@@ -488,8 +488,8 @@ fn getExistingLabel(parser: *const Parser, air: *Air, new_label: []const u8) ?Sp
     for (air.lines.items) |line| {
         const existing_label = line.label orelse
             continue;
-        if (std.mem.eql(u8, existing_label.view(parser.source()), new_label)) {
-            return existing_label;
+        if (std.mem.eql(u8, existing_label.span.view(parser.source()), new_label)) {
+            return existing_label.span;
         }
     }
     return null;

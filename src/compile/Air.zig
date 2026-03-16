@@ -14,9 +14,13 @@ origin: u16,
 lines: ArrayList(Line),
 
 pub const Line = struct {
-    label: ?Span,
+    label: ?Label,
     statement: Statement,
     span: Span,
+
+    pub const Label = struct {
+        span: Span,
+    };
 };
 
 pub const Statement = union(enum) {
@@ -45,8 +49,9 @@ pub fn deinit(air: *Air, gpa: Allocator) void {
 pub fn getFirstSpan(air: *const Air) ?Span {
     if (air.lines.items.len == 0)
         return null;
-    return air.lines.items[0].label orelse
-        air.lines.items[0].span;
+    if (air.lines.items[0].label) |label|
+        return label.span;
+    return air.lines.items[0].span;
 }
 
 pub fn emitWriter(air: *const Air, writer: *Io.Writer) !void {
@@ -78,13 +83,13 @@ pub fn findLabelDefinition(
     for (air.lines.items, 0..) |*line, index| {
         const label = line.label orelse
             continue;
-        const string = label.view(source);
+        const string = label.span.view(source);
         const matches = switch (case_mode) {
             .sensitive => std.mem.eql(u8, string, reference),
             .insensitive => std.ascii.eqlIgnoreCase(string, reference),
         };
         if (matches)
-            return .{ index, label };
+            return .{ index, label.span };
     }
     return null;
 }
