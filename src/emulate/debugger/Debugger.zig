@@ -405,32 +405,11 @@ fn evalCommand(
 ) (Runtime.IoError || error{Reported})!void {
     const line = span.view(source);
 
-    // This is NOT a hack, I promise.
-    var reporter = debugger.reporter.copyImplementation();
-    reporter.source = line;
-
-    var policies: Reporter.Policies = .{
-        .extension = reporter.options.policies.extension,
-        .smell = .permit_all,
-        .style = .permit_all,
-    };
-
-    reporter.options.strictness = .normal;
-    reporter.options.policies = &policies;
-
-    var parser = Parser.new(debugger.traps, line, &reporter) orelse
-        return;
-
-    var asm_instr = parser.parseInstructionLine() catch
-        return;
-
-    parser.resolveInstructionLabel(
-        assembly.air,
-        assembly.source,
-        &asm_instr,
+    const asm_instr = try debugger.parseInstructionLine(
+        assembly,
+        line,
         runtime.state.pc - assembly.air.origin,
-    ) catch
-        return;
+    );
 
     const runtime_instr = Instruction.decode(asm_instr.encode()) catch
         // Any encoded instruction must be valid to decode
@@ -449,6 +428,44 @@ fn evalCommand(
             .span = span,
         }).abort(),
     };
+}
+
+fn parseInstructionLine(
+    debugger: *const Debugger,
+    assembly: Assembly,
+    line: []const u8,
+    index: usize,
+) error{Reported}!Parser.Instruction {
+    var reporter = debugger.copyReporter(line);
+
+    var parser = Parser.new(debugger.traps, line, &reporter) orelse
+        return error.Reported;
+
+    // FIXME: Handle `error.Eof` ??!!
+    var instruction = parser.parseInstructionLine() catch
+        return error.Reported;
+
+    // FIXME: Breaks when reporting suggested label name
+    // (tries to view assembly.air span with command line source)
+    try parser.resolveInstructionLabel(assembly.air, assembly.source, &instruction, index);
+
+    return instruction;
+}
+
+fn copyReporter(debugger: *const Debugger, source: []const u8) Reporter {
+    var reporter = debugger.reporter.copyImplementation();
+    reporter.source = source;
+
+    var policies: Reporter.Policies = .{
+        .extension = reporter.options.policies.extension,
+        .smell = .permit_all,
+        .style = .permit_all,
+    };
+
+    reporter.options.strictness = .normal;
+    reporter.options.policies = &policies;
+
+    return reporter;
 }
 
 fn getAssemblyLine(
