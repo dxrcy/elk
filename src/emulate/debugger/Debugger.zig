@@ -341,10 +341,7 @@ fn runCommand(
             const line = debugger.getAssemblyLine(&assembly, address, arguments.location.span) catch
                 return null;
 
-            // This is NOT a hack, I promise.
-            var reporter = debugger.reporter.copyImplementation();
-            reporter.source = assembly.source;
-
+            var reporter = debugger.copyReporter(assembly.source);
             reporter.report(.debugger_any_info, .{
                 .code = error.ShowAssembly,
                 .span = line.span,
