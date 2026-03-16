@@ -165,18 +165,21 @@ pub fn run(runtime: *Runtime) Error!void {
         if (runtime.hooks.pre_execute) |pre_execute|
             try pre_execute.call(.{ runtime, instr });
 
-        switch (try runtime.runInstruction(instr, true)) {
-            .@"continue" => continue,
-            .@"break" => break,
-        }
+        runtime.runInstruction(instr) catch |err| switch (err) {
+            else => |err2| return err2,
+            error.Halt => {
+                const debugger = runtime.debugger orelse
+                    break;
+                try debugger.catchHalt(runtime);
+            },
+        };
     }
 }
 
 pub fn runInstruction(
     runtime: *Runtime,
     instr: Instruction,
-    comptime catch_halt: bool,
-) Error!Control {
+) (Error || error{Halt})!void {
     switch (instr) {
         inline .add, .@"and" => |operands, instr_subset| {
             const lhs = runtime.state.registers[operands.src_a];
@@ -197,7 +200,7 @@ pub fn runInstruction(
         .br => |operands| {
             // No-op case
             if (operands.mask == 0b000)
-                return .@"continue";
+                return;
             if (@intFromEnum(runtime.state.condition) & operands.mask != 0)
                 runtime.state.pc +%= signExtend(operands.pc_offset);
         },
@@ -251,18 +254,7 @@ pub fn runInstruction(
                 // No trap callback declared
                 // Either trap was never registered, or only registered for alias
                 return error.UnhandledTrap;
-
-            callback.call(.{runtime}) catch |err| switch (err) {
-                else => |err2| return err2,
-
-                error.Halt => {
-                    if (catch_halt) if (runtime.debugger) |debugger| {
-                        try debugger.catchHalt(runtime);
-                        return .@"continue";
-                    };
-                    return .@"break";
-                },
-            };
+            try callback.call(.{runtime});
         },
 
         .rti => {
@@ -293,8 +285,6 @@ pub fn runInstruction(
             }
         },
     }
-
-    return .@"continue";
 }
 
 fn setRegister(runtime: *Runtime, register: u3, value: u16) void {

@@ -402,7 +402,7 @@ fn evalCommand(
     assembly: Assembly,
     span: Span,
     source: []const u8,
-) !void {
+) (Runtime.IoError || error{Reported})!void {
     const line = span.view(source);
 
     // This is NOT a hack, I promise.
@@ -436,24 +436,24 @@ fn evalCommand(
         // Any encoded instruction must be valid to decode
         unreachable;
 
-    const control = runtime.runInstruction(runtime_instr, false) catch |err| switch (err) {
-        inline error.WriteFailed,
+    runtime.runInstruction(runtime_instr) catch |err| switch (err) {
+        error.WriteFailed,
         error.ReadFailed,
         error.EndOfStream,
         error.TermiosFailed,
-        => return err,
+        => |err2| return err2,
+
+        error.Halt => {
+            // TODO: Avoid unnecessary increment/decrement of PC
+            runtime.state.pc += 1;
+            try debugger.catchHalt(runtime);
+        },
 
         else => try debugger.reporter.report(.debugger_any_err, .{
             .code = err,
             .span = span,
         }).abort(),
     };
-
-    if (control == .@"break") {
-        // TODO: Avoid unnecessary increment/decrement of PC
-        runtime.state.pc += 1;
-        try debugger.catchHalt(runtime);
-    }
 }
 
 fn getAssemblyLine(
