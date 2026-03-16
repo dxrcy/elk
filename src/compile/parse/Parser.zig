@@ -517,6 +517,17 @@ pub fn resolveLabels(parser: *Parser, air: *Air) void {
             error.Reported => continue,
         };
     }
+
+    for (air.lines.items) |*line| {
+        const label = line.label orelse
+            continue;
+        if (label.references == 0) {
+            parser.reporter().report(
+                .unused_label,
+                .{ .label = label.span },
+            ).proceed();
+        }
+    }
 }
 
 pub fn resolveInstructionLabel(
@@ -559,14 +570,14 @@ fn resolveFieldLabel(
 
     const string = operand.span.view(parser.source());
 
-    const definition, const definition_span =
+    const definition, const definition_label =
         air.findLabelDefinition(string, .sensitive, air_source) orelse {
             _, const near_match =
                 air.findLabelDefinition(string, .insensitive, air_source) orelse
                 .{ {}, null };
             try parser.reporter().report(.undeclared_label, .{
                 .reference = operand.span,
-                .nearest = near_match,
+                .nearest = if (near_match) |label| label.span else null,
                 .declaration_source = air_source,
             }).abort();
         };
@@ -574,7 +585,7 @@ fn resolveFieldLabel(
     const offset = calculateOffset(Int, definition, index) orelse {
         try parser.reporter().report(.offset_too_large, .{
             .reference = operand.span,
-            .definition = definition_span,
+            .definition = definition_label.span,
             .offset = calculateOffset(i17, definition, index) orelse
                 unreachable,
             .bits = @typeInfo(Int).int.bits,
@@ -582,6 +593,7 @@ fn resolveFieldLabel(
         }).abort();
     };
 
+    definition_label.references += 1;
     operand.value = .{ .resolved = .{ .integer = offset, .form = null } };
 }
 

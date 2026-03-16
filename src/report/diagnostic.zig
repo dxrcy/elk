@@ -88,6 +88,7 @@ pub const Diagnostic = union(enum) {
     label_colon: struct { colon: Span },
     redeclared_label: struct { existing: Span, new: Span },
     undeclared_label: struct { reference: Span, nearest: ?Span, declaration_source: []const u8 },
+    unused_label: struct { label: Span },
 
     // Integer syntax
     malformed_integer: struct { integer: Span },
@@ -169,6 +170,7 @@ pub const Diagnostic = union(enum) {
             .literal_pc_offset => policyResponse(options, .smell, .pc_offset_literals),
             .explicit_trap_vect => policyResponse(options, .smell, .explicit_trap_instructions),
             .undeclared_trap_vect => policyResponse(options, .smell, .unknown_trap_vectors),
+            .unused_label => policyResponse(options, .smell, .unused_label_declarations),
 
             .missing_operand_comma => policyResponse(options, .style, .missing_operand_commas),
             .whitespace_comma => policyResponse(options, .style, .whitespace_commas),
@@ -333,6 +335,10 @@ pub const Diagnostic = union(enum) {
                         .printSourceNote("This label declaration is similar", .{}, close_match);
                     ctx.deepen().printNote("Label names are case-sensitive", .{});
                 }
+            },
+            .unused_label => |info| {
+                ctx.printTitle("Label declaration is not used", .{});
+                ctx.deepen().printSourceNote("Label declared here", .{}, info.label);
             },
 
             .malformed_integer => |info| {

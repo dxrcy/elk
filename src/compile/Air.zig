@@ -80,17 +80,17 @@ pub fn findLabelDefinition(
     reference: []const u8,
     case_mode: enum { sensitive, insensitive },
     source: []const u8,
-) ?struct { usize, Span } {
+) ?struct { usize, *Line.Label } {
     for (air.lines.items, 0..) |*line, index| {
-        const label = line.label orelse
-            continue;
+        const label = &(line.label orelse
+            continue);
         const string = label.span.view(source);
         const matches = switch (case_mode) {
             .sensitive => std.mem.eql(u8, string, reference),
             .insensitive => std.ascii.eqlIgnoreCase(string, reference),
         };
         if (matches)
-            return .{ index, label.span };
+            return .{ index, label };
     }
     return null;
 }
