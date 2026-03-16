@@ -160,12 +160,13 @@ fn emulate(
         gpa,
         &reader.interface,
         &writer.interface,
-        reporter,
         &debugger_buffer,
         switch (runtime_source) {
             .object => null,
             .assembly => |assembly| assembly,
         },
+        traps,
+        reporter,
     ) else null;
     defer if (debugger_opt) |*debugger| debugger.deinit(gpa);
 

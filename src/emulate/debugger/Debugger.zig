@@ -22,9 +22,11 @@ should_echo_pc: bool,
 halt_address: ?u16,
 
 current_line: []const u8,
+input: Input,
+
 initial_state: ?Runtime.State,
 assembly: ?Assembly,
-input: Input,
+traps: *const Traps,
 reporter: *Reporter,
 
 pub const Assembly = struct {
@@ -51,9 +53,10 @@ pub fn init(
     gpa: std.mem.Allocator,
     reader: *Io.Reader,
     writer: *Io.Writer,
-    reporter: *Reporter,
     command_buffer: []u8,
     assembly: ?Assembly,
+    traps: *const Traps,
+    reporter: *Reporter,
 ) Debugger {
     return .{
         .status = .get_action,
@@ -61,9 +64,10 @@ pub fn init(
         .should_echo_pc = true,
         .halt_address = null,
         .current_line = "",
+        .input = .init(gpa, reader, writer, command_buffer),
         .initial_state = null,
         .assembly = assembly,
-        .input = .init(gpa, reader, writer, command_buffer),
+        .traps = traps,
         .reporter = reporter,
     };
 }
