@@ -181,6 +181,9 @@ fn emulate(
     );
     defer runtime.deinit(gpa);
 
+    if (debugger_opt) |*debugger|
+        try debugger.initState(gpa, &runtime);
+
     switch (runtime_source) {
         .object => |file| {
             var read_buffer: [1024]u8 = undefined;
