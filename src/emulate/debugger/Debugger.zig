@@ -452,7 +452,7 @@ fn copyReporter(debugger: *const Debugger, source: []const u8) Reporter {
 
     var policies: Reporter.Policies = .{
         .extension = reporter.options.policies.extension,
-        .smell = .permit_all,
+        .smell = reporter.options.policies.smell,
         .style = .permit_all,
     };
 
