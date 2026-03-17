@@ -262,11 +262,10 @@ fn runCommand(
 ) !?Action {
     switch (command.value) {
         else => {
-            debugger.reporter.report(.debugger_any_err, .{
+            try debugger.reporter.report(.debugger_any_err, .{
                 .code = error.UnimplementedCommand,
                 .span = command.tag,
-            }).abort() catch
-                return null;
+            }).abort();
         },
 
         .help => {
@@ -280,11 +279,10 @@ fn runCommand(
 
         .reset => {
             const state = debugger.initial_state orelse {
-                debugger.reporter.report(.debugger_any_err, .{
+                try debugger.reporter.report(.debugger_any_err, .{
                     .code = error.NoInitialState,
                     .span = command.tag,
-                }).abort() catch
-                    return null;
+                }).abort();
             };
             runtime.state.copyFrom(state);
             try debugger.printLine("Reset registers and memory to initial state.", .{});
@@ -304,6 +302,7 @@ fn runCommand(
                 try debugger.printLine("Continuing program execution...", .{});
         },
 
+        // TODO: Extract logic shared with `move` as method
         .print => |arguments| switch (arguments.location.value) {
             .register => |register| {
                 try debugger.printLine("Register R{}:", .{register});
@@ -312,13 +311,12 @@ fn runCommand(
                 try debugger.input.writer.print("\x1b[0m", .{});
             },
             .memory => |memory| {
-                const address = debugger.resolveMemoryLocation(
+                const address = try debugger.resolveMemoryLocation(
                     runtime,
                     memory,
                     arguments.location.span,
                     source,
-                ) catch
-                    return null;
+                );
                 try debugger.printLine("Memory at address 0x{x:04}:", .{address});
                 try debugger.input.writer.print("\x1b[34m", .{});
                 try runtime.printInteger(runtime.state.memory[address]);
@@ -335,15 +333,13 @@ fn runCommand(
                 );
             },
             .memory => |memory| {
-                const address = debugger.resolveMemoryLocation(
+                const address = try debugger.resolveMemoryLocation(
                     runtime,
                     memory,
                     arguments.location.span,
                     source,
-                ) catch
-                    return null;
-                debugger.ensureUserAddress(address, arguments.location.span) catch
-                    return null;
+                );
+                try debugger.ensureUserAddress(address, arguments.location.span);
                 runtime.state.memory[address] = arguments.value.value;
                 try debugger.printLine(
                     "| Updated memory at address 0x{x:04} to 0x{x:04}.\n",
@@ -353,15 +349,13 @@ fn runCommand(
         },
 
         .goto => |arguments| {
-            const address = debugger.resolveMemoryLocation(
+            const address = try debugger.resolveMemoryLocation(
                 runtime,
                 arguments.location.value,
                 arguments.location.span,
                 source,
-            ) catch
-                return null;
-            debugger.ensureUserAddress(address, arguments.location.span) catch
-                return null;
+            );
+            try debugger.ensureUserAddress(address, arguments.location.span);
             runtime.state.pc = address;
             try debugger.printLine("Set program counter to 0x{x:04}.", .{address});
             // debugger.should_echo_pc = true;
@@ -369,15 +363,14 @@ fn runCommand(
 
         .assembly => |arguments| {
             const assembly = try debugger.getAssembly(command.tag);
-            const address = debugger.resolveMemoryLocation(
+            const address = try debugger.resolveMemoryLocation(
                 runtime,
                 arguments.location.value,
                 arguments.location.span,
                 source,
-            ) catch return null;
+            );
 
-            const line = debugger.getAssemblyLine(&assembly, address, arguments.location.span) catch
-                return null;
+            const line = try debugger.getAssemblyLine(&assembly, address, arguments.location.span);
 
             var reporter = debugger.copyReporter(assembly.source);
             reporter.report(.debugger_any_info, .{
@@ -425,20 +418,17 @@ fn runCommand(
         },
 
         .break_add => |arguments| {
-            const address = debugger.resolveMemoryLocation(
+            const address = try debugger.resolveMemoryLocation(
                 runtime,
                 arguments.location.value,
                 arguments.location.span,
                 source,
-            ) catch
-                return null;
-
+            );
             debugger.breakpoints.insert(address) catch {
-                debugger.reporter.report(.debugger_any_err, .{
+                try debugger.reporter.report(.debugger_any_err, .{
                     .code = error.OutOfMemory,
                     .span = command.tag,
-                }).abort() catch
-                    return null;
+                }).abort();
             };
         },
 
