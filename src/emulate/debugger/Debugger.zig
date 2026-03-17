@@ -424,8 +424,23 @@ fn runCommand(
             }
         },
 
-        // TODO:
-        // .break_add => {},
+        .break_add => |arguments| {
+            const address = debugger.resolveMemoryLocation(
+                runtime,
+                arguments.location.value,
+                arguments.location.span,
+                source,
+            ) catch
+                return null;
+
+            debugger.breakpoints.insert(address) catch {
+                debugger.reporter.report(.debugger_any_err, .{
+                    .code = error.OutOfMemory,
+                    .span = command.tag,
+                }).abort() catch
+                    return null;
+            };
+        },
 
         // TODO:
         // .break_remove => {},
