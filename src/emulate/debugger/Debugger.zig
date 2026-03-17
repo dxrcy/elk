@@ -89,7 +89,7 @@ pub fn initState(
 
 pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
     if (debugger.status == .inactive)
-        return .@"continue";
+        return null;
 
     try runtime.ensureWriterNewline();
 
@@ -102,7 +102,7 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
         .proceed => {},
         .disable_debugger => {
             debugger.status = .inactive;
-            return .@"continue";
+            return if (debugger.isHalted(runtime)) .@"break" else .@"continue";
         },
         .stop_runtime => {
             return .@"break";
@@ -120,12 +120,16 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
     return null;
 }
 
-pub fn catchHalt(debugger: *Debugger, runtime: *Runtime) error{WriteFailed}!void {
+pub fn catchHalt(debugger: *Debugger, runtime: *Runtime) error{WriteFailed}!Runtime.Control {
+    if (debugger.status == .inactive)
+        return .@"break";
+
     // PC was incremented after decoding instruction; reverse that
     runtime.state.pc -= 1;
     try runtime.writer.print("| Program halted at 0x{x:04}.\n", .{runtime.state.pc});
     debugger.status = .get_action;
     debugger.halt_address = runtime.state.pc;
+    return .@"continue";
 }
 
 fn isHalted(debugger: *const Debugger, runtime: *const Runtime) bool {

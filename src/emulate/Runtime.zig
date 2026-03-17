@@ -170,7 +170,10 @@ pub fn run(runtime: *Runtime) Error!void {
             error.Halt => {
                 const debugger = runtime.debugger orelse
                     break;
-                try debugger.catchHalt(runtime);
+                switch (try debugger.catchHalt(runtime)) {
+                    .@"continue" => continue,
+                    .@"break" => break,
+                }
             },
         };
     }
