@@ -414,9 +414,13 @@ fn runCommand(
         },
 
         .break_list => {
-            std.debug.print("breakpoints:\n", .{});
-            for (debugger.breakpoints.entries.items) |address| {
-                std.debug.print("\t0x{x:04}\n", .{address});
+            if (debugger.breakpoints.entries.items.len == 0) {
+                try debugger.printLine("No breakpoints exist", .{});
+            } else {
+                try debugger.printLine("Breakpoints:", .{});
+                for (debugger.breakpoints.entries.items) |address| {
+                    try debugger.printLine("- 0x{x:04}", .{address});
+                }
             }
         },
 
