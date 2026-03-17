@@ -427,6 +427,7 @@ fn runCommand(
                 arguments.location.span,
                 source,
             );
+            try debugger.ensureUserAddress(address, arguments.location.span);
             const inserted = debugger.breakpoints.insert(address) catch {
                 try debugger.reporter.report(.debugger_any_err, .{
                     .code = error.OutOfMemory,
