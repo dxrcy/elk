@@ -47,8 +47,14 @@ const Breakpoints = struct {
         breakpoints.entries.deinit(breakpoints.gpa);
     }
 
-    pub fn insert(breakpoints: *Breakpoints, address: u16) error{OutOfMemory}!void {
+    pub fn insert(breakpoints: *Breakpoints, address: u16) error{OutOfMemory}!bool {
+        for (breakpoints.entries.items) |breakpoint| {
+            if (breakpoint == address)
+                return false;
+        }
+        // TODO: Sorted insert
         try breakpoints.entries.append(breakpoints.gpa, address);
+        return true;
     }
 };
 
@@ -415,12 +421,16 @@ fn runCommand(
                 arguments.location.span,
                 source,
             );
-            debugger.breakpoints.insert(address) catch {
+            const inserted = debugger.breakpoints.insert(address) catch {
                 try debugger.reporter.report(.debugger_any_err, .{
                     .code = error.OutOfMemory,
                     .span = command.tag,
                 }).abort();
             };
+            if (inserted)
+                try debugger.printLine("Breakpoint added at 0x{x:04}", .{address})
+            else
+                try debugger.printLine("Breakpoint already exists at 0x{x:04}", .{address});
         },
 
         // TODO:
