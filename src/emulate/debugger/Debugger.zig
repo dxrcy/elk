@@ -419,34 +419,7 @@ fn runCommand(
                 return null;
             }
             try debugger.printLine("Breakpoints:", .{});
-            for (debugger.breakpoints.entries.items) |address| {
-                try debugger.printLine("- 0x{x:04}", .{address});
-
-                const assembly = debugger.assembly orelse
-                    continue;
-                if (address < assembly.air.origin)
-                    continue;
-                const index = address - assembly.air.origin;
-                if (index >= assembly.air.lines.items.len)
-                    continue;
-                const line = assembly.air.lines.items[index];
-
-                if (line.label) |label| {
-                    try debugger.printLine("  - {s}", .{label.span.view(assembly.source)});
-                }
-
-                const line_string = line.span
-                    .getContainingLines(assembly.source)
-                    .view(assembly.source);
-
-                var lines = std.mem.splitScalar(u8, line_string, '\n');
-                const line_string2 = lines.next() orelse line_string;
-                const line_string3 = std.mem.trim(u8, line_string2, &std.ascii.whitespace);
-
-                try debugger.printLine("  - {s}", .{
-                    line_string3,
-                });
-            }
+            try debugger.printBreakpointTable();
         },
 
         .break_add => |arguments| {
@@ -485,6 +458,80 @@ fn runCommand(
     }
 
     return null;
+}
+
+const max_label_len = 16;
+const max_source_len = 34;
+const empty_marker = "---";
+
+fn printBreakpointTable(debugger: *Debugger) !void {
+    try debugger.input.writer.print("\x1b[34m", .{});
+
+    const delimiter = "+---------+-" ++
+        ("-" ** max_label_len) ++ "-+-" ++
+        ("-" ** max_source_len) ++ "-+\n";
+
+    try debugger.input.writer.print(delimiter, .{});
+    try debugger.input.writer.print("| Address | {s:^[2]} | {s:^[3]} |\n", .{
+        "Label",       "Source",
+        max_label_len, max_source_len,
+    });
+    try debugger.input.writer.print(delimiter, .{});
+
+    for (debugger.breakpoints.entries.items) |address| {
+        try debugger.input.writer.print("|  ", .{});
+        try debugger.input.writer.print("0x{x:04}", .{address});
+
+        if (!try printBreakpointSource(debugger, address)) {
+            try debugger.input.writer.print(" | ", .{});
+            try debugger.input.writer.print("{s:<[1]}", .{ empty_marker, max_label_len });
+            try debugger.input.writer.print(" | ", .{});
+            try debugger.input.writer.print("{s:<[1]}", .{ empty_marker, max_source_len });
+        }
+
+        try debugger.input.writer.print(" |", .{});
+        try debugger.input.writer.print("\n", .{});
+    }
+
+    try debugger.input.writer.print(delimiter, .{});
+    try debugger.input.writer.print("\x1b[0m", .{});
+}
+
+fn printBreakpointSource(debugger: *Debugger, address: u16) !bool {
+    const assembly = debugger.assembly orelse
+        return false;
+    const line = getAssemblyLineOptional(assembly, address) orelse
+        return false;
+
+    try debugger.input.writer.print(" | ", .{});
+
+    try debugger.input.writer.print("{s:<[1]}", .{
+        if (line.label) |label|
+            maxLength(label.span.view(assembly.source), max_label_len)
+        else
+            empty_marker,
+        max_label_len,
+    });
+
+    try debugger.input.writer.print(" | ", .{});
+
+    try debugger.input.writer.print("{s:<[1]}", .{
+        maxLength(getFirstLine(line.span, assembly.source), max_source_len),
+        max_source_len,
+    });
+
+    return true;
+}
+
+fn maxLength(string: []const u8, max_length: usize) []const u8 {
+    return string[0..@min(string.len, max_length)];
+}
+
+fn getFirstLine(span: Span, source: []const u8) []const u8 {
+    const lines = span.getContainingLines(source).view(source);
+    var line_iter = std.mem.splitScalar(u8, lines, '\n');
+    const first = line_iter.next() orelse unreachable;
+    return std.mem.trim(u8, first, &std.ascii.whitespace);
 }
 
 fn evalCommand(
@@ -567,6 +614,15 @@ fn getAssemblyLine(
             .span = span,
         }).abort();
     }
+    return &assembly.air.lines.items[index];
+}
+
+fn getAssemblyLineOptional(assembly: Assembly, address: u16) ?*const Air.Line {
+    if (address < assembly.air.origin)
+        return null;
+    const index = address - assembly.air.origin;
+    if (index >= assembly.air.lines.items.len)
+        return null;
     return &assembly.air.lines.items[index];
 }
 
