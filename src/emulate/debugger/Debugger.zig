@@ -56,6 +56,19 @@ const Breakpoints = struct {
         try breakpoints.entries.append(breakpoints.gpa, address);
         return true;
     }
+
+    pub fn remove(breakpoints: *Breakpoints, address: u16) bool {
+        // PERF: Make better
+        const length = breakpoints.entries.items.len;
+        var i: usize = 0;
+        while (i < breakpoints.entries.items.len) {
+            if (breakpoints.entries.items[i] != address)
+                continue;
+            _ = breakpoints.entries.orderedRemove(i);
+            i += 1;
+        }
+        return length > breakpoints.entries.items.len;
+    }
 };
 
 const Status = union(enum) {
@@ -267,13 +280,6 @@ fn runCommand(
     source: []const u8,
 ) !?Action {
     switch (command.value) {
-        else => {
-            try debugger.reporter.report(.debugger_any_err, .{
-                .code = error.UnimplementedCommand,
-                .span = command.tag,
-            }).abort();
-        },
-
         .help => {
             try debugger.input.writer.print("\x1b[34m", .{});
             try runtime.writer.writeAll(@embedFile("help.txt"));
@@ -428,13 +434,24 @@ fn runCommand(
                 }).abort();
             };
             if (inserted)
-                try debugger.printLine("Breakpoint added at 0x{x:04}", .{address})
+                try debugger.printLine("Added breakpoint at 0x{x:04}", .{address})
             else
                 try debugger.printLine("Breakpoint already exists at 0x{x:04}", .{address});
         },
 
-        // TODO:
-        // .break_remove => {},
+        .break_remove => |arguments| {
+            const address = try debugger.resolveMemoryLocation(
+                runtime,
+                arguments.location.value,
+                arguments.location.span,
+                source,
+            );
+            const removed = debugger.breakpoints.remove(address);
+            if (removed)
+                try debugger.printLine("Removed Breakpoint at 0x{x:04}", .{address})
+            else
+                try debugger.printLine("No breakpoint exists at 0x{x:04}", .{address});
+        },
     }
 
     return null;
