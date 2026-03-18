@@ -89,10 +89,11 @@ pub fn parse(parser: *Parser, gpa: Allocator, air: *Air) error{OutOfMemory}!void
     }
 
     if (parser.current_label) |existing| {
-        parser.reporter().report(.invalid_label_target, .{
-            .label = existing,
-            .target = null,
-        }).proceed(); // Can't return `error.Reported`
+        if (Air.Line.Label.Kind.from(existing.view(parser.source())) == .normal)
+            parser.reporter().report(.invalid_label_target, .{
+                .label = existing,
+                .target = null,
+            }).proceed(); // Can't return `error.Reported`
     }
 
     if (missing_end) {
@@ -108,10 +109,11 @@ fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
     switch (token.value) {
         .label => {
             if (parser.current_label) |existing| {
-                try parser.reporter().report(.shadowed_label, .{
-                    .existing = existing,
-                    .new = token.span,
-                }).handle();
+                if (Air.Line.Label.Kind.from(existing.view(parser.source())) == .normal)
+                    try parser.reporter().report(.shadowed_label, .{
+                        .existing = existing,
+                        .new = token.span,
+                    }).handle();
             }
 
             if (parser.getExistingLabel(air, token.span.view(parser.source()))) |existing_label| {
@@ -297,20 +299,22 @@ fn parseDirective(
     switch (directive) {
         .end => {
             if (parser.current_label) |label| {
-                try parser.reporter().report(.invalid_label_target, .{
-                    .label = label,
-                    .target = span,
-                }).handle();
+                if (Air.Line.Label.Kind.from(label.view(parser.source())) == .normal)
+                    try parser.reporter().report(.invalid_label_target, .{
+                        .label = label,
+                        .target = span,
+                    }).handle();
             }
             return .@"break";
         },
 
         .orig => {
             if (parser.current_label) |label| {
-                try parser.reporter().report(.invalid_label_target, .{
-                    .label = label,
-                    .target = span,
-                }).handle();
+                if (Air.Line.Label.Kind.from(label.view(parser.source())) == .normal)
+                    try parser.reporter().report(.invalid_label_target, .{
+                        .label = label,
+                        .target = span,
+                    }).handle();
             }
 
             const origin = try parser.tokens.expectArgument(.word);
@@ -521,7 +525,7 @@ pub fn resolveLabels(parser: *Parser, air: *Air) void {
     for (air.lines.items) |*line| {
         const label = line.label orelse
             continue;
-        if (label.references == 0) {
+        if (label.references == 0 and label.kind == .normal) {
             parser.reporter().report(.unused_label, .{
                 .label = label.span,
             }).proceed();
