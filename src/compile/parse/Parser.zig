@@ -228,7 +228,7 @@ fn takeCurrentLabel(parser: *Parser) ?Air.Line.Label {
     const label = parser.current_label orelse
         return null;
     parser.current_label = null;
-    return .{ .span = label, .references = 0 };
+    return .new(label, label.view(parser.source()));
 }
 
 fn appendLine(

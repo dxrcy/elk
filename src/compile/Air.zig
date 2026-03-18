@@ -21,6 +21,15 @@ pub const Line = struct {
     pub const Label = struct {
         span: Span,
         references: usize,
+        kind: enum { normal, breakpoint },
+
+        pub fn new(span: Span, string: []const u8) Label {
+            return .{
+                .span = span,
+                .references = 0,
+                .kind = if (std.mem.startsWith(u8, string, "__")) .breakpoint else .normal,
+            };
+        }
     };
 };
 
