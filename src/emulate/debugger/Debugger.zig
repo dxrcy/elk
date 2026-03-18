@@ -52,8 +52,16 @@ const Breakpoints = struct {
             if (breakpoint == address)
                 return false;
         }
-        // TODO: Sorted insert
-        try breakpoints.entries.append(breakpoints.gpa, address);
+
+        var index: usize = breakpoints.entries.items.len;
+        for (breakpoints.entries.items, 0..) |breakpoint, i| {
+            if (breakpoint >= address) {
+                index = i;
+                break;
+            }
+        }
+
+        try breakpoints.entries.insert(breakpoints.gpa, index, address);
         return true;
     }
 
