@@ -315,6 +315,7 @@ pub const Diagnostic = union(enum) {
                 ctx.printTitle("Shadowed label has no use", .{});
                 ctx.deepen().printSourceNote("First label declared here", .{}, info.existing);
                 ctx.deepen().printSourceNote("Another label declared in the same position", .{}, info.new);
+                ctx.deepen().printNote("First label will be overridden by second label; it is not usable", .{});
             },
             .label_colon => |info| {
                 ctx.printTitle("Label followed by colon `:`", .{});
