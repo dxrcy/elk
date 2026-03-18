@@ -36,8 +36,12 @@ pub const Assembly = struct {
 };
 
 const Breakpoints = struct {
-    entries: std.ArrayList(u16),
+    entries: std.ArrayList(Entry),
     gpa: Allocator,
+
+    const Entry = struct {
+        address: u16,
+    };
 
     pub fn init(gpa: Allocator) Breakpoints {
         return .{ .entries = .empty, .gpa = gpa };
@@ -48,27 +52,31 @@ const Breakpoints = struct {
     }
 
     pub fn insert(breakpoints: *Breakpoints, address: u16) error{OutOfMemory}!bool {
-        for (breakpoints.entries.items) |breakpoint| {
-            if (breakpoint == address)
+        for (breakpoints.entries.items) |entry| {
+            if (entry.address == address)
                 return false;
         }
 
         var index: usize = breakpoints.entries.items.len;
-        for (breakpoints.entries.items, 0..) |breakpoint, i| {
-            if (breakpoint >= address) {
+        for (breakpoints.entries.items, 0..) |entry, i| {
+            if (entry.address >= address) {
                 index = i;
                 break;
             }
         }
 
-        try breakpoints.entries.insert(breakpoints.gpa, index, address);
+        try breakpoints.entries.insert(
+            breakpoints.gpa,
+            index,
+            .{ .address = address },
+        );
         return true;
     }
 
     pub fn remove(breakpoints: *Breakpoints, address: u16) bool {
         var new_length: usize = 0;
         for (0..breakpoints.entries.items.len) |j| {
-            if (breakpoints.entries.items[j] == address)
+            if (breakpoints.entries.items[j].address == address)
                 continue;
             breakpoints.entries.items[new_length] = breakpoints.entries.items[j];
             new_length += 1;
@@ -209,8 +217,8 @@ fn isHalted(debugger: *const Debugger, runtime: *const Runtime) bool {
 }
 
 fn isAtBreakpoint(debugger: *const Debugger, runtime: *const Runtime) bool {
-    for (debugger.breakpoints.entries.items) |address| {
-        if (address == runtime.state.pc)
+    for (debugger.breakpoints.entries.items) |entry| {
+        if (entry.address == runtime.state.pc)
             return true;
     }
     return false;
@@ -513,11 +521,11 @@ fn printBreakpointTable(debugger: *Debugger) !void {
     });
     try debugger.input.writer.print(delimiter, .{});
 
-    for (debugger.breakpoints.entries.items) |address| {
+    for (debugger.breakpoints.entries.items) |entry| {
         try debugger.input.writer.print("|  ", .{});
-        try debugger.input.writer.print("0x{x:04}", .{address});
+        try debugger.input.writer.print("0x{x:04}", .{entry.address});
 
-        if (!try printBreakpointSource(debugger, address)) {
+        if (!try printBreakpointSource(debugger, entry.address)) {
             try debugger.input.writer.print(" | ", .{});
             try debugger.input.writer.print("{s:<[1]}", .{ empty_marker, max_label_len });
             try debugger.input.writer.print(" | ", .{});
