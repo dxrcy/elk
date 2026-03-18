@@ -109,11 +109,10 @@ fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
     switch (token.value) {
         .label => {
             if (parser.current_label) |existing| {
-                if (Air.Line.Label.Kind.from(existing.view(parser.source())) == .normal)
-                    try parser.reporter().report(.shadowed_label, .{
-                        .existing = existing,
-                        .new = token.span,
-                    }).handle();
+                try parser.reporter().report(.shadowed_label, .{
+                    .existing = existing,
+                    .new = token.span,
+                }).handle();
             }
 
             if (parser.getExistingLabel(air, token.span.view(parser.source()))) |existing_label| {
