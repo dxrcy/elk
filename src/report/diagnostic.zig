@@ -124,22 +124,8 @@ pub const Diagnostic = union(enum) {
     // Emulator
     emulate_program_error: struct { code: Runtime.ProgramError },
 
-    // Emulator debugger
-    debugger_any_err: struct {
-        code: anyerror,
-        span: ?Span,
-    },
-    debugger_any_warn: struct {
-        code: anyerror,
-        span: ?Span,
-    },
-    debugger_any_info: struct {
-        code: anyerror,
-        span: ?Span,
-    },
-
     // TODO: Reorder
-
+    // Emulator debugger
     debugger_show_assembly: struct { line: Span, address: u16 },
     // TODO: Distinguish command vs label
     debugger_requires_assembly: struct { command: Span },
@@ -212,10 +198,6 @@ pub const Diagnostic = union(enum) {
             .undesirable_integer_form => policyResponse(options, .style, .undesirable_integer_forms),
 
             .emulate_program_error => .fatal,
-
-            .debugger_any_err => .fatal,
-            .debugger_any_warn => .minor,
-            .debugger_any_info => .info,
 
             .debugger_show_assembly => .info,
             .debugger_requires_assembly => .fatal,
@@ -486,22 +468,6 @@ pub const Diagnostic = union(enum) {
             .emulate_program_error => |info| {
                 ctx.printTitle("Runtime exception: {t}", .{info.code});
                 // TODO: Add additional information
-            },
-
-            .debugger_any_err => |info| {
-                ctx.printTitle("Debugger error: {t}", .{info.code});
-                if (info.span) |span|
-                    ctx.deepen().printSourceNote("Here", .{}, span);
-            },
-            .debugger_any_warn => |info| {
-                ctx.printTitle("Debugger warning: {t}", .{info.code});
-                if (info.span) |span|
-                    ctx.deepen().printSourceNote("Here", .{}, span);
-            },
-            .debugger_any_info => |info| {
-                ctx.printTitle("Debugger info: {t}", .{info.code});
-                if (info.span) |span|
-                    ctx.deepen().printSourceNote("Here", .{}, span);
             },
 
             .debugger_show_assembly => |info| {
