@@ -534,11 +534,9 @@ pub const Diagnostic = union(enum) {
             },
         }
 
-        switch (ctx.reporter.verbosity) {
-            .normal => {
-                ctx.print("\n", .{});
-            },
-            .quiet => {},
+        const count = if (ctx.item_count) |count| count.* else 0;
+        if (count > 1 and ctx.reporter.verbosity == .normal) {
+            ctx.print("\n", .{});
         }
     }
 };
