@@ -1,6 +1,5 @@
 const std = @import("std");
 
-const Policies = @import("../Policies.zig");
 const Span = @import("../compile/Span.zig");
 const Token = @import("../compile/parse/Token.zig");
 const Radix = @import("../compile/parse/integers.zig").Form.Radix;
@@ -8,6 +7,7 @@ const Runtime = @import("../emulate/Runtime.zig");
 const Command = @import("../emulate/debugger/Debugger.zig").Command;
 const Reporter = @import("Reporter.zig");
 const Ctx = @import("Ctx.zig");
+const Policies = Reporter.Policies;
 
 pub const TokenKinds = struct {
     kinds: []const Kind,
@@ -472,7 +472,7 @@ pub const Diagnostic = union(enum) {
 
             .debugger_show_assembly => |info| {
                 ctx.printTitle("Inspect assembly source", .{});
-                ctx.deepen().printSourceNote("Address 0x{x:04}", .{info.address}, info.line);
+                ctx.deepen().printSourceNote("Next instruction, at 0x{x:04}", .{info.address}, info.line);
             },
             .debugger_requires_assembly => |info| {
                 ctx.printTitle("Command requires access to assembly", .{});

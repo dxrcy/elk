@@ -11,8 +11,17 @@ Available as a both Zig library and a command-line program.
 
 - [x] Assembler (includes linting)
 - [x] Emulator
-- [x] Debugger
+- [x] Debugger (see below)
 - [ ] Formatter
+
+## Debugger Features
+
+- [x] Step through execution
+- [x] Inspect/modify registers and memory
+- [x] View current line in assembly source
+- [x] Set breakpoints
+- [x] Evaluate arbitrary instructions
+- [x] Recover from `HALT` and runtime exceptions
 
 ## Optional Extension Features
 
@@ -20,6 +29,7 @@ Available as a both Zig library and a command-line program.
 - [x] Stack instructions (compatible with [Lace](https://github.com/rozukke/lace))
 - [x] Extra-permissive assembly syntax
 - [x] Full support for arbitrary user-defined traps
+- [x] Support for arbitrary runtime hooks
 - [ ] Multiple file support (compatible with [Laser](https://github.com/PaperFanz/laser))
 - [ ] Preprocessor macros (compatible with [Leap](https://github.com/twhlynch/leap))
 

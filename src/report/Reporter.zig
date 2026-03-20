@@ -8,7 +8,7 @@ const Token = @import("../compile/parse/Token.zig");
 const Diagnostic = @import("diagnostic.zig").Diagnostic;
 const Ctx = @import("Ctx.zig");
 
-pub const Policies = @import("../Policies.zig");
+pub const Policies = @import("../policies.zig").Policies;
 pub const Stderr = @import("Stderr.zig");
 pub const Discarding = @import("Discarding.zig");
 

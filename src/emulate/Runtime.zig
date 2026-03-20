@@ -4,7 +4,7 @@ const std = @import("std");
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
 
-const Policies = @import("../Policies.zig");
+const Policies = @import("../policies.zig").Policies;
 const Traps = @import("../Traps.zig");
 const Tty = @import("Tty.zig");
 
