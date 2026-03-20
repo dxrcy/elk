@@ -1,5 +1,5 @@
-pub const Policies = struct {
-    pub const Policy = enum { permit, forbid };
+pub const Policies = packed struct {
+    pub const Policy = enum(u1) { permit, forbid };
 
     pub const default: Policies = .{
         .extension = .forbid_all,
@@ -22,7 +22,7 @@ pub const Policies = struct {
         break :blk policies;
     };
 
-    extension: struct {
+    extension: packed struct {
         stack_instructions: Policy,
         implicit_origin: Policy,
         implicit_end: Policy,
@@ -35,7 +35,7 @@ pub const Policies = struct {
         pub const permit_all = fillFields(@This(), .permit);
     },
 
-    smell: struct {
+    smell: packed struct {
         pc_offset_literals: Policy,
         explicit_trap_instructions: Policy,
         unknown_trap_vectors: Policy,
@@ -45,7 +45,7 @@ pub const Policies = struct {
         pub const permit_all = fillFields(@This(), .permit);
     },
 
-    style: struct {
+    style: packed struct {
         undesirable_integer_forms: Policy,
         missing_operand_commas: Policy,
         whitespace_commas: Policy,
