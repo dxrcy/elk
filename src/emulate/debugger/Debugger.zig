@@ -611,18 +611,12 @@ fn parseInstructionLine(
 fn copyReporter(debugger: *const Debugger, source: []const u8) Reporter {
     var reporter = debugger.reporter.copyImplementation();
     reporter.source = source;
-
-    var policies: Reporter.Policies = .{
+    reporter.options.strictness = .normal;
+    reporter.options.policies = .{
         .extension = reporter.options.policies.extension,
         .smell = reporter.options.policies.smell,
         .style = .permit_all,
     };
-
-    reporter.options.strictness = .normal;
-    // FIXME: Reference to stack memory !!!
-    // TODO: Perhaps convert pointer field to value field
-    reporter.options.policies = &policies;
-
     return reporter;
 }
 

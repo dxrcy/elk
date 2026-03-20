@@ -30,7 +30,7 @@ pub fn main(init: std.process.Init) !u8 {
     };
 
     const policies: lcz.Policies = .config_lace;
-    reporter.options.policies = &policies;
+    reporter.options.policies = policies;
 
     const traps: lcz.Traps = comptime .initBuiltins(&.{
         lcz.Traps.Standard,
@@ -70,7 +70,7 @@ pub fn main(init: std.process.Init) !u8 {
                 cli.debug,
                 &traps,
                 hooks,
-                &policies,
+                policies,
                 &reporter,
             );
         },
@@ -91,7 +91,7 @@ pub fn main(init: std.process.Init) !u8 {
                 cli.debug,
                 &traps,
                 hooks,
-                &policies,
+                policies,
                 &reporter,
             );
         },
@@ -148,7 +148,7 @@ fn emulate(
     debug: bool,
     traps: *const lcz.Traps,
     hooks: lcz.Runtime.Hooks,
-    policies: *const lcz.Policies,
+    policies: lcz.Policies,
     reporter: *lcz.Reporter,
 ) !void {
     var write_buffer: [64]u8 = undefined;

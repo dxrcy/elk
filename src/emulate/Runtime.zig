@@ -20,7 +20,7 @@ state: State,
 
 traps: *const Traps,
 hooks: Hooks,
-policies: *const Policies,
+policies: Policies,
 debugger: ?*Debugger,
 
 reader: *Io.Reader,
@@ -98,7 +98,7 @@ pub fn init(
     writer: *Io.Writer,
     traps: *const Traps,
     hooks: Hooks,
-    policies: *const Policies,
+    policies: Policies,
     debugger: ?*Debugger,
 ) !Runtime {
     return .{
