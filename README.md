@@ -23,6 +23,7 @@ Available as a both Zig library and a command-line program.
 - [x] Evaluate arbitrary instructions
 - [x] Recover from `HALT` and runtime exceptions
 - [x] Persistent history across program runs
+- [ ] Import label declarations from symbol table
 
 ## Optional Extension Features
 
@@ -33,6 +34,7 @@ Available as a both Zig library and a command-line program.
 - [x] Support for arbitrary runtime hooks
 - [ ] Multiple file support (compatible with [Laser](https://github.com/PaperFanz/laser))
 - [ ] Preprocessor macros (compatible with [Leap](https://github.com/twhlynch/leap))
+- [ ] Output symbol table and assembly listing
 
 ## Quality-of-Life Features
 
