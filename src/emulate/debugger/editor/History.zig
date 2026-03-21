@@ -6,9 +6,7 @@ const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
 store: std.ArrayList(u8),
-file: ?Io.File,
-
-io: Io,
+writer: ?Io.File.Writer,
 gpa: Allocator,
 
 pub fn length(history: *const History) usize {

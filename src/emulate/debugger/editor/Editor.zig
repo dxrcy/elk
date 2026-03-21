@@ -14,7 +14,7 @@ history: History,
 cursor: usize,
 scrollback: ?usize,
 
-pub fn init(io: Io, gpa: Allocator, history_file: ?Io.File, buffer: []u8) Editor {
+pub fn init(gpa: Allocator, history_writer: ?Io.File.Writer, buffer: []u8) Editor {
     return .{
         .live = .{
             .buffer = buffer,
@@ -22,8 +22,7 @@ pub fn init(io: Io, gpa: Allocator, history_file: ?Io.File, buffer: []u8) Editor
         },
         .history = .{
             .store = .empty,
-            .file = history_file,
-            .io = io,
+            .writer = history_writer,
             .gpa = gpa,
         },
         .cursor = 0,
