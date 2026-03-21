@@ -16,7 +16,7 @@ fn readFileAlloc(io: Io, gpa: Allocator, file: Io.File, list: *std.ArrayList(u8)
     const size = try file.length(io);
     try list.ensureTotalCapacity(gpa, size);
 
-    const bytes_read = try file.readPositionalAll(io, list.items.ptr[0..size], 0);
+    const bytes_read = try file.readPositionalAll(io, list.allocatedSlice(), 0);
     assert(bytes_read == size);
     list.items.len = size;
 }
