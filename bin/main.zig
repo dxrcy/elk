@@ -156,18 +156,27 @@ fn emulate(
     var writer = Io.File.stdout().writer(io, &write_buffer);
     var reader = Io.File.stdin().reader(io, &.{});
 
-    var debugger_opt: ?lcz.Runtime.Debugger = if (debug) try .init(
-        gpa,
-        &reader.interface,
-        &writer.interface,
-        &debugger_buffer,
-        switch (runtime_source) {
-            .object => null,
-            .assembly => |assembly| assembly,
-        },
-        traps,
-        reporter,
-    ) else null;
+    var debugger_opt: ?lcz.Runtime.Debugger = if (debug) debugger: {
+        const history_file = openHistoryFile(io) catch |err| file: {
+            std.log.err("failed to open/create history file: {t}", .{err});
+            break :file null;
+        };
+
+        break :debugger try .init(
+            io,
+            gpa,
+            &reader.interface,
+            &writer.interface,
+            history_file,
+            &debugger_buffer,
+            switch (runtime_source) {
+                .object => null,
+                .assembly => |assembly| assembly,
+            },
+            traps,
+            reporter,
+        );
+    } else null;
     defer if (debugger_opt) |*debugger| debugger.deinit(gpa);
 
     var runtime = try lcz.Runtime.init(
@@ -206,4 +215,14 @@ fn emulate(
 
     try runtime.ensureWriterNewline();
     try runtime.writer.flush();
+}
+
+fn openHistoryFile(io: Io) !Io.File {
+    // FIXME: Get path programatically
+    const path = "/home/darcy/.cache/lcz-history";
+
+    const flags: Io.File.CreateFlags = .{};
+    const file = try Io.Dir.createFileAbsolute(io, path, flags);
+
+    return file;
 }

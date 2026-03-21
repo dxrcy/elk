@@ -1,6 +1,7 @@
 const Editor = @This();
 
 const std = @import("std");
+const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
@@ -13,7 +14,7 @@ history: History,
 cursor: usize,
 scrollback: ?usize,
 
-pub fn init(gpa: Allocator, buffer: []u8) Editor {
+pub fn init(io: Io, gpa: Allocator, history_file: ?Io.File, buffer: []u8) Editor {
     return .{
         .live = .{
             .buffer = buffer,
@@ -21,6 +22,8 @@ pub fn init(gpa: Allocator, buffer: []u8) Editor {
         },
         .history = .{
             .store = .empty,
+            .file = history_file,
+            .io = io,
             .gpa = gpa,
         },
         .cursor = 0,

@@ -1,10 +1,14 @@
 const History = @This();
 
 const std = @import("std");
+const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
 store: std.ArrayList(u8),
+file: ?Io.File,
+
+io: Io,
 gpa: Allocator,
 
 pub fn length(history: *const History) usize {

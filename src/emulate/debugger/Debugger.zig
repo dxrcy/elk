@@ -54,9 +54,11 @@ const Action = enum {
 };
 
 pub fn init(
+    io: Io,
     gpa: std.mem.Allocator,
     reader: *Io.Reader,
     writer: *Io.Writer,
+    history_file: ?Io.File,
     command_buffer: []u8,
     assembly_opt: ?Assembly,
     traps: *const Traps,
@@ -81,7 +83,7 @@ pub fn init(
         .current_breakpoint = null,
         .breakpoints = breakpoints,
         .current_line = "",
-        .input = .init(gpa, reader, writer, command_buffer),
+        .input = .init(io, gpa, reader, writer, history_file, command_buffer),
         .initial_state = null,
         .assembly = assembly_opt,
         .traps = traps,

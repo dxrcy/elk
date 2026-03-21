@@ -28,9 +28,16 @@ pub const Key = union(enum) {
     };
 };
 
-pub fn init(gpa: Allocator, reader: *Io.Reader, writer: *Io.Writer, buffer: []u8) Input {
+pub fn init(
+    io: Io,
+    gpa: Allocator,
+    reader: *Io.Reader,
+    writer: *Io.Writer,
+    history_file: ?Io.File,
+    buffer: []u8,
+) Input {
     return .{
-        .editor = .init(gpa, buffer),
+        .editor = .init(io, gpa, history_file, buffer),
         .reader = reader,
         .writer = writer,
     };
