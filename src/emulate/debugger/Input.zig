@@ -98,8 +98,22 @@ pub fn readLine(input: *Input) ![]const u8 {
 
     input.editor.makeLive();
     const line = input.editor.getString();
+
     input.editor.history.push(line);
+    input.writeHistory(line) catch |err| {
+        std.log.err("history write failed: {t}", .{err});
+    };
+
     return line;
+}
+
+fn writeHistory(input: *Input, line: []const u8) !void {
+    const file = &(input.history_file orelse
+        return);
+    // PERF: This can be done with less Io calls
+    const size = try file.length(input.io);
+    try file.writePositionalAll(input.io, "\n", size);
+    try file.writePositionalAll(input.io, line, size + 1);
 }
 
 fn readKey(input: *Input) error{ EndOfStream, ReadFailed }!?Key {

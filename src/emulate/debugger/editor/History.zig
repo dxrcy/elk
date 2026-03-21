@@ -14,13 +14,11 @@ pub fn readFromFile(history: *History, io: Io, file: Io.File) !void {
 
 fn readFileAlloc(io: Io, gpa: Allocator, file: Io.File, list: *std.ArrayList(u8)) !void {
     const size = try file.length(io);
+    try list.ensureTotalCapacity(gpa, size);
 
-    list.clearRetainingCapacity();
-    try list.ensureUnusedCapacity(gpa, size);
-    list.items.len = size;
-
-    const bytes_read = try file.readPositionalAll(io, list.items, 0);
+    const bytes_read = try file.readPositionalAll(io, list.items.ptr[0..size], 0);
     assert(bytes_read == size);
+    list.items.len = size;
 }
 
 pub fn length(history: *const History) usize {
