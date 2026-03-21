@@ -13,6 +13,7 @@ editor: Editor,
 reader: *Io.Reader,
 writer: *Io.Writer,
 history_file: ?Io.File,
+io: Io,
 
 pub const Key = union(enum) {
     char: u8,
@@ -30,6 +31,7 @@ pub const Key = union(enum) {
 };
 
 pub fn init(
+    io: Io,
     reader: *Io.Reader,
     writer: *Io.Writer,
     history_file: ?Io.File,
@@ -40,6 +42,7 @@ pub fn init(
         .reader = reader,
         .writer = writer,
         .history_file = history_file,
+        .io = io,
     };
 }
 

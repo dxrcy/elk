@@ -165,6 +165,7 @@ fn emulate(
         break :debugger try .init(
             gpa,
             .init(
+                io,
                 &reader.interface,
                 &writer.interface,
                 history_file,
