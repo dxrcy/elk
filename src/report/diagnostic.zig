@@ -124,9 +124,8 @@ pub const Diagnostic = union(enum) {
     // Emulator
     emulate_exception: struct { code: Runtime.Exception },
 
-    // TODO: Reorder
     // Emulator debugger
-    debugger_show_assembly: struct { line: Span, address: u16 },
+    // TODO: Reorder
     // TODO: Distinguish command vs label
     debugger_requires_assembly: struct { command: Span },
     debugger_requires_state: struct { command: Span },
@@ -199,7 +198,6 @@ pub const Diagnostic = union(enum) {
 
             .emulate_exception => .fatal,
 
-            .debugger_show_assembly => .info,
             .debugger_requires_assembly => .fatal,
             .debugger_requires_state => .fatal,
             .debugger_address_not_in_assembly => .fatal,
@@ -470,10 +468,6 @@ pub const Diagnostic = union(enum) {
                 // TODO: Add additional information
             },
 
-            .debugger_show_assembly => |info| {
-                ctx.printTitle("Inspect assembly source", .{});
-                ctx.deepen().printSourceNote("Next instruction, at 0x{x:04}", .{info.address}, info.line);
-            },
             .debugger_requires_assembly => |info| {
                 ctx.printTitle("Command requires access to assembly", .{});
                 ctx.deepen().printSourceNote("Command", .{}, info.command);

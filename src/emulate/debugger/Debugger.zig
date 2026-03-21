@@ -403,11 +403,8 @@ fn runCommand(
 
             const line = try debugger.getAssemblyLine(&assembly, address, arguments.location.span);
 
-            var reporter = debugger.copyReporter(assembly.source);
-            reporter.report(.debugger_show_assembly, .{
-                .line = line.span,
-                .address = address,
-            }).proceed();
+            try debugger.printLine("Next instruction, at 0x{x:04}:", .{address});
+            try Reporter.writeSpanContext(debugger.input.writer, line.span, assembly.source, 0);
         },
 
         .eval => |arguments| {
