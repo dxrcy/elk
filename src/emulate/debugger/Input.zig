@@ -7,84 +7,15 @@ const assert = std.debug.assert;
 const control_code = std.ascii.control_code;
 
 const Runtime = @import("../Runtime.zig");
-const Editor = @import("editor/Editor.zig");
+pub const Editor = @import("editor/Editor.zig");
 
 editor: Editor,
 reader: *Io.Reader,
 writer: *Io.Writer,
+history_file: ?Io.File,
+io: Io,
 
-pub fn init(gpa: Allocator, reader: *Io.Reader, writer: *Io.Writer) Input {
-    return .{
-        .editor = .init(gpa),
-        .reader = reader,
-        .writer = writer,
-    };
-}
-
-pub fn deinit(input: *Input) void {
-    input.editor.deinit();
-}
-
-pub fn readLine(input: *Input) ![]const u8 {
-    var eof = false;
-
-    while (true) {
-        try input.writePrompt();
-        try input.writer.flush();
-
-        const control: Runtime.Control = input.handleNextKey() catch |err| switch (err) {
-            else => |err2| return err2,
-            error.EndOfStream => {
-                eof = true;
-                break;
-            },
-        };
-
-        switch (control) {
-            .@"continue" => continue,
-            .@"break" => break,
-        }
-    }
-
-    try input.writer.print("\n", .{});
-    try input.writer.flush();
-
-    if (eof) {
-        input.editor.clear();
-        return error.EndOfStream;
-    }
-
-    input.editor.makeLive();
-    const line = input.editor.getString();
-    input.editor.history.push(line);
-    input.editor.clear();
-    return line;
-}
-
-fn handleNextKey(input: *Input) error{ EndOfStream, ReadFailed }!Runtime.Control {
-    assert(input.editor.cursor <= input.editor.getString().len);
-
-    const key = try input.readKey() orelse
-        return .@"continue";
-
-    switch (key) {
-        .enter => return .@"break",
-        .eot => return error.EndOfStream,
-
-        .char => |char| input.editor.insert(char),
-        .bs => input.editor.remove(),
-
-        .escape => |escape| switch (escape) {
-            .cursor_up => input.editor.seekHistory(.backward),
-            .cursor_down => input.editor.seekHistory(.forward),
-            .cursor_forward => input.editor.seekLine(.right),
-            .cursor_back => input.editor.seekLine(.left),
-        },
-    }
-    return .@"continue";
-}
-
-const Key = union(enum) {
+pub const Key = union(enum) {
     char: u8,
     enter,
     eot,
@@ -98,6 +29,110 @@ const Key = union(enum) {
         cursor_back,
     };
 };
+
+pub fn init(
+    io: Io,
+    reader: *Io.Reader,
+    writer: *Io.Writer,
+    history_file: ?Io.File,
+    editor: Editor,
+) Input {
+    // TODO: Find a better solution !
+    var editor_copy = editor;
+
+    if (history_file) |file| {
+        editor_copy.history.readFromFile(io, file) catch |err| {
+            std.log.err("failed to read history file: {t}", .{err});
+        };
+    }
+
+    return .{
+        .editor = editor_copy,
+        .reader = reader,
+        .writer = writer,
+        .history_file = history_file,
+        .io = io,
+    };
+}
+
+pub fn deinit(input: *Input) void {
+    input.editor.deinit();
+}
+
+pub fn readLine(input: *Input) ![]const u8 {
+    input.editor.clear();
+    var eof = false;
+
+    while (true) {
+        try input.writePrompt();
+        try input.writer.flush();
+
+        const key = input.readKey() catch |err| switch (err) {
+            else => |err2| return err2,
+            error.EndOfStream => {
+                eof = true;
+                break;
+            },
+        } orelse
+            continue;
+
+        input.editor.handleKey(key) catch |err| switch (err) {
+            else => |err2| return err2,
+            error.EndOfLine => {
+                break;
+            },
+            error.EndOfStream => {
+                eof = true;
+                break;
+            },
+        };
+    }
+
+    try input.writer.print("\n", .{});
+    try input.writer.flush();
+
+    if (eof) {
+        input.editor.clear();
+        return error.EndOfStream;
+    }
+
+    input.editor.makeLive();
+    const line = input.editor.getString();
+
+    const trimmed = std.mem.trim(u8, line, &std.ascii.whitespace);
+    if (trimmed.len > 0) {
+        input.editor.history.push(trimmed);
+        input.writeHistory(trimmed) catch |err| {
+            std.log.err("history write failed: {t}", .{err});
+        };
+    }
+
+    return line;
+}
+
+fn writeHistory(input: *Input, line: []const u8) !void {
+    const trimmed = std.mem.trim(u8, line, &std.ascii.whitespace);
+    assert(trimmed.len == line.len);
+    assert(trimmed.len > 0);
+
+    const file = &(input.history_file orelse
+        return);
+
+    // PERF: This can be done with less Io calls
+    var size = try file.length(input.io);
+    if (size > 0) {
+        try file.writePositionalAll(input.io, "\n", size);
+        size += 1;
+    }
+    try file.writePositionalAll(input.io, line, size);
+}
+
+pub fn clearHistory(input: *Input) !void {
+    input.editor.history.clear();
+    const file = &(input.history_file orelse
+        return);
+    try file.setLength(input.io, 0);
+}
 
 fn readKey(input: *Input) error{ EndOfStream, ReadFailed }!?Key {
     return switch (try input.readByte()) {
@@ -134,7 +169,9 @@ fn readByte(input: *Input) error{ EndOfStream, ReadFailed }!u8 {
 fn writePrompt(input: *const Input) !void {
     const prompt = "> ";
     try input.writer.print("\r\x1b[K", .{});
+    try input.writer.print("\x1b[34m", .{});
     try input.writer.print(prompt, .{});
+    try input.writer.print("\x1b[0m", .{});
     try input.writer.print("{s}", .{input.editor.getString()});
     try input.writer.print("\x1b[{}G", .{input.editor.cursor + prompt.len + 1});
 }

@@ -6,11 +6,21 @@ const Span = @import("../../compile/Span.zig");
 const Lexer = @import("../../compile/parse/Lexer.zig");
 const parsing = @import("../../compile/parse/parsing.zig");
 const integers = @import("../../compile/parse/integers.zig");
-const Command = @import("command.zig").Command;
+const Command = @import("Command.zig");
 const tags = @import("tags.zig");
+const Spanned = Command.Spanned;
 
-pub fn Spanned(comptime K: type) type {
-    return struct { span: Span, value: K };
+pub fn splitCommandLine(line: []const u8) struct { []const u8, []const u8 } {
+    var lexer: Lexer = .new(line, false);
+    const token_len = while (lexer.next()) |token| {
+        if (std.mem.eql(u8, token.view(line), ";"))
+            break token.len;
+    } else 0;
+
+    return .{
+        line[0 .. lexer.index - token_len],
+        line[lexer.index..],
+    };
 }
 
 pub fn parseCommand(
@@ -28,56 +38,13 @@ pub fn parseCommand(
     const tag = try parser.parseCommandTag() orelse
         return null;
 
-    const command: Command = switch (tag.value) {
-        // TODO: Parse all commands
-        else => {
-            try reporter.report(.debugger_any_err, .{
-                .code = error.UnimplementedCommand,
-                .span = tag.span,
-            }).abort();
-        },
+    const value = try parser.parseCommandArguments(tag);
 
-        // Allow trailing arguments
-        .help => return .help,
-
-        inline .@"continue",
-        .registers,
-        .reset,
-        .quit,
-        .exit,
-        .step_over,
-        .step_out,
-        .break_list,
-        => |void_tag| @unionInit(Command, @tagName(void_tag), {}),
-
-        .print => .{ .print = .{
-            .location = try parser.nextLocation(),
-        } },
-
-        .move => .{ .move = .{
-            .location = try parser.nextLocation(),
-            .value = try parser.nextInteger(),
-        } },
-
-        .goto => .{ .goto = .{
-            .location = try parser.nextMemoryLocation(),
-        } },
-
-        .step_into => .{ .step_into = .{
-            .count = try parser.nextOptionalPositiveInt(),
-        } },
+    return .{
+        .line = .fromBounds(0, parser.lexer.index),
+        .tag = tag.span,
+        .value = value,
     };
-
-    if (parser.next()) |span| {
-        try reporter.report(.debugger_any_err, .{
-            .code = error.UnexpectedArgument,
-            .span = span,
-        }).abort();
-    } else |err| switch (err) {
-        error.Eof => {}, // Good
-    }
-
-    return command;
 }
 
 const Parser = struct {
@@ -85,101 +52,225 @@ const Parser = struct {
     source: []const u8,
     reporter: *Reporter,
 
+    fn parseCommandArguments(
+        parser: *Parser,
+        tag: Spanned(Command.Tag),
+    ) error{Reported}!Command.Value {
+        const value: Command.Value = switch (tag.value) {
+            // Allow trailing arguments
+            .help => return .help,
+
+            inline .quit,
+            .exit,
+            .clear,
+            .reset,
+            .registers,
+            .@"continue",
+            .step_over,
+            .step_out,
+            .break_list,
+            => |void_tag| @unionInit(Command.Value, @tagName(void_tag), {}),
+
+            .print => .{ .print = .{
+                .location = try parser.nextLocation(),
+            } },
+            .move => .{ .move = .{
+                .location = try parser.nextLocation(),
+                .value = try parser.nextInteger(),
+            } },
+            .goto => .{ .goto = .{
+                .location = try parser.nextMemoryLocation(),
+            } },
+            .assembly => .{ .assembly = .{
+                .location = try parser.nextOptionalMemoryLocation(),
+            } },
+            .step_into => .{ .step_into = .{
+                .count = try parser.nextOptionalPositiveInt(),
+            } },
+            .break_add => .{ .break_add = .{
+                .location = try parser.nextMemoryLocation(),
+            } },
+            .break_remove => .{ .break_remove = .{
+                .location = try parser.nextMemoryLocation(),
+            } },
+
+            .eval => .{ .eval = .{
+                .instruction = try parser.remainingString(),
+            } },
+            .echo => .{ .echo = .{
+                .string = try parser.remainingString(),
+            } },
+        };
+
+        assert(value == tag.value);
+
+        if (parser.next()) |span| {
+            try parser.reporter.report(.debugger_expected_eol, .{
+                .found = span,
+            }).abort();
+        } else |err| switch (err) {
+            error.Eof => {}, // Good
+        }
+
+        return value;
+    }
+
     fn next(parser: *Parser) error{Eof}!Span {
         while (true) {
             const token = parser.lexer.next() orelse
                 return error.Eof;
-            if (!std.mem.eql(u8, token.view(parser.source), ","))
-                return token;
+            if (std.mem.eql(u8, token.view(parser.source), ";"))
+                unreachable;
+            if (std.mem.eql(u8, token.view(parser.source), ","))
+                continue;
+            return token;
         }
     }
 
-    fn nextInteger(parser: *Parser) error{Reported}!u16 {
+    fn remainingString(parser: *Parser) error{Reported}!Span {
+        var first = parser.lexer.next() orelse {
+            try parser.reporter.report(.debugger_unexpected_eol, .{
+                .eol = .emptyAt(parser.source.len),
+            }).abort();
+        };
+
+        const start = first.offset;
+        var end = first.end();
+        while (parser.lexer.next()) |token| {
+            end = token.end();
+        }
+        return .fromBounds(start, end);
+    }
+
+    fn nextInteger(parser: *Parser) error{Reported}!Spanned(u16) {
         const argument = parser.next() catch |err| switch (err) {
-            error.Eof => try parser.reporter.report(.debugger_any_err, .{
-                .code = error.ExpectedArgument,
-                .span = .emptyAt(parser.source.len),
+            error.Eof => try parser.reporter.report(.debugger_unexpected_eol, .{
+                .eol = .emptyAt(parser.source.len),
             }).abort(),
         };
 
         const integer = try parser.parseInteger(argument);
-        return integer.underlying;
+
+        return .{ .span = argument, .value = integer.underlying };
     }
 
-    fn nextOptionalPositiveInt(parser: *Parser) error{Reported}!u16 {
+    fn nextOptionalPositiveInt(parser: *Parser) error{Reported}!Spanned(u16) {
         const argument = parser.next() catch |err| switch (err) {
-            error.Eof => return 1,
+            // TODO: Maybe instead, change return to ?Spanned(u16)
+            error.Eof => return .{ .span = .emptyAt(parser.source.len), .value = 1 },
         };
 
         const integer = try parser.parseInteger(argument);
 
         if (integer.underlying == 0) {
-            try parser.reporter.report(.debugger_any_err, .{
-                .code = error.ArgumentTooSmall,
-                .span = argument,
+            try parser.reporter.report(.debugger_integer_too_small, .{
+                .integer = argument,
+                .minimum = 1,
             }).abort();
         }
 
-        return integer.castToUnsigned() orelse {
-            try parser.reporter.report(.debugger_any_err, .{
-                .code = error.IntegerToolarge,
-                .span = argument,
+        const value = integer.castToUnsigned() orelse {
+            try parser.reporter.report(.integer_too_large, .{
+                .integer = argument,
+                .type_info = @typeInfo(u16).int,
             }).abort();
         };
+
+        return .{ .span = argument, .value = value };
     }
 
-    fn nextLocation(parser: *Parser) error{Reported}!Command.Location {
+    fn nextLocation(parser: *Parser) error{Reported}!Spanned(Command.Location) {
         const argument = parser.next() catch |err| switch (err) {
-            error.Eof => try parser.reporter.report(.debugger_any_err, .{
-                .code = error.ExpectedArgument,
-                .span = .emptyAt(parser.source.len),
+            error.Eof => try parser.reporter.report(.debugger_unexpected_eol, .{
+                .eol = .emptyAt(parser.source.len),
             }).abort(),
         };
 
         if (parsing.tryRegister(argument.view(parser.source))) |register|
-            return .{ .register = register };
+            return .{ .span = argument, .value = .{ .register = register } };
 
         if (try parser.parseMemoryLocation(argument)) |memory|
-            return .{ .memory = memory };
+            return .{ .span = argument, .value = .{ .memory = memory } };
 
-        try parser.reporter.report(.debugger_any_err, .{
-            .code = error.InvalidArgumentKind,
-            .span = argument,
+        try parser.reporter.report(.debugger_invalid_argument_kind, .{
+            .found = argument,
         }).abort();
     }
 
-    fn nextMemoryLocation(parser: *Parser) error{Reported}!Command.Location.Memory {
+    fn nextOptionalMemoryLocation(
+        parser: *Parser,
+    ) error{Reported}!Spanned(Command.Location.Memory) {
         const argument = parser.next() catch |err| switch (err) {
-            error.Eof => try parser.reporter.report(.debugger_any_err, .{
-                .code = error.ExpectedArgument,
+            error.Eof => return .{
+                .value = .{ .pc_offset = 0 },
                 .span = .emptyAt(parser.source.len),
+            },
+        };
+
+        // TODO: Report, if is register
+
+        if (try parser.parseMemoryLocation(argument)) |memory|
+            return .{ .span = argument, .value = memory };
+
+        try parser.reporter.report(.debugger_invalid_argument_kind, .{
+            .found = argument,
+        }).abort();
+    }
+
+    fn nextMemoryLocation(parser: *Parser) error{Reported}!Spanned(Command.Location.Memory) {
+        const argument = parser.next() catch |err| switch (err) {
+            error.Eof => try parser.reporter.report(.debugger_unexpected_eol, .{
+                .eol = .emptyAt(parser.source.len),
             }).abort(),
         };
 
-        if (try parser.parseMemoryLocation(argument)) |memory|
-            return memory;
+        // TODO: Report, if is register
 
-        try parser.reporter.report(.debugger_any_err, .{
-            .code = error.InvalidArgumentKind,
-            .span = argument,
+        if (try parser.parseMemoryLocation(argument)) |memory|
+            return .{ .span = argument, .value = memory };
+
+        try parser.reporter.report(.debugger_invalid_argument_kind, .{
+            .found = argument,
         }).abort();
     }
 
     fn parseInteger(parser: *Parser, argument: Span) error{Reported}!integers.SourceInt(16) {
         return try parser.tryParseInteger(argument) orelse {
-            try parser.reporter.report(.debugger_any_err, .{
-                .code = error.InvalidArgumentKind,
-                .span = argument,
+            try parser.reporter.report(.debugger_invalid_argument_kind, .{
+                .found = argument,
             }).abort();
         };
     }
 
     fn tryParseInteger(parser: *Parser, argument: Span) error{Reported}!?integers.SourceInt(16) {
-        return integers.tryInteger(argument.view(parser.source)) catch |err| {
-            try parser.reporter.report(.debugger_any_err, .{
-                .code = err,
-                .span = argument,
-            }).abort();
+        return integers.tryInteger(argument.view(parser.source)) catch |err| switch (err) {
+            // TODO: These exact same branches exist in `compile/parse`... merge ?
+            error.MalformedInteger => {
+                try parser.reporter.report(.malformed_integer, .{
+                    .integer = argument,
+                }).abort();
+            },
+            error.ExpectedDigit => {
+                try parser.reporter.report(.expected_digit, .{
+                    .integer = argument,
+                }).abort();
+            },
+            error.InvalidDigit => {
+                try parser.reporter.report(.invalid_digit, .{
+                    .integer = argument,
+                }).abort();
+            },
+            error.UnexpectedDelimiter => {
+                try parser.reporter.report(.unexpected_delimiter, .{
+                    .integer = argument,
+                }).abort();
+            },
+            error.IntegerTooLarge => {
+                try parser.reporter.report(.integer_too_large, .{
+                    .integer = argument,
+                    .type_info = @typeInfo(u16).int,
+                }).abort();
+            },
         };
     }
 
@@ -199,18 +290,24 @@ const Parser = struct {
     fn parsePcOffset(parser: *Parser, argument: Span) error{Reported}!?i16 {
         assert(argument.len > 0);
 
-        if (argument.view(parser.source)[0] != '^')
+        if (argument.view(parser.source)[0] != '~')
             return null;
 
         const integer_span: Span = .{ .offset = argument.offset + 1, .len = argument.len - 1 };
 
-        const integer = try parser.tryParseInteger(integer_span) orelse
+        if (integer_span.len == 0)
             return 0;
 
+        const integer = try parser.tryParseInteger(integer_span) orelse {
+            try parser.reporter.report(.debugger_invalid_argument_kind, .{
+                .found = integer_span,
+            }).abort();
+        };
+
         return integer.castToSmaller(i16) catch {
-            try parser.reporter.report(.debugger_any_err, .{
-                .code = error.IntegerToolarge,
-                .span = argument,
+            try parser.reporter.report(.integer_too_large, .{
+                .integer = argument,
+                .type_info = @typeInfo(i16).int,
             }).abort();
         };
     }
@@ -220,9 +317,9 @@ const Parser = struct {
             return null;
 
         return integer.castToUnsigned() orelse {
-            try parser.reporter.report(.debugger_any_err, .{
-                .code = error.IntegerToolarge,
-                .span = argument,
+            try parser.reporter.report(.integer_too_large, .{
+                .integer = argument,
+                .type_info = @typeInfo(u16).int,
             }).abort();
         };
     }
@@ -240,19 +337,12 @@ const Parser = struct {
 
         const label: Span = .{ .offset = argument.offset, .len = label_string.len };
 
-        const is_label = parsing.isLabel(label_string) catch |err| switch (err) {
-            error.InvalidLabel => {
-                try parser.reporter.report(.debugger_any_err, .{
-                    .code = error.InvalidLabel,
-                    .span = argument,
-                }).abort();
-            },
-        };
+        const is_label = parsing.isLabel(label_string) catch
+            return null;
 
         if (!is_label) {
-            try parser.reporter.report(.debugger_any_err, .{
-                .code = error.InvalidArgumentKind,
-                .span = argument,
+            try parser.reporter.report(.debugger_invalid_argument_kind, .{
+                .found = argument,
             }).abort();
         }
 
@@ -261,7 +351,7 @@ const Parser = struct {
 
         const offset_span: Span = .{ // Include sign character
             .offset = argument.offset + label_string.len,
-            .len = offset_string.len + 1,
+            .len = offset_string.len,
         };
 
         const integer = try parser.parseInteger(offset_span);
@@ -269,9 +359,9 @@ const Parser = struct {
         assert(integer.form.sign.?.position == .pre_radix);
 
         const offset = integer.castToSmaller(i16) catch {
-            try parser.reporter.report(.debugger_any_err, .{
-                .code = error.IntegerToolarge,
-                .span = argument,
+            try parser.reporter.report(.integer_too_large, .{
+                .integer = argument,
+                .type_info = @typeInfo(i16).int,
             }).abort();
         };
 
@@ -291,20 +381,16 @@ const Parser = struct {
         if (parser.findSingleTagMatch(.exact, &tags.single, first)) |tag|
             return tag;
 
-        const result = parser.reporter.report(.debugger_any_err, .{
-            .code = error.InvalidCommand,
-            .span = first,
+        const nearest =
+            if (parser.findSingleTagMatch(.nearest, &tags.single, first)) |nearest|
+                nearest.value
+            else
+                null;
+
+        try parser.reporter.report(.debugger_invalid_command, .{
+            .command = first,
+            .nearest = nearest,
         }).abort();
-
-        if (parser.findSingleTagMatch(.nearest, &tags.single, first)) |tag| {
-            _ = tag;
-            parser.reporter.report(.debugger_any_warn, .{
-                .code = error.CommandSuggestion,
-                .span = first,
-            }).proceed();
-        }
-
-        try result;
     }
 
     fn findDoubleTagMatch(
@@ -318,9 +404,9 @@ const Parser = struct {
         const second = parser.next() catch |err| switch (err) {
             error.Eof => {
                 const tag = double.default orelse {
-                    try parser.reporter.report(.debugger_any_err, .{
-                        .code = error.MissingSubcommand,
-                        .span = .emptyAt(parser.source.len),
+                    try parser.reporter.report(.debugger_missing_subcommand, .{
+                        .first = first,
+                        .eol = .emptyAt(parser.source.len),
                     }).abort();
                 };
                 return .{ .span = first, .value = tag };
@@ -330,20 +416,16 @@ const Parser = struct {
         if (parser.findSingleTagMatch(.exact, &double.second, second)) |tag|
             return .{ .span = first.join(second), .value = tag.value };
 
-        const result = parser.reporter.report(.debugger_any_err, .{
-            .code = error.InvalidSubcommand,
-            .span = second,
+        const nearest =
+            if (parser.findSingleTagMatch(.nearest, &double.second, second)) |nearest|
+                nearest.value
+            else
+                null;
+
+        try parser.reporter.report(.debugger_invalid_command, .{
+            .command = second,
+            .nearest = nearest,
         }).abort();
-
-        if (parser.findSingleTagMatch(.nearest, &double.second, second)) |tag| {
-            _ = tag;
-            parser.reporter.report(.debugger_any_warn, .{
-                .code = error.CommandSuggestion,
-                .span = second,
-            }).proceed();
-        }
-
-        try result;
     }
 
     fn findSingleTagMatch(

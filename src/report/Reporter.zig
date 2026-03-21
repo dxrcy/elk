@@ -4,11 +4,11 @@ const std = @import("std");
 const Io = std.Io;
 const assert = std.debug.assert;
 
-const Policies = @import("../Policies.zig");
 const Token = @import("../compile/parse/Token.zig");
 const Diagnostic = @import("diagnostic.zig").Diagnostic;
 const Ctx = @import("Ctx.zig");
 
+pub const Policies = @import("../policies.zig").Policies;
 pub const Stderr = @import("Stderr.zig");
 pub const Discarding = @import("Discarding.zig");
 
@@ -35,11 +35,11 @@ const VTable = struct {
     ) void,
 };
 
-pub const Level = enum { err, warn };
+pub const Level = enum { err, warn, info };
 
 pub const Options = struct {
     strictness: Strictness = .default,
-    policies: *const Policies = &.default,
+    policies: Policies = .default,
 
     pub const Strictness = enum {
         strict,
@@ -56,12 +56,13 @@ pub const Response = enum {
     major,
 
     minor,
+    info,
     pass,
 
     pub fn abort(response: Response) error{Reported}!noreturn {
         return switch (response) {
             .fatal, .major => error.Reported,
-            .minor, .pass => unreachable,
+            .minor, .info, .pass => unreachable,
         };
     }
     pub fn collect(response: Response, result: *error{Reported}!void) void {
@@ -69,20 +70,20 @@ pub const Response = enum {
             .fatal, .major => {
                 result.* = error.Reported;
             },
-            .minor, .pass => {},
+            .minor, .info, .pass => {},
         };
     }
     pub fn handle(response: Response) error{Reported}!void {
         return switch (response) {
             .fatal, .major => error.Reported,
-            .minor, .pass => {},
+            .minor, .info, .pass => {},
         };
     }
     /// Callsites should document why `proceed` is used rather than `handle`.
     pub fn proceed(response: Response) void {
         switch (response) {
             .fatal => unreachable,
-            .major, .minor, .pass => {},
+            .major, .minor, .info, .pass => {},
         }
     }
 };
@@ -94,6 +95,16 @@ pub fn fromImplementation(ptr: *anyopaque, vtable: *const VTable) Reporter {
         .source = null,
         .ptr = ptr,
         .vtable = vtable,
+    };
+}
+
+pub fn copyImplementation(reporter: *const Reporter) Reporter {
+    return .{
+        .options = .{},
+        .count = .initFill(0),
+        .source = null,
+        .ptr = reporter.ptr,
+        .vtable = reporter.vtable,
     };
 }
 
@@ -111,6 +122,7 @@ fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
     const level: Level = switch (response) {
         .fatal, .major => .err,
         .minor => .warn,
+        .info => .info,
         .pass => return .pass,
     };
 

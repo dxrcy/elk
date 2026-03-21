@@ -50,6 +50,12 @@ pub fn deepen(ctx: Ctx) Ctx {
     return new_ctx;
 }
 
+pub fn withSource(ctx: Ctx, source: []const u8) Ctx {
+    var new_ctx = ctx;
+    new_ctx.source = source;
+    return new_ctx;
+}
+
 fn incrementItemCount(ctx: *const Ctx) void {
     if (ctx.item_count) |count|
         count.* += 1;
@@ -81,6 +87,12 @@ pub fn printTitle(
             ctx.print("\x1b[33m", .{});
             ctx.print("\x1b[1m", .{});
             ctx.print("Warning: ", .{});
+            ctx.print("\x1b[0m", .{});
+        },
+        .info => {
+            ctx.print("\x1b[34m", .{});
+            ctx.print("\x1b[1m", .{});
+            ctx.print("Info: ", .{});
             ctx.print("\x1b[0m", .{});
         },
     }

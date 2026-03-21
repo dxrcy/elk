@@ -216,8 +216,14 @@ pub fn expectEol(tokens: *TokenIter) error{Reported}!void {
 pub fn expectArgument(
     tokens: *TokenIter,
     comptime argument: Argument,
-) error{ Reported, Eof }!Operand.Spanned(argument.Value()) {
-    const token = try tokens.nextAfterComma();
+) error{Reported}!Operand.Spanned(argument.Value()) {
+    const token: Token = tokens.nextAfterComma() catch |err| switch (err) {
+        error.Reported => return error.Reported,
+        error.Eof => .{
+            .value = .newline,
+            .span = .emptyAt(tokens.source.len),
+        },
+    };
     const value = try argument.convert(token, tokens.reporter);
     try tokens.ensureSupported(token, argument);
     return .{ .span = token.span, .value = value };

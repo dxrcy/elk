@@ -30,13 +30,16 @@ pub fn hasUppercaseAlpha(string: []const u8) bool {
 
 /// Allows single `_` to delimit words.
 /// Allows `[0-9]` in any place uppercase OR lowercase is allowed, but not BEFORE lowercase.
+/// Additionally, allows `__` as a prefix.
 pub fn isPascalCase(string: []const u8) bool {
     assert(string.len > 0);
+
+    const body = std.mem.cutPrefix(u8, string, "__") orelse string;
 
     const Char = enum { none, upper, lower, digit, delim };
     var previous: Char = .none;
 
-    for (string) |char| {
+    for (body) |char| {
         const current: Char = switch (char) {
             'A'...'Z' => .upper,
             'a'...'z' => .lower,
@@ -64,13 +67,10 @@ pub fn isPascalCase(string: []const u8) bool {
         previous = current;
     }
 
-    switch (previous) {
-        .none => unreachable,
-        .delim => return false,
-        else => {},
-    }
-
-    return true;
+    return switch (previous) {
+        .none, .delim => false,
+        else => true,
+    };
 }
 
 test isPascalCase {
@@ -88,12 +88,17 @@ test isPascalCase {
     try expect(isPascalCase("Abc12Def"));
     try expect(isPascalCase("12")); // whatever
     try expect(isPascalCase("12_12"));
+    try expect(isPascalCase("__Abc"));
+    try expect(isPascalCase("__Abc_Def"));
 
     try expect(!isPascalCase("a"));
     try expect(!isPascalCase("abc"));
     try expect(!isPascalCase("Abc_def"));
     try expect(!isPascalCase("abc_Def"));
     try expect(!isPascalCase("_"));
+    try expect(!isPascalCase("__"));
+    try expect(!isPascalCase("__a"));
+    try expect(!isPascalCase("__A__B"));
     try expect(!isPascalCase("Abc_"));
     try expect(!isPascalCase("Abc__"));
     try expect(!isPascalCase("_Abc"));

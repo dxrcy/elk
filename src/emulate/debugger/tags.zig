@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const Command = @import("command.zig").Command;
+const Command = @import("Command.zig");
 
 pub const Candidates = []const []const u8;
 
@@ -21,6 +21,24 @@ pub const single: SingleMap = .init(.{
     .help = .{
         .aliases = &.{ "h", "help", "--help", "-h", ":h", "man", "info", "wtf" },
     },
+    .quit = .{
+        .aliases = &.{ "q", "quit" },
+    },
+    .exit = .{
+        .aliases = &.{ "x", "exit", ":q", ":wq", "^C" },
+        .suggestions = &.{ "halt", "end", "stop" },
+    },
+    .clear = .{
+        .aliases = &.{"clear"},
+    },
+    .reset = .{
+        .aliases = &.{ "z", "reset" },
+        .suggestions = &.{ "restart", "refresh", "reboot" },
+    },
+    .registers = .{
+        .aliases = &.{ "r", "registers", "reg" },
+        .suggestions = &.{ "dump", "register", "regs" },
+    },
     .@"continue" = .{
         .aliases = &.{ "c", "continue", "cont" },
         .suggestions = &.{ "con", "proceed" },
@@ -32,10 +50,6 @@ pub const single: SingleMap = .init(.{
     .move = .{
         .aliases = &.{ "m", "move" },
         .suggestions = &.{ "set", "mov", "mv", "assign" },
-    },
-    .registers = .{
-        .aliases = &.{ "r", "registers", "reg" },
-        .suggestions = &.{ "dump", "register", "regs" },
     },
     .goto = .{
         .aliases = &.{ "g", "goto" },
@@ -49,19 +63,8 @@ pub const single: SingleMap = .init(.{
         .aliases = &.{ "e", "eval", "evil", "evaluate" },
         .suggestions = &.{ "run", "exec", "execute", "sim", "simulate", "instruction", "instr" },
     },
-    .reset = .{
-        .aliases = &.{ "z", "reset" },
-        .suggestions = &.{ "restart", "refresh", "reboot" },
-    },
     .echo = .{
         .aliases = &.{"echo"},
-    },
-    .quit = .{
-        .aliases = &.{ "q", "quit" },
-    },
-    .exit = .{
-        .aliases = &.{ "x", "exit", ":q", ":wq", "^C" },
-        .suggestions = &.{ "halt", "end", "stop" },
     },
     .step_over = .{
         .aliases = &.{},

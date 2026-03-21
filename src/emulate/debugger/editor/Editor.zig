@@ -1,8 +1,11 @@
 const Editor = @This();
 
 const std = @import("std");
+const Io = std.Io;
 const Allocator = std.mem.Allocator;
+const assert = std.debug.assert;
 
+const Key = @import("../Input.zig").Key;
 const Live = @import("Live.zig");
 const History = @import("History.zig");
 
@@ -11,10 +14,10 @@ history: History,
 cursor: usize,
 scrollback: ?usize,
 
-pub fn init(gpa: Allocator) Editor {
+pub fn init(gpa: Allocator, buffer: []u8) Editor {
     return .{
         .live = .{
-            .buffer = &.{},
+            .buffer = buffer,
             .length = 0,
         },
         .history = .{
@@ -28,6 +31,25 @@ pub fn init(gpa: Allocator) Editor {
 
 pub fn deinit(editor: *Editor) void {
     editor.history.store.deinit(editor.history.gpa);
+}
+
+pub fn handleKey(editor: *Editor, key: Key) !void {
+    assert(editor.cursor <= editor.getString().len);
+
+    switch (key) {
+        .enter => return error.EndOfLine,
+        .eot => return error.EndOfStream,
+
+        .char => |char| editor.insert(char),
+        .bs => editor.remove(),
+
+        .escape => |escape| switch (escape) {
+            .cursor_up => editor.seekHistory(.backward),
+            .cursor_down => editor.seekHistory(.forward),
+            .cursor_forward => editor.seekLine(.right),
+            .cursor_back => editor.seekLine(.left),
+        },
+    }
 }
 
 pub fn setBuffer(editor: *Editor, buffer: []u8) void {
@@ -50,16 +72,16 @@ pub fn makeLive(editor: *Editor) void {
     editor.scrollback = null;
 }
 
-pub fn resetCursor(editor: *Editor) void {
-    editor.cursor = editor.getString().len;
-}
-
 pub fn clear(editor: *Editor) void {
     editor.live.clear();
     editor.cursor = 0;
 }
 
-pub fn insert(editor: *Editor, char: u8) void {
+fn resetCursor(editor: *Editor) void {
+    editor.cursor = editor.getString().len;
+}
+
+fn insert(editor: *Editor, char: u8) void {
     if (editor.live.length >= editor.live.buffer.len)
         return;
 
@@ -68,7 +90,7 @@ pub fn insert(editor: *Editor, char: u8) void {
     editor.cursor += 1;
 }
 
-pub fn remove(editor: *Editor) void {
+fn remove(editor: *Editor) void {
     if (editor.cursor == 0)
         return;
 
@@ -77,7 +99,7 @@ pub fn remove(editor: *Editor) void {
     editor.cursor -= 1;
 }
 
-pub fn seekLine(editor: *Editor, direction: enum { left, right }) void {
+fn seekLine(editor: *Editor, direction: enum { left, right }) void {
     switch (direction) {
         .left => if (editor.cursor > 0) {
             editor.cursor -= 1;
@@ -88,7 +110,7 @@ pub fn seekLine(editor: *Editor, direction: enum { left, right }) void {
     }
 }
 
-pub fn seekHistory(editor: *Editor, direction: enum { backward, forward }) void {
+fn seekHistory(editor: *Editor, direction: enum { backward, forward }) void {
     switch (direction) {
         .backward => {
             if (editor.history.length() == 0)

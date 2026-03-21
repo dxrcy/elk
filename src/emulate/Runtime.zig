@@ -4,41 +4,66 @@ const std = @import("std");
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
 
-const Policies = @import("../Policies.zig");
+const Policies = @import("../policies.zig").Policies;
 const Traps = @import("../Traps.zig");
-const NewlineTracker = @import("NewlineTracker.zig");
 const Tty = @import("Tty.zig");
 
 pub const Callback = @import("../callback.zig").Callback;
 pub const Debugger = @import("debugger/Debugger.zig");
 pub const Instruction = @import("decode.zig").Instruction;
 
-const MEMORY_SIZE = 0x1_0000;
-const USER_MEMORY_START = 0x3000;
-const USER_MEMORY_END = 0xFDFF;
+pub const MEMORY_SIZE = 0x1_0000;
+pub const USER_MEMORY_START = 0x3000;
+pub const USER_MEMORY_END = 0xFDFF;
 
 state: State,
 
 traps: *const Traps,
 hooks: Hooks,
-policies: *const Policies,
+policies: Policies,
 debugger: ?*Debugger,
 
 reader: *Io.Reader,
-writer: NewlineTracker,
+writer: *Io.Writer,
+writer_is_newline: bool,
 tty: Tty,
 
-const State = struct {
+pub const State = struct {
     memory: []u16,
     registers: [8]u16,
     pc: u16,
     condition: Condition,
+
+    pub fn init(gpa: Allocator) error{OutOfMemory}!State {
+        const memory = try gpa.alloc(u16, MEMORY_SIZE);
+        @memset(memory, 0x0000);
+        return .{
+            .memory = memory,
+            .registers = .{ 0, 0, 0, 0, 0, 0, 0, USER_MEMORY_END },
+            .pc = 0x0000,
+            .condition = .zero,
+        };
+    }
+
+    pub fn copyFrom(dest: *State, src: State) void {
+        @memcpy(dest.memory, src.memory);
+        dest.* = .{
+            .memory = dest.memory,
+            .registers = src.registers,
+            .pc = src.pc,
+            .condition = src.condition,
+        };
+    }
+
+    pub fn deinit(state: State, gpa: Allocator) void {
+        defer gpa.free(state.memory);
+    }
 };
 
-pub const Error = ProgramError || IoError;
+pub const Error = Exception || IoError;
 
 /// The user's program or configuration (traps, policies) is erroneous.
-pub const ProgramError = error{
+pub const Exception = error{
     PcOutOfBounds,
     IncorrectPadding,
     InvalidOperand,
@@ -73,31 +98,24 @@ pub fn init(
     writer: *Io.Writer,
     traps: *const Traps,
     hooks: Hooks,
-    policies: *const Policies,
+    policies: Policies,
     debugger: ?*Debugger,
 ) !Runtime {
-    const memory = try gpa.alloc(u16, MEMORY_SIZE);
-    @memset(memory, 0x0000);
-
     return .{
-        .state = .{
-            .memory = memory,
-            .registers = .{ 0, 0, 0, 0, 0, 0, 0, USER_MEMORY_END },
-            .pc = 0x0000,
-            .condition = .zero,
-        },
+        .state = try .init(gpa),
         .traps = traps,
         .hooks = hooks,
         .policies = policies,
         .debugger = debugger,
         .reader = reader,
-        .writer = .new(writer),
+        .writer = writer,
+        .writer_is_newline = true,
         .tty = .uninit,
     };
 }
 
 pub fn deinit(runtime: Runtime, gpa: Allocator) void {
-    defer gpa.free(runtime.state.memory);
+    runtime.state.deinit(gpa);
 }
 
 pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !void {
@@ -123,38 +141,55 @@ pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !voi
 pub const Control = enum { @"continue", @"break" };
 
 pub fn run(runtime: *Runtime) Error!void {
+    if (runtime.debugger) |debugger|
+        try debugger.start();
+
     while (true) {
         if (runtime.debugger) |debugger| {
             if (try debugger.invoke(runtime)) |control| switch (control) {
-                .@"continue" => {},
+                .@"continue" => continue,
                 .@"break" => break,
             };
         }
 
-        switch (runtime.state.pc) {
-            USER_MEMORY_START...USER_MEMORY_END => {},
-            else => return error.PcOutOfBounds,
-        }
+        runtime.runNextInstruction() catch |err| switch (err) {
+            error.WriteFailed,
+            error.ReadFailed,
+            error.EndOfStream,
+            error.TermiosFailed,
+            => |err2| return err2,
 
-        const word = runtime.state.memory[runtime.state.pc];
-        runtime.state.pc += 1;
-
-        if (runtime.hooks.pre_decode) |pre_decode|
-            try pre_decode.call(.{ runtime, word });
-
-        const instr: Instruction = try .decode(word);
-
-        if (runtime.hooks.pre_execute) |pre_execute|
-            try pre_execute.call(.{ runtime, instr });
-
-        switch (try runtime.runInstruction(instr)) {
-            .@"continue" => continue,
-            .@"break" => break,
-        }
+            else => |exception| {
+                if (runtime.debugger) |debugger| {
+                    if (debugger.status != .inactive)
+                        try debugger.catchEvent(exception, runtime);
+                }
+            },
+        };
     }
 }
 
-fn runInstruction(runtime: *Runtime, instr: Instruction) Error!Control {
+fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
+    switch (runtime.state.pc) {
+        USER_MEMORY_START...USER_MEMORY_END => {},
+        else => return error.PcOutOfBounds,
+    }
+
+    const word = runtime.state.memory[runtime.state.pc];
+    runtime.state.pc += 1;
+
+    if (runtime.hooks.pre_decode) |pre_decode|
+        try pre_decode.call(.{ runtime, word });
+
+    const instr: Instruction = try .decode(word);
+
+    if (runtime.hooks.pre_execute) |pre_execute|
+        try pre_execute.call(.{ runtime, instr });
+
+    try runtime.runInstruction(instr);
+}
+
+pub fn runInstruction(runtime: *Runtime, instr: Instruction) (Error || error{Halt})!void {
     switch (instr) {
         inline .add, .@"and" => |operands, instr_subset| {
             const lhs = runtime.state.registers[operands.src_a];
@@ -175,7 +210,7 @@ fn runInstruction(runtime: *Runtime, instr: Instruction) Error!Control {
         .br => |operands| {
             // No-op case
             if (operands.mask == 0b000)
-                return .@"continue";
+                return;
             if (@intFromEnum(runtime.state.condition) & operands.mask != 0)
                 runtime.state.pc +%= signExtend(operands.pc_offset);
         },
@@ -229,10 +264,7 @@ fn runInstruction(runtime: *Runtime, instr: Instruction) Error!Control {
                 // No trap callback declared
                 // Either trap was never registered, or only registered for alias
                 return error.UnhandledTrap;
-            callback.call(.{runtime}) catch |err| switch (err) {
-                error.Halt => return .@"break",
-                else => |err2| return err2,
-            };
+            try callback.call(.{runtime});
         },
 
         .rti => {
@@ -263,8 +295,6 @@ fn runInstruction(runtime: *Runtime, instr: Instruction) Error!Control {
             }
         },
     }
-
-    return .@"continue";
 }
 
 fn setRegister(runtime: *Runtime, register: u3, value: u16) void {
@@ -301,19 +331,31 @@ pub fn readByte(runtime: *const Runtime) error{ EndOfStream, ReadFailed }!u8 {
     return char;
 }
 
+pub fn ensureWriterNewline(runtime: *Runtime) error{WriteFailed}!void {
+    if (runtime.writer_is_newline)
+        return;
+    try runtime.writer.writeByte('\n');
+    runtime.writer_is_newline = true;
+}
+
+pub fn writeProgramChar(runtime: *Runtime, char: u8) error{WriteFailed}!void {
+    try runtime.writer.writeByte(char);
+    runtime.writer_is_newline = char == '\n';
+}
+
 pub fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
-    try runtime.writer.ensureNewline();
-    try runtime.writer.interface.print("+-----------------------------------+\n", .{});
-    try runtime.writer.interface.print("|        hex      int    uint   chr |\n", .{});
+    try runtime.ensureWriterNewline();
+    try runtime.writer.print("+-----------------------------------+\n", .{});
+    try runtime.writer.print("|        hex      int    uint   chr |\n", .{});
 
     for (runtime.state.registers, 0..8) |word, i| {
-        try runtime.writer.interface.print("| R{}  ", .{i});
+        try runtime.writer.print("| R{}  ", .{i});
         try runtime.printIntegerForms(word);
-        try runtime.writer.interface.print(" |\n", .{});
+        try runtime.writer.print(" |\n", .{});
     }
 
-    try runtime.writer.interface.print("+-----------------+-----------------+\n", .{});
-    try runtime.writer.interface.print(
+    try runtime.writer.print("+-----------------+-----------------+\n", .{});
+    try runtime.writer.print(
         "|    PC 0x{x:04}    |   CC {s}   |\n",
         .{ runtime.state.pc, switch (runtime.state.condition) {
             .negative => "NEGATIVE",
@@ -321,23 +363,23 @@ pub fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
             .positive => "POSITIVE",
         } },
     );
-    try runtime.writer.interface.print("+-----------------+-----------------+\n", .{});
+    try runtime.writer.print("+-----------------+-----------------+\n", .{});
 }
 
 pub fn printInteger(runtime: *Runtime, integer: u16) error{WriteFailed}!void {
-    try runtime.writer.ensureNewline();
-    try runtime.writer.interface.print("+-------------------------------+\n", .{});
-    try runtime.writer.interface.print("|    hex      int    uint   chr |\n", .{});
+    try runtime.ensureWriterNewline();
+    try runtime.writer.print("+-------------------------------+\n", .{});
+    try runtime.writer.print("|    hex      int    uint   chr |\n", .{});
 
-    try runtime.writer.interface.print("| ", .{});
+    try runtime.writer.print("| ", .{});
     try runtime.printIntegerForms(integer);
-    try runtime.writer.interface.print(" |\n", .{});
+    try runtime.writer.print(" |\n", .{});
 
-    try runtime.writer.interface.print("+-------------------------------+\n", .{});
+    try runtime.writer.print("+-------------------------------+\n", .{});
 }
 
 fn printIntegerForms(runtime: *Runtime, word: u16) error{WriteFailed}!void {
-    try runtime.writer.interface.print(
+    try runtime.writer.print(
         "0x{x:04}  {:7}  {:6}   ",
         .{ word, @as(i16, @bitCast(word)), word },
     );
@@ -356,7 +398,7 @@ fn printDisplayChar(runtime: *Runtime, word: u16) error{WriteFailed}!void {
         " p ", " q ", " r ",  " s ", " t ", " u ", " v ", " w ", " x ", " y ", " z ", " { ", " | ",  " } ", " ~ ", "DEL",
     };
     const display = if (word > 0x80) "---" else ascii[word];
-    try runtime.writer.interface.print("{s}", .{display});
+    try runtime.writer.print("{s}", .{display});
 }
 
 fn signExtend(value: anytype) u16 {

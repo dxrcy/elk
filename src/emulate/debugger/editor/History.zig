@@ -1,11 +1,29 @@
 const History = @This();
 
 const std = @import("std");
+const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
 store: std.ArrayList(u8),
 gpa: Allocator,
+
+pub fn readFromFile(history: *History, io: Io, file: Io.File) !void {
+    try readFileAlloc(io, history.gpa, file, &history.store);
+}
+
+fn readFileAlloc(io: Io, gpa: Allocator, file: Io.File, list: *std.ArrayList(u8)) !void {
+    const size = try file.length(io);
+    try list.ensureTotalCapacity(gpa, size);
+
+    const bytes_read = try file.readPositionalAll(io, list.allocatedSlice(), 0);
+    assert(bytes_read == size);
+    list.items.len = size;
+}
+
+pub fn clear(history: *History) void {
+    history.store.clearAndFree(history.gpa);
+}
 
 pub fn length(history: *const History) usize {
     return std.mem.countScalar(u8, history.store.items, '\n');
@@ -13,12 +31,12 @@ pub fn length(history: *const History) usize {
 
 pub fn push(history: *History, line: []const u8) void {
     const trimmed = std.mem.trim(u8, line, &std.ascii.whitespace);
-    if (trimmed.len == 0)
-        return;
+    assert(trimmed.len == line.len);
+    assert(trimmed.len > 0);
 
     // Don't push sequential duplicates
     if (history.store.items.len > 0) {
-        if (std.mem.eql(u8, trimmed, history.getLast(0)))
+        if (std.mem.eql(u8, line, history.getLast(0)))
             return;
     }
 

@@ -1,11 +1,13 @@
 const std = @import("std");
 
-const Policies = @import("../Policies.zig");
 const Span = @import("../compile/Span.zig");
 const Token = @import("../compile/parse/Token.zig");
 const Radix = @import("../compile/parse/integers.zig").Form.Radix;
+const Runtime = @import("../emulate/Runtime.zig");
+const Command = @import("../emulate/debugger/Debugger.zig").Command;
 const Reporter = @import("Reporter.zig");
 const Ctx = @import("Ctx.zig");
+const Policies = Reporter.Policies;
 
 pub const TokenKinds = struct {
     kinds: []const Kind,
@@ -61,12 +63,15 @@ fn policyResponse(
 }
 
 pub const Diagnostic = union(enum) {
+    // TODO: Prefix all fields with `compile_`, `debugger_`, etc ?????
+
     // Assembly file
     invalid_source_byte: struct { byte: usize },
     output_too_long: struct { statement: Span },
 
     // Misc tokens, statements
     invalid_token: struct { token: Span, guess: ?TokenKinds.Kind },
+    // TODO: Replace `[]const TokenKinds.Kind` with `TokenKinds`, and elsewhere
     unexpected_token_kind: struct { found: Token, expected: []const TokenKinds.Kind },
     unexpected_eol: struct { eol: Span, expected: []const TokenKinds.Kind },
     expected_eol: struct { found: Token },
@@ -87,7 +92,8 @@ pub const Diagnostic = union(enum) {
     shadowed_label: struct { existing: Span, new: Span },
     label_colon: struct { colon: Span },
     redeclared_label: struct { existing: Span, new: Span },
-    undeclared_label: struct { reference: Span, nearest: ?Span },
+    undeclared_label: struct { reference: Span, nearest: ?Span, declaration_source: []const u8 },
+    unused_label: struct { label: Span },
 
     // Integer syntax
     malformed_integer: struct { integer: Span },
@@ -100,7 +106,8 @@ pub const Diagnostic = union(enum) {
 
     // Integer bounds
     integer_too_large: struct { integer: Span, type_info: std.builtin.Type.Int },
-    offset_too_large: struct { definition: Span, reference: Span, offset: i17, bits: u16 },
+    // TODO: Rename "declaration" or "definition" to make consistent, and elsewhere
+    offset_too_large: struct { definition: Span, reference: Span, offset: i17, bits: u16, declaration_source: []const u8 },
     unexpected_negative_integer: struct { integer: Span },
 
     // Strings
@@ -114,15 +121,27 @@ pub const Diagnostic = union(enum) {
     explicit_trap_vect: struct { vect: Span, value: u8, alias: []const u8 },
     undeclared_trap_vect: struct { vect: Span, value: u8 },
 
+    // Emulator
+    emulate_exception: struct { code: Runtime.Exception },
+
+    // TODO: Reorder
     // Emulator debugger
-    debugger_any_err: struct {
-        code: anyerror,
-        span: ?Span,
-    },
-    debugger_any_warn: struct {
-        code: anyerror,
-        span: ?Span,
-    },
+    debugger_show_assembly: struct { line: Span, address: u16 },
+    // TODO: Distinguish command vs label
+    debugger_requires_assembly: struct { command: Span },
+    debugger_requires_state: struct { command: Span },
+    debugger_address_not_in_assembly: struct { value: u16, max: u16 },
+    debugger_address_not_user_memory: struct { address: Span, value: u16, max: u16 },
+    debugger_label_partial_match: struct { reference: Span, nearest: Span, declaration_source: []const u8 },
+    debugger_no_space: struct {},
+    // TODO: Add `expected` field (different type than `TokenKinds`), AND ELSEWHERE
+    debugger_invalid_argument_kind: struct { found: Span },
+    debugger_invalid_command: struct { command: Span, nearest: ?Command.Tag },
+    debugger_missing_subcommand: struct { first: Span, eol: Span },
+    // TODO: Rename ? not eol but end of command
+    debugger_unexpected_eol: struct { eol: Span },
+    debugger_expected_eol: struct { found: Span },
+    debugger_integer_too_small: struct { integer: Span, minimum: u16 },
 
     pub fn getResponse(diag: Diagnostic, options: Reporter.Options) Reporter.Response {
         return switch (diag) {
@@ -165,6 +184,7 @@ pub const Diagnostic = union(enum) {
             .literal_pc_offset => policyResponse(options, .smell, .pc_offset_literals),
             .explicit_trap_vect => policyResponse(options, .smell, .explicit_trap_instructions),
             .undeclared_trap_vect => policyResponse(options, .smell, .unknown_trap_vectors),
+            .unused_label => policyResponse(options, .smell, .unused_label_declarations),
 
             .missing_operand_comma => policyResponse(options, .style, .missing_operand_commas),
             .whitespace_comma => policyResponse(options, .style, .whitespace_commas),
@@ -177,8 +197,21 @@ pub const Diagnostic = union(enum) {
             },
             .undesirable_integer_form => policyResponse(options, .style, .undesirable_integer_forms),
 
-            .debugger_any_err => .fatal,
-            .debugger_any_warn => .minor,
+            .emulate_exception => .fatal,
+
+            .debugger_show_assembly => .info,
+            .debugger_requires_assembly => .fatal,
+            .debugger_requires_state => .fatal,
+            .debugger_address_not_in_assembly => .fatal,
+            .debugger_address_not_user_memory => .fatal,
+            .debugger_label_partial_match => .major,
+            .debugger_no_space => .fatal,
+            .debugger_invalid_argument_kind => .fatal,
+            .debugger_invalid_command => .fatal,
+            .debugger_missing_subcommand => .fatal,
+            .debugger_unexpected_eol => .fatal,
+            .debugger_expected_eol => .fatal,
+            .debugger_integer_too_small => .fatal,
         };
     }
 
@@ -308,6 +341,7 @@ pub const Diagnostic = union(enum) {
                 ctx.printTitle("Shadowed label has no use", .{});
                 ctx.deepen().printSourceNote("First label declared here", .{}, info.existing);
                 ctx.deepen().printSourceNote("Another label declared in the same position", .{}, info.new);
+                ctx.deepen().printNote("First label will be overridden by second label; it is not usable", .{});
             },
             .label_colon => |info| {
                 ctx.printTitle("Label followed by colon `:`", .{});
@@ -324,9 +358,14 @@ pub const Diagnostic = union(enum) {
                 ctx.printTitle("Label is not declared", .{});
                 ctx.deepen().printSourceNote("Label used here", .{}, info.reference);
                 if (info.nearest) |close_match| {
-                    ctx.deepen().printSourceNote("This label declaration is similar", .{}, close_match);
+                    ctx.deepen().withSource(info.declaration_source)
+                        .printSourceNote("This label declaration is similar", .{}, close_match);
                     ctx.deepen().printNote("Label names are case-sensitive", .{});
                 }
+            },
+            .unused_label => |info| {
+                ctx.printTitle("Label declaration is not used", .{});
+                ctx.deepen().printSourceNote("Label declared here", .{}, info.label);
             },
 
             .malformed_integer => |info| {
@@ -382,7 +421,8 @@ pub const Diagnostic = union(enum) {
             .offset_too_large => |info| {
                 ctx.printTitle("Calculated label offset is too large", .{});
                 ctx.deepen().printSourceNote("Label declared here", .{}, info.definition);
-                ctx.deepen().printSourceNote("Label used here", .{}, info.reference);
+                ctx.deepen().withSource(info.declaration_source)
+                    .printSourceNote("Label used here", .{}, info.reference);
                 ctx.deepen().printNote("Address offset of {} words cannot be represented in {} bits", .{ info.offset, info.bits });
             },
             .unexpected_negative_integer => |info| {
@@ -425,23 +465,77 @@ pub const Diagnostic = union(enum) {
                 ctx.deepen().printNote("Traps vector 0x{x:02} is not recognized", .{info.value});
             },
 
-            .debugger_any_err => |info| {
-                ctx.printTitle("Debugger error: {t}", .{info.code});
-                if (info.span) |span|
-                    ctx.deepen().printSourceNote("Here", .{}, span);
+            .emulate_exception => |info| {
+                ctx.printTitle("Runtime exception: {t}", .{info.code});
+                // TODO: Add additional information
             },
-            .debugger_any_warn => |info| {
-                ctx.printTitle("Debugger warning: {t}", .{info.code});
-                if (info.span) |span|
-                    ctx.deepen().printSourceNote("Here", .{}, span);
+
+            .debugger_show_assembly => |info| {
+                ctx.printTitle("Inspect assembly source", .{});
+                ctx.deepen().printSourceNote("Next instruction, at 0x{x:04}", .{info.address}, info.line);
+            },
+            .debugger_requires_assembly => |info| {
+                ctx.printTitle("Command requires access to assembly", .{});
+                ctx.deepen().printSourceNote("Command", .{}, info.command);
+                ctx.deepen().printNote("Debugger does not have access to original assembly", .{});
+            },
+            .debugger_requires_state => |info| {
+                ctx.printTitle("Command requires initial state to be set", .{});
+                ctx.deepen().printSourceNote("Command", .{}, info.command);
+                ctx.deepen().printNote("Debugger does not have access to initial emulator state", .{});
+            },
+            .debugger_address_not_in_assembly => |info| {
+                ctx.printTitle("Address 0x{x:04} is not contained in assembly source", .{info.value});
+                ctx.deepen().printNote("Largest address in assembly is 0x{x:04}", .{info.max});
+            },
+            .debugger_address_not_user_memory => |info| {
+                ctx.printTitle("Address 0x{x:04} is not in user memory", .{info.value});
+                ctx.deepen().printSourceNote("Address", .{}, info.address);
+                ctx.deepen().printNote("Largest address in user memory is 0x{x:04}", .{info.max});
+            },
+            .debugger_label_partial_match => |info| {
+                ctx.printTitle("Label reference does not use correct case", .{});
+                ctx.deepen().printSourceNote("Label", .{}, info.reference);
+                ctx.deepen().withSource(info.declaration_source)
+                    .printSourceNote("This label declaration is similar", .{}, info.nearest);
+                ctx.deepen().printNote("Label names are case-sensitive", .{});
+            },
+            .debugger_no_space => {
+                ctx.deepen().printTitle("No space left", .{});
+            },
+            .debugger_invalid_argument_kind => |info| {
+                ctx.printTitle("Invalid argument kind", .{});
+                ctx.deepen().printSourceNote("Argument", .{}, info.found);
+            },
+            .debugger_invalid_command => |info| {
+                ctx.printTitle("Invalid command name", .{});
+                ctx.deepen().printSourceNote("Command", .{}, info.command);
+                if (info.nearest) |nearest|
+                    ctx.deepen().printNote("Did you mean `{s}`?", .{Command.tagString(nearest)});
+            },
+            .debugger_missing_subcommand => |info| {
+                ctx.printTitle("Missing subcommand for `{s}`", .{info.first.view(source)});
+                ctx.deepen().printSourceNote("Command requires subcommand", .{}, info.eol);
+            },
+            .debugger_unexpected_eol => |info| {
+                ctx.printTitle("Missing argument", .{});
+                ctx.deepen().printSourceNote("Command ends too early", .{}, info.eol);
+            },
+            .debugger_expected_eol => |info| {
+                ctx.printTitle("Unexpected argument", .{});
+                ctx.deepen().printSourceNote("Argument", .{}, info.found);
+                ctx.deepen().printNote("Expected end of command", .{});
+            },
+            .debugger_integer_too_small => |info| {
+                ctx.printTitle("Integer argument is too small", .{});
+                ctx.deepen().printSourceNote("Argument", .{}, info.integer);
+                ctx.deepen().printNote("Minimum value is {}", .{info.minimum});
             },
         }
 
-        switch (ctx.reporter.verbosity) {
-            .normal => {
-                ctx.print("\n", .{});
-            },
-            .quiet => {},
+        const count = if (ctx.item_count) |count| count.* else 0;
+        if (count > 1 and ctx.reporter.verbosity == .normal) {
+            ctx.print("\n", .{});
         }
     }
 };
