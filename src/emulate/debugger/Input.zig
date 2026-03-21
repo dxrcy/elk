@@ -7,6 +7,7 @@ const assert = std.debug.assert;
 const control_code = std.ascii.control_code;
 
 const Runtime = @import("../Runtime.zig");
+const Debugger = @import("Debugger.zig");
 pub const Editor = @import("editor/Editor.zig");
 
 editor: Editor,
@@ -169,7 +170,7 @@ fn readByte(input: *Input) error{ EndOfStream, ReadFailed }!u8 {
 fn writePrompt(input: *const Input) !void {
     const prompt = "> ";
     try input.writer.print("\r\x1b[K", .{});
-    try input.writer.print("\x1b[34m", .{});
+    try input.writer.print("\x1b[{}m", .{Debugger.color});
     try input.writer.print(prompt, .{});
     try input.writer.print("\x1b[0m", .{});
     try input.writer.print("{s}", .{input.editor.getString()});

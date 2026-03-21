@@ -18,6 +18,9 @@ const parse = @import("parse.zig");
 pub const Input = @import("Input.zig");
 pub const Command = @import("Command.zig");
 
+// TODO: Create abstraction for setting debugger color
+pub const color = 34;
+
 status: Status,
 instruction_count: usize,
 should_echo_pc: bool,
@@ -150,7 +153,7 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
 }
 
 fn printLine(debugger: *Debugger, comptime fmt: []const u8, args: anytype) !void {
-    try debugger.input.writer.print("\x1b[34m", .{});
+    try debugger.input.writer.print("\x1b[{}m", .{color});
     try debugger.input.writer.print("| " ++ fmt ++ "\n", args);
     try debugger.input.writer.print("\x1b[0m", .{});
 }
@@ -301,7 +304,7 @@ fn runCommand(
 ) !?Action {
     switch (command.value) {
         .help => {
-            try debugger.input.writer.print("\x1b[34m", .{});
+            try debugger.input.writer.print("\x1b[{}m", .{color});
             try runtime.writer.writeAll(@embedFile("help.txt"));
             try debugger.input.writer.print("\x1b[0m", .{});
         },
@@ -327,7 +330,7 @@ fn runCommand(
         },
 
         .registers => {
-            try debugger.input.writer.print("\x1b[34m", .{});
+            try debugger.input.writer.print("\x1b[{}m", .{color});
             try runtime.printRegisters();
             try debugger.input.writer.print("\x1b[0m", .{});
         },
@@ -343,13 +346,13 @@ fn runCommand(
             switch (try debugger.resolveLocation(runtime, arguments.location, source)) {
                 .register => |register| {
                     try debugger.printLine("Register R{}:", .{register});
-                    try debugger.input.writer.print("\x1b[34m", .{});
+                    try debugger.input.writer.print("\x1b[{}m", .{color});
                     try runtime.printInteger(runtime.state.registers[register]);
                     try debugger.input.writer.print("\x1b[0m", .{});
                 },
                 .address => |address| {
                     try debugger.printLine("Memory at address 0x{x:04}:", .{address});
-                    try debugger.input.writer.print("\x1b[34m", .{});
+                    try debugger.input.writer.print("\x1b[{}m", .{color});
                     try runtime.printInteger(runtime.state.memory[address]);
                     try debugger.input.writer.print("\x1b[0m", .{});
                 },
@@ -487,7 +490,7 @@ const max_source_len = 34;
 const empty_marker = "";
 
 fn printBreakpointTable(debugger: *Debugger) !void {
-    try debugger.input.writer.print("\x1b[34m", .{});
+    try debugger.input.writer.print("\x1b[{}m", .{color});
 
     const delimiter = "+---------+------------+-" ++
         ("-" ** max_label_len) ++ "-+-" ++
