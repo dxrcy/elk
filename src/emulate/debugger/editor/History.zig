@@ -31,12 +31,12 @@ pub fn length(history: *const History) usize {
 
 pub fn push(history: *History, line: []const u8) void {
     const trimmed = std.mem.trim(u8, line, &std.ascii.whitespace);
-    if (trimmed.len == 0)
-        return;
+    assert(trimmed.len == line.len);
+    assert(trimmed.len > 0);
 
     // Don't push sequential duplicates
     if (history.store.items.len > 0) {
-        if (std.mem.eql(u8, trimmed, history.getLast(0)))
+        if (std.mem.eql(u8, line, history.getLast(0)))
             return;
     }
 

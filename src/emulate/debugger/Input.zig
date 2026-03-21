@@ -99,15 +99,22 @@ pub fn readLine(input: *Input) ![]const u8 {
     input.editor.makeLive();
     const line = input.editor.getString();
 
-    input.editor.history.push(line);
-    input.writeHistory(line) catch |err| {
-        std.log.err("history write failed: {t}", .{err});
-    };
+    const trimmed = std.mem.trim(u8, line, &std.ascii.whitespace);
+    if (trimmed.len > 0) {
+        input.editor.history.push(trimmed);
+        input.writeHistory(trimmed) catch |err| {
+            std.log.err("history write failed: {t}", .{err});
+        };
+    }
 
     return line;
 }
 
 fn writeHistory(input: *Input, line: []const u8) !void {
+    const trimmed = std.mem.trim(u8, line, &std.ascii.whitespace);
+    assert(trimmed.len == line.len);
+    assert(trimmed.len > 0);
+
     const file = &(input.history_file orelse
         return);
     // PERF: This can be done with less Io calls
