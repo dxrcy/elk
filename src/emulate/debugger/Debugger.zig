@@ -13,9 +13,9 @@ const Parser = @import("../../compile/parse/Parser.zig");
 const Runtime = @import("../Runtime.zig");
 const Instruction = @import("../decode.zig").Instruction;
 const Breakpoints = @import("Breakpoints.zig");
-const Input = @import("Input.zig");
 const parse = @import("parse.zig");
 
+pub const Input = @import("Input.zig");
 pub const Command = @import("Command.zig");
 
 status: Status,
@@ -54,12 +54,8 @@ const Action = enum {
 };
 
 pub fn init(
-    io: Io,
     gpa: std.mem.Allocator,
-    reader: *Io.Reader,
-    writer: *Io.Writer,
-    history_file: ?Io.File,
-    command_buffer: []u8,
+    input: Input,
     assembly_opt: ?Assembly,
     traps: *const Traps,
     reporter: *Reporter,
@@ -83,7 +79,7 @@ pub fn init(
         .current_breakpoint = null,
         .breakpoints = breakpoints,
         .current_line = "",
-        .input = .init(io, gpa, reader, writer, history_file, command_buffer),
+        .input = input,
         .initial_state = null,
         .assembly = assembly_opt,
         .traps = traps,

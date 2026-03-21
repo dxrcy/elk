@@ -163,12 +163,12 @@ fn emulate(
         };
 
         break :debugger try .init(
-            io,
             gpa,
-            &reader.interface,
-            &writer.interface,
-            history_file,
-            &debugger_buffer,
+            .init(
+                &reader.interface,
+                &writer.interface,
+                .init(io, gpa, history_file, &debugger_buffer),
+            ),
             switch (runtime_source) {
                 .object => null,
                 .assembly => |assembly| assembly,

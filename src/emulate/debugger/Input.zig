@@ -7,7 +7,7 @@ const assert = std.debug.assert;
 const control_code = std.ascii.control_code;
 
 const Runtime = @import("../Runtime.zig");
-const Editor = @import("editor/Editor.zig");
+pub const Editor = @import("editor/Editor.zig");
 
 editor: Editor,
 reader: *Io.Reader,
@@ -28,16 +28,9 @@ pub const Key = union(enum) {
     };
 };
 
-pub fn init(
-    io: Io,
-    gpa: Allocator,
-    reader: *Io.Reader,
-    writer: *Io.Writer,
-    history_file: ?Io.File,
-    buffer: []u8,
-) Input {
+pub fn init(reader: *Io.Reader, writer: *Io.Writer, editor: Editor) Input {
     return .{
-        .editor = .init(io, gpa, history_file, buffer),
+        .editor = editor,
         .reader = reader,
         .writer = writer,
     };
