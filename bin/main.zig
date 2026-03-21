@@ -23,7 +23,7 @@ pub fn main(init: std.process.Init) !u8 {
     // reporter_impl.verbosity = .normal;
 
     const policies: lcz.Policies = .config_lace;
-    reporter.options.policies = &policies;
+    reporter.options.policies = policies;
 
     var air: lcz.Air = .init();
     defer air.deinit(gpa);
@@ -96,34 +96,13 @@ pub fn main(init: std.process.Init) !u8 {
         var runtime_writer = Io.File.stdout().writer(io, &runtime_write_buffer);
         var runtime_reader = Io.File.stdin().reader(io, &.{});
 
-        // var callback_data: CallbackData = .{
-        //     .instr_count = .initFill(0),
-        //     .trap_count = @splat(0),
-        // };
-
-        // var instr_count: InstrCount = .initFill(0);
-
-        const hooks: lcz.Runtime.Hooks = .{
-            // .pre_decode = .withoutData(preDecodeHook),
-            // .pre_execute = .withDataInit(*CallbackData, preExecuteHook, &callback_data),
-        };
-
-        var debugger: lcz.Runtime.Debugger = .init(
-            gpa,
-            &runtime_reader.interface,
-            &runtime_writer.interface,
-            &reporter,
-            .{ .air = &air, .source = source },
-        );
-        defer debugger.deinit();
-
         var runtime = try lcz.Runtime.init(
             gpa,
             &runtime_reader.interface,
             &runtime_writer.interface,
             &traps,
-            hooks,
-            &policies,
+            .{},
+            policies,
             null,
         );
         defer runtime.deinit(gpa);
@@ -145,40 +124,11 @@ pub fn main(init: std.process.Init) !u8 {
             },
         };
 
-        try runtime.writer.ensureNewline();
-        try runtime.writer.interface.flush();
+        try runtime.ensureWriterNewline();
+        try runtime.writer.flush();
     }
 
     return 0;
-}
-
-const CallbackData = struct {
-    instr_count: std.EnumArray(std.meta.Tag(lcz.Runtime.Instruction), u32),
-    trap_count: [256]u32,
-};
-
-fn preDecodeHook(
-    runtime: *lcz.Runtime,
-    word: u16,
-) lcz.Runtime.IoError!void {
-    try runtime.writer.ensureNewline();
-    try runtime.writer.interface.print("\x1b[33mpre-decode {x:04}\x1b[0m\n", .{word});
-}
-
-fn preExecuteHook(
-    runtime: *lcz.Runtime,
-    instr: lcz.Runtime.Instruction,
-    data: *CallbackData,
-) lcz.Runtime.IoError!void {
-    data.instr_count.getPtr(instr).* += 1;
-
-    switch (instr) {
-        else => {},
-        .trap => |operands| data.trap_count[operands.vect] += 1,
-    }
-
-    try runtime.writer.ensureNewline();
-    try runtime.writer.interface.print("\x1b[33mpre-execute {t}\x1b[0m\n", .{instr});
 }
 
 const mcz_traps = struct {
