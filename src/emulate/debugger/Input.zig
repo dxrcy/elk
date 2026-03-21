@@ -37,8 +37,17 @@ pub fn init(
     history_file: ?Io.File,
     editor: Editor,
 ) Input {
+    // TODO: Find a better solution !
+    var editor_copy = editor;
+
+    if (history_file) |file| {
+        editor_copy.history.readFromFile(io, file) catch |err| {
+            std.log.err("failed to read history file: {t}", .{err});
+        };
+    }
+
     return .{
-        .editor = editor,
+        .editor = editor_copy,
         .reader = reader,
         .writer = writer,
         .history_file = history_file,

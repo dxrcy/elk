@@ -8,6 +8,21 @@ const assert = std.debug.assert;
 store: std.ArrayList(u8),
 gpa: Allocator,
 
+pub fn readFromFile(history: *History, io: Io, file: Io.File) !void {
+    try readFileAlloc(io, history.gpa, file, &history.store);
+}
+
+fn readFileAlloc(io: Io, gpa: Allocator, file: Io.File, list: *std.ArrayList(u8)) !void {
+    const size = try file.length(io);
+
+    list.clearRetainingCapacity();
+    try list.ensureUnusedCapacity(gpa, size);
+    list.items.len = size;
+
+    const bytes_read = try file.readPositionalAll(io, list.items, 0);
+    assert(bytes_read == size);
+}
+
 pub fn length(history: *const History) usize {
     return std.mem.countScalar(u8, history.store.items, '\n');
 }
