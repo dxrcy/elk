@@ -21,7 +21,7 @@ pub const Command = @import("Command.zig");
 state: struct {
     status: Status = .get_action,
     instruction_count: usize = 0,
-    should_echo_pc: bool = true,
+    should_print_pc: bool = true,
     halt_address: ?u16 = null,
     current_breakpoint: ?u16 = null,
 },
@@ -148,7 +148,7 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
     try runtime.ensureWriterNewline();
 
     if (!debugger.canProceed(runtime))
-        debugger.state.should_echo_pc = false;
+        debugger.state.should_print_pc = false;
     if (!debugger.isHalted(runtime))
         debugger.state.halt_address = null;
 
@@ -291,13 +291,13 @@ fn tryNextAction(debugger: *Debugger, runtime: *Runtime) !?Action {
             debugger.state.instruction_count,
             if (debugger.state.instruction_count == 1) "" else "s",
         });
-    if (debugger.state.should_echo_pc)
+    if (debugger.state.should_print_pc)
         try debugger.writer.printLine("Program counter is at 0x{x:04}.", .{
             runtime.state.pc,
         });
 
     debugger.state.instruction_count = 0;
-    debugger.state.should_echo_pc = false;
+    debugger.state.should_print_pc = false;
 
     const command_string = debugger.readCommand(runtime) catch |err| switch (err) {
         else => |err2| return err2,
@@ -351,7 +351,7 @@ fn runCommand(
             };
             runtime.state.copyFrom(state);
             try debugger.writer.printLine("Reset registers and memory to initial state.", .{});
-            debugger.state.should_echo_pc = true;
+            debugger.state.should_print_pc = true;
         },
 
         .registers => {
@@ -362,7 +362,7 @@ fn runCommand(
 
         .@"continue" => {
             debugger.state.status = .@"continue";
-            debugger.state.should_echo_pc = true;
+            debugger.state.should_print_pc = true;
             if (debugger.canProceed(runtime))
                 try debugger.writer.printLine("Continuing program execution...", .{});
         },
@@ -414,7 +414,7 @@ fn runCommand(
             try debugger.ensureUserAddress(address, arguments.location.span);
             runtime.state.pc = address;
             try debugger.writer.printLine("Set program counter to 0x{x:04}.", .{address});
-            // debugger.should_echo_pc = true;
+            // Don't print PC again.
         },
 
         .assembly => |arguments| {
@@ -445,7 +445,7 @@ fn runCommand(
             debugger.state.status = .{ .step_over = .{
                 .return_address = runtime.state.pc + 1,
             } };
-            debugger.state.should_echo_pc = true;
+            debugger.state.should_print_pc = true;
             // Don't print message here, we can't know if next instruction will change PC.
         },
 
@@ -453,12 +453,12 @@ fn runCommand(
             debugger.state.status = .{ .step_into = .{
                 .count = arguments.count.value - 1,
             } };
-            debugger.state.should_echo_pc = true;
+            debugger.state.should_print_pc = true;
         },
 
         .step_out => {
             debugger.state.status = .step_out;
-            debugger.state.should_echo_pc = true;
+            debugger.state.should_print_pc = true;
             if (debugger.canProceed(runtime))
                 try debugger.writer.printLine("Finishing subroutine execution...", .{});
         },
