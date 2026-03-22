@@ -13,10 +13,12 @@ const Parser = @import("../../compile/parse/Parser.zig");
 const Runtime = @import("../Runtime.zig");
 const Instruction = @import("../decode.zig").Instruction;
 const Breakpoints = @import("Breakpoints.zig");
+const Input = @import("Input.zig");
 const parse = @import("parse.zig");
 
-pub const Input = @import("Input.zig");
 pub const Command = @import("Command.zig");
+
+// TODO: Organise fields, containerize
 
 status: Status,
 instruction_count: usize,
@@ -84,6 +86,43 @@ pub const Writer = struct {
 };
 
 pub fn init(
+    params: struct {
+        io: Io,
+        gpa: Allocator,
+        reader: *Io.Reader,
+        writer: *Io.Writer,
+
+        history_file: ?Io.File,
+        command_buffer: []u8,
+
+        assembly: ?Assembly,
+        traps: *const Traps,
+        reporter: *Reporter,
+    },
+) error{OutOfMemory}!Debugger {
+    const editor: Input.Editor = .init(
+        params.gpa,
+        params.command_buffer,
+    );
+    const input: Input = .new(
+        params.io,
+        params.reader,
+        params.history_file,
+        editor,
+    );
+
+    return .initInner(
+        params.gpa,
+        input,
+        params.assembly,
+        params.traps,
+        params.reporter,
+        params.writer,
+    );
+}
+
+// TODO: Inline in `init`
+fn initInner(
     gpa: std.mem.Allocator,
     input: Input,
     assembly_opt: ?Assembly,
@@ -122,7 +161,7 @@ pub fn init(
 
 pub fn deinit(debugger: *Debugger, gpa: Allocator) void {
     debugger.breakpoints.deinit();
-    debugger.input.deinit();
+    debugger.input.editor.deinit();
     if (debugger.initial_state) |state|
         state.deinit(gpa);
 }

@@ -162,22 +162,22 @@ fn emulate(
             break :file null;
         };
 
-        break :debugger try .init(
-            gpa,
-            .init(
-                io,
-                &reader.interface,
-                history_file,
-                .init(gpa, &debugger_buffer),
-            ),
-            switch (runtime_source) {
+        break :debugger try .init(.{
+            .io = io,
+            .gpa = gpa,
+            .reader = &reader.interface,
+            .writer = &writer.interface,
+
+            .history_file = history_file,
+            .command_buffer = &debugger_buffer,
+
+            .assembly = switch (runtime_source) {
                 .object => null,
                 .assembly => |assembly| assembly,
             },
-            traps,
-            reporter,
-            &writer.interface,
-        );
+            .traps = traps,
+            .reporter = reporter,
+        });
     } else null;
     defer if (debugger_opt) |*debugger| debugger.deinit(gpa);
 

@@ -32,7 +32,7 @@ pub const Key = union(enum) {
     };
 };
 
-pub fn init(
+pub fn new(
     io: Io,
     reader: *Io.Reader,
     history_file: ?Io.File,
@@ -53,10 +53,6 @@ pub fn init(
         .history_file = history_file,
         .io = io,
     };
-}
-
-pub fn deinit(input: *Input) void {
-    input.editor.deinit();
 }
 
 pub fn readLine(input: *Input, writer: *Writer) ![]const u8 {
