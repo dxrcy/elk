@@ -84,21 +84,17 @@ pub const Writer = struct {
     }
 };
 
-pub fn init(
-    params: struct {
-        io: Io,
-        gpa: Allocator,
-        reader: *Io.Reader,
-        writer: *Io.Writer,
-
-        history_file: ?Io.File,
-        command_buffer: []u8,
-
-        assembly: ?Assembly,
-        traps: *const Traps,
-        reporter: *Reporter,
-    },
-) error{OutOfMemory}!Debugger {
+pub fn init(params: struct {
+    io: Io,
+    gpa: Allocator,
+    reader: *Io.Reader,
+    writer: *Io.Writer,
+    traps: *const Traps,
+    reporter: *Reporter,
+    command_buffer: []u8,
+    assembly: ?Assembly,
+    history_file: ?Io.File,
+}) error{OutOfMemory}!Debugger {
     const breakpoints: Breakpoints =
         if (params.assembly) |assembly|
             try .initFrom(params.gpa, assembly)
