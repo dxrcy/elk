@@ -12,9 +12,21 @@ pub const Editor = @import("editor/Editor.zig");
 
 editor: Editor,
 reader: *Io.Reader,
-writer: *Io.Writer,
+writer: Writer,
 history_file: ?Io.File,
 io: Io,
+
+const Writer = struct {
+    inner: *Io.Writer,
+
+    pub fn print(writer: *Writer, comptime fmt: []const u8, args: anytype) error{WriteFailed}!void {
+        try writer.inner.print(fmt, args);
+    }
+
+    pub fn flush(writer: *Writer) error{WriteFailed}!void {
+        try writer.inner.flush();
+    }
+};
 
 pub const Key = union(enum) {
     char: u8,
@@ -50,7 +62,7 @@ pub fn init(
     return .{
         .editor = editor_copy,
         .reader = reader,
-        .writer = writer,
+        .writer = .{ .inner = writer },
         .history_file = history_file,
         .io = io,
     };
@@ -167,7 +179,7 @@ fn readByte(input: *Input) error{ EndOfStream, ReadFailed }!u8 {
     return char;
 }
 
-fn writePrompt(input: *const Input) !void {
+fn writePrompt(input: *Input) !void {
     const prompt = "> ";
     try input.writer.print("\r\x1b[K", .{});
     try input.writer.print("\x1b[{}m", .{Debugger.color});
