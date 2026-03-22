@@ -99,17 +99,11 @@ pub fn init(
         reporter: *Reporter,
     },
 ) error{OutOfMemory}!Debugger {
-    // TODO: Move to `Breakpoints` method
-    var breakpoints: Breakpoints = .init(params.gpa);
-    if (params.assembly) |assembly| {
-        for (assembly.air.lines.items, assembly.air.origin..) |line, address| {
-            const label = line.label orelse
-                continue;
-            if (label.kind != .breakpoint)
-                continue;
-            assert(try breakpoints.insert(@intCast(address), true));
-        }
-    }
+    const breakpoints: Breakpoints =
+        if (params.assembly) |assembly|
+            try .initFrom(params.gpa, assembly)
+        else
+            .init(params.gpa);
 
     const input: Input = .new(
         params.io,
