@@ -18,24 +18,21 @@ const parse = @import("parse.zig");
 
 pub const Command = @import("Command.zig");
 
-// TODO: Organise fields, containerize
-
 status: Status,
 instruction_count: usize,
 should_echo_pc: bool,
 halt_address: ?u16,
 current_breakpoint: ?u16,
+
 breakpoints: Breakpoints,
+initial_state: ?Runtime.State,
+assembly: ?Assembly,
 
 current_line: []const u8,
 input: Input,
-
-initial_state: ?Runtime.State,
-assembly: ?Assembly,
+writer: Writer,
 traps: *const Traps,
 reporter: *Reporter,
-
-writer: Writer,
 
 pub const Assembly = struct {
     air: *const Air,
@@ -126,13 +123,13 @@ pub fn init(
         .halt_address = null,
         .current_breakpoint = null,
         .breakpoints = breakpoints,
-        .current_line = "",
-        .input = input,
         .initial_state = null,
         .assembly = params.assembly,
+        .current_line = "",
+        .input = input,
+        .writer = .{ .inner = params.writer },
         .traps = params.traps,
         .reporter = params.reporter,
-        .writer = .{ .inner = params.writer },
     };
 }
 
