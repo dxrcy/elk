@@ -168,12 +168,12 @@ pub const Diagnostic = union(enum) {
             .existing_label_left => .major,
 
             .invalid_label_target,
-            .existing_label_above,
             .invalid_string_escape,
             => strictnessResponse(options),
 
             .missing_origin => policyResponse(options, .extension, .implicit_origin),
             .missing_end => policyResponse(options, .extension, .implicit_end),
+            .existing_label_above => policyResponse(options, .extension, .multiple_labels),
             .label_colon => policyResponse(options, .extension, .label_declaration_colons),
             .nonstandard_integer_radix => policyResponse(options, .extension, .more_integer_radixes),
             .nonstandard_integer_form => policyResponse(options, .extension, .more_integer_forms),
