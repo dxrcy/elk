@@ -95,7 +95,7 @@ pub fn getContainingLines(span: Span, source: []const u8) Span {
 
     if (span.len > 0) {
         if (start >= source.len or
-            (source[start] == '\n' and source[start - 1] != '\n'))
+            (source[start] == '\n' and (start > 0 and source[start - 1] != '\n')))
         {
             start -= 1;
         }
