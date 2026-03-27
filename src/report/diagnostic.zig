@@ -87,9 +87,9 @@ pub const Diagnostic = union(enum) {
     missing_end: struct { last_token: ?Span },
 
     // Label syntax and resolution
-    multiple_labels: struct { existing: Span, new: Span },
+    existing_label_left: struct { existing: Span, new: Span },
+    existing_label_above: struct { existing: Span, new: Span },
     invalid_label_target: struct { label: Span, target: ?Span },
-    shadowed_label: struct { existing: Span, new: Span },
     label_colon: struct { colon: Span },
     redeclared_label: struct { existing: Span, new: Span },
     undeclared_label: struct { reference: Span, nearest: ?Span, declaration_source: []const u8 },
@@ -165,15 +165,15 @@ pub const Diagnostic = union(enum) {
             .unmatched_quote,
             => .fatal,
 
-            .multiple_labels => .major,
+            .existing_label_left => .major,
 
             .invalid_label_target,
-            .shadowed_label,
             .invalid_string_escape,
             => strictnessResponse(options),
 
             .missing_origin => policyResponse(options, .extension, .implicit_origin),
             .missing_end => policyResponse(options, .extension, .implicit_end),
+            .existing_label_above => policyResponse(options, .extension, .multiple_labels),
             .label_colon => policyResponse(options, .extension, .label_declaration_colons),
             .nonstandard_integer_radix => policyResponse(options, .extension, .more_integer_radixes),
             .nonstandard_integer_form => policyResponse(options, .extension, .more_integer_forms),
@@ -322,10 +322,15 @@ pub const Diagnostic = union(enum) {
                 );
             },
 
-            .multiple_labels => |info| {
+            .existing_label_left => |info| {
                 ctx.printTitle("Multiple labels cannot be declared on the same line", .{});
                 ctx.deepen().printSourceNote("First label declared here", .{}, info.existing);
                 ctx.deepen().printSourceNote("Another label declared on the same line", .{}, info.new);
+            },
+            .existing_label_above => |info| {
+                ctx.printTitle("Line is annotated with multiple labels", .{});
+                ctx.deepen().printSourceNote("First label declared here", .{}, info.existing);
+                ctx.deepen().printSourceNote("Another label declared in the same position", .{}, info.new);
             },
             .invalid_label_target => |info| {
                 ctx.printTitle("Label is useless in this position", .{});
@@ -334,12 +339,6 @@ pub const Diagnostic = union(enum) {
                     ctx.deepen().printSourceNote("Token cannot be annotated with label", .{}, target)
                 else
                     ctx.deepen().printSourceNote("Label is not followed by any token", .{}, .lastCharOf(source));
-            },
-            .shadowed_label => |info| {
-                ctx.printTitle("Shadowed label has no use", .{});
-                ctx.deepen().printSourceNote("First label declared here", .{}, info.existing);
-                ctx.deepen().printSourceNote("Another label declared in the same position", .{}, info.new);
-                ctx.deepen().printNote("First label will be overridden by second label; it is not usable", .{});
             },
             .label_colon => |info| {
                 ctx.printTitle("Label followed by colon `:`", .{});

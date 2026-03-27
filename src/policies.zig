@@ -30,6 +30,7 @@ pub const Policies = packed struct {
         more_integer_radixes: Policy,
         more_integer_forms: Policy,
         label_declaration_colons: Policy,
+        multiple_labels: Policy,
 
         pub const forbid_all = fillFields(@This(), .forbid);
         pub const permit_all = fillFields(@This(), .permit);

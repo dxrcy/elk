@@ -517,11 +517,11 @@ fn printBreakpoints(debugger: *Debugger) !void {
                 break :blk;
             };
 
-            const line = getAssemblyLineOptional(assembly, entry.address) orelse {
+            const index = getAssemblyLineIndexOptional(assembly, entry.address) orelse
                 break :blk;
-            };
+            const line = &assembly.air.lines.items[index];
 
-            if (line.label) |label| {
+            if (getLineLabel(assembly, index)) |label| {
                 try debugger.writer.print(" (labelled '{s}')", .{
                     label.span.view(assembly.source),
                 });
@@ -539,6 +539,19 @@ fn printBreakpoints(debugger: *Debugger) !void {
         try debugger.writer.disableColor();
         try debugger.writer.print("\n", .{});
     }
+}
+
+fn getLineLabel(assembly: Assembly, index: usize) ?*const Air.Label {
+    for (assembly.air.labels.items) |*label| {
+        if (label.index == index and
+            label.kind != .breakpoint)
+            return label;
+    }
+    for (assembly.air.labels.items) |*label| {
+        if (label.index == index)
+            return label;
+    }
+    return null;
 }
 
 fn evalCommand(
@@ -621,13 +634,13 @@ fn getAssemblyLine(
     return &assembly.air.lines.items[index];
 }
 
-fn getAssemblyLineOptional(assembly: Assembly, address: u16) ?*const Air.Line {
+fn getAssemblyLineIndexOptional(assembly: Assembly, address: u16) ?usize {
     if (address < assembly.air.origin)
         return null;
     const index = address - assembly.air.origin;
     if (index >= assembly.air.lines.items.len)
         return null;
-    return &assembly.air.lines.items[index];
+    return index;
 }
 
 fn resolveLocation(
@@ -693,15 +706,15 @@ fn resolveLabelIndex(
     const string = label.view(source);
 
     if (assembly.air.findLabelDefinition(string, .sensitive, assembly.source)) |result|
-        return result[0];
+        return result.index;
 
     if (assembly.air.findLabelDefinition(string, .insensitive, assembly.source)) |result| {
         debugger.reporter.report(.debugger_label_partial_match, .{
             .reference = label,
-            .nearest = result[1].span,
+            .nearest = result.span,
             .declaration_source = assembly.source,
         }).proceed();
-        return result[0];
+        return result.index;
     }
 
     try debugger.reporter.report(.undeclared_label, .{
