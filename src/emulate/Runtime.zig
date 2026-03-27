@@ -12,9 +12,9 @@ const Tty = @import("Tty.zig");
 pub const Callback = @import("../callback.zig").Callback;
 pub const Instruction = @import("decode.zig").Instruction;
 
-pub const MEMORY_SIZE = 0x1_0000;
-pub const USER_MEMORY_START = 0x3000;
-pub const USER_MEMORY_END = 0xFDFF;
+pub const memory_size = 0x1_0000;
+pub const user_memory_start = 0x3000;
+pub const user_memory_end = 0xFDFF;
 
 state: State,
 
@@ -35,11 +35,11 @@ pub const State = struct {
     condition: Condition,
 
     pub fn init(gpa: Allocator) error{OutOfMemory}!State {
-        const memory = try gpa.alloc(u16, MEMORY_SIZE);
+        const memory = try gpa.alloc(u16, memory_size);
         @memset(memory, 0x0000);
         return .{
             .memory = memory,
-            .registers = .{ 0, 0, 0, 0, 0, 0, 0, USER_MEMORY_END },
+            .registers = .{ 0, 0, 0, 0, 0, 0, 0, user_memory_end },
             .pc = 0x0000,
             .condition = .zero,
         };
@@ -74,7 +74,7 @@ pub const Exception = error{
 };
 
 /// Stdio or terminal failure.
-pub const IoError = error{
+pub const HostError = error{
     WriteFailed,
     ReadFailed,
     EndOfStream,
@@ -88,8 +88,8 @@ const Condition = enum(u3) {
 };
 
 pub const Hooks = struct {
-    pre_decode: ?Callback(&.{ *Runtime, u16 }, IoError!void) = null,
-    pre_execute: ?Callback(&.{ *Runtime, Instruction }, IoError!void) = null,
+    pre_decode: ?Callback(&.{ *Runtime, u16 }, HostError!void) = null,
+    pre_execute: ?Callback(&.{ *Runtime, Instruction }, HostError!void) = null,
 };
 
 pub fn init(params: struct {
@@ -172,7 +172,7 @@ pub fn run(runtime: *Runtime) Error!void {
 
 fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
     switch (runtime.state.pc) {
-        USER_MEMORY_START...USER_MEMORY_END => {},
+        user_memory_start...user_memory_end => {},
         else => return error.PcOutOfBounds,
     }
 
@@ -339,7 +339,7 @@ pub fn ensureWriterNewline(runtime: *Runtime) error{WriteFailed}!void {
     runtime.writer_is_newline = true;
 }
 
-pub fn writeProgramChar(runtime: *Runtime, char: u8) error{WriteFailed}!void {
+pub fn writeChar(runtime: *Runtime, char: u8) error{WriteFailed}!void {
     try runtime.writer.writeByte(char);
     runtime.writer_is_newline = char == '\n';
 }

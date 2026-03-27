@@ -559,7 +559,7 @@ fn evalCommand(
     assembly: Assembly,
     span: Span,
     source: []const u8,
-) (Runtime.IoError || error{Reported})!void {
+) (Runtime.HostError || error{Reported})!void {
     const line = span.view(source);
 
     const asm_instr = try debugger.parseInstructionLine(
@@ -594,12 +594,12 @@ fn parseInstructionLine(
     assembly: Assembly,
     line: []const u8,
     index: usize,
-) error{Reported}!Parser.Instruction {
+) error{Reported}!Air.Instruction {
     var reporter = debugger.copyReporter(line);
     var parser = try Parser.new(debugger.traps, line, &reporter);
 
-    var instruction = try parser.parseInstructionLine();
-    try parser.resolveInstructionLabel(assembly.air, assembly.source, &instruction, index);
+    var instruction = try parser.parseInstruction();
+    try parser.resolveLabelOperand(assembly.air, assembly.source, &instruction, index);
     return instruction;
 }
 
@@ -704,10 +704,10 @@ fn resolveLabelIndex(
 ) error{Reported}!usize {
     const string = label.view(source);
 
-    if (assembly.air.findLabelDefinition(string, .sensitive, assembly.source)) |result|
+    if (assembly.air.findLabel(string, .sensitive, assembly.source)) |result|
         return result.index;
 
-    if (assembly.air.findLabelDefinition(string, .insensitive, assembly.source)) |result| {
+    if (assembly.air.findLabel(string, .insensitive, assembly.source)) |result| {
         debugger.reporter.report(.debugger_label_partial_match, .{
             .reference = label,
             .nearest = result.span,
@@ -733,12 +733,12 @@ fn getAssembly(debugger: *const Debugger, span: Span) error{Reported}!Assembly {
 
 fn ensureUserAddress(debugger: *Debugger, address: u16, span: Span) error{Reported}!void {
     switch (address) {
-        Runtime.USER_MEMORY_START...Runtime.USER_MEMORY_END => {},
+        Runtime.user_memory_start...Runtime.user_memory_end => {},
         else => {
             try debugger.reporter.report(.debugger_address_not_user_memory, .{
                 .address = span,
                 .value = address,
-                .max = Runtime.USER_MEMORY_END,
+                .max = Runtime.user_memory_end,
             }).abort();
         },
     }

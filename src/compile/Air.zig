@@ -89,7 +89,7 @@ pub fn emitRuntime(air: *const Air, runtime: *Runtime) !void {
     }
 }
 
-pub fn findLabelDefinition(
+pub fn findLabel(
     air: *const Air,
     reference: []const u8,
     case_mode: enum { sensitive, insensitive },

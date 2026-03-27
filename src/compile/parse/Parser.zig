@@ -53,7 +53,7 @@ const InnerError = error{
     OutOfMemory,
 };
 
-pub fn parse(parser: *Parser, gpa: Allocator, air: *Air) error{OutOfMemory}!void {
+pub fn parseAir(parser: *Parser, gpa: Allocator, air: *Air) error{OutOfMemory}!void {
     var missing_end = false;
 
     while (true) {
@@ -165,7 +165,7 @@ fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
 
 /// Asserts that at least one non-`newline` token exists before EOF.
 /// Label declaration for this line must be handled by caller.
-pub fn parseInstructionLine(parser: *Parser) error{Reported}!Instruction {
+pub fn parseInstruction(parser: *Parser) error{Reported}!Instruction {
     const token = parser.tokens.nextExcluding(&.{.newline}) catch |err| switch (err) {
         error.Reported => return error.Reported,
         error.Eof => unreachable,
@@ -392,7 +392,7 @@ fn parseDirective(
     return .@"continue";
 }
 
-fn parseInstruction(
+fn parseInstructionOperands(
     parser: *Parser,
     instruction: Token.Value.Instruction,
     span: Span,
@@ -490,13 +490,13 @@ fn getExistingLabelAbove(air: *Air, index: u16) ?*const Air.Label {
     return null;
 }
 
-pub fn resolveLabels(parser: *Parser, air: *Air) void {
+pub fn resolveLabelReferences(parser: *Parser, air: *Air) void {
     for (air.lines.items, 0..) |*line, index| {
         const instruction = switch (line.statement) {
             .raw_word => continue,
             .instruction => |*instruction| instruction,
         };
-        parser.resolveInstructionLabel(
+        parser.resolveLabelOperand(
             air,
             parser.source(),
             instruction,
@@ -515,7 +515,7 @@ pub fn resolveLabels(parser: *Parser, air: *Air) void {
     }
 }
 
-pub fn resolveInstructionLabel(
+pub fn resolveLabelOperand(
     parser: *Parser,
     air: *const Air,
     air_source: []const u8,
@@ -556,9 +556,9 @@ fn resolveFieldLabel(
     const string = operand.span.view(parser.source());
 
     const definition =
-        air.findLabelDefinition(string, .sensitive, air_source) orelse {
-            const near_match = air.findLabelDefinition(string, .insensitive, air_source);
             try parser.reporter().report(.undeclared_label, .{
+        air.findLabel(string, .sensitive, air_source) orelse {
+            const near_match = air.findLabel(string, .insensitive, air_source);
                 .reference = operand.span,
                 .nearest = if (near_match) |label| label.span else null,
                 .declaration_source = air_source,

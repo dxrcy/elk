@@ -30,7 +30,7 @@ fn readChar(runtime: *Runtime, comptime vect: enum { in, getc }) Traps.Result {
     try runtime.tty.disableRawMode();
 
     if (vect == .in) {
-        try runtime.writeProgramChar(char);
+        try runtime.writeChar(char);
         try runtime.ensureWriterNewline();
         try runtime.writer.flush();
     }
@@ -40,7 +40,7 @@ fn readChar(runtime: *Runtime, comptime vect: enum { in, getc }) Traps.Result {
 
 pub fn out(runtime: *Runtime) Traps.Result {
     const word: u8 = @truncate(runtime.state.registers[0]);
-    try runtime.writeProgramChar(word);
+    try runtime.writeChar(word);
     try runtime.writer.flush();
 }
 
@@ -50,7 +50,7 @@ pub fn puts(runtime: *Runtime) Traps.Result {
         const word: u8 = @truncate(runtime.state.memory[i]);
         if (word == 0x00)
             break;
-        try runtime.writeProgramChar(word);
+        try runtime.writeChar(word);
     }
     try runtime.writer.flush();
 }
@@ -61,10 +61,10 @@ pub fn putsp(runtime: *Runtime) Traps.Result {
         const words: [2]u8 = @bitCast(runtime.state.memory[i]);
         if (words[0] == 0x00)
             break;
-        try runtime.writeProgramChar(words[0]);
+        try runtime.writeChar(words[0]);
         if (words[1] == 0x00)
             break;
-        try runtime.writeProgramChar(words[1]);
+        try runtime.writeChar(words[1]);
     }
     try runtime.writer.flush();
 }
