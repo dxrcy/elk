@@ -10,6 +10,7 @@ const Air = @import("../Air.zig");
 const Span = @import("../Span.zig");
 const Operand = @import("../Operand.zig");
 const TokenIter = @import("TokenIter.zig");
+const Lexer = @import("Lexer.zig");
 const Token = @import("Token.zig");
 const case = @import("case.zig");
 
@@ -82,7 +83,7 @@ pub fn parse(parser: *Parser, gpa: Allocator, air: *Air) error{OutOfMemory}!void
 
     if (parser.origin == null) {
         parser.reporter().report(.missing_origin, .{
-            .first_token = air.getFirstSpan(),
+            .first_token = parser.getFirstSpan(),
         }).proceed(); // Can't return `error.Reported`
     }
 
@@ -99,6 +100,11 @@ pub fn parse(parser: *Parser, gpa: Allocator, air: *Air) error{OutOfMemory}!void
             .last_token = parser.tokens.latest,
         }).proceed(); // Can't return `error.Reported`
     }
+}
+
+fn getFirstSpan(parser: *const Parser) ?Span {
+    var lexer: Lexer = .new(parser.source(), true);
+    return lexer.next();
 }
 
 fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
@@ -331,7 +337,7 @@ fn parseDirective(
             if (air.lines.items.len > 0) {
                 try parser.reporter().report(.late_origin, .{
                     .origin = origin.span,
-                    .first_token = air.getFirstSpan(),
+                    .first_token = parser.getFirstSpan(),
                 }).abort();
             }
         },

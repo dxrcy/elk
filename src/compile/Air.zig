@@ -60,14 +60,6 @@ pub fn deinit(air: *Air, gpa: Allocator) void {
     air.lines.deinit(gpa);
 }
 
-pub fn getFirstSpan(air: *const Air) ?Span {
-    if (air.lines.items.len == 0)
-        return null;
-    if (air.lines.items[0].label) |label|
-        return label.span;
-    return air.lines.items[0].span;
-}
-
 pub fn emitWriter(air: *const Air, writer: *Io.Writer) !void {
     assert(air.lines.items.len <= 0xffff);
 
