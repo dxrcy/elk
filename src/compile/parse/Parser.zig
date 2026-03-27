@@ -111,52 +111,8 @@ fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
     const token = try parser.tokens.nextExcluding(&.{.newline});
 
     switch (token.value) {
-        // TODO: Move this branch to a new method
         .label => {
-            if (parser.getLabelWithName(air, token.span.view(parser.source()))) |existing_label| {
-                try parser.reporter().report(.redeclared_label, .{
-                    .existing = existing_label,
-                    .new = token.span,
-                }).abort();
-            }
-
-            if (try parser.tokens.nextMatching(.colon)) |colon| {
-                try parser.reporter().report(.label_colon, .{
-                    .colon = colon.span,
-                }).handle();
-            }
-
-            // Disallow two labels on same line
-            // This should also be checked when the second label is parsed, but
-            // this reports a more appropriate message
-            if (try parser.tokens.nextMatching(.label)) |label| {
-                try parser.reporter().report(.existing_label_left, .{
-                    .existing = token.span,
-                    .new = label.span,
-                }).handle();
-            }
-
-            if (!case.isPascalCase(token.span.view(parser.source()))) {
-                try parser.reporter().report(.unconventional_case, .{
-                    .token = token.span,
-                    .kind = .label,
-                }).handle();
-            }
-
-            const index: u16 = @intCast(air.lines.items.len);
-
-            if (getExistingLabelAbove(air, index)) |existing| {
-                try parser.reporter().report(.existing_label_above, .{
-                    .existing = existing.span,
-                    .new = token.span,
-                }).handle();
-            }
-
-            try air.labels.append(gpa, .new(
-                index,
-                token.span,
-                token.span.view(parser.source()),
-            ));
+            try parser.addLabel(gpa, air, token.span);
         },
 
         .directive => |directive| {
@@ -275,6 +231,53 @@ fn ensureCanAppendLines(parser: *Parser, air: *Air, n: usize, span: Span) error{
         }).abort() catch
             return error.TooLong;
     }
+}
+
+fn addLabel(parser: *Parser, gpa: Allocator, air: *Air, label: Span) InnerError!void {
+    if (parser.getLabelWithName(air, label.view(parser.source()))) |existing_label| {
+        try parser.reporter().report(.redeclared_label, .{
+            .existing = existing_label,
+            .new = label,
+        }).abort();
+    }
+
+    if (try parser.tokens.nextMatching(.colon)) |colon| {
+        try parser.reporter().report(.label_colon, .{
+            .colon = colon.span,
+        }).handle();
+    }
+
+    // Disallow two labels on same line
+    // This should also be checked when the second label is parsed, but
+    // this reports a more appropriate message
+    if (try parser.tokens.nextMatching(.label)) |right| {
+        try parser.reporter().report(.existing_label_left, .{
+            .existing = label,
+            .new = right.span,
+        }).handle();
+    }
+
+    if (!case.isPascalCase(label.view(parser.source()))) {
+        try parser.reporter().report(.unconventional_case, .{
+            .token = label,
+            .kind = .label,
+        }).handle();
+    }
+
+    const index: u16 = @intCast(air.lines.items.len);
+
+    if (getExistingLabelAbove(air, index)) |existing| {
+        try parser.reporter().report(.existing_label_above, .{
+            .existing = existing.span,
+            .new = label,
+        }).handle();
+    }
+
+    try air.labels.append(gpa, .new(
+        index,
+        label,
+        label.view(parser.source()),
+    ));
 }
 
 fn parseDirective(
