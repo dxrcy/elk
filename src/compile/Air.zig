@@ -69,20 +69,6 @@ pub fn deinit(air: *Air, gpa: Allocator) void {
     air.labels.deinit(gpa);
 }
 
-pub fn getFirstSpan(air: *const Air) ?Span {
-    const line_opt = if (air.lines.items.len == 0) air.lines.items[0].span else null;
-    const label_opt = if (air.labels.items.len == 0) air.labels.items[0].span else null;
-    if (line_opt) |line| {
-        if (label_opt) |label|
-            if (line.offset < label.offset) return line else return label;
-        return line;
-    } else {
-        if (label_opt) |label|
-            return label;
-        return null;
-    }
-}
-
 pub fn emitWriter(air: *const Air, writer: *Io.Writer) !void {
     assert(air.lines.items.len <= 0xffff);
 
