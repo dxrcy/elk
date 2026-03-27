@@ -95,6 +95,7 @@ pub fn findLabelDefinition(
     case_mode: enum { sensitive, insensitive },
     source: []const u8,
 ) ?*Label {
+    assertLabelOrder(air);
     for (air.labels.items) |*label| {
         const string = label.span.view(source);
         const matches = switch (case_mode) {
@@ -105,4 +106,13 @@ pub fn findLabelDefinition(
             return label;
     }
     return null;
+}
+
+pub fn assertLabelOrder(air: *const Air) void {
+    var i: usize = 0;
+    while (i + 1 < air.labels.items.len) : (i += 1) {
+        const first = air.labels.items[i];
+        const second = air.labels.items[i + 1];
+        assert(first.index <= second.index);
+    }
 }

@@ -17,7 +17,6 @@ const case = @import("case.zig");
 pub const Instruction = @import("../instruction.zig").Instruction;
 
 tokens: TokenIter,
-current_label: ?Span,
 origin: ?Span,
 
 pub fn new(
@@ -35,7 +34,6 @@ pub fn new(
 
     return .{
         .tokens = .new(traps, source_, reporter_),
-        .current_label = null,
         .origin = null,
     };
 }
@@ -87,7 +85,7 @@ pub fn parse(parser: *Parser, gpa: Allocator, air: *Air) error{OutOfMemory}!void
         }).proceed(); // Can't return `error.Reported`
     }
 
-    parser.discardCurrentLabel(null) catch
+    parser.discardCurrentLabel(air, null) catch
         {}; // Can't return `error.Reported`
 
     if (missing_end) {
@@ -95,6 +93,8 @@ pub fn parse(parser: *Parser, gpa: Allocator, air: *Air) error{OutOfMemory}!void
             .last_token = parser.tokens.latest,
         }).proceed(); // Can't return `error.Reported`
     }
+
+    air.assertLabelOrder();
 }
 
 fn getFirstTokenSpan(parser: *const Parser) ?Span {
@@ -112,22 +112,12 @@ fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
 
     switch (token.value) {
         .label => {
-            // If it is not in a valid position, there's nothing we can do since we don't know
-            // the future
-            // TODO: Change this^ !!
-            // We can add the label in this branch, and check it later!
-            // When appending line, if line type does not support labels and labels were
-            // indeed added with matching index, then report.
-            try addCurrentLabel(parser, gpa, air);
-
             if (parser.getExistingLabel(air, token.span.view(parser.source()))) |existing_label| {
                 try parser.reporter().report(.redeclared_label, .{
                     .existing = existing_label,
                     .new = token.span,
                 }).abort();
             }
-
-            parser.current_label = token.span;
 
             if (try parser.tokens.nextMatching(.colon)) |colon| {
                 try parser.reporter().report(.label_colon, .{
@@ -152,7 +142,11 @@ fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
                 }).handle();
             }
 
-            return .@"continue";
+            try air.labels.append(gpa, .new(
+                @intCast(air.lines.items.len),
+                token.span,
+                token.span.view(parser.source()),
+            ));
         },
 
         .directive => |directive| {
@@ -162,8 +156,6 @@ fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
         },
 
         .instruction => |instruction| {
-            try parser.addCurrentLabel(gpa, air);
-
             const instr = try parser.parseInstruction(instruction, token.span);
             const span: Span = .fromBounds(
                 token.span.offset,
@@ -203,16 +195,12 @@ fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
             }).abort();
         },
     }
-
-    assert(parser.current_label == null);
     return .@"continue";
 }
 
 /// Asserts that at least one non-`newline` token exists before EOF.
 /// Label declaration for this line must be handled by caller.
 pub fn parseInstructionLine(parser: *Parser) error{Reported}!Instruction {
-    assert(parser.current_label == null);
-
     const token = parser.tokens.nextExcluding(&.{.newline}) catch |err| switch (err) {
         error.Reported => return error.Reported,
         error.Eof => unreachable,
@@ -247,28 +235,27 @@ pub fn parseInstructionLine(parser: *Parser) error{Reported}!Instruction {
     }
 }
 
-fn addCurrentLabel(parser: *Parser, gpa: Allocator, air: *Air) !void {
-    const label = parser.current_label orelse
-        return;
-    parser.current_label = null;
+fn discardCurrentLabel(parser: *Parser, air: *Air, target: ?Span) error{Reported}!void {
+    air.assertLabelOrder();
 
-    try air.labels.append(
-        gpa,
-        .new(@intCast(air.lines.items.len), label, label.view(parser.source())),
-    );
-}
+    const index = air.lines.items.len;
+    var i: usize = air.labels.items.len;
+    while (i > 0) : (i -= 1) {
+        const label = air.labels.items[i - 1];
+        assert(label.index <= index);
+        if (label.index != index)
+            break;
 
-fn discardCurrentLabel(parser: *Parser, target: ?Span) error{Reported}!void {
-    const label = parser.current_label orelse
-        return;
-    parser.current_label = null;
+        if (Air.Label.Kind.from(label.span.view(parser.source())) != .normal)
+            continue;
 
-    if (Air.Label.Kind.from(label.view(parser.source())) != .normal)
-        return;
-    try parser.reporter().report(.invalid_label_target, .{
-        .label = label,
-        .target = target,
-    }).handle();
+        _ = air.labels.orderedRemove(i - 1);
+
+        try parser.reporter().report(.invalid_label_target, .{
+            .label = label.span,
+            .target = target,
+        }).handle();
+    }
 }
 
 fn ensureCanAppendLines(parser: *Parser, air: *Air, n: usize, span: Span) error{TooLong}!void {
@@ -289,12 +276,12 @@ fn parseDirective(
 ) InnerError!Control {
     switch (directive) {
         .end => {
-            try parser.discardCurrentLabel(span);
+            try parser.discardCurrentLabel(air, span);
             return .@"break";
         },
 
         .orig => {
-            try parser.discardCurrentLabel(span);
+            try parser.discardCurrentLabel(air, span);
 
             const origin = try parser.tokens.expectArgument(.word);
             if (parser.origin) |existing| {
@@ -319,8 +306,6 @@ fn parseDirective(
         },
 
         .fill => {
-            try parser.addCurrentLabel(gpa, air);
-
             const word = try parser.tokens.expectArgument(.word);
 
             try parser.ensureCanAppendLines(air, 1, span);
@@ -331,8 +316,6 @@ fn parseDirective(
         },
 
         .blkw => {
-            try parser.addCurrentLabel(gpa, air);
-
             const size = try parser.tokens.expectArgument(.word);
             const size_value = size.value.underlying;
             if (size_value == 0)
@@ -345,8 +328,6 @@ fn parseDirective(
         },
 
         .stringz => {
-            try parser.addCurrentLabel(gpa, air);
-
             const string = try parser.tokens.expectArgument(.string);
             const contents = string.value.in(string.span);
 
