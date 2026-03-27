@@ -7,11 +7,12 @@ pub const Runtime = @import("emulate/Runtime.zig");
 
 test {
     const refAllDecls = @import("std").testing.refAllDecls;
-    refAllDecls(@import("policies.zig"));
+    refAllDecls(@import("root.zig"));
     refAllDecls(@import("compile/Operand.zig"));
     refAllDecls(@import("compile/Span.zig"));
     refAllDecls(@import("compile/instruction.zig"));
     refAllDecls(@import("compile/Air.zig"));
+    refAllDecls(@import("compile/parse/parsing.zig"));
     refAllDecls(@import("compile/parse/case.zig"));
     refAllDecls(@import("compile/parse/TokenIter.zig"));
     refAllDecls(@import("compile/parse/Lexer.zig"));
@@ -24,10 +25,20 @@ test {
     refAllDecls(@import("report/Ctx.zig"));
     refAllDecls(@import("report/Stderr.zig"));
     refAllDecls(@import("report/diagnostic.zig"));
+    refAllDecls(@import("policies.zig"));
     refAllDecls(@import("Traps.zig"));
     refAllDecls(@import("emulate/decode.zig"));
     refAllDecls(@import("emulate/Tty.zig"));
     refAllDecls(@import("emulate/builtin_traps.zig"));
     refAllDecls(@import("emulate/Bitmask.zig"));
+    refAllDecls(@import("emulate/debugger/Command.zig"));
+    refAllDecls(@import("emulate/debugger/Breakpoints.zig"));
+    refAllDecls(@import("emulate/debugger/editor/Editor.zig"));
+    refAllDecls(@import("emulate/debugger/editor/History.zig"));
+    refAllDecls(@import("emulate/debugger/editor/Live.zig"));
+    refAllDecls(@import("emulate/debugger/tags.zig"));
+    refAllDecls(@import("emulate/debugger/Input.zig"));
+    refAllDecls(@import("emulate/debugger/Debugger.zig"));
+    refAllDecls(@import("emulate/debugger/parse.zig"));
     refAllDecls(@import("emulate/Runtime.zig"));
 }
