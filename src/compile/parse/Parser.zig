@@ -83,7 +83,7 @@ pub fn parse(parser: *Parser, gpa: Allocator, air: *Air) error{OutOfMemory}!void
 
     if (parser.origin == null) {
         parser.reporter().report(.missing_origin, .{
-            .first_token = parser.getFirstSpan(),
+            .first_token = parser.getFirstTokenSpan(),
         }).proceed(); // Can't return `error.Reported`
     }
 
@@ -102,7 +102,7 @@ pub fn parse(parser: *Parser, gpa: Allocator, air: *Air) error{OutOfMemory}!void
     }
 }
 
-fn getFirstSpan(parser: *const Parser) ?Span {
+fn getFirstTokenSpan(parser: *const Parser) ?Span {
     var lexer: Lexer = .new(parser.source(), true);
     while (true) {
         const span = lexer.next() orelse
@@ -342,7 +342,7 @@ fn parseDirective(
             if (air.lines.items.len > 0) {
                 try parser.reporter().report(.late_origin, .{
                     .origin = origin.span,
-                    .first_token = parser.getFirstSpan(),
+                    .first_token = parser.getFirstTokenSpan(),
                 }).abort();
             }
         },
