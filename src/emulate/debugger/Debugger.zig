@@ -517,16 +517,15 @@ fn printBreakpoints(debugger: *Debugger) !void {
                 break :blk;
             };
 
-            const line = getAssemblyLineOptional(assembly, entry.address) orelse {
+            const index = getAssemblyLineIndexOptional(assembly, entry.address) orelse
                 break :blk;
-            };
+            const line = &assembly.air.lines.items[index];
 
-            // TODO: Lookup label !!
-            // if (line.label) |label| {
-            //     try debugger.writer.print(" (labelled '{s}')", .{
-            //         label.span.view(assembly.source),
-            //     });
-            // }
+            if (getLineLabel(assembly, index)) |label| {
+                try debugger.writer.print(" (labelled '{s}')", .{
+                    label.span.view(assembly.source),
+                });
+            }
 
             try debugger.writer.print(":", .{});
             try debugger.writer.disableColor();
@@ -540,6 +539,19 @@ fn printBreakpoints(debugger: *Debugger) !void {
         try debugger.writer.disableColor();
         try debugger.writer.print("\n", .{});
     }
+}
+
+fn getLineLabel(assembly: Assembly, index: usize) ?*const Air.Label {
+    for (assembly.air.labels.items) |*label| {
+        if (label.index == index and
+            label.kind != .breakpoint)
+            return label;
+    }
+    for (assembly.air.labels.items) |*label| {
+        if (label.index == index)
+            return label;
+    }
+    return null;
 }
 
 fn evalCommand(
@@ -622,13 +634,13 @@ fn getAssemblyLine(
     return &assembly.air.lines.items[index];
 }
 
-fn getAssemblyLineOptional(assembly: Assembly, address: u16) ?*const Air.Line {
+fn getAssemblyLineIndexOptional(assembly: Assembly, address: u16) ?usize {
     if (address < assembly.air.origin)
         return null;
     const index = address - assembly.air.origin;
     if (index >= assembly.air.lines.items.len)
         return null;
-    return &assembly.air.lines.items[index];
+    return index;
 }
 
 fn resolveLocation(
