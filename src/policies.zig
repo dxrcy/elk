@@ -50,7 +50,7 @@ pub const Policies = packed struct {
         undesirable_integer_forms: Policy,
         missing_operand_commas: Policy,
         whitespace_commas: Policy,
-        unconventional_case_instructions: Policy,
+        unconventional_case_mnemonic: Policy,
         unconventional_case_directives: Policy,
         unconventional_case_labels: Policy,
         unconventional_case_registers: Policy,

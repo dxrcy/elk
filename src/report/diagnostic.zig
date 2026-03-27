@@ -33,7 +33,7 @@ pub const TokenKinds = struct {
             .comma => "comma `,`",
             .colon => "colon `:`",
             .directive => "directive",
-            .instruction => "instruction",
+            .mnemonic => "instruction mnemonic",
             .trap_alias => "trap alias",
             .label => "label",
             .register => "register",
@@ -77,7 +77,7 @@ pub const Diagnostic = union(enum) {
     expected_eol: struct { found: Token },
     missing_operand_comma: struct { operand: Span },
     whitespace_comma: struct { comma: Span },
-    unconventional_case: struct { token: Span, kind: enum { directive, instruction, label, register, integer } },
+    unconventional_case: struct { token: Span, kind: enum { directive, mnemonic, label, register, integer } },
 
     // Directives
     unsupported_directive: struct { directive: Span },
@@ -116,7 +116,7 @@ pub const Diagnostic = union(enum) {
     multiline_string: struct { string: Span },
 
     // Instruction-specific
-    stack_instruction: struct { instruction: Span, kind: Token.Value.Instruction },
+    stack_instruction: struct { mnemonic: Span, kind: Token.Value.Mnemonic },
     literal_pc_offset: struct { integer: Span },
     explicit_trap_vect: struct { vect: Span, value: u8, alias: []const u8 },
     undeclared_trap_vect: struct { vect: Span, value: u8 },
@@ -135,7 +135,7 @@ pub const Diagnostic = union(enum) {
     debugger_no_space: struct {},
     // TODO: Add `expected` field (different type than `TokenKinds`), AND ELSEWHERE
     debugger_invalid_argument_kind: struct { found: Span },
-    debugger_invalid_command: struct { command: Span, nearest: ?Command.Tag },
+    debugger_invalid_command: struct { command: Span, nearest: ?DebuggerCommand.Tag },
     debugger_missing_subcommand: struct { first: Span, eol: Span },
     // TODO: Rename ? not eol but end of command
     debugger_unexpected_eol: struct { eol: Span },
@@ -189,7 +189,7 @@ pub const Diagnostic = union(enum) {
             .whitespace_comma => policyResponse(options, .style, .whitespace_commas),
             .unconventional_case => |info| switch (info.kind) {
                 .directive => policyResponse(options, .style, .unconventional_case_directives),
-                .instruction => policyResponse(options, .style, .unconventional_case_instructions),
+                .mnemonic => policyResponse(options, .style, .unconventional_case_mnemonic),
                 .label => policyResponse(options, .style, .unconventional_case_labels),
                 .register => policyResponse(options, .style, .unconventional_case_registers),
                 .integer => policyResponse(options, .style, .unconventional_case_integers),
@@ -265,7 +265,7 @@ pub const Diagnostic = union(enum) {
                 ctx.deepen().printNote("Commas should only appear between instruction operands", .{});
             },
             .unconventional_case => |info| switch (info.kind) {
-                .instruction => {
+                .mnemonic => {
                     ctx.printTitle("Instruction mnemonic is not lowercase", .{});
                     ctx.deepen().printSourceNote("Mnemonic", .{}, info.token);
                 },
@@ -444,7 +444,7 @@ pub const Diagnostic = union(enum) {
 
             .stack_instruction => |info| {
                 ctx.printTitle("Use of non-standard stack instruction `{t}`", .{info.kind});
-                ctx.deepen().printSourceNote("Instruction is an ISA extension", .{}, info.instruction);
+                ctx.deepen().printSourceNote("Instruction is an ISA extension", .{}, info.mnemonic);
             },
             .literal_pc_offset => |info| {
                 ctx.printTitle("Address operand is a literal offset", .{});
@@ -504,7 +504,7 @@ pub const Diagnostic = union(enum) {
                 ctx.printTitle("Invalid command name", .{});
                 ctx.deepen().printSourceNote("Command", .{}, info.command);
                 if (info.nearest) |nearest|
-                    ctx.deepen().printNote("Did you mean `{s}`?", .{Command.tagString(nearest)});
+                    ctx.deepen().printNote("Did you mean `{s}`?", .{DebuggerCommand.tagString(nearest)});
             },
             .debugger_missing_subcommand => |info| {
                 ctx.printTitle("Missing subcommand for `{s}`", .{info.first.view(source)});

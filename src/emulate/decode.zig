@@ -7,8 +7,8 @@ comptime {
     for (
         @typeInfo(Opcode).@"enum".fields,
         @typeInfo(Instruction).@"union".fields,
-    ) |opcode, instr|
-        assert(std.mem.eql(u8, opcode.name, instr.name));
+    ) |opcode, instruction|
+        assert(std.mem.eql(u8, opcode.name, instruction.name));
 }
 
 const Opcode = enum(u4) {

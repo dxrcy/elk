@@ -182,23 +182,23 @@ fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
     if (runtime.hooks.pre_decode) |pre_decode|
         try pre_decode.call(.{ runtime, word });
 
-    const instr: Instruction = try .decode(word);
+    const instruction: Instruction = try .decode(word);
 
     if (runtime.hooks.pre_execute) |pre_execute|
-        try pre_execute.call(.{ runtime, instr });
+        try pre_execute.call(.{ runtime, instruction });
 
-    try runtime.runInstruction(instr);
+    try runtime.runInstruction(instruction);
 }
 
-pub fn runInstruction(runtime: *Runtime, instr: Instruction) (Error || error{Halt})!void {
-    switch (instr) {
-        inline .add, .@"and" => |operands, instr_subset| {
+pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || error{Halt})!void {
+    switch (instruction) {
+        inline .add, .@"and" => |operands, subset| {
             const lhs = runtime.state.registers[operands.src_a];
             const rhs: u16 = switch (operands.src_b) {
                 .register => |register| runtime.state.registers[register],
                 .immediate => |immediate| signExtend(immediate),
             };
-            runtime.setRegister(operands.dest, switch (instr_subset) {
+            runtime.setRegister(operands.dest, switch (subset) {
                 .add => lhs +% rhs,
                 .@"and" => lhs & rhs,
                 else => comptime unreachable,

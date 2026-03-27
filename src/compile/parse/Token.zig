@@ -41,7 +41,7 @@ pub const Value = union(enum) {
     colon,
 
     directive: Directive,
-    instruction: Instruction,
+    mnemonic: Mnemonic,
     trap_alias: u8,
     label,
 
@@ -58,7 +58,7 @@ pub const Value = union(enum) {
         stringz,
     };
 
-    pub const Instruction = enum {
+    pub const Mnemonic = enum {
         // Arithmetic
         add,
         @"and",
@@ -110,7 +110,7 @@ pub const Value = union(enum) {
             tryInteger,
             tryString,
             tryDirective,
-            tryInstruction,
+            tryMnemonic,
             tryLabel,
         };
         inline for (parsers) |parser| {
@@ -167,10 +167,10 @@ pub const Value = union(enum) {
         return error.UnknownDirective;
     }
 
-    fn tryInstruction(string: []const u8) Error!?Value {
+    fn tryMnemonic(string: []const u8) Error!?Value {
         assert(string.len > 0);
-        if (matchTagName(Instruction, string)) |instruction| {
-            return .{ .instruction = instruction };
+        if (matchTagName(Mnemonic, string)) |mnemonic| {
+            return .{ .mnemonic = mnemonic };
         }
         return null;
     }

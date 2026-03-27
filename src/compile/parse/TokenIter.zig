@@ -373,11 +373,11 @@ fn ensureSupported(
             }
         },
 
-        .instruction => {
+        .mnemonic => {
             if (!case.isLowercaseAlpha(token.span.view(tokens.source))) {
                 tokens.reporter.report(.unconventional_case, .{
                     .token = token.span,
-                    .kind = .instruction,
+                    .kind = .mnemonic,
                 }).collect(&result);
             }
         },

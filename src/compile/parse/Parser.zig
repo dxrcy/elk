@@ -120,8 +120,8 @@ fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
             return control;
         },
 
-        .instruction => |instruction| {
-            const instr = try parser.parseInstruction(instruction, token.span);
+        .mnemonic => |mnemonic| {
+            const instruction = try parser.parseInstructionOperands(mnemonic, token.span);
             const span: Span = .fromBounds(
                 token.span.offset,
                 parser.tokens.getIndex(),
@@ -130,7 +130,7 @@ fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
 
             try parser.ensureCanAppendLines(air, 1, span);
             try air.lines.append(gpa, .{
-                .statement = .{ .instruction = instr },
+                .statement = .{ .instruction = instruction },
                 .span = span,
             });
         },
@@ -156,7 +156,7 @@ fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
         else => {
             try parser.reporter().report(.unexpected_token_kind, .{
                 .found = token,
-                .expected = &.{ .label, .instruction, .directive },
+                .expected = &.{ .label, .mnemonic, .directive },
             }).abort();
         },
     }
@@ -172,10 +172,10 @@ pub fn parseInstruction(parser: *Parser) error{Reported}!Instruction {
     };
 
     switch (token.value) {
-        .instruction => |instruction| {
-            const instr = try parser.parseInstruction(instruction, token.span);
+        .mnemonic => |mnemonic| {
+            const instruction = try parser.parseInstructionOperands(mnemonic, token.span);
             try parser.tokens.expectEol();
-            return instr;
+            return instruction;
         },
 
         .trap_alias => |vect| {
@@ -194,7 +194,7 @@ pub fn parseInstruction(parser: *Parser) error{Reported}!Instruction {
         else => {
             try parser.reporter().report(.unexpected_token_kind, .{
                 .found = token,
-                .expected = &.{.instruction},
+                .expected = &.{.mnemonic},
             }).abort();
         },
     }
@@ -394,10 +394,10 @@ fn parseDirective(
 
 fn parseInstructionOperands(
     parser: *Parser,
-    instruction: Token.Value.Instruction,
+    mnemonic: Token.Value.Mnemonic,
     span: Span,
 ) error{Reported}!Instruction {
-    switch (instruction) {
+    switch (mnemonic) {
         inline // Automatic parsing for 'regular' instructions
         .add,
         .@"and",
@@ -423,8 +423,8 @@ fn parseInstructionOperands(
             switch (regular) {
                 .push, .pop, .call, .rets => {
                     try parser.reporter().report(.stack_instruction, .{
-                        .instruction = span,
-                        .kind = instruction,
+                        .mnemonic = span,
+                        .kind = mnemonic,
                     }).handle();
                 },
                 else => {},
