@@ -42,8 +42,8 @@ program.
 
 ## Other Toolchain Components
 
+- [x] [Tree-sitter parser](https://codeberg.org/dxrcy/tree-sitter-lc3) (syntax highlighting)
 - [ ] Language server
-- [ ] Tree-sitter parser (syntax highlighting)
 
 ## Supported Applications
 
