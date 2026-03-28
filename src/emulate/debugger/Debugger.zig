@@ -536,9 +536,9 @@ fn runCommand(
 fn printListing(debugger: *Debugger, runtime: *Runtime, start: u16, end: u16) !void {
     try debugger.writer.enableColor();
 
-    try debugger.writer.print("+------------------------------------------------+\n", .{});
-    try debugger.writer.print("|         hex      instr            label        |\n", .{});
-    try debugger.writer.print("+------------------------------------------------+\n", .{});
+    try debugger.writer.print("+-------------------------------------------------+\n", .{});
+    try debugger.writer.print("|           hex      decoded         label        |\n", .{});
+    try debugger.writer.print("+-------------------------------------------------+\n", .{});
 
     for (start..end + 1) |i| {
         const address: u16 = @intCast(i);
@@ -547,7 +547,12 @@ fn printListing(debugger: *Debugger, runtime: *Runtime, start: u16, end: u16) !v
         try debugger.writer.print("| ", .{});
 
         try debugger.writer.print("0x{x:04}", .{address});
-        try debugger.writer.print("  0x{x:04}", .{word});
+
+        try debugger.writer.print(" {s}", .{
+            if (debugger.breakpoints.contains(address)) "B" else " ",
+        });
+
+        try debugger.writer.print(" 0x{x:04}", .{word});
 
         if (Instruction.decode(word)) |instruction| {
             const width = 16;
@@ -578,7 +583,7 @@ fn printListing(debugger: *Debugger, runtime: *Runtime, start: u16, end: u16) !v
         try debugger.writer.print(" |\n", .{});
     }
 
-    try debugger.writer.print("+------------------------------------------------+\n", .{});
+    try debugger.writer.print("+-------------------------------------------------+\n", .{});
     try debugger.writer.disableColor();
 }
 

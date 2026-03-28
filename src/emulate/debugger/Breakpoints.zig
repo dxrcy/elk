@@ -35,11 +35,17 @@ pub fn initFrom(gpa: Allocator, assembly: Assembly) error{OutOfMemory}!Breakpoin
     return breakpoints;
 }
 
-pub fn insert(breakpoints: *Breakpoints, address: u16, is_label: bool) error{OutOfMemory}!bool {
+pub fn contains(breakpoints: *const Breakpoints, address: u16) bool {
     for (breakpoints.entries.items) |entry| {
         if (entry.address == address)
-            return false;
+            return true;
     }
+    return false;
+}
+
+pub fn insert(breakpoints: *Breakpoints, address: u16, is_label: bool) error{OutOfMemory}!bool {
+    if (breakpoints.contains(address))
+        return false;
 
     var index: usize = breakpoints.entries.items.len;
     for (breakpoints.entries.items, 0..) |entry, i| {
