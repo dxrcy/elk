@@ -343,33 +343,24 @@ fn parseDirective(
             const string = try parser.tokenizer.expectArgument(.string);
             const contents = string.value.in(string.span);
 
-            var is_escaped = false;
-            for (contents.view(parser.source()), 0..) |char, i| {
-                if (!is_escaped and char == '\\') {
-                    is_escaped = true;
+            var escaped: Escaped = .new(contents.view(parser.source()));
+            while (escaped.next()) |result| {
+                const char = result catch {
+                    try parser.reporter().report(.invalid_string_escape, .{
+                        .string = string.span,
+                        .sequence = .{
+                            .offset = contents.offset + escaped.index - 2,
+                            .len = 2,
+                        },
+                    }).handle();
                     continue;
-                }
-
-                const char_escaped: u8 =
-                    if (!is_escaped) char //fmt
-                    else escapeChar(char) orelse {
-                        try parser.reporter().report(.invalid_string_escape, .{
-                            .string = string.span,
-                            .sequence = .{
-                                .offset = contents.offset + i - 1,
-                                .len = 2,
-                            },
-                        }).handle();
-                        is_escaped = false;
-                        continue;
-                    };
-                is_escaped = false;
+                };
 
                 // PERF: Calculate length of string (in words) before this loop
                 // Perform this check, and the `lines` allocation, only once
                 try parser.ensureCanAppendLines(air, 1, span);
                 try air.lines.append(gpa, .{
-                    .statement = .{ .raw_word = char_escaped },
+                    .statement = .{ .raw_word = char },
                     .span = string.span,
                 });
             }
@@ -386,16 +377,65 @@ fn parseDirective(
     return .@"continue";
 }
 
-fn escapeChar(char: u8) ?u8 {
-    return switch (char) {
-        '\\' => '\\',
-        '"' => '"',
-        'n' => '\n',
-        't' => '\t',
-        'r' => '\r',
-        else => null,
-    };
-}
+// TODO: Move to proper file, or another file
+const Escaped = struct {
+    string: []const u8,
+    index: usize,
+    is_escaped: bool,
+
+    const indicator = '\\';
+    fn escapeChar(char: u8) ?u8 {
+        return switch (char) {
+            indicator => indicator,
+            '"' => '"',
+            'n' => '\n',
+            't' => '\t',
+            'r' => '\r',
+            else => null,
+        };
+    }
+
+    pub fn validLength(string: []const u8) usize {
+        var length: usize = 0;
+        var escaped: Escaped = .new(string);
+        while (escaped.next()) |result| {
+            _ = result catch continue;
+            length += 1;
+        }
+        return length;
+    }
+
+    pub fn new(string: []const u8) Escaped {
+        if (string.len > 0) assert(string[string.len - 1] != indicator);
+        return .{ .string = string, .index = 0, .is_escaped = false };
+    }
+
+    pub fn next(escaped: *Escaped) ?error{InvalidSequence}!u8 {
+        var raw = escaped.nextRaw() orelse
+            return null;
+
+        if (!escaped.is_escaped and raw == indicator) {
+            escaped.is_escaped = true;
+            raw = escaped.nextRaw() orelse
+                unreachable; // Trailing indicator should have been checked already
+        }
+
+        if (!escaped.is_escaped)
+            return raw;
+
+        const char_opt = escapeChar(raw);
+        escaped.is_escaped = false;
+        return char_opt orelse error.InvalidSequence;
+    }
+
+    fn nextRaw(escaped: *Escaped) ?u8 {
+        if (escaped.index >= escaped.string.len)
+            return null;
+        const raw = escaped.string[escaped.index];
+        escaped.index += 1;
+        return raw;
+    }
+};
 
 fn parseInstructionOperands(
     parser: *Parser,
