@@ -144,8 +144,6 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?enum { @"continue", @"br
     if (debugger.state.status == .inactive)
         return null;
 
-    try runtime.ensureWriterNewline();
-
     if (!debugger.canProceed(runtime))
         debugger.state.should_print_pc = false;
     if (!debugger.isHalted(runtime))
@@ -163,12 +161,14 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?enum { @"continue", @"br
     }
 
     if (debugger.isHalted(runtime)) {
+        try runtime.ensureWriterNewline();
         try debugger.writer.printLine("Currently halted at 0x{x:04}.", .{runtime.state.pc});
         debugger.state.status = .get_action;
         return .@"continue";
     }
 
     if (debugger.isAtBreakpoint(runtime)) {
+        try runtime.ensureWriterNewline();
         try debugger.writer.printLine("Currently on breakpoint at 0x{x:04}.", .{runtime.state.pc});
         debugger.state.current_breakpoint = runtime.state.pc;
         debugger.state.status = .get_action;
@@ -205,7 +205,8 @@ pub fn catchEvent(
     try debugger.triggerHalt(runtime);
 }
 
-fn triggerHalt(debugger: *Debugger, runtime: *const Runtime) error{WriteFailed}!void {
+fn triggerHalt(debugger: *Debugger, runtime: *Runtime) error{WriteFailed}!void {
+    try runtime.ensureWriterNewline();
     try debugger.writer.printLine("Program halted at 0x{x:04}.", .{runtime.state.pc});
     debugger.state.status = .get_action;
     debugger.state.halt_address = runtime.state.pc;
@@ -233,12 +234,14 @@ fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
         switch (debugger.state.status) {
             .inactive => unreachable,
             .get_action => {
+                try runtime.ensureWriterNewline();
                 return try debugger.tryNextAction(runtime) orelse
                     continue;
             },
             .step_over => |*info| {
                 if (runtime.state.pc != info.return_address)
                     return .proceed;
+                try runtime.ensureWriterNewline();
                 if (debugger.state.instruction_count > 1)
                     try debugger.writer.printLine("Reached end of subroutine.", .{});
                 debugger.state.status = .get_action;
@@ -248,6 +251,7 @@ fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
                 if (info.count > 0) {
                     info.count -= 1;
                 } else {
+                    try runtime.ensureWriterNewline();
                     debugger.state.status = .get_action;
                 }
                 return .proceed;
@@ -255,6 +259,7 @@ fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
             .step_out => {
                 const instruction = getNextInstruction(runtime);
                 if (instruction == .ret_rets) {
+                    try runtime.ensureWriterNewline();
                     try debugger.writer.printLine("Reached end of subroutine.", .{});
                     debugger.state.status = .get_action;
                 }
@@ -284,6 +289,7 @@ fn getNextInstruction(runtime: *const Runtime) ?enum { ret_rets } {
 
 fn tryNextAction(debugger: *Debugger, runtime: *Runtime) !?Action {
     assert(debugger.state.status == .get_action);
+    assert(runtime.writer_is_newline);
 
     if (debugger.state.instruction_count > 0)
         try debugger.writer.printLine("Executed {} instruction{s}.", .{
@@ -326,6 +332,9 @@ fn runCommand(
     command: Command,
     source: []const u8,
 ) !?Action {
+    assert(debugger.state.status == .get_action);
+    assert(runtime.writer_is_newline);
+
     switch (command.value) {
         .help => {
             try debugger.writer.enableColor();
