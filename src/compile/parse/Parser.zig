@@ -345,11 +345,11 @@ fn parseDirective(
             const contents_string = contents.view(parser.source());
 
             // Check length and allocate lines before proper string iteration
-            const length = Escaped.validLength(contents_string) + 1; // Include NUL
+            const length = Token.Escaped.validLength(contents_string) + 1; // Include NUL
             try parser.ensureCanAppendLines(air, length, span);
             try air.lines.ensureUnusedCapacity(gpa, length);
 
-            var escaped: Escaped = .new(contents_string);
+            var escaped: Token.Escaped = .new(contents_string);
             while (escaped.next()) |result| {
                 const char = result catch {
                     try parser.reporter().report(.invalid_string_escape, .{
@@ -378,66 +378,6 @@ fn parseDirective(
 
     return .@"continue";
 }
-
-// TODO: Move to proper file, or another file
-const Escaped = struct {
-    string: []const u8,
-    index: usize,
-    is_escaped: bool,
-
-    const indicator = '\\';
-    fn escapeChar(char: u8) ?u8 {
-        return switch (char) {
-            indicator => indicator,
-            '"' => '"',
-            'n' => '\n',
-            't' => '\t',
-            'r' => '\r',
-            else => null,
-        };
-    }
-
-    pub fn validLength(string: []const u8) usize {
-        var length: usize = 0;
-        var escaped: Escaped = .new(string);
-        while (escaped.next()) |result| {
-            _ = result catch continue;
-            length += 1;
-        }
-        return length;
-    }
-
-    pub fn new(string: []const u8) Escaped {
-        if (string.len > 0) assert(string[string.len - 1] != indicator);
-        return .{ .string = string, .index = 0, .is_escaped = false };
-    }
-
-    pub fn next(escaped: *Escaped) ?error{InvalidSequence}!u8 {
-        var raw = escaped.nextRaw() orelse
-            return null;
-
-        if (!escaped.is_escaped and raw == indicator) {
-            escaped.is_escaped = true;
-            raw = escaped.nextRaw() orelse
-                unreachable; // Trailing indicator should have been checked already
-        }
-
-        if (!escaped.is_escaped)
-            return raw;
-
-        const char_opt = escapeChar(raw);
-        escaped.is_escaped = false;
-        return char_opt orelse error.InvalidSequence;
-    }
-
-    fn nextRaw(escaped: *Escaped) ?u8 {
-        if (escaped.index >= escaped.string.len)
-            return null;
-        const raw = escaped.string[escaped.index];
-        escaped.index += 1;
-        return raw;
-    }
-};
 
 fn parseInstructionOperands(
     parser: *Parser,

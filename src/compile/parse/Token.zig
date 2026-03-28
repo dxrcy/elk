@@ -197,3 +197,62 @@ pub const Value = union(enum) {
         return null;
     }
 };
+
+pub const Escaped = struct {
+    string: []const u8,
+    index: usize,
+    is_escaped: bool,
+
+    const indicator = '\\';
+    fn escapeChar(char: u8) ?u8 {
+        return switch (char) {
+            indicator => indicator,
+            '"' => '"',
+            'n' => '\n',
+            't' => '\t',
+            'r' => '\r',
+            else => null,
+        };
+    }
+
+    pub fn validLength(string: []const u8) usize {
+        var length: usize = 0;
+        var escaped: Escaped = .new(string);
+        while (escaped.next()) |result| {
+            _ = result catch continue;
+            length += 1;
+        }
+        return length;
+    }
+
+    pub fn new(string: []const u8) Escaped {
+        if (string.len > 0) assert(string[string.len - 1] != indicator);
+        return .{ .string = string, .index = 0, .is_escaped = false };
+    }
+
+    pub fn next(escaped: *Escaped) ?error{InvalidSequence}!u8 {
+        var raw = escaped.nextRaw() orelse
+            return null;
+
+        if (!escaped.is_escaped and raw == indicator) {
+            escaped.is_escaped = true;
+            raw = escaped.nextRaw() orelse
+                unreachable; // Trailing indicator should have been checked already
+        }
+
+        if (!escaped.is_escaped)
+            return raw;
+
+        const char_opt = escapeChar(raw);
+        escaped.is_escaped = false;
+        return char_opt orelse error.InvalidSequence;
+    }
+
+    fn nextRaw(escaped: *Escaped) ?u8 {
+        if (escaped.index >= escaped.string.len)
+            return null;
+        const raw = escaped.string[escaped.index];
+        escaped.index += 1;
+        return raw;
+    }
+};
