@@ -536,9 +536,9 @@ fn runCommand(
 fn printListing(debugger: *Debugger, runtime: *Runtime, start: u16, end: u16) !void {
     try debugger.writer.enableColor();
 
-    try debugger.writer.print("+----------------------------------+\n", .{});
-    try debugger.writer.print("|         hex      instr           |\n", .{});
-    try debugger.writer.print("+----------------------------------+\n", .{});
+    try debugger.writer.print("+------------------------------------------------+\n", .{});
+    try debugger.writer.print("|         hex      instr            label        |\n", .{});
+    try debugger.writer.print("+------------------------------------------------+\n", .{});
 
     for (start..end + 1) |i| {
         const address: u16 = @intCast(i);
@@ -556,10 +556,29 @@ fn printListing(debugger: *Debugger, runtime: *Runtime, start: u16, end: u16) !v
             try debugger.writer.print("  {s:<[1]}", .{ string, width });
         } else |_| {}
 
+        {
+            const width = 12;
+            var buffer: [width]u8 = undefined;
+            var string: []const u8 = buffer[0..0];
+            if (debugger.assembly) |assembly| {
+                if (getAssemblyLineIndexOptional(assembly, address)) |index| {
+                    if (getLineLabel(assembly, index)) |label| {
+                        const name = label.span.view(assembly.source);
+                        const length = @min(name.len, width);
+                        @memcpy(buffer[0..length], name[0..length]);
+                        if (name.len > width)
+                            buffer[width - 1] = '-';
+                        string = buffer[0..length];
+                    }
+                }
+            }
+            try debugger.writer.print("  {s:<[1]}", .{ string, width });
+        }
+
         try debugger.writer.print(" |\n", .{});
     }
 
-    try debugger.writer.print("+----------------------------------+\n", .{});
+    try debugger.writer.print("+------------------------------------------------+\n", .{});
     try debugger.writer.disableColor();
 }
 
