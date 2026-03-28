@@ -140,7 +140,7 @@ pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !voi
 
 pub fn run(runtime: *Runtime) Error!void {
     if (runtime.debugger) |debugger|
-        try debugger.start();
+        try debugger.startMessage();
 
     while (true) {
         if (runtime.debugger) |debugger| {

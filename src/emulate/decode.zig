@@ -316,4 +316,97 @@ pub const Instruction = union(enum) {
             },
         }
     }
+
+    pub fn format(instruction: Instruction, writer: *std.Io.Writer) error{WriteFailed}!void {
+        // TODO: Print negative PC offsets as -0x1 not 0x-1
+        switch (instruction) {
+            .add => |operands| {
+                try writer.print(" add r{} r{}", .{ operands.dest, operands.src_a });
+                switch (operands.src_b) {
+                    .register => |register| try writer.print(" r{}", .{register}),
+                    .immediate => |immediate| try writer.print(" 0x{x}", .{immediate}),
+                }
+            },
+
+            .@"and" => |operands| {
+                try writer.print(" and r{} r{}", .{ operands.dest, operands.src_a });
+                switch (operands.src_b) {
+                    .register => |register| try writer.print(" r{}", .{register}),
+                    .immediate => |immediate| try writer.print(" 0x{x}", .{immediate}),
+                }
+            },
+
+            .not => |operands| {
+                try writer.print(" not r{} r{}", .{ operands.dest, operands.src });
+            },
+
+            .br => |operands| {
+                const mnemonic = switch (operands.mask) {
+                    0b000, 0b111 => "br",
+                    0b100 => "brn",
+                    0b010 => "brz",
+                    0b001 => "brp",
+                    0b110 => "brnz",
+                    0b011 => "brzp",
+                    0b101 => "brnp",
+                };
+                try writer.print("{s:4} 0x{x}", .{ mnemonic, operands.pc_offset });
+            },
+
+            .jmp_ret => |operands| {
+                if (operands.base == 7)
+                    try writer.print(" ret", .{})
+                else
+                    try writer.print(" jmp r{}", .{operands.base});
+            },
+
+            .jsr_jsrr => |variant| switch (variant) {
+                .jsr => |operands| {
+                    try writer.print(" jsr 0x{x}", .{operands.pc_offset});
+                },
+                .jsrr => |operands| {
+                    try writer.print("jsrr r{}", .{operands.base});
+                },
+            },
+
+            .lea, .ld, .ldi => |operands, opcode| {
+                try writer.print("{t:4} r{} 0x{x}", .{ opcode, operands.dest, operands.pc_offset });
+            },
+
+            .ldr => |operands| {
+                try writer.print(" ldr r{} r{} 0x{x}", .{ operands.dest, operands.base, operands.offset });
+            },
+
+            .st, .sti => |operands, opcode| {
+                try writer.print("{t:4} r{} 0x{x}", .{ opcode, operands.src, operands.pc_offset });
+            },
+
+            .str => |operands| {
+                try writer.print(" str r{} r{} 0x{x}", .{ operands.src, operands.base, operands.offset });
+            },
+
+            .trap => |operands| {
+                try writer.print("trap 0x{x:02}", .{operands.vect});
+            },
+
+            .rti => {
+                try writer.print(" rti", .{});
+            },
+
+            .pop_push_rets_call => |variant| switch (variant) {
+                .pop => |operands| {
+                    try writer.print(" pop r{}", .{operands.dest});
+                },
+                .push => |operands| {
+                    try writer.print("push r{}", .{operands.src});
+                },
+                .rets => {
+                    try writer.print("rets", .{});
+                },
+                .call => |operands| {
+                    try writer.print("call 0x{x}", .{operands.pc_offset});
+                },
+            },
+        }
+    }
 };

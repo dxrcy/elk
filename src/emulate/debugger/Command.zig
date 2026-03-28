@@ -23,6 +23,10 @@ pub const Value = union(enum) {
     print: struct {
         location: Spanned(Location),
     },
+    printm: struct {
+        start: Spanned(Location.Memory),
+        end: Spanned(Location.Memory),
+    },
     move: struct {
         location: Spanned(Location),
         value: Spanned(u16),
@@ -81,6 +85,7 @@ pub fn tagString(command: Tag) [:0]const u8 {
         .registers => "registers",
         .@"continue" => "continue",
         .print => "print",
+        .printm => "printm",
         .move => "move",
         .goto => "goto",
         .assembly => "assembly",

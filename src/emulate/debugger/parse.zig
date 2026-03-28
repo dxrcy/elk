@@ -74,6 +74,10 @@ const Parser = struct {
             .print => .{ .print = .{
                 .location = try parser.nextLocation(),
             } },
+            .printm => .{ .printm = .{
+                .start = try parser.nextMemoryLocation(),
+                .end = try parser.nextMemoryLocation(),
+            } },
             .move => .{ .move = .{
                 .location = try parser.nextLocation(),
                 .value = try parser.nextInteger(),

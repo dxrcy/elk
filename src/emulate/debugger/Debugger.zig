@@ -136,7 +136,7 @@ pub fn initState(
     debugger.initial_state.?.copyFrom(runtime.state);
 }
 
-pub fn start(debugger: *Debugger) !void {
+pub fn startMessage(debugger: *Debugger) !void {
     try debugger.writer.printLine("* Welcome to LCZ Debugger *", .{});
 }
 
@@ -390,6 +390,41 @@ fn runCommand(
                     try debugger.writer.disableColor();
                 },
             }
+        },
+
+        .printm => |arguments| {
+            const start = try debugger.resolveMemoryLocation(
+                runtime,
+                arguments.start.value,
+                arguments.start.span,
+                source,
+            );
+            const end = try debugger.resolveMemoryLocation(
+                runtime,
+                arguments.end.value,
+                arguments.end.span,
+                source,
+            );
+
+            try debugger.writer.enableColor();
+
+            try debugger.writer.print("address\thex\tinstruction\n", .{});
+
+            for (start..end + 1) |i| {
+                const address: u16 = @intCast(i);
+                const word = runtime.state.memory[address];
+
+                try debugger.writer.print("0x{x:04}", .{address});
+                try debugger.writer.print("\t0x{x:04}", .{word});
+
+                if (Instruction.decode(word)) |instruction| {
+                    try debugger.writer.print("\t{f}", .{instruction});
+                } else |_| {}
+
+                try debugger.writer.print("\n", .{});
+            }
+
+            try debugger.writer.disableColor();
         },
 
         .move => |arguments| {

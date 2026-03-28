@@ -29,7 +29,7 @@ pub fn main(init: std.process.Init) !u8 {
         else => return err,
     };
 
-    const policies: lcz.Policies = .config_lace;
+    const policies: lcz.Policies = .default;
     reporter.options.policies = policies;
 
     const traps: lcz.Traps = comptime .registerSets(&.{
