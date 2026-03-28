@@ -446,7 +446,9 @@ fn runCommand(
         },
 
         .echo => |arguments| {
-            try debugger.writer.printLine("[{s}]", .{arguments.string.view(source)});
+            try debugger.writer.enableColor();
+            try debugger.writer.print("[{s}]\n", .{arguments.string.view(source)});
+            try debugger.writer.disableColor();
         },
 
         .step_over => {
