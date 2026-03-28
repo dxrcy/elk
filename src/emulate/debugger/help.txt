@@ -17,6 +17,10 @@ Available Commands:
     print(p) LOCATION?
         Show the value at a register or address.
           - LOCATION: Register | Address (default: PC)
+    list(l) LOCATION? LENGTH?
+        List a chunk of memory beginning at an address.
+          - LOCATION: Address (default: PC)
+          - LENGTH: Integer (default: 10)
     move(m) LOCATION VALUE
         Set the value at a register or address.
           - LOCATION: Register | Address
