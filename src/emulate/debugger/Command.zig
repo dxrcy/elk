@@ -25,7 +25,7 @@ pub const Value = union(enum) {
     },
     list: struct {
         start: Spanned(Location.Memory),
-        end: Spanned(Location.Memory),
+        length: Spanned(u16),
     },
     move: struct {
         location: Spanned(Location),
@@ -67,6 +67,22 @@ pub const Location = union(enum) {
         address: u16,
         pc_offset: i16,
         label: Label,
+
+        pub fn add(location: Memory, offset: u16) Memory {
+            // FIXME: Handle overflows
+            return switch (location) {
+                .address => |address| .{
+                    .address = address + offset,
+                },
+                .pc_offset => |pc_offset| .{
+                    .pc_offset = pc_offset + @as(i16, @intCast(offset)),
+                },
+                .label => |label| .{ .label = .{
+                    .name = label.name,
+                    .offset = label.offset + @as(i16, @intCast(offset)),
+                } },
+            };
+        }
     };
 };
 

@@ -401,8 +401,8 @@ fn runCommand(
             );
             const end = try debugger.resolveMemoryLocation(
                 runtime,
-                arguments.end.value,
-                arguments.end.span,
+                arguments.start.value.add(arguments.length.value - 1),
+                arguments.length.span,
                 source,
             );
             try debugger.printListing(runtime, start, end);
@@ -536,9 +536,10 @@ fn runCommand(
 fn printListing(debugger: *Debugger, runtime: *Runtime, start: u16, end: u16) !void {
     try debugger.writer.enableColor();
 
-    try debugger.writer.print("+-------------------------------------------------+\n", .{});
+    const line = "+-------------------------------------------------+\n";
+    try debugger.writer.print(line, .{});
     try debugger.writer.print("|           hex      decoded         label        |\n", .{});
-    try debugger.writer.print("+-------------------------------------------------+\n", .{});
+    try debugger.writer.print(line, .{});
 
     for (start..end + 1) |i| {
         const address: u16 = @intCast(i);
@@ -583,7 +584,7 @@ fn printListing(debugger: *Debugger, runtime: *Runtime, start: u16, end: u16) !v
         try debugger.writer.print(" |\n", .{});
     }
 
-    try debugger.writer.print("+-------------------------------------------------+\n", .{});
+    try debugger.writer.print(line, .{});
     try debugger.writer.disableColor();
 }
 

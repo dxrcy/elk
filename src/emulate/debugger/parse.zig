@@ -76,7 +76,7 @@ const Parser = struct {
             } },
             .list => .{ .list = .{
                 .start = try parser.nextMemoryLocation(),
-                .end = try parser.nextMemoryLocation(),
+                .length = try parser.nextOptionalPositiveInt(),
             } },
             .move => .{ .move = .{
                 .location = try parser.nextLocation(),
