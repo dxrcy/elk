@@ -271,6 +271,11 @@ const Parser = struct {
                     .type_info = @typeInfo(u16).int,
                 }).abort();
             },
+            error.MalformedCharacter => {
+                try parser.reporter.report(.malformed_integer, .{
+                    .integer = argument,
+                }).abort();
+            },
         };
     }
 

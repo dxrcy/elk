@@ -208,6 +208,7 @@ pub const Escaped = struct {
         return switch (char) {
             indicator => indicator,
             '"' => '"',
+            '\'' => '\'',
             'n' => '\n',
             't' => '\t',
             'r' => '\r',

@@ -3,12 +3,16 @@ const math = std.math;
 const testing = std.testing;
 const assert = std.debug.assert;
 
+const Escaped = @import("Token.zig").Escaped;
+
 pub const Error = error{
     MalformedInteger,
     ExpectedDigit,
     InvalidDigit,
     UnexpectedDelimiter,
     IntegerTooLarge,
+
+    MalformedCharacter,
 };
 
 const Word = SourceInt(16);
@@ -91,6 +95,7 @@ pub const Form = struct {
     zero: bool,
     /// Contains at least one `_` character.
     delimited: bool,
+    char: bool = false,
 
     pub const Radix = enum(u8) {
         binary = 2,
@@ -192,7 +197,45 @@ const CharIter = struct {
     }
 };
 
+fn tryCharInteger(string: []const u8) Error!?Word {
+    if (string.len < 2 or string[0] != '\'')
+        return null;
+
+    if (string[string.len - 1] != '\'')
+        return error.MalformedCharacter;
+
+    const contents = string[1 .. string.len - 1];
+    if (contents[contents.len - 1] == '\\')
+        return error.MalformedCharacter;
+
+    // TODO: Disallow '''
+
+    var escaped: Escaped = .new(contents);
+
+    const char = (escaped.next() orelse
+        return error.MalformedCharacter) catch
+        return error.MalformedCharacter;
+
+    if (escaped.next()) |_| {
+        return error.MalformedCharacter;
+    }
+
+    return .{
+        .underlying = char,
+        .form = .{
+            .radix = null,
+            .sign = null,
+            .zero = false,
+            .delimited = false,
+            .char = true,
+        },
+    };
+}
+
 pub fn tryInteger(string: []const u8) Error!?Word {
+    if (try tryCharInteger(string)) |integer|
+        return integer;
+
     if (string.len == 0)
         return null;
 

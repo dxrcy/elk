@@ -125,6 +125,11 @@ fn nextAny(tokenizer: *Tokenizer) error{ Reported, Eof }!Token {
                     .type_info = @typeInfo(u16).int,
                 }).abort();
             },
+            error.MalformedCharacter => {
+                try tokenizer.reporter.report(.malformed_integer, .{
+                    .integer = span,
+                }).abort();
+            },
         }
     };
 }
@@ -410,7 +415,9 @@ fn ensureSupported(
             }
         },
 
-        .integer => |integer| {
+        .integer => |integer| if (integer.form.char) {
+            // TODO:
+        } else {
             if (case.hasUppercaseAlpha(token.span.view(tokenizer.source))) {
                 tokenizer.reporter.report(.unconventional_case, .{
                     .token = token.span,
