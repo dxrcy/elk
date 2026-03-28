@@ -208,9 +208,7 @@ fn tryCharInteger(string: []const u8) Error!?Word {
     if (contents[contents.len - 1] == '\\')
         return error.MalformedCharacter;
 
-    // TODO: Disallow '''
-
-    var escaped: Escaped = .new(contents);
+    var escaped: Escaped = .new(.single, contents);
 
     const char = (escaped.next() orelse
         return error.MalformedCharacter) catch

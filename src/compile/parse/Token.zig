@@ -199,9 +199,12 @@ pub const Value = union(enum) {
 };
 
 pub const Escaped = struct {
+    delim: Delim,
     string: []const u8,
     index: usize,
     is_escaped: bool,
+
+    pub const Delim = enum(u8) { single = '\'', double = '"' };
 
     const indicator = '\\';
     fn escapeChar(char: u8) ?u8 {
@@ -216,9 +219,9 @@ pub const Escaped = struct {
         };
     }
 
-    pub fn validLength(string: []const u8) usize {
+    pub fn validLength(delim: Delim, string: []const u8) usize {
         var length: usize = 0;
-        var escaped: Escaped = .new(string);
+        var escaped: Escaped = .new(delim, string);
         while (escaped.next()) |result| {
             _ = result catch continue;
             length += 1;
@@ -226,9 +229,14 @@ pub const Escaped = struct {
         return length;
     }
 
-    pub fn new(string: []const u8) Escaped {
+    pub fn new(delim: Delim, string: []const u8) Escaped {
         if (string.len > 0) assert(string[string.len - 1] != indicator);
-        return .{ .string = string, .index = 0, .is_escaped = false };
+        return .{
+            .delim = delim,
+            .string = string,
+            .index = 0,
+            .is_escaped = false,
+        };
     }
 
     pub fn next(escaped: *Escaped) ?error{InvalidSequence}!u8 {
@@ -241,8 +249,11 @@ pub const Escaped = struct {
                 unreachable; // Trailing indicator should have been checked already
         }
 
-        if (!escaped.is_escaped)
+        if (!escaped.is_escaped) {
+            if (raw == @intFromEnum(escaped.delim))
+                return error.InvalidSequence;
             return raw;
+        }
 
         const char_opt = escapeChar(raw);
         escaped.is_escaped = false;

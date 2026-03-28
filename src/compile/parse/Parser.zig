@@ -345,11 +345,11 @@ fn parseDirective(
             const contents_string = contents.view(parser.source());
 
             // Check length and allocate lines before proper string iteration
-            const length = Token.Escaped.validLength(contents_string) + 1; // Include NUL
+            const length = Token.Escaped.validLength(.double, contents_string) + 1; // Include NUL
             try parser.ensureCanAppendLines(air, length, span);
             try air.lines.ensureUnusedCapacity(gpa, length);
 
-            var escaped: Token.Escaped = .new(contents_string);
+            var escaped: Token.Escaped = .new(.double, contents_string);
             while (escaped.next()) |result| {
                 const char = result catch {
                     try parser.reporter().report(.invalid_string_escape, .{
