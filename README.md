@@ -27,6 +27,7 @@ program.
 - [x] Builtin debug traps (compatible with [Lace](https://github.com/rozukke/lace))
 - [x] Stack instructions (compatible with [Lace](https://github.com/rozukke/lace))
 - [x] Extra-permissive assembly syntax
+- [x] Parsing of character literals as integers
 - [x] Full support for arbitrary user-defined traps
 - [x] Support for arbitrary runtime hooks
 - [ ] Multiple file support (compatible with [Laser](https://github.com/PaperFanz/laser))
