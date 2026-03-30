@@ -40,8 +40,8 @@ pub const Label = struct {
 };
 
 pub const Line = struct {
-    statement: Statement,
     span: Span,
+    statement: Statement,
 };
 
 pub const Statement = union(enum) {
@@ -87,6 +87,22 @@ pub fn emitRuntime(air: *const Air, runtime: *Runtime) !void {
         const raw = line.statement.encode();
         runtime.state.memory[air.origin + i] = raw;
     }
+}
+
+pub fn patchLabelValue(
+    air: *Air,
+    name: []const u8,
+    raw_word: u16,
+    source: []const u8,
+) error{LabelNotFound}!void {
+    for (air.labels.items) |label| {
+        if (!std.mem.eql(u8, label.span.view(source), name))
+            continue;
+        // Keep span
+        air.lines.items[label.index].statement = .{ .raw_word = raw_word };
+        return;
+    }
+    return error.LabelNotFound;
 }
 
 pub fn findLabel(
