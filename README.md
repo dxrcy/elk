@@ -30,6 +30,7 @@ program.
 - [x] Parsing of character literals as integers
 - [x] Full support for arbitrary user-defined traps
 - [x] Support for arbitrary runtime hooks
+- [x] Patch label values after assembling
 - [ ] Multiple file support (compatible with [Laser](https://github.com/PaperFanz/laser))
 - [ ] Preprocessor macros (compatible with [Leap](https://github.com/twhlynch/leap))
 - [ ] Output symbol table and assembly listing
@@ -49,4 +50,5 @@ program.
 
 - [x] [ELCI](https://github.com/rozukke/lace/tree/minecraft) inter-op (see
 [`minecraft` branch](https://codeberg.org/dxrcy/lcz/src/branch/minecraft))
+- [ ] Automatic testing framework
 
