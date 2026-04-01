@@ -79,14 +79,18 @@ pub fn getLineNumber(span: Span, source: []const u8) usize {
 }
 
 pub fn getSurroundingLines(span: Span, max_context: usize, source: []const u8) Span {
-    assert(max_context == 1); // Unimplemnted
-
     const containing = span.getContainingLines(source);
-    const widened: Span = .fromBounds(
-        containing.offset -| 1,
-        @min(containing.end() + "\n".len + 1, source.len),
-    );
-    return widened.getContainingLines(source);
+
+    var widened = containing;
+    for (0..max_context) |_| {
+        widened = .fromBounds(
+            widened.offset -| 1,
+            @min(widened.end() + "\n".len + 1, source.len),
+        );
+        widened = widened.getContainingLines(source);
+    }
+
+    return widened;
 }
 
 pub fn getContainingLines(span: Span, source: []const u8) Span {
