@@ -77,10 +77,12 @@ const my_template = .{
         .export_symbols = templates.NamedListing{
             .long = "export-symbols",
             .requires = &.{.assemble},
+            .conflicts = &.{.export_listing},
         },
         .export_listing = templates.NamedListing{
             .long = "export-listing",
             .requires = &.{.assemble},
+            .conflicts = &.{.export_symbols},
         },
 
         .debug = templates.NamedListing{
