@@ -38,9 +38,9 @@ pub fn main(init: std.process.Init) !u8 {
     });
     const hooks: elk.Runtime.Hooks = .{};
 
-    switch (cli.command) {
-        .assemble => {
-            const source = try Io.Dir.cwd().readFileAlloc(io, cli.filepath, gpa, .unlimited);
+    switch (cli.operation) {
+        .assemble => |operation| {
+            const source = try Io.Dir.cwd().readFileAlloc(io, operation.input, gpa, .unlimited);
             defer gpa.free(source);
 
             reporter.source = source;
@@ -49,7 +49,7 @@ pub fn main(init: std.process.Init) !u8 {
             defer air.deinit(gpa);
 
             var obj_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-            const obj_path = replacePathExtension(&obj_path_buffer, cli.filepath, "obj");
+            const obj_path = replacePathExtension(&obj_path_buffer, operation.input, "obj");
 
             var file = try Io.Dir.cwd().createFile(io, obj_path, .{});
             defer file.close(io);
@@ -61,13 +61,13 @@ pub fn main(init: std.process.Init) !u8 {
             try writer.flush();
         },
 
-        .emulate => {
-            const file = try Io.Dir.cwd().openFile(io, cli.filepath, .{});
+        .emulate => |operation| {
+            const file = try Io.Dir.cwd().openFile(io, operation.input, .{});
             try emulate(
                 io,
                 gpa,
                 .{ .object = file },
-                cli.debug,
+                operation.debug != null,
                 &traps,
                 hooks,
                 policies,
@@ -75,8 +75,8 @@ pub fn main(init: std.process.Init) !u8 {
             );
         },
 
-        .assemble_emulate => {
-            const source = try Io.Dir.cwd().readFileAlloc(io, cli.filepath, gpa, .unlimited);
+        .assemble_emulate => |operation| {
+            const source = try Io.Dir.cwd().readFileAlloc(io, operation.input, gpa, .unlimited);
             defer gpa.free(source);
 
             reporter.source = source;
@@ -88,12 +88,16 @@ pub fn main(init: std.process.Init) !u8 {
                 io,
                 gpa,
                 .{ .assembly = .{ .air = &air, .source = source } },
-                cli.debug,
+                operation.debug != null,
                 &traps,
                 hooks,
                 policies,
                 &reporter,
             );
+        },
+
+        else => {
+            std.log.err("unimplemented operation", .{});
         },
     }
 
