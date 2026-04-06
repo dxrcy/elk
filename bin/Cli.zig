@@ -35,7 +35,7 @@ const Operation = union(enum) {
     const Debug = struct {
         commands: ?[]const u8,
         history_file: ?templates.Path,
-        import_symbols: ?templates.Path,
+        import_symbols: ?[]const u8,
     };
 };
 
@@ -103,7 +103,7 @@ const my_template = .{
         },
         .import_symbols = templates.NamedListing{
             .long = "import-symbols",
-            .value = templates.Path,
+            .value = []const u8,
             .requires = &.{.debug},
         },
 
