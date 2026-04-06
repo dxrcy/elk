@@ -40,23 +40,16 @@ const Operation = union(enum) {
     };
 };
 
-const NamedArg = struct {
-    short: ?u8 = null,
-    long: Name,
-    requires: []const Name = &.{},
-    conflicts: []const Name = &.{},
-    value: type = void,
-
-    const Name = []const u8;
-};
-
-const my_template = struct {
-    const Positional = struct {
-        input: ?[]const u8,
-        foo: ?[]const u8,
-    };
-
-    const named = .{
+const my_template = .{
+    .positional = .{
+        .input = PositionalArg{
+            .value = []const u8,
+        },
+        .foo = PositionalArg{
+            .value = []const u8,
+        },
+    },
+    .named = .{
         .assemble = NamedArg{
             .short = 'a',
             .long = "assemble",
@@ -78,7 +71,7 @@ const my_template = struct {
             .long = "debug",
             .conflicts = &.{"assemble"},
         },
-    };
+    },
 };
 
 pub fn parse(args: *Args.Iterator) anyerror!Cli {
@@ -102,23 +95,33 @@ pub fn parse(args: *Args.Iterator) anyerror!Cli {
     std.process.exit(0);
 }
 
-fn TemplateArgs(comptime template: type) type {
+const PositionalArg = struct {
+    value: type = void,
+};
+
+const NamedArg = struct {
+    short: ?u8 = null,
+    long: Name,
+    requires: []const Name = &.{},
+    conflicts: []const Name = &.{},
+    value: type = void,
+
+    const Name = []const u8;
+};
+
+fn TemplateArgs(comptime template: anytype) type {
     return struct {
-        positional: template.Positional,
+        positional: PositionalArgStruct(template.positional),
         named: NamedArgStruct(template.named),
     };
 }
 
-fn parseTemplate(comptime template: type, args: *Args.Iterator) !TemplateArgs(template) {
+fn parseTemplate(comptime template: anytype, args: *Args.Iterator) !TemplateArgs(template) {
     // TODO: Validate cli template types
 
     _ = args.next();
 
-    var positional_args: template.Positional = undefined;
-    inline for (@typeInfo(template.Positional).@"struct".fields) |field| {
-        @field(positional_args, field.name) = null;
-    }
-
+    var positional_args: PositionalArgStruct(template.positional) = .{};
     var named_values: NamedArgStruct(template.named) = .{};
 
     while (args.next()) |arg_string| {
@@ -155,6 +158,32 @@ fn addPositionalArg(args: anytype, string: []const u8) !void {
     }
 
     return error.UnexpectedPositionalArg;
+}
+
+fn PositionalArgStruct(comptime positional: anytype) type {
+    const fields = @typeInfo(@TypeOf(positional)).@"struct".fields;
+
+    var field_names: [fields.len][]const u8 = undefined;
+    var field_types: [fields.len]type = undefined;
+    var field_attrs: [fields.len]std.builtin.Type.StructField.Attributes = undefined;
+
+    for (fields, 0..) |field, i| {
+        const value_type = @field(positional, field.name).value;
+
+        field_names[i] = field.name;
+        field_types[i] = ?value_type;
+        field_attrs[i] = .{
+            .default_value_ptr = &@as(?value_type, null),
+        };
+    }
+
+    return @Struct(
+        .auto,
+        null,
+        &field_names,
+        &field_types,
+        &field_attrs,
+    );
 }
 
 fn NamedArgStruct(comptime named: anytype) type {
