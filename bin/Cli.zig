@@ -325,6 +325,8 @@ const templates = struct {
             if (std.mem.cutPrefix(u8, string, "-")) |short| {
                 if (short.len > 1)
                     return error.ExpectedShortFlag;
+                if (short.len == 0)
+                    return null;
                 return .{ .short = short[0] };
             }
             return null;
