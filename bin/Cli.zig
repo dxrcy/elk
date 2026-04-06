@@ -45,31 +45,83 @@ const my_template = .{
         .input = templates.PositionalListing{
             .value = []const u8,
         },
-        .foo = templates.PositionalListing{
-            .value = []const u8,
-        },
     },
+
     .named = .{
         .assemble = templates.NamedListing{
             .short = 'a',
             .long = "assemble",
-            .conflicts = &.{.emulate},
+            .conflicts = &.{ .emulate, .format, .clean },
         },
         .emulate = templates.NamedListing{
             .short = 'e',
             .long = "emulate",
-            .conflicts = &.{.assemble},
+            .conflicts = &.{ .assemble, .format, .clean },
         },
+        .format = templates.NamedListing{
+            .long = "format",
+            .conflicts = &.{ .assemble, .emulate, .clean },
+        },
+        .clean = templates.NamedListing{
+            .long = "emulate",
+            .conflicts = &.{ .assemble, .emulate, .format },
+        },
+
         .output = templates.NamedListing{
             .short = 'o',
             .long = "output",
             .value = []const u8,
+            .requires = &.{ .assemble, .format },
+        },
+
+        .export_symbols = templates.NamedListing{
+            .long = "export-symbols",
             .requires = &.{.assemble},
         },
+        .export_listing = templates.NamedListing{
+            .long = "export-listing",
+            .requires = &.{.assemble},
+        },
+
         .debug = templates.NamedListing{
             .short = 'd',
             .long = "debug",
-            .conflicts = &.{.assemble},
+            .conflicts = &.{ .assemble, .format, .clean },
+        },
+
+        .commands = templates.NamedListing{
+            .short = 'c',
+            .long = "commands",
+            .value = []const u8,
+            .requires = &.{.debug},
+        },
+        .history_file = templates.NamedListing{
+            .long = "history-file",
+            .value = []const u8,
+            .requires = &.{.debug},
+        },
+        .import_symbols = templates.NamedListing{
+            .long = "import-symbols",
+            .value = []const u8,
+            .requires = &.{.debug},
+        },
+
+        .strict = templates.NamedListing{
+            .long = "strict",
+            .conflicts = &.{.relaxed},
+        },
+        .relaxed = templates.NamedListing{
+            .long = "relaxed",
+            .conflicts = &.{.strict},
+        },
+        .quiet = templates.NamedListing{
+            .short = 'q',
+            .long = "quiet",
+        },
+        .permit = templates.NamedListing{
+            .short = 'p',
+            .long = "permit",
+            .value = []const u8,
         },
     },
 };
