@@ -148,6 +148,7 @@ pub fn parse(args: *ArgIterator) anyerror!Cli {
 
 const templates = struct {
     const Path = union(enum) {
+        stdio,
         regular: []const u8,
     };
 
@@ -292,15 +293,21 @@ const templates = struct {
     }
 
     fn parseValue(comptime T: type, string: []const u8) !T {
+        const is_flag = std.mem.startsWith(u8, string, "-");
+
         switch (T) {
             else => @compileError("unsupported flag value"),
             void => comptime unreachable,
 
             []const u8 => {
+                if (is_flag) return error.UnexpectedFlag;
                 return string;
             },
 
             Path => {
+                if (std.mem.eql(u8, string, "-"))
+                    return .stdio;
+                if (is_flag) return error.UnexpectedFlag;
                 return .{ .regular = string };
             },
         }
