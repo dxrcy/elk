@@ -195,25 +195,24 @@ const templates = struct {
             const listing: NamedListing = @field(template, field.name);
 
             if (@field(args, field.name) != null) {
-                if (!hasExpectedDependencies(true, template, listing.requires, args))
+                if (!hasAnyDependency(template, listing.requires, args) and listing.requires.len > 0)
                     return error.MissingRequirement;
-                if (!hasExpectedDependencies(false, template, listing.conflicts, args))
+                if (hasAnyDependency(template, listing.conflicts, args))
                     return error.ConflictingFlag;
             }
         }
     }
 
-    fn hasExpectedDependencies(
-        comptime expected: bool,
+    fn hasAnyDependency(
         comptime template: anytype,
         comptime dependencies: []const NamedListing.Id,
         args: *const ArgStruct(template),
     ) bool {
         inline for (dependencies) |dependency| {
-            if (hasDependency(template, dependency, args) != expected)
-                return false;
+            if (hasDependency(template, dependency, args))
+                return true;
         }
-        return true;
+        return false;
     }
 
     fn hasDependency(
