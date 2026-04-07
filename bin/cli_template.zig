@@ -74,16 +74,12 @@ pub fn parse(comptime template: anytype, iter: *ArgIterator) !Args(template) {
     _ = iter.next();
     while (iter.next()) |string| {
         if (try Flag.parse(string)) |flag| {
+            try checkMetaArgs(flag);
             try addNamedArg(template.named, &args.named, flag, iter);
         } else {
             try addPositionalArg(&args.positional, &positional_count, string);
         }
     }
-
-    if (args.named.help)
-        return error.Help;
-    if (args.named.version)
-        return error.Version;
 
     if (positional_count < @typeInfo(@TypeOf(args.positional)).@"struct".fields.len)
         return error.ExpectedPositionalArg;
@@ -91,6 +87,13 @@ pub fn parse(comptime template: anytype, iter: *ArgIterator) !Args(template) {
     try checkDependencies(template.named, &args.named);
 
     return args;
+}
+
+fn checkMetaArgs(flag: Flag) error{ Help, Version }!void {
+    if (flag.matchesListing(.{ .short = 'h', .long = "help" }))
+        return error.Help;
+    if (flag.matchesListing(.{ .short = 'v', .long = "version" }))
+        return error.Version;
 }
 
 fn addPositionalArg(args: anytype, positional_count: *usize, string: []const u8) !void {

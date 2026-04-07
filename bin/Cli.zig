@@ -98,15 +98,6 @@ const template = .{
     },
 
     .named = .{
-        .help = cli_template.NamedListing{
-            .short = 'h',
-            .long = "help",
-        },
-        .version = cli_template.NamedListing{
-            .short = 'v',
-            .long = "version",
-        },
-
         .assemble = cli_template.NamedListing{
             .short = 'a',
             .long = "assemble",
@@ -207,8 +198,6 @@ pub fn parse(iter: *ArgIterator) !Cli {
         },
         else => |err2| return err2,
     };
-
-    assert(!args.named.help and !args.named.version);
 
     const unimplemented_args = [_][]const u8{
         "format",
