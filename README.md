@@ -4,6 +4,18 @@ Complete [LC-3](https://en.wikipedia.org/wiki/Little_Computer_3) toolchain.
 Available as both a [Zig](https://ziglang.org) library and a command-line
 program.
 
+# Installation
+
+Requires Zig `0.16.0-dev.3091+557caecaa`.
+
+```sh
+git clone https://codeberg.org/dxrcy/elk
+cd elk/bin
+
+zig build install -Doptimize=ReleaseSafe
+sudo install zig-out/bin/elk /usr/bin/
+```
+
 # Usage
 
 ```sh
