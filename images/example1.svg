@@ -1,0 +1,140 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="898" height="571" viewBox="0 0 898 571" role="img" aria-label="console2svg output">
+<style>
+.crt {
+  font-family: ui-monospace,"JetBrains Mono","Cascadia Mono","Segoe UI Mono","Noto Sans Mono","SFMono-Regular",Menlo,Consolas,monospace;
+  font-size: 14px;
+}
+text {
+  dominant-baseline: alphabetic;
+}
+.bg {
+  shape-rendering: crispEdges;
+}
+</style>
+<rect width="898" height="571" fill="#00000000"/>
+<rect x="20.5" y="20.5" rx="10" ry="10" width="857" height="530" fill="#1f1f1f" stroke="#3a3a3a"/>
+<rect x="21" y="21" rx="9" ry="9" width="856" height="27" fill="#2c2c2c"/>
+<circle cx="34" cy="34" r="5" fill="#ff5f57"/>
+<circle cx="50" cy="34" r="5" fill="#febc2e"/>
+<circle cx="66" cy="34" r="5" fill="#28c840"/>
+<rect x="21" y="48" width="856" height="502" rx="9" ry="9" fill="#1e1e1e"/>
+<g transform="translate(29 56)">
+<rect width="840" height="486" fill="#1e1e1e"/>
+<text class="crt" x="0" y="14" fill="#2472c8" textLength="8.4" lengthAdjust="spacing">|</text>
+<text class="crt" x="16.8" y="14" fill="#2472c8" textLength="8.4" lengthAdjust="spacing">*</text>
+<text class="crt" x="33.6" y="14" fill="#2472c8" textLength="58.8" lengthAdjust="spacing">Welcome</text>
+<text class="crt" x="100.8" y="14" fill="#2472c8" textLength="16.8" lengthAdjust="spacing">to</text>
+<text class="crt" x="126" y="14" fill="#2472c8" textLength="25.2" lengthAdjust="spacing">ELK</text>
+<text class="crt" x="159.6" y="14" fill="#2472c8" textLength="67.2" lengthAdjust="spacing">Debugger</text>
+<text class="crt" x="235.2" y="14" fill="#2472c8" textLength="8.4" lengthAdjust="spacing">*</text>
+<text class="crt" x="0" y="32" fill="#2472c8" textLength="8.4" lengthAdjust="spacing">|</text>
+<text class="crt" x="16.8" y="32" fill="#2472c8" textLength="33.6" lengthAdjust="spacing">Type</text>
+<text class="crt" x="58.8" y="32" fill="#2472c8" textLength="50.4" lengthAdjust="spacing">`help`</text>
+<text class="crt" x="117.6" y="32" fill="#2472c8" textLength="25.2" lengthAdjust="spacing">for</text>
+<text class="crt" x="151.2" y="32" fill="#2472c8" textLength="75.6" lengthAdjust="spacing">available</text>
+<text class="crt" x="235.2" y="32" fill="#2472c8" textLength="67.2" lengthAdjust="spacing">commands</text>
+<text class="crt" x="0" y="50" fill="#2472c8" textLength="8.4" lengthAdjust="spacing">|</text>
+<text class="crt" x="16.8" y="50" fill="#2472c8" textLength="58.8" lengthAdjust="spacing">Program</text>
+<text class="crt" x="84" y="50" fill="#2472c8" textLength="58.8" lengthAdjust="spacing">counter</text>
+<text class="crt" x="151.2" y="50" fill="#2472c8" textLength="16.8" lengthAdjust="spacing">is</text>
+<text class="crt" x="176.4" y="50" fill="#2472c8" textLength="16.8" lengthAdjust="spacing">at</text>
+<text class="crt" x="201.6" y="50" fill="#2472c8" textLength="58.8" lengthAdjust="spacing">0x3000.</text>
+<text class="crt" x="0" y="68" fill="#2472c8" textLength="8.4" lengthAdjust="spacing">&gt;</text>
+<text class="crt" x="16.8" y="68" fill="#d4d4d4" textLength="25.2" lengthAdjust="spacing">asm</text>
+<text class="crt" x="0" y="86" fill="#2472c8" textLength="8.4" lengthAdjust="spacing">|</text>
+<text class="crt" x="16.8" y="86" fill="#2472c8" textLength="33.6" lengthAdjust="spacing">Next</text>
+<text class="crt" x="58.8" y="86" fill="#2472c8" textLength="100.8" lengthAdjust="spacing">instruction,</text>
+<text class="crt" x="168" y="86" fill="#2472c8" textLength="16.8" lengthAdjust="spacing">at</text>
+<text class="crt" x="193.2" y="86" fill="#2472c8" textLength="58.8" lengthAdjust="spacing">0x3000:</text>
+<text class="crt" x="16.8" y="104" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing">1</text>
+<text class="crt" x="33.6" y="104" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing">|</text>
+<text class="crt" x="50.4" y="104" fill="#9F9F9F" textLength="42" lengthAdjust="spacing" style="font-style:italic;">.ORIG</text>
+<text class="crt" x="100.8" y="104" fill="#9F9F9F" textLength="50.4" lengthAdjust="spacing" style="font-style:italic;">0x3000</text>
+<text class="crt" x="16.8" y="122" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing">2</text>
+<text class="crt" x="33.6" y="122" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing">|</text>
+<text class="crt" x="16.8" y="140" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing">3</text>
+<text class="crt" x="33.6" y="140" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing">|</text>
+<text class="crt" x="84" y="140" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing" style="font-style:italic;">;</text>
+<text class="crt" x="100.8" y="140" fill="#9F9F9F" textLength="25.2" lengthAdjust="spacing" style="font-style:italic;">for</text>
+<text class="crt" x="134.4" y="140" fill="#9F9F9F" textLength="25.2" lengthAdjust="spacing" style="font-style:italic;">(r1</text>
+<text class="crt" x="168" y="140" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing" style="font-style:italic;">=</text>
+<text class="crt" x="184.8" y="140" fill="#9F9F9F" textLength="16.8" lengthAdjust="spacing" style="font-style:italic;">R;</text>
+<text class="crt" x="210" y="140" fill="#9F9F9F" textLength="33.6" lengthAdjust="spacing" style="font-style:italic;">r1+R</text>
+<text class="crt" x="252" y="140" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing" style="font-style:italic;">&gt;</text>
+<text class="crt" x="268.8" y="140" fill="#9F9F9F" textLength="16.8" lengthAdjust="spacing" style="font-style:italic;">0;</text>
+<text class="crt" x="294" y="140" fill="#9F9F9F" textLength="42" lengthAdjust="spacing" style="font-style:italic;">--r1)</text>
+<text class="crt" x="16.8" y="158" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing">4</text>
+<text class="crt" x="33.6" y="158" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing">|</text>
+<text class="crt" x="84" y="158" fill="#d4d4d4" textLength="16.8" lengthAdjust="spacing" style="font-style:italic;">ld</text>
+<text class="crt" x="109.2" y="158" fill="#d4d4d4" textLength="25.2" lengthAdjust="spacing" style="font-style:italic;">r1,</text>
+<text class="crt" x="142.8" y="158" fill="#d4d4d4" textLength="50.4" lengthAdjust="spacing" style="font-style:italic;">Radius</text>
+<text class="crt" x="33.6" y="176" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing">|</text>
+<text class="crt" x="84" y="176" fill="#11a8cd" textLength="109.2" lengthAdjust="spacing">^^^^^^^^^^^^^</text>
+<text class="crt" x="16.8" y="194" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing">5</text>
+<text class="crt" x="33.6" y="194" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing">|</text>
+<text class="crt" x="50.4" y="194" fill="#9F9F9F" textLength="84" lengthAdjust="spacing" style="font-style:italic;">Grid_Outer</text>
+<text class="crt" x="16.8" y="212" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing">6</text>
+<text class="crt" x="33.6" y="212" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing">|</text>
+<text class="crt" x="16.8" y="230" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing">7</text>
+<text class="crt" x="33.6" y="230" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing">|</text>
+<text class="crt" x="84" y="230" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing" style="font-style:italic;">;</text>
+<text class="crt" x="100.8" y="230" fill="#9F9F9F" textLength="25.2" lengthAdjust="spacing" style="font-style:italic;">for</text>
+<text class="crt" x="134.4" y="230" fill="#9F9F9F" textLength="25.2" lengthAdjust="spacing" style="font-style:italic;">(r2</text>
+<text class="crt" x="168" y="230" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing" style="font-style:italic;">=</text>
+<text class="crt" x="184.8" y="230" fill="#9F9F9F" textLength="16.8" lengthAdjust="spacing" style="font-style:italic;">R;</text>
+<text class="crt" x="210" y="230" fill="#9F9F9F" textLength="33.6" lengthAdjust="spacing" style="font-style:italic;">r2+R</text>
+<text class="crt" x="252" y="230" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing" style="font-style:italic;">&gt;</text>
+<text class="crt" x="268.8" y="230" fill="#9F9F9F" textLength="16.8" lengthAdjust="spacing" style="font-style:italic;">0;</text>
+<text class="crt" x="294" y="230" fill="#9F9F9F" textLength="42" lengthAdjust="spacing" style="font-style:italic;">--r2)</text>
+<text class="crt" x="16.8" y="248" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing">8</text>
+<text class="crt" x="33.6" y="248" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing">|</text>
+<text class="crt" x="84" y="248" fill="#9F9F9F" textLength="16.8" lengthAdjust="spacing" style="font-style:italic;">ld</text>
+<text class="crt" x="109.2" y="248" fill="#9F9F9F" textLength="25.2" lengthAdjust="spacing" style="font-style:italic;">r2,</text>
+<text class="crt" x="142.8" y="248" fill="#9F9F9F" textLength="50.4" lengthAdjust="spacing" style="font-style:italic;">Radius</text>
+<text class="crt" x="16.8" y="266" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing">9</text>
+<text class="crt" x="33.6" y="266" fill="#9F9F9F" textLength="8.4" lengthAdjust="spacing">|</text>
+<text class="crt" x="50.4" y="266" fill="#9F9F9F" textLength="84" lengthAdjust="spacing" style="font-style:italic;">Grid_Inner</text>
+<text class="crt" x="0" y="284" fill="#2472c8" textLength="8.4" lengthAdjust="spacing">&gt;</text>
+<text class="crt" x="16.8" y="284" fill="#d4d4d4" textLength="33.6" lengthAdjust="spacing">step</text>
+<text class="crt" x="58.8" y="284" fill="#d4d4d4" textLength="33.6" lengthAdjust="spacing">into</text>
+<text class="crt" x="100.8" y="284" fill="#d4d4d4" textLength="8.4" lengthAdjust="spacing">2</text>
+<text class="crt" x="0" y="302" fill="#2472c8" textLength="8.4" lengthAdjust="spacing">|</text>
+<text class="crt" x="16.8" y="302" fill="#2472c8" textLength="67.2" lengthAdjust="spacing">Executed</text>
+<text class="crt" x="92.4" y="302" fill="#2472c8" textLength="8.4" lengthAdjust="spacing">2</text>
+<text class="crt" x="109.2" y="302" fill="#2472c8" textLength="109.2" lengthAdjust="spacing">instructions.</text>
+<text class="crt" x="0" y="320" fill="#2472c8" textLength="8.4" lengthAdjust="spacing">|</text>
+<text class="crt" x="16.8" y="320" fill="#2472c8" textLength="58.8" lengthAdjust="spacing">Program</text>
+<text class="crt" x="84" y="320" fill="#2472c8" textLength="58.8" lengthAdjust="spacing">counter</text>
+<text class="crt" x="151.2" y="320" fill="#2472c8" textLength="16.8" lengthAdjust="spacing">is</text>
+<text class="crt" x="176.4" y="320" fill="#2472c8" textLength="16.8" lengthAdjust="spacing">at</text>
+<text class="crt" x="201.6" y="320" fill="#2472c8" textLength="58.8" lengthAdjust="spacing">0x3002.</text>
+<text class="crt" x="0" y="338" fill="#2472c8" textLength="8.4" lengthAdjust="spacing">&gt;</text>
+<text class="crt" x="16.8" y="338" fill="#d4d4d4" textLength="42" lengthAdjust="spacing">break</text>
+<text class="crt" x="67.2" y="338" fill="#d4d4d4" textLength="25.2" lengthAdjust="spacing">add</text>
+<text class="crt" x="100.8" y="338" fill="#d4d4d4" textLength="84" lengthAdjust="spacing">Grid_Outer</text>
+<text class="crt" x="0" y="356" fill="#2472c8" textLength="8.4" lengthAdjust="spacing">|</text>
+<text class="crt" x="16.8" y="356" fill="#2472c8" textLength="42" lengthAdjust="spacing">Added</text>
+<text class="crt" x="67.2" y="356" fill="#2472c8" textLength="84" lengthAdjust="spacing">breakpoint</text>
+<text class="crt" x="159.6" y="356" fill="#2472c8" textLength="16.8" lengthAdjust="spacing">at</text>
+<text class="crt" x="184.8" y="356" fill="#2472c8" textLength="50.4" lengthAdjust="spacing">0x3001</text>
+<text class="crt" x="0" y="374" fill="#2472c8" textLength="8.4" lengthAdjust="spacing">&gt;</text>
+<text class="crt" x="16.8" y="374" fill="#d4d4d4" textLength="33.6" lengthAdjust="spacing">cont</text>
+<text class="crt" x="0" y="392" fill="#2472c8" textLength="8.4" lengthAdjust="spacing">|</text>
+<text class="crt" x="16.8" y="392" fill="#2472c8" textLength="84" lengthAdjust="spacing">Continuing</text>
+<text class="crt" x="109.2" y="392" fill="#2472c8" textLength="58.8" lengthAdjust="spacing">program</text>
+<text class="crt" x="176.4" y="392" fill="#2472c8" textLength="100.8" lengthAdjust="spacing">execution...</text>
+<text class="crt" x="0" y="410" fill="#d4d4d4" textLength="688.8" lengthAdjust="spacing">..................................................................................</text>
+<text class="crt" x="0" y="428" fill="#2472c8" textLength="8.4" lengthAdjust="spacing">|</text>
+<text class="crt" x="16.8" y="428" fill="#2472c8" textLength="75.6" lengthAdjust="spacing">Currently</text>
+<text class="crt" x="100.8" y="428" fill="#2472c8" textLength="16.8" lengthAdjust="spacing">on</text>
+<text class="crt" x="126" y="428" fill="#2472c8" textLength="84" lengthAdjust="spacing">breakpoint</text>
+<text class="crt" x="218.4" y="428" fill="#2472c8" textLength="16.8" lengthAdjust="spacing">at</text>
+<text class="crt" x="243.6" y="428" fill="#2472c8" textLength="58.8" lengthAdjust="spacing">0x3001.</text>
+<text class="crt" x="0" y="446" fill="#2472c8" textLength="8.4" lengthAdjust="spacing">|</text>
+<text class="crt" x="16.8" y="446" fill="#2472c8" textLength="67.2" lengthAdjust="spacing">Executed</text>
+<text class="crt" x="92.4" y="446" fill="#2472c8" textLength="33.6" lengthAdjust="spacing">8812</text>
+<text class="crt" x="134.4" y="446" fill="#2472c8" textLength="109.2" lengthAdjust="spacing">instructions.</text>
+<text class="crt" x="0" y="464" fill="#2472c8" textLength="8.4" lengthAdjust="spacing">&gt;</text>
+<text class="crt" x="16.8" y="464" fill="#d4d4d4" textLength="33.6" lengthAdjust="spacing">exit</text>
+</g>
+</svg>

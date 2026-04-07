@@ -4,6 +4,8 @@ Complete [LC-3](https://en.wikipedia.org/wiki/Little_Computer_3) toolchain.
 Available as both a [Zig](https://ziglang.org) library and a command-line
 program.
 
+![Example usage](./images/example1.svg)
+
 # Usage
 
 ```sh
