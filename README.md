@@ -4,6 +4,19 @@ Complete [LC-3](https://en.wikipedia.org/wiki/Little_Computer_3) toolchain.
 Available as both a [Zig](https://ziglang.org) library and a command-line
 program.
 
+# Usage
+
+```sh
+# Assemble and emulate
+elk hello.asm
+# Assemble and debug
+elk hello.asm --debug
+# Assemble to object file
+elk hello.asm --assemble [--output hello.obj]
+# Emulate object file
+elk hello.obj --emulate
+```
+
 # Features
 
 - [x] Assembler (includes linting)
