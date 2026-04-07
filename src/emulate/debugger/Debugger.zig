@@ -537,9 +537,9 @@ fn runCommand(
 fn printListing(debugger: *Debugger, runtime: *Runtime, start: u16, end: u16) !void {
     try debugger.writer.enableColor();
 
-    const line = "+-------------------------------------------------+\n";
+    const line = "+-----------------------------------------------+\n";
     try debugger.writer.print(line, .{});
-    try debugger.writer.print("|           hex      decoded         label        |\n", .{});
+    try debugger.writer.print("|          hex     decoded         label        |\n", .{});
     try debugger.writer.print(line, .{});
 
     for (start..end + 1) |i| {
@@ -554,7 +554,7 @@ fn printListing(debugger: *Debugger, runtime: *Runtime, start: u16, end: u16) !v
             if (debugger.breakpoints.contains(address)) "B" else " ",
         });
 
-        try debugger.writer.print(" 0x{x:04}", .{word});
+        try debugger.writer.print(" {x:04}", .{word});
 
         if (Instruction.decode(word)) |instruction| {
             const width = 16;
