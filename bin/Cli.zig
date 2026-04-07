@@ -196,16 +196,19 @@ fn parsePolicies(string: []const u8, value: *anyopaque) error{InvalidArgumentVal
 }
 
 pub fn parse(iter: *ArgIterator) !Cli {
-    const args = try cli_template.parse(template, iter);
+    const args = cli_template.parse(template, iter) catch |err| switch (err) {
+        error.Help => {
+            std.debug.print(info.help ++ "\n", .{});
+            return error.DisplayMetadata;
+        },
+        error.Version => {
+            std.debug.print("{s}: {s}\n", .{ info.program, info.version });
+            return error.DisplayMetadata;
+        },
+        else => |err2| return err2,
+    };
 
-    if (args.named.help) {
-        std.debug.print(info.help ++ "\n", .{});
-        return error.DisplayMetadata;
-    }
-    if (args.named.version) {
-        std.debug.print("{s}: {s}\n", .{ info.program, info.version });
-        return error.DisplayMetadata;
-    }
+    assert(!args.named.help and !args.named.version);
 
     const unimplemented_args = [_][]const u8{
         "format",

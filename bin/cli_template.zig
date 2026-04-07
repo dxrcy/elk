@@ -80,6 +80,11 @@ pub fn parse(comptime template: anytype, iter: *ArgIterator) !Args(template) {
         }
     }
 
+    if (args.named.help)
+        return error.Help;
+    if (args.named.version)
+        return error.Version;
+
     if (positional_count < @typeInfo(@TypeOf(args.positional)).@"struct".fields.len)
         return error.ExpectedPositionalArg;
 
