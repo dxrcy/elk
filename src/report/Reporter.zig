@@ -40,7 +40,7 @@ pub const Level = enum { err, warn, info };
 
 pub const Options = struct {
     strictness: Strictness = .default,
-    policies: Policies = .default,
+    policies: Policies = .none,
 
     pub const Strictness = enum {
         strict,
