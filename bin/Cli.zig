@@ -160,6 +160,15 @@ pub fn parse(iter: *ArgIterator) anyerror!Cli {
         }
     }
 
+    if (args.positional.input == .stdio) {
+        std.log.err("unimplemented feature: stdin input path\n", .{});
+        return error.UnimplementedFeature;
+    }
+    if (args.named.output != null and args.named.output.? == .stdio) {
+        std.log.err("unimplemented feature: stdout output path\n", .{});
+        return error.UnimplementedFeature;
+    }
+
     return .{
         .operation = parseOperation(&args),
         .policies = args.named.permit orelse .none,
