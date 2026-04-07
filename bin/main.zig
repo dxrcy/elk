@@ -29,8 +29,7 @@ pub fn main(init: std.process.Init) !u8 {
         else => return err,
     };
 
-    const policies: elk.Policies = .default;
-    reporter.options.policies = policies;
+    reporter.options.policies = cli.policies;
 
     const traps: elk.Traps = comptime .registerSets(&.{
         elk.Traps.Standard,
@@ -70,7 +69,7 @@ pub fn main(init: std.process.Init) !u8 {
                 operation.debug != null,
                 &traps,
                 hooks,
-                policies,
+                cli.policies,
                 &reporter,
             );
         },
@@ -91,7 +90,7 @@ pub fn main(init: std.process.Init) !u8 {
                 operation.debug != null,
                 &traps,
                 hooks,
-                policies,
+                cli.policies,
                 &reporter,
             );
         },

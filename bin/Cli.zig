@@ -1,6 +1,7 @@
 const Cli = @This();
 
 const std = @import("std");
+const assert = std.debug.assert;
 const ArgIterator = std.process.Args.Iterator;
 
 const elk = @import("elk");
@@ -122,18 +123,25 @@ const my_template = .{
         .permit = templates.NamedListing{
             .short = 'p',
             .long = "permit",
-            .value = []const u8,
+            .value = elk.Policies,
+            .value_parser = parsePolicies,
         },
     },
 };
+
+fn parsePolicies(string: []const u8, value: *anyopaque) error{InvalidArgumentValue}!void {
+    const policies: *elk.Policies = @ptrCast(@alignCast(value));
+
+    policies.* = elk.Policies.parseList(string) catch
+        return error.InvalidArgumentValue;
+}
 
 pub fn parse(iter: *ArgIterator) anyerror!Cli {
     const args = try templates.parse(my_template, iter);
 
     return .{
         .operation = parseOperation(&args),
-        // TODO: Parse policies
-        .policies = .default,
+        .policies = args.named.permit orelse .none,
         .strictness = if (args.named.strict)
             .strict
         else if (args.named.relaxed)
