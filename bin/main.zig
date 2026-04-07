@@ -1,6 +1,7 @@
 const std = @import("std");
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
+const EnvironMap = std.process.Environ.Map;
 
 const elk = @import("elk");
 
@@ -70,6 +71,7 @@ pub fn main(init: std.process.Init) !u8 {
             try emulate(
                 io,
                 gpa,
+                init.environ_map,
                 .{ .object = file },
                 operation.debug,
                 &traps,
@@ -91,6 +93,7 @@ pub fn main(init: std.process.Init) !u8 {
             try emulate(
                 io,
                 gpa,
+                init.environ_map,
                 .{ .assembly = .{ .air = &air, .source = source } },
                 operation.debug,
                 &traps,
@@ -147,6 +150,7 @@ fn assemble(
 fn emulate(
     io: Io,
     gpa: Allocator,
+    environ_map: *const EnvironMap,
     runtime_source: union(enum) {
         object: Io.File,
         assembly: elk.Debugger.Assembly,
@@ -163,7 +167,12 @@ fn emulate(
     var reader = Io.File.stdin().reader(io, &.{});
 
     var debugger_opt: ?elk.Debugger = if (debug_opt) |debug| debugger: {
-        const history_path = if (debug.history_file) |path| path else getHistoryPath();
+        var history_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
+        const history_path = if (debug.history_file) |path|
+            path
+        else
+            try getHistoryPath(environ_map, &history_path_buffer);
+        std.debug.print("{s}\n", .{history_path});
         const history_file = openHistoryFile(io, history_path) catch |err| file: {
             std.log.err("failed to open/create history file: {t}", .{err});
             break :file null;
@@ -226,9 +235,17 @@ fn emulate(
     try runtime.writer.flush();
 }
 
-fn getHistoryPath() []const u8 {
-    // FIXME: Get path programatically
-    return "/home/darcy/.cache/elk-history";
+fn getHistoryPath(environ_map: *const EnvironMap, buffer: []u8) ![]const u8 {
+    const name = "elk-history";
+
+    if (environ_map.get("XDG_CACHE_HOME")) |cache|
+        return try std.fmt.bufPrint(buffer, "{s}/{s}", .{ cache, name });
+    if (environ_map.get("HOME")) |home|
+        return try std.fmt.bufPrint(buffer, "{s}/.cache/{s}", .{ home, name });
+    if (environ_map.get("USER")) |user|
+        return try std.fmt.bufPrint(buffer, "/home/{s}/.cache/{s}", .{ user, name });
+
+    return error.CantFindPath;
 }
 
 fn openHistoryFile(io: Io, path: []const u8) !Io.File {
