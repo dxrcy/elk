@@ -7,6 +7,8 @@ program.
 # Usage
 
 ```sh
+# Show all options
+elk --help
 # Assemble and emulate
 elk hello.asm
 # Assemble and debug
