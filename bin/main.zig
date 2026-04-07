@@ -95,9 +95,7 @@ pub fn main(init: std.process.Init) !u8 {
             );
         },
 
-        else => {
-            std.log.err("unimplemented operation", .{});
-        },
+        else => unreachable,
     }
 
     return 0;

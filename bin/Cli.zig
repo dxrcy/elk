@@ -141,6 +141,25 @@ fn parsePolicies(string: []const u8, value: *anyopaque) error{InvalidArgumentVal
 pub fn parse(iter: *ArgIterator) anyerror!Cli {
     const args = try cli_template.parse(template, iter);
 
+    const unimplemented_args = [_][]const u8{
+        "format",
+        "clean",
+        "export_symbols",
+        "export_listing",
+        "import_symbols",
+        "commands",
+    };
+    for (unimplemented_args) |name| {
+        inline for (@typeInfo(@TypeOf(args.named)).@"struct".fields) |field| {
+            if (std.mem.eql(u8, field.name, name) and
+                cli_template.isValueSet(@field(args.named, field.name)))
+            {
+                std.log.err("unimplemented feature: {s}\n", .{field.name});
+                return error.UnimplementedFeature;
+            }
+        }
+    }
+
     return .{
         .operation = parseOperation(&args),
         .policies = args.named.permit orelse .none,

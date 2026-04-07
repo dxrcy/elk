@@ -121,7 +121,7 @@ fn addNamedArg(
     return error.InvalidFlag;
 }
 
-fn isValueSet(value: anytype) bool {
+pub fn isValueSet(value: anytype) bool {
     return switch (@typeInfo(@TypeOf(value))) {
         .bool => value,
         .optional => value != null,
