@@ -13,6 +13,54 @@ policies: elk.Policies,
 strictness: elk.Reporter.Options.Strictness,
 verbosity: elk.Reporter.Stderr.Verbosity,
 
+const info = struct {
+    const zon = @import("build.zig.zon");
+
+    const program = @tagName(zon.name);
+    const version = zon.version;
+
+    const help =
+        program ++ " " ++ version ++ " by " ++ zon.author ++ ".\n" ++
+        zon.description ++ " " ++ zon.homepage ++ "\n" ++
+        \\
+        \\USAGE:
+        ++ "\n    " ++ program ++ " [INPUT] [OPERATION] [...OPTIONS]\n" ++
+        \\
+        \\INPUT:
+        \\    Input filename: *.asm, or *.obj when used with --emulate
+        \\
+        \\OPERATION:
+        \\    (default)
+        \\            Assemble and emulate an .asm file. Supports --debug.
+        \\    -a, --assemble
+        \\            Assemble an .asm file and write output.
+        \\    -e, --emulate
+        \\            Emulate an assembled .obj file. Supports --debug.
+        \\
+        \\OPTIONS:
+        \\    -d, --debug
+        \\            Run debugger while emulating. Requires --emulate or (default) operation.
+        \\        --history-file [FILE]
+        \\            Specify path for debugger history file. Requires --debug.
+        \\
+        \\        --strict
+        \\            Treat all warnings as errors.
+        \\        --relaxed
+        \\            Ignore all warnings.
+        \\    -q, --quiet
+        \\            Show less output when assembling.
+        \\    -p, --permit
+        \\            Specify permitted policies or predefined policy sets.
+        \\            Eg. --permit +laser,extension.stack_instructions
+        \\
+        \\ EXAMPLES:
+        \\     elk hello.asm
+        \\     elk hello.asm --debug
+        \\     elk hello.asm --assemble --output hello.obj --strict --quiet
+        \\     elk hello.obj --emulate --permit +laser,extension.stack_instructions
+        ;
+};
+
 const Operation = union(enum) {
     assemble_emulate: struct {
         input: cli_template.Path,
@@ -50,6 +98,15 @@ const template = .{
     },
 
     .named = .{
+        .help = cli_template.NamedListing{
+            .short = 'h',
+            .long = "help",
+        },
+        .version = cli_template.NamedListing{
+            .short = 'v',
+            .long = "version",
+        },
+
         .assemble = cli_template.NamedListing{
             .short = 'a',
             .long = "assemble",
@@ -138,8 +195,17 @@ fn parsePolicies(string: []const u8, value: *anyopaque) error{InvalidArgumentVal
         return error.InvalidArgumentValue;
 }
 
-pub fn parse(iter: *ArgIterator) anyerror!Cli {
+pub fn parse(iter: *ArgIterator) !Cli {
     const args = try cli_template.parse(template, iter);
+
+    if (args.named.help) {
+        std.debug.print(info.help ++ "\n", .{});
+        return error.DisplayMetadata;
+    }
+    if (args.named.version) {
+        std.debug.print("{s}: {s}\n", .{ info.program, info.version });
+        return error.DisplayMetadata;
+    }
 
     const unimplemented_args = [_][]const u8{
         "format",

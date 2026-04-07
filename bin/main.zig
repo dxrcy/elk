@@ -19,14 +19,7 @@ pub fn main(init: std.process.Init) !u8 {
     defer args.deinit();
 
     const cli = Cli.parse(&args) catch |err| switch (err) {
-        error.DisplayHelp => {
-            std.debug.print("todo: help info\n", .{});
-            return 0;
-        },
-        error.DisplayVersion => {
-            std.debug.print("todo: version info\n", .{});
-            return 0;
-        },
+        error.DisplayMetadata => return 0,
         else => return err,
     };
 
