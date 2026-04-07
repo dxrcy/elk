@@ -1,8 +1,8 @@
 .{
-    .name = .elk_bin,
+    .name = .elk,
     .version = "0.1.0",
     .minimum_zig_version = "0.16.0-dev.2670+56253d9e3",
-    .fingerprint = 0x133ea94a24920946,
+    .fingerprint = 0xa2754ca228fa976b,
 
     .dependencies = .{
         .elk = .{
