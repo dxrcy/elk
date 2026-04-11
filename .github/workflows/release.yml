@@ -40,6 +40,7 @@ jobs:
           file: cli/zig-out/bin/${{ matrix.artifact_name }}
           asset_name: ${{ matrix.asset_name }}
           tag: ${{ github.ref }}
-          release_name: Draft release
-          body: Draft release
+          release_name: Draft
+          body: Release in progresss...
+          make_latest: false
 
