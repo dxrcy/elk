@@ -112,6 +112,7 @@ pub fn writeListing(air: *const Air, writer: *Io.Writer, source: []const u8) !vo
     while (lines.next()) |string| : (line_no += 1) {
         const end = @intFromPtr(string.ptr) - @intFromPtr(source.ptr) + string.len;
 
+        // If source line corresponds to >0 statements, print the first one here
         if (index < air.lines.items.len and
             air.lines.items[index].span.offset <= end)
         {
@@ -125,6 +126,8 @@ pub fn writeListing(air: *const Air, writer: *Io.Writer, source: []const u8) !vo
 
         try helper.writeLine(@intCast(line_no), string);
 
+        // If source line corresponds to >1 statement, print the rest here
+        // Eg. `.STRINGZ` emits multiple words
         while (index < air.lines.items.len and
             air.lines.items[index].span.end() <= end)
         {
