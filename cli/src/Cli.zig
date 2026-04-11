@@ -43,6 +43,11 @@ const info = struct {
         \\        --history-file [FILE]
         \\            Specify path for debugger history file. Requires --debug.
         \\
+        \\        --export-symbols [FILE]
+        \\            Write .sym symbol table file instead of compiling .obj. Requires --assemble.
+        \\        --export-listing [FILE]
+        \\            Write .lst listing file instead of compiling .obj. Requires --assemble.
+        \\
         \\        --strict
         \\            Treat all warnings as errors.
         \\        --relaxed
@@ -57,6 +62,7 @@ const info = struct {
         \\     elk hello.asm
         \\     elk hello.asm --debug
         \\     elk hello.asm --assemble --output hello.obj --strict --quiet
+        \\     elk hello.asm --assemble --export-listing
         \\     elk hello.obj --emulate --permit +laser,extension.stack_instructions
         ;
 };
@@ -202,8 +208,6 @@ pub fn parse(iter: *ArgIterator) !Cli {
     const unimplemented_args = [_][]const u8{
         "format",
         "clean",
-        "export_symbols",
-        "export_listing",
         "import_symbols",
         "commands",
     };
