@@ -28,7 +28,7 @@ elk hello.obj --emulate
 2. Install the downloaded file to your PATH:
 
 ```sh
-sudo install [filename] /usr/bin/elk
+sudo install <filename> /usr/bin/elk
 ```
 
 ### From source
