@@ -38,6 +38,8 @@ const info = struct {
         \\            Emulate an assembled .obj file. Supports --debug.
         \\    -c, --check
         \\            Check an assembly file for errors without assembling.
+        \\        --clean
+        \\            Delete all output files (.obj, .sym, .lst) for an .asm file.
         \\
         \\OPTIONS:
         \\    -o, --output [FILE]
@@ -91,7 +93,7 @@ const Operation = union(enum) {
         output: ?cli_template.Path,
     },
     clean: struct {
-        input: cli_template.Path,
+        input: []const u8,
     },
 };
 
@@ -219,7 +221,6 @@ pub fn parse(iter: *ArgIterator) !Cli {
 
     const unimplemented_args = [_][]const u8{
         "format",
-        "clean",
         "import_symbols",
         "commands",
     };
@@ -298,7 +299,7 @@ fn parseOperation(args: *const cli_template.Args(template)) Operation {
 
     if (args.named.clean) {
         return .{ .clean = .{
-            .input = args.positional.input,
+            .input = args.positional.input.regular,
         } };
     }
 

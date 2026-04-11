@@ -106,6 +106,24 @@ pub fn main(init: std.process.Init) !u8 {
             );
         },
 
+        .clean => |operation| {
+            if (!std.mem.endsWith(u8, operation.input, ".asm")) {
+                std.log.err("--clean requires filename to end with .asm", .{});
+                return error.BadFilename;
+            }
+
+            const extensions = [_][]const u8{ "obj", "sym", "lst" };
+            for (extensions) |extension| {
+                var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
+                const path = replacePathExtension(&path_buffer, operation.input, extension);
+
+                Io.Dir.cwd().deleteFile(io, path) catch |err| switch (err) {
+                    error.FileNotFound => {},
+                    else => |err2| return err2,
+                };
+            }
+        },
+
         else => unreachable,
     }
 
