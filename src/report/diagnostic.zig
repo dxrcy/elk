@@ -1,13 +1,13 @@
 const std = @import("std");
 
+const Policies = @import("../policies.zig").Policies;
 const Span = @import("../compile/Span.zig");
 const Token = @import("../compile/parse/Token.zig");
 const Radix = @import("../compile/parse/integers.zig").Form.Radix;
 const Runtime = @import("../emulate/Runtime.zig");
-const Command = @import("../emulate/debugger/Debugger.zig").Command;
+const DebuggerCommand = @import("../emulate/debugger/Command.zig");
 const Reporter = @import("Reporter.zig");
 const Ctx = @import("Ctx.zig");
-const Policies = Reporter.Policies;
 
 pub const TokenKinds = struct {
     kinds: []const Kind,
@@ -33,7 +33,7 @@ pub const TokenKinds = struct {
             .comma => "comma `,`",
             .colon => "colon `:`",
             .directive => "directive",
-            .instruction => "instruction",
+            .mnemonic => "instruction mnemonic",
             .trap_alias => "trap alias",
             .label => "label",
             .register => "register",
@@ -77,7 +77,7 @@ pub const Diagnostic = union(enum) {
     expected_eol: struct { found: Token },
     missing_operand_comma: struct { operand: Span },
     whitespace_comma: struct { comma: Span },
-    unconventional_case: struct { token: Span, kind: enum { directive, instruction, label, register, integer } },
+    unconventional_case: struct { token: Span, kind: enum { directive, mnemonic, trap_alias, label, register, integer } },
 
     // Directives
     unsupported_directive: struct { directive: Span },
@@ -87,27 +87,28 @@ pub const Diagnostic = union(enum) {
     missing_end: struct { last_token: ?Span },
 
     // Label syntax and resolution
-    multiple_labels: struct { existing: Span, new: Span },
+    existing_label_left: struct { existing: Span, new: Span },
+    existing_label_above: struct { existing: Span, new: Span },
     invalid_label_target: struct { label: Span, target: ?Span },
-    shadowed_label: struct { existing: Span, new: Span },
     label_colon: struct { colon: Span },
-    redeclared_label: struct { existing: Span, new: Span },
-    undeclared_label: struct { reference: Span, nearest: ?Span, declaration_source: []const u8 },
+    redefined_label: struct { existing: Span, new: Span },
+    undefined_label: struct { reference: Span, nearest: ?Span, definition_source: []const u8 },
     unused_label: struct { label: Span },
 
     // Integer syntax
     malformed_integer: struct { integer: Span },
+    malformed_character: struct { integer: Span },
     expected_digit: struct { integer: Span },
     invalid_digit: struct { integer: Span },
     unexpected_delimiter: struct { integer: Span },
     nonstandard_integer_radix: struct { integer: Span, radix: Radix },
     nonstandard_integer_form: struct { integer: Span, reason: enum { delimiter } },
     undesirable_integer_form: struct { integer: Span, reason: enum { missing_zero, pre_radix_sign, post_radix_sign, implicit_radix } },
+    character_integer: struct { integer: Span },
 
     // Integer bounds
     integer_too_large: struct { integer: Span, type_info: std.builtin.Type.Int },
-    // TODO: Rename "declaration" or "definition" to make consistent, and elsewhere
-    offset_too_large: struct { definition: Span, reference: Span, offset: i17, bits: u16, declaration_source: []const u8 },
+    offset_too_large: struct { definition: Span, reference: Span, offset: i17, bits: u16, definition_source: []const u8 },
     unexpected_negative_integer: struct { integer: Span },
 
     // Strings
@@ -116,7 +117,7 @@ pub const Diagnostic = union(enum) {
     multiline_string: struct { string: Span },
 
     // Instruction-specific
-    stack_instruction: struct { instruction: Span, kind: Token.Value.Instruction },
+    stack_instruction: struct { mnemonic: Span, kind: Token.Value.Mnemonic },
     literal_pc_offset: struct { integer: Span },
     explicit_trap_vect: struct { vect: Span, value: u8, alias: []const u8 },
     undeclared_trap_vect: struct { vect: Span, value: u8 },
@@ -124,19 +125,18 @@ pub const Diagnostic = union(enum) {
     // Emulator
     emulate_exception: struct { code: Runtime.Exception },
 
-    // TODO: Reorder
     // Emulator debugger
-    debugger_show_assembly: struct { line: Span, address: u16 },
+    // TODO: Reorder
     // TODO: Distinguish command vs label
     debugger_requires_assembly: struct { command: Span },
     debugger_requires_state: struct { command: Span },
     debugger_address_not_in_assembly: struct { value: u16, max: u16 },
     debugger_address_not_user_memory: struct { address: Span, value: u16, max: u16 },
-    debugger_label_partial_match: struct { reference: Span, nearest: Span, declaration_source: []const u8 },
+    debugger_label_partial_match: struct { reference: Span, nearest: Span, definition_source: []const u8 },
     debugger_no_space: struct {},
     // TODO: Add `expected` field (different type than `TokenKinds`), AND ELSEWHERE
     debugger_invalid_argument_kind: struct { found: Span },
-    debugger_invalid_command: struct { command: Span, nearest: ?Command.Tag },
+    debugger_invalid_command: struct { command: Span, nearest: ?DebuggerCommand.Tag },
     debugger_missing_subcommand: struct { first: Span, eol: Span },
     // TODO: Rename ? not eol but end of command
     debugger_unexpected_eol: struct { eol: Span },
@@ -154,9 +154,10 @@ pub const Diagnostic = union(enum) {
             .unsupported_directive,
             .multiple_origins,
             .late_origin,
-            .redeclared_label,
-            .undeclared_label,
+            .redefined_label,
+            .undefined_label,
             .malformed_integer,
+            .malformed_character,
             .expected_digit,
             .invalid_digit,
             .unexpected_delimiter,
@@ -166,40 +167,41 @@ pub const Diagnostic = union(enum) {
             .unmatched_quote,
             => .fatal,
 
-            .multiple_labels => .major,
+            .existing_label_left => .major,
 
             .invalid_label_target,
-            .shadowed_label,
             .invalid_string_escape,
             => strictnessResponse(options),
 
             .missing_origin => policyResponse(options, .extension, .implicit_origin),
             .missing_end => policyResponse(options, .extension, .implicit_end),
-            .label_colon => policyResponse(options, .extension, .label_declaration_colons),
+            .existing_label_above => policyResponse(options, .extension, .multiple_labels),
+            .label_colon => policyResponse(options, .extension, .label_definition_colons),
             .nonstandard_integer_radix => policyResponse(options, .extension, .more_integer_radixes),
             .nonstandard_integer_form => policyResponse(options, .extension, .more_integer_forms),
             .multiline_string => policyResponse(options, .extension, .multiline_strings),
             .stack_instruction => policyResponse(options, .extension, .stack_instructions),
+            .character_integer => policyResponse(options, .extension, .character_literals),
 
             .literal_pc_offset => policyResponse(options, .smell, .pc_offset_literals),
             .explicit_trap_vect => policyResponse(options, .smell, .explicit_trap_instructions),
             .undeclared_trap_vect => policyResponse(options, .smell, .unknown_trap_vectors),
-            .unused_label => policyResponse(options, .smell, .unused_label_declarations),
+            .unused_label => policyResponse(options, .smell, .unused_label_definitions),
 
             .missing_operand_comma => policyResponse(options, .style, .missing_operand_commas),
             .whitespace_comma => policyResponse(options, .style, .whitespace_commas),
             .unconventional_case => |info| switch (info.kind) {
-                .directive => policyResponse(options, .style, .unconventional_case_directives),
-                .instruction => policyResponse(options, .style, .unconventional_case_instructions),
-                .label => policyResponse(options, .style, .unconventional_case_labels),
-                .register => policyResponse(options, .style, .unconventional_case_registers),
-                .integer => policyResponse(options, .style, .unconventional_case_integers),
+                .directive => policyResponse(options, .case_convention, .directives),
+                .mnemonic => policyResponse(options, .case_convention, .mnemonics),
+                .trap_alias => policyResponse(options, .case_convention, .trap_aliases),
+                .label => policyResponse(options, .case_convention, .labels),
+                .register => policyResponse(options, .case_convention, .registers),
+                .integer => policyResponse(options, .case_convention, .integers),
             },
             .undesirable_integer_form => policyResponse(options, .style, .undesirable_integer_forms),
 
             .emulate_exception => .fatal,
 
-            .debugger_show_assembly => .info,
             .debugger_requires_assembly => .fatal,
             .debugger_requires_state => .fatal,
             .debugger_address_not_in_assembly => .fatal,
@@ -267,9 +269,13 @@ pub const Diagnostic = union(enum) {
                 ctx.deepen().printNote("Commas should only appear between instruction operands", .{});
             },
             .unconventional_case => |info| switch (info.kind) {
-                .instruction => {
+                .mnemonic => {
                     ctx.printTitle("Instruction mnemonic is not lowercase", .{});
                     ctx.deepen().printSourceNote("Mnemonic", .{}, info.token);
+                },
+                .trap_alias => {
+                    ctx.printTitle("Trap instruction alias is not lowercase", .{});
+                    ctx.deepen().printSourceNote("Trap alias", .{}, info.token);
                 },
                 .directive => {
                     ctx.printTitle("Directive name is not uppercase", .{});
@@ -324,10 +330,15 @@ pub const Diagnostic = union(enum) {
                 );
             },
 
-            .multiple_labels => |info| {
+            .existing_label_left => |info| {
                 ctx.printTitle("Multiple labels cannot be declared on the same line", .{});
                 ctx.deepen().printSourceNote("First label declared here", .{}, info.existing);
                 ctx.deepen().printSourceNote("Another label declared on the same line", .{}, info.new);
+            },
+            .existing_label_above => |info| {
+                ctx.printTitle("Line is annotated with multiple labels", .{});
+                ctx.deepen().printSourceNote("First label declared here", .{}, info.existing);
+                ctx.deepen().printSourceNote("Another label declared in the same position", .{}, info.new);
             },
             .invalid_label_target => |info| {
                 ctx.printTitle("Label is useless in this position", .{});
@@ -337,28 +348,22 @@ pub const Diagnostic = union(enum) {
                 else
                     ctx.deepen().printSourceNote("Label is not followed by any token", .{}, .lastCharOf(source));
             },
-            .shadowed_label => |info| {
-                ctx.printTitle("Shadowed label has no use", .{});
-                ctx.deepen().printSourceNote("First label declared here", .{}, info.existing);
-                ctx.deepen().printSourceNote("Another label declared in the same position", .{}, info.new);
-                ctx.deepen().printNote("First label will be overridden by second label; it is not usable", .{});
-            },
             .label_colon => |info| {
                 ctx.printTitle("Label followed by colon `:`", .{});
                 ctx.deepen().printSourceNote("Colon", .{}, info.colon);
                 ctx.deepen().printNote("A post-label colon is non-standard syntax", .{});
             },
 
-            .redeclared_label => |info| {
+            .redefined_label => |info| {
                 ctx.printTitle("Label already declared", .{});
                 ctx.deepen().printSourceNote("Label is first declared here", .{}, info.existing);
                 ctx.deepen().printSourceNote("Tried to redeclare here", .{}, info.new);
             },
-            .undeclared_label => |info| {
+            .undefined_label => |info| {
                 ctx.printTitle("Label is not declared", .{});
                 ctx.deepen().printSourceNote("Label used here", .{}, info.reference);
                 if (info.nearest) |close_match| {
-                    ctx.deepen().withSource(info.declaration_source)
+                    ctx.deepen().withSource(info.definition_source)
                         .printSourceNote("This label declaration is similar", .{}, close_match);
                     ctx.deepen().printNote("Label names are case-sensitive", .{});
                 }
@@ -368,10 +373,16 @@ pub const Diagnostic = union(enum) {
                 ctx.deepen().printSourceNote("Label declared here", .{}, info.label);
             },
 
+            // TODO: Change "operand" to "argument", and elsewhere
             .malformed_integer => |info| {
                 ctx.printTitle("Malformed integer operand", .{});
                 ctx.deepen().printSourceNote("Operand", .{}, info.integer);
                 ctx.deepen().printNote("Integer token is not in an valid form", .{});
+            },
+            .malformed_character => |info| {
+                ctx.printTitle("Malformed character literal operand", .{});
+                ctx.deepen().printSourceNote("Operand", .{}, info.integer);
+                ctx.deepen().printNote("Character literal token is invalid", .{});
             },
             .expected_digit => |info| {
                 ctx.printTitle("Expected digit in integer operand", .{});
@@ -409,6 +420,10 @@ pub const Diagnostic = union(enum) {
                     .implicit_radix => "Decimal integer literal should begin with `#`",
                 }});
             },
+            .character_integer => |info| {
+                ctx.printTitle("Use of non-standard character literal token", .{});
+                ctx.deepen().printSourceNote("Character", .{}, info.integer);
+            },
 
             .integer_too_large => |info| {
                 ctx.printTitle("Integer operand is too large", .{});
@@ -421,7 +436,7 @@ pub const Diagnostic = union(enum) {
             .offset_too_large => |info| {
                 ctx.printTitle("Calculated label offset is too large", .{});
                 ctx.deepen().printSourceNote("Label declared here", .{}, info.definition);
-                ctx.deepen().withSource(info.declaration_source)
+                ctx.deepen().withSource(info.definition_source)
                     .printSourceNote("Label used here", .{}, info.reference);
                 ctx.deepen().printNote("Address offset of {} words cannot be represented in {} bits", .{ info.offset, info.bits });
             },
@@ -447,7 +462,7 @@ pub const Diagnostic = union(enum) {
 
             .stack_instruction => |info| {
                 ctx.printTitle("Use of non-standard stack instruction `{t}`", .{info.kind});
-                ctx.deepen().printSourceNote("Instruction is an ISA extension", .{}, info.instruction);
+                ctx.deepen().printSourceNote("Instruction is an ISA extension", .{}, info.mnemonic);
             },
             .literal_pc_offset => |info| {
                 ctx.printTitle("Address operand is a literal offset", .{});
@@ -470,10 +485,6 @@ pub const Diagnostic = union(enum) {
                 // TODO: Add additional information
             },
 
-            .debugger_show_assembly => |info| {
-                ctx.printTitle("Inspect assembly source", .{});
-                ctx.deepen().printSourceNote("Next instruction, at 0x{x:04}", .{info.address}, info.line);
-            },
             .debugger_requires_assembly => |info| {
                 ctx.printTitle("Command requires access to assembly", .{});
                 ctx.deepen().printSourceNote("Command", .{}, info.command);
@@ -496,7 +507,7 @@ pub const Diagnostic = union(enum) {
             .debugger_label_partial_match => |info| {
                 ctx.printTitle("Label reference does not use correct case", .{});
                 ctx.deepen().printSourceNote("Label", .{}, info.reference);
-                ctx.deepen().withSource(info.declaration_source)
+                ctx.deepen().withSource(info.definition_source)
                     .printSourceNote("This label declaration is similar", .{}, info.nearest);
                 ctx.deepen().printNote("Label names are case-sensitive", .{});
             },
@@ -511,7 +522,7 @@ pub const Diagnostic = union(enum) {
                 ctx.printTitle("Invalid command name", .{});
                 ctx.deepen().printSourceNote("Command", .{}, info.command);
                 if (info.nearest) |nearest|
-                    ctx.deepen().printNote("Did you mean `{s}`?", .{Command.tagString(nearest)});
+                    ctx.deepen().printNote("Did you mean `{s}`?", .{DebuggerCommand.tagString(nearest)});
             },
             .debugger_missing_subcommand => |info| {
                 ctx.printTitle("Missing subcommand for `{s}`", .{info.first.view(source)});

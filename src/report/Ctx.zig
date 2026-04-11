@@ -19,6 +19,8 @@ pub const Verbosity = enum {
     pub const default: Verbosity = .normal;
 };
 
+const indent_width = 4;
+
 pub fn new(
     reporter: *Stderr,
     level: ?Reporter.Level,
@@ -63,7 +65,7 @@ fn incrementItemCount(ctx: *const Ctx) void {
 
 fn printDepth(ctx: Ctx) void {
     for (0..ctx.depth) |_|
-        ctx.print(" " ** 4, .{});
+        ctx.print(" " ** indent_width, .{});
 }
 
 pub fn printTitle(
@@ -150,73 +152,6 @@ fn printSource(ctx: Ctx, span: Span) void {
         },
     }
 
-    const lines = span.getSurroundingLines(source);
-    var iter = std.mem.splitScalar(u8, lines.view(source), '\n');
-    while (iter.next()) |line_string| {
-        const line = Span.fromSlice(line_string, source);
-        const line_number = line.getLineNumber(source);
-
-        ctx.printDepth();
-        ctx.print("\x1b[2m", .{});
-        ctx.print("{:3} ", .{line_number});
-        ctx.print("| ", .{});
-        ctx.print("\x1b[0m", .{});
-        ctx.print("\x1b[3m", .{});
-        ctx.print("\x1b[2m", .{});
-
-        {
-            var was_in_span = false;
-            var was_non_valid = false;
-
-            for (line_string, 0..) |char, i| {
-                const index = line.offset + i;
-
-                const in_span = span.containsIndex(index);
-                if (in_span and !was_in_span)
-                    ctx.print("\x1b[22m", .{})
-                else if (!in_span and was_in_span)
-                    ctx.print("\x1b[2m", .{});
-
-                const non_valid = Token.isValidChar(char);
-                if (!non_valid and was_non_valid)
-                    ctx.print("\x1b[31m", .{})
-                else if (non_valid and !was_non_valid)
-                    ctx.print("\x1b[39m", .{});
-
-                if (non_valid)
-                    ctx.print("{c}", .{char})
-                else
-                    ctx.print("?", .{});
-
-                was_in_span = in_span;
-                was_non_valid = non_valid;
-            }
-        }
-
-        ctx.print("\x1b[0m", .{});
-        ctx.print("\n", .{});
-
-        if (!line.overlaps(span) or
-            std.mem.trim(u8, line_string, &std.ascii.whitespace).len == 0)
-        {
-            continue;
-        }
-
-        ctx.printDepth();
-        ctx.print("\x1b[2m", .{});
-        ctx.print("    | ", .{});
-        ctx.print("\x1b[22m", .{});
-        ctx.print("\x1b[36m", .{});
-        for (0..line_string.len + 1) |i| {
-            const index = line.offset + i;
-            if (span.containsIndex(index) or
-                // Still highlight first character if len==0
-                span.offset == index)
-                ctx.print("^", .{})
-            else
-                ctx.print(" ", .{});
-        }
-        ctx.print("\x1b[0m", .{});
-        ctx.print("\n", .{});
-    }
+    Reporter.writeSpanContext(ctx.reporter.writer, span, 1, ctx.depth * indent_width, source) catch
+        std.debug.panic("failed to write to reporter file", .{});
 }

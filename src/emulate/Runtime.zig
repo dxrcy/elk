@@ -4,17 +4,17 @@ const std = @import("std");
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
 
+const Debugger = @import("debugger/Debugger.zig");
 const Policies = @import("../policies.zig").Policies;
 const Traps = @import("../Traps.zig");
 const Tty = @import("Tty.zig");
 
 pub const Callback = @import("../callback.zig").Callback;
-pub const Debugger = @import("debugger/Debugger.zig");
 pub const Instruction = @import("decode.zig").Instruction;
 
-pub const MEMORY_SIZE = 0x1_0000;
-pub const USER_MEMORY_START = 0x3000;
-pub const USER_MEMORY_END = 0xFDFF;
+pub const memory_size = 0x1_0000;
+pub const user_memory_start = 0x3000;
+pub const user_memory_end = 0xFDFF;
 
 state: State,
 
@@ -35,11 +35,11 @@ pub const State = struct {
     condition: Condition,
 
     pub fn init(gpa: Allocator) error{OutOfMemory}!State {
-        const memory = try gpa.alloc(u16, MEMORY_SIZE);
+        const memory = try gpa.alloc(u16, memory_size);
         @memset(memory, 0x0000);
         return .{
             .memory = memory,
-            .registers = .{ 0, 0, 0, 0, 0, 0, 0, USER_MEMORY_END },
+            .registers = .{ 0, 0, 0, 0, 0, 0, 0, user_memory_end },
             .pc = 0x0000,
             .condition = .zero,
         };
@@ -60,7 +60,7 @@ pub const State = struct {
     }
 };
 
-pub const Error = Exception || IoError;
+const Error = Exception || HostError;
 
 /// The user's program or configuration (traps, policies) is erroneous.
 pub const Exception = error{
@@ -74,7 +74,7 @@ pub const Exception = error{
 };
 
 /// Stdio or terminal failure.
-pub const IoError = error{
+pub const HostError = error{
     WriteFailed,
     ReadFailed,
     EndOfStream,
@@ -88,27 +88,27 @@ const Condition = enum(u3) {
 };
 
 pub const Hooks = struct {
-    pre_decode: ?Callback(&.{ *Runtime, u16 }, IoError!void) = null,
-    pre_execute: ?Callback(&.{ *Runtime, Instruction }, IoError!void) = null,
+    pre_decode: ?Callback(&.{ *Runtime, u16 }, HostError!void) = null,
+    pre_execute: ?Callback(&.{ *Runtime, Instruction }, HostError!void) = null,
 };
 
-pub fn init(
+pub fn init(params: struct {
     gpa: Allocator,
     reader: *Io.Reader,
     writer: *Io.Writer,
     traps: *const Traps,
     hooks: Hooks,
     policies: Policies,
-    debugger: ?*Debugger,
-) !Runtime {
+    debugger: ?*Debugger = null,
+}) !Runtime {
     return .{
-        .state = try .init(gpa),
-        .traps = traps,
-        .hooks = hooks,
-        .policies = policies,
-        .debugger = debugger,
-        .reader = reader,
-        .writer = writer,
+        .state = try .init(params.gpa),
+        .traps = params.traps,
+        .hooks = params.hooks,
+        .policies = params.policies,
+        .debugger = params.debugger,
+        .reader = params.reader,
+        .writer = params.writer,
         .writer_is_newline = true,
         .tty = .uninit,
     };
@@ -138,11 +138,9 @@ pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !voi
     }
 }
 
-pub const Control = enum { @"continue", @"break" };
-
 pub fn run(runtime: *Runtime) Error!void {
     if (runtime.debugger) |debugger|
-        try debugger.start();
+        try debugger.startMessage();
 
     while (true) {
         if (runtime.debugger) |debugger| {
@@ -161,7 +159,7 @@ pub fn run(runtime: *Runtime) Error!void {
 
             else => |exception| {
                 if (runtime.debugger) |debugger| {
-                    if (debugger.status != .inactive) {
+                    if (debugger.state.status != .inactive) {
                         try debugger.catchEvent(exception, runtime);
                         continue;
                     }
@@ -174,7 +172,7 @@ pub fn run(runtime: *Runtime) Error!void {
 
 fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
     switch (runtime.state.pc) {
-        USER_MEMORY_START...USER_MEMORY_END => {},
+        user_memory_start...user_memory_end => {},
         else => return error.PcOutOfBounds,
     }
 
@@ -184,23 +182,23 @@ fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
     if (runtime.hooks.pre_decode) |pre_decode|
         try pre_decode.call(.{ runtime, word });
 
-    const instr: Instruction = try .decode(word);
+    const instruction: Instruction = try .decode(word);
 
     if (runtime.hooks.pre_execute) |pre_execute|
-        try pre_execute.call(.{ runtime, instr });
+        try pre_execute.call(.{ runtime, instruction });
 
-    try runtime.runInstruction(instr);
+    try runtime.runInstruction(instruction);
 }
 
-pub fn runInstruction(runtime: *Runtime, instr: Instruction) (Error || error{Halt})!void {
-    switch (instr) {
-        inline .add, .@"and" => |operands, instr_subset| {
+pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || error{Halt})!void {
+    switch (instruction) {
+        inline .add, .@"and" => |operands, subset| {
             const lhs = runtime.state.registers[operands.src_a];
             const rhs: u16 = switch (operands.src_b) {
                 .register => |register| runtime.state.registers[register],
                 .immediate => |immediate| signExtend(immediate),
             };
-            runtime.setRegister(operands.dest, switch (instr_subset) {
+            runtime.setRegister(operands.dest, switch (subset) {
                 .add => lhs +% rhs,
                 .@"and" => lhs & rhs,
                 else => comptime unreachable,
@@ -341,7 +339,7 @@ pub fn ensureWriterNewline(runtime: *Runtime) error{WriteFailed}!void {
     runtime.writer_is_newline = true;
 }
 
-pub fn writeProgramChar(runtime: *Runtime, char: u8) error{WriteFailed}!void {
+pub fn writeChar(runtime: *Runtime, char: u8) error{WriteFailed}!void {
     try runtime.writer.writeByte(char);
     runtime.writer_is_newline = char == '\n';
 }

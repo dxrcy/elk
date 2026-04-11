@@ -23,6 +23,10 @@ pub const Value = union(enum) {
     print: struct {
         location: Spanned(Location),
     },
+    list: struct {
+        start: Spanned(Location.Memory),
+        length: Spanned(u16),
+    },
     move: struct {
         location: Spanned(Location),
         value: Spanned(u16),
@@ -63,6 +67,22 @@ pub const Location = union(enum) {
         address: u16,
         pc_offset: i16,
         label: Label,
+
+        pub fn add(location: Memory, offset: u16) Memory {
+            // FIXME: Handle overflows
+            return switch (location) {
+                .address => |address| .{
+                    .address = address + offset,
+                },
+                .pc_offset => |pc_offset| .{
+                    .pc_offset = pc_offset + @as(i16, @intCast(offset)),
+                },
+                .label => |label| .{ .label = .{
+                    .name = label.name,
+                    .offset = label.offset + @as(i16, @intCast(offset)),
+                } },
+            };
+        }
     };
 };
 
@@ -81,6 +101,7 @@ pub fn tagString(command: Tag) [:0]const u8 {
         .registers => "registers",
         .@"continue" => "continue",
         .print => "print",
+        .list => "list",
         .move => "move",
         .goto => "goto",
         .assembly => "assembly",

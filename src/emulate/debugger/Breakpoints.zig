@@ -2,6 +2,10 @@ const Breakpoints = @This();
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
+const assert = std.debug.assert;
+
+const Debugger = @import("Debugger.zig");
+const Assembly = Debugger.Assembly;
 
 entries: std.ArrayList(Entry),
 gpa: Allocator,
@@ -19,11 +23,29 @@ pub fn deinit(breakpoints: *Breakpoints) void {
     breakpoints.entries.deinit(breakpoints.gpa);
 }
 
-pub fn insert(breakpoints: *Breakpoints, address: u16, is_label: bool) error{OutOfMemory}!bool {
+pub fn initFrom(gpa: Allocator, assembly: Assembly) error{OutOfMemory}!Breakpoints {
+    var breakpoints: Breakpoints = .init(gpa);
+    assert(assembly.air.lines.items.len + assembly.air.origin <= std.math.maxInt(u16));
+    for (assembly.air.labels.items) |*label| {
+        if (label.kind != .breakpoint)
+            continue;
+        // May not have been inserted, if multiple breakpoint labels exist for a line
+        _ = try breakpoints.insert(label.index + assembly.air.origin, true);
+    }
+    return breakpoints;
+}
+
+pub fn contains(breakpoints: *const Breakpoints, address: u16) bool {
     for (breakpoints.entries.items) |entry| {
         if (entry.address == address)
-            return false;
+            return true;
     }
+    return false;
+}
+
+pub fn insert(breakpoints: *Breakpoints, address: u16, is_label: bool) error{OutOfMemory}!bool {
+    if (breakpoints.contains(address))
+        return false;
 
     var index: usize = breakpoints.entries.items.len;
     for (breakpoints.entries.items, 0..) |entry, i| {

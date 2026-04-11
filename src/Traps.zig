@@ -3,19 +3,20 @@ const Traps = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 
-pub const Callback = @import("callback.zig").Callback;
 const Runtime = @import("emulate/Runtime.zig");
 const builtin_traps = @import("emulate/builtin_traps.zig");
+
+pub const Callback = @import("callback.zig").Callback;
 
 entries: [1 << 8]Entry,
 
 pub const Error =
-    Runtime.IoError ||
+    Runtime.HostError ||
     error{ TrapFailed, Halt };
 
 pub const Result = Error!void;
 
-pub const Entry = struct {
+const Entry = struct {
     alias: ?[]const u8,
     callback: ?Callback(&.{*Runtime}, Result),
 
@@ -45,15 +46,8 @@ pub fn register(traps: *Traps, vect: u8, entry: Entry) void {
     traps.entries[vect] = entry;
 }
 
-pub fn initData(traps: *Traps, vect: u8, comptime Data: type, data: Data) void {
-    const callback = &(traps.entries[vect].callback orelse
-        unreachable);
-    callback.initData(Data, data);
-}
-
-pub fn initBuiltins(comptime enums: []const type) Traps {
+pub fn registerSets(comptime enums: []const type) Traps {
     if (!@inComptime()) @compileError("must be called at comptime");
-
     comptime {
         var traps: Traps = .{ .entries = @splat(.unset) };
         for (enums) |Enum| {
@@ -68,4 +62,10 @@ pub fn initBuiltins(comptime enums: []const type) Traps {
         }
         return traps;
     }
+}
+
+pub fn initData(traps: *Traps, vect: u8, comptime Data: type, data: Data) void {
+    const callback = &(traps.entries[vect].callback orelse
+        unreachable);
+    callback.initData(Data, data);
 }

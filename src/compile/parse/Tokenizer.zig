@@ -1,4 +1,4 @@
-const TokenIter = @This();
+const Tokenizer = @This();
 
 const std = @import("std");
 const assert = std.debug.assert;
@@ -29,7 +29,7 @@ pub fn new(
     traps: *const Traps,
     source: []const u8,
     reporter: *Reporter,
-) TokenIter {
+) Tokenizer {
     for (traps.entries) |entry| {
         if (entry.alias) |alias|
             assert(case.isLowercaseAlpha(alias));
@@ -48,37 +48,37 @@ pub fn new(
     };
 }
 
-pub fn getIndex(tokens: *const TokenIter) usize {
+pub fn getIndex(tokenizer: *const Tokenizer) usize {
     // We currently have no need to support 'getting index when token has been peeked'
-    assert(tokens.peeked == null);
-    return tokens.lexer.index;
+    assert(tokenizer.peeked == null);
+    return tokenizer.lexer.index;
 }
 
-fn getNextSpan(tokens: *TokenIter) error{Eof}!Span {
-    return tokens.peeked orelse
-        tokens.lexer.next() orelse
+fn getNextSpan(tokenizer: *Tokenizer) error{Eof}!Span {
+    return tokenizer.peeked orelse
+        tokenizer.lexer.next() orelse
         return error.Eof;
 }
 
-fn parseToken(tokens: *TokenIter, span: Span) Token.Error!Token {
-    const token = try Token.from(span, tokens.source, tokens.traps);
+fn parseToken(tokenizer: *Tokenizer, span: Span) Token.Error!Token {
+    const token = try Token.from(span, tokenizer.source, tokenizer.traps);
     if (token.value != .newline)
-        tokens.latest = token.span;
+        tokenizer.latest = token.span;
     return token;
 }
 
 /// Note that token may **not** be supported in the current mode; use
 /// `ensureSupported` before using.
-fn nextAny(tokens: *TokenIter) error{ Reported, Eof }!Token {
-    const span = try tokens.getNextSpan();
-    tokens.peeked = null;
-    return tokens.parseToken(span) catch |err| {
+fn nextAny(tokenizer: *Tokenizer) error{ Reported, Eof }!Token {
+    const span = try tokenizer.getNextSpan();
+    tokenizer.peeked = null;
+    return tokenizer.parseToken(span) catch |err| {
         switch (err) {
             inline error.InvalidLabel,
             error.InvalidDirective,
             error.InvalidToken,
             => |err2| {
-                try tokens.reporter.report(.invalid_token, .{
+                try tokenizer.reporter.report(.invalid_token, .{
                     .token = span,
                     .guess = switch (err2) {
                         error.InvalidLabel => .label,
@@ -89,40 +89,45 @@ fn nextAny(tokens: *TokenIter) error{ Reported, Eof }!Token {
                 }).abort();
             },
             error.UnknownDirective => {
-                try tokens.reporter.report(.unsupported_directive, .{
+                try tokenizer.reporter.report(.unsupported_directive, .{
                     .directive = span,
                 }).abort();
             },
             error.UnmatchedQuote => {
-                try tokens.reporter.report(.unmatched_quote, .{
+                try tokenizer.reporter.report(.unmatched_quote, .{
                     .string = span,
                 }).abort();
             },
 
             error.MalformedInteger => {
-                try tokens.reporter.report(.malformed_integer, .{
+                try tokenizer.reporter.report(.malformed_integer, .{
                     .integer = span,
                 }).abort();
             },
             error.ExpectedDigit => {
-                try tokens.reporter.report(.expected_digit, .{
+                try tokenizer.reporter.report(.expected_digit, .{
                     .integer = span,
                 }).abort();
             },
             error.InvalidDigit => {
-                try tokens.reporter.report(.invalid_digit, .{
+                try tokenizer.reporter.report(.invalid_digit, .{
                     .integer = span,
                 }).abort();
             },
             error.UnexpectedDelimiter => {
-                try tokens.reporter.report(.unexpected_delimiter, .{
+                try tokenizer.reporter.report(.unexpected_delimiter, .{
                     .integer = span,
                 }).abort();
             },
             error.IntegerTooLarge => {
-                try tokens.reporter.report(.integer_too_large, .{
+                try tokenizer.reporter.report(.integer_too_large, .{
                     .integer = span,
                     .type_info = @typeInfo(u16).int,
+                }).abort();
+            },
+            error.MalformedCharacter => {
+                try tokenizer.reporter.report(.malformed_character, .{
+                    .integer = span,
                 }).abort();
             },
         }
@@ -132,18 +137,18 @@ fn nextAny(tokens: *TokenIter) error{ Reported, Eof }!Token {
 /// Does **not** report failure to parse token.
 /// Note that token may **not** be supported in the current mode; use
 /// `ensureSupported` before using.
-fn peekAny(tokens: *TokenIter) error{ InvalidTokenPeeked, Eof }!Token {
-    const span = try tokens.getNextSpan();
-    tokens.peeked = span;
-    return tokens.parseToken(span) catch
+fn peekAny(tokenizer: *Tokenizer) error{ InvalidTokenPeeked, Eof }!Token {
+    const span = try tokenizer.getNextSpan();
+    tokenizer.peeked = span;
+    return tokenizer.parseToken(span) catch
         return error.InvalidTokenPeeked;
 }
 
-fn nextAfterComma(tokens: *TokenIter) error{ Reported, Eof }!Token {
+fn nextAfterComma(tokenizer: *Tokenizer) error{ Reported, Eof }!Token {
     while (true) {
-        const token = try tokens.nextAny();
+        const token = try tokenizer.nextAny();
         if (token.value == .comma) {
-            try tokens.reporter.report(.whitespace_comma, .{
+            try tokenizer.reporter.report(.whitespace_comma, .{
                 .comma = token.span,
             }).handle();
             continue;
@@ -153,45 +158,45 @@ fn nextAfterComma(tokens: *TokenIter) error{ Reported, Eof }!Token {
 }
 
 pub fn nextExcluding(
-    tokens: *TokenIter,
+    tokenizer: *Tokenizer,
     comptime discards: []const TokenKind,
 ) error{ Reported, Eof }!Token {
     token: while (true) {
-        const token = try tokens.nextAfterComma();
+        const token = try tokenizer.nextAfterComma();
         for (discards) |discard| {
             if (token.value == discard)
                 continue :token;
         }
-        try tokens.ensureSupported(token, null);
+        try tokenizer.ensureSupported(token, null);
         return token;
     }
     comptime unreachable;
 }
 
 pub fn nextMatching(
-    tokens: *TokenIter,
+    tokenizer: *Tokenizer,
     comptime match: TokenKind,
 ) error{Reported}!?Token {
-    const token = tokens.peekAny() catch |err| switch (err) {
+    const token = tokenizer.peekAny() catch |err| switch (err) {
         // These can be handled by next token request
         error.InvalidTokenPeeked, error.Eof => return null,
     };
     if (token.value != match)
         return null;
-    assert(tokens.peeked != null);
-    tokens.peeked = null;
-    try tokens.ensureSupported(token, null);
+    assert(tokenizer.peeked != null);
+    tokenizer.peeked = null;
+    try tokenizer.ensureSupported(token, null);
     return token;
 }
 
-pub fn discardRemainingLine(tokens: *TokenIter) void {
+pub fn discardRemainingLine(tokenizer: *Tokenizer) void {
     while (true) {
-        const token = tokens.nextAny() catch |err| switch (err) {
+        const token = tokenizer.nextAny() catch |err| switch (err) {
             error.Reported => continue,
             // This can be handled by next token request
             error.Eof => break,
         };
-        tokens.ensureSupported(token, null) catch |err| switch (err) {
+        tokenizer.ensureSupported(token, null) catch |err| switch (err) {
             // We are discarding this token regardless
             error.Reported => {},
         };
@@ -200,32 +205,32 @@ pub fn discardRemainingLine(tokens: *TokenIter) void {
     }
 }
 
-pub fn expectEol(tokens: *TokenIter) error{Reported}!void {
-    const token = tokens.nextAfterComma() catch |err| switch (err) {
+pub fn expectEol(tokenizer: *Tokenizer) error{Reported}!void {
+    const token = tokenizer.nextAfterComma() catch |err| switch (err) {
         error.Reported => return error.Reported,
         // These can be handled by next token request
         error.Eof => return,
     };
     if (token.value != .newline) {
-        try tokens.reporter.report(.expected_eol, .{
+        try tokenizer.reporter.report(.expected_eol, .{
             .found = token,
         }).abort();
     }
 }
 
 pub fn expectArgument(
-    tokens: *TokenIter,
+    tokenizer: *Tokenizer,
     comptime argument: Argument,
 ) error{Reported}!Operand.Spanned(argument.Value()) {
-    const token: Token = tokens.nextAfterComma() catch |err| switch (err) {
+    const token: Token = tokenizer.nextAfterComma() catch |err| switch (err) {
         error.Reported => return error.Reported,
         error.Eof => .{
             .value = .newline,
-            .span = .emptyAt(tokens.source.len),
+            .span = .emptyAt(tokenizer.source.len),
         },
     };
-    const value = try argument.convert(token, tokens.reporter);
-    try tokens.ensureSupported(token, argument);
+    const value = try argument.convert(token, tokenizer.reporter);
+    try tokenizer.ensureSupported(token, argument);
     return .{ .span = token.span, .value = value };
 }
 
@@ -355,7 +360,7 @@ pub const Argument = union(enum) {
 };
 
 fn ensureSupported(
-    tokens: *const TokenIter,
+    tokenizer: *const Tokenizer,
     token: Token,
     comptime argument_opt: ?Argument,
 ) error{Reported}!void {
@@ -364,44 +369,53 @@ fn ensureSupported(
     switch (token.value) {
         .directive => {
             // Don't include initial `.`
-            const string = token.span.view(tokens.source)[1..];
+            const string = token.span.view(tokenizer.source)[1..];
             if (!case.isUppercaseAlpha(string)) {
-                tokens.reporter.report(.unconventional_case, .{
+                tokenizer.reporter.report(.unconventional_case, .{
                     .token = token.span,
                     .kind = .directive,
                 }).collect(&result);
             }
         },
 
-        .instruction => {
-            if (!case.isLowercaseAlpha(token.span.view(tokens.source))) {
-                tokens.reporter.report(.unconventional_case, .{
+        .mnemonic => {
+            if (!case.isLowercaseAlpha(token.span.view(tokenizer.source))) {
+                tokenizer.reporter.report(.unconventional_case, .{
                     .token = token.span,
-                    .kind = .instruction,
+                    .kind = .mnemonic,
+                }).collect(&result);
+            }
+        },
+
+        .trap_alias => {
+            if (!case.isLowercaseAlpha(token.span.view(tokenizer.source))) {
+                tokenizer.reporter.report(.unconventional_case, .{
+                    .token = token.span,
+                    .kind = .trap_alias,
                 }).collect(&result);
             }
         },
 
         // Conventional case check should handled by `Parser`
-        // Since we only want to report label declarations, not references
+        // Since we only want to report label definitions, not references
         .label => {},
 
         .string => |string| {
-            const value = string.in(token.span).view(tokens.source);
+            const value = string.in(token.span).view(tokenizer.source);
             if (std.mem.containsAtLeast(u8, value, 1, "\n")) {
-                tokens.reporter.report(.multiline_string, .{
+                tokenizer.reporter.report(.multiline_string, .{
                     .string = token.span,
                 }).collect(&result);
             }
         },
 
         .register => {
-            const string = token.span.view(tokens.source);
+            const string = token.span.view(tokenizer.source);
             assert(string.len == 2);
             switch (string[0]) {
                 'r' => {},
                 'R' => {
-                    tokens.reporter.report(.unconventional_case, .{
+                    tokenizer.reporter.report(.unconventional_case, .{
                         .token = token.span,
                         .kind = .register,
                     }).collect(&result);
@@ -410,9 +424,13 @@ fn ensureSupported(
             }
         },
 
-        .integer => |integer| {
-            if (case.hasUppercaseAlpha(token.span.view(tokens.source))) {
-                tokens.reporter.report(.unconventional_case, .{
+        .integer => |integer| if (integer.form.char) {
+            tokenizer.reporter.report(.character_integer, .{
+                .integer = token.span,
+            }).collect(&result);
+        } else {
+            if (case.hasUppercaseAlpha(token.span.view(tokenizer.source))) {
+                tokenizer.reporter.report(.unconventional_case, .{
                     .token = token.span,
                     .kind = .integer,
                 }).collect(&result);
@@ -424,22 +442,22 @@ fn ensureSupported(
                     Operand.value.PcOffset(10),
                     Operand.value.PcOffset(11),
                     => {
-                        tokens.reporter.report(.literal_pc_offset, .{
+                        tokenizer.reporter.report(.literal_pc_offset, .{
                             .integer = token.span,
                         }).collect(&result);
                     },
                     Operand.value.TrapVect => {
                         // If vect is too big, it will be reported elsewhere
                         if (integer.castToSmaller(u8) catch null) |vect| {
-                            const entry = tokens.traps.entries[vect];
+                            const entry = tokenizer.traps.entries[vect];
                             if (entry.alias) |alias| {
-                                tokens.reporter.report(.explicit_trap_vect, .{
+                                tokenizer.reporter.report(.explicit_trap_vect, .{
                                     .vect = token.span,
                                     .value = vect,
                                     .alias = alias,
                                 }).collect(&result);
                             } else if (entry.callback == null) {
-                                tokens.reporter.report(.undeclared_trap_vect, .{
+                                tokenizer.reporter.report(.undeclared_trap_vect, .{
                                     .vect = token.span,
                                     .value = vect,
                                 }).collect(&result);
@@ -454,7 +472,7 @@ fn ensureSupported(
             };
             if (integer.form.radix) |radix| switch (radix) {
                 .octal => {
-                    tokens.reporter.report(.nonstandard_integer_radix, .{
+                    tokenizer.reporter.report(.nonstandard_integer_radix, .{
                         .integer = token.span,
                         .radix = radix,
                     }).collect(&result);
@@ -464,7 +482,7 @@ fn ensureSupported(
             if (integer.form.radix) |radix| switch (radix) {
                 .decimal => if (integer.form.sign) |sign| {
                     if (sign.position == .pre_radix) {
-                        tokens.reporter.report(.undesirable_integer_form, .{
+                        tokenizer.reporter.report(.undesirable_integer_form, .{
                             .integer = token.span,
                             .reason = .pre_radix_sign,
                         }).collect(&result);
@@ -472,7 +490,7 @@ fn ensureSupported(
                 },
                 .hex, .octal, .binary => if (integer.form.sign) |sign| {
                     if (sign.position == .post_radix) {
-                        tokens.reporter.report(.undesirable_integer_form, .{
+                        tokenizer.reporter.report(.undesirable_integer_form, .{
                             .integer = token.span,
                             .reason = .post_radix_sign,
                         }).collect(&result);
@@ -480,14 +498,14 @@ fn ensureSupported(
                 },
             };
             if (integer.form.delimited) {
-                tokens.reporter.report(.nonstandard_integer_form, .{
+                tokenizer.reporter.report(.nonstandard_integer_form, .{
                     .integer = token.span,
                     .reason = .delimiter,
                 }).collect(&result);
             }
             if (integer.form.radix) |radix| switch (radix) {
                 .hex, .octal, .binary => if (!integer.form.zero) {
-                    tokens.reporter.report(.undesirable_integer_form, .{
+                    tokenizer.reporter.report(.undesirable_integer_form, .{
                         .integer = token.span,
                         .reason = .missing_zero,
                     }).collect(&result);
@@ -495,7 +513,7 @@ fn ensureSupported(
                 else => assert(!integer.form.zero),
             };
             if (integer.form.radix == null) {
-                tokens.reporter.report(.undesirable_integer_form, .{
+                tokenizer.reporter.report(.undesirable_integer_form, .{
                     .integer = token.span,
                     .reason = .implicit_radix,
                 }).collect(&result);

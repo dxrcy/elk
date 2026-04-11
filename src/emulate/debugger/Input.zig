@@ -7,11 +7,13 @@ const assert = std.debug.assert;
 const control_code = std.ascii.control_code;
 
 const Runtime = @import("../Runtime.zig");
+const Debugger = @import("Debugger.zig");
+const Writer = Debugger.Writer;
+
 pub const Editor = @import("editor/Editor.zig");
 
 editor: Editor,
 reader: *Io.Reader,
-writer: *Io.Writer,
 history_file: ?Io.File,
 io: Io,
 
@@ -30,10 +32,9 @@ pub const Key = union(enum) {
     };
 };
 
-pub fn init(
+pub fn new(
     io: Io,
     reader: *Io.Reader,
-    writer: *Io.Writer,
     history_file: ?Io.File,
     editor: Editor,
 ) Input {
@@ -49,23 +50,18 @@ pub fn init(
     return .{
         .editor = editor_copy,
         .reader = reader,
-        .writer = writer,
         .history_file = history_file,
         .io = io,
     };
 }
 
-pub fn deinit(input: *Input) void {
-    input.editor.deinit();
-}
-
-pub fn readLine(input: *Input) ![]const u8 {
+pub fn readLine(input: *Input, writer: *Writer) ![]const u8 {
     input.editor.clear();
     var eof = false;
 
     while (true) {
-        try input.writePrompt();
-        try input.writer.flush();
+        try input.writePrompt(writer);
+        try writer.flush();
 
         const key = input.readKey() catch |err| switch (err) {
             else => |err2| return err2,
@@ -88,8 +84,8 @@ pub fn readLine(input: *Input) ![]const u8 {
         };
     }
 
-    try input.writer.print("\n", .{});
-    try input.writer.flush();
+    try writer.print("\n", .{});
+    try writer.flush();
 
     if (eof) {
         input.editor.clear();
@@ -166,12 +162,12 @@ fn readByte(input: *Input) error{ EndOfStream, ReadFailed }!u8 {
     return char;
 }
 
-fn writePrompt(input: *const Input) !void {
+fn writePrompt(input: *const Input, writer: *Writer) !void {
     const prompt = "> ";
-    try input.writer.print("\r\x1b[K", .{});
-    try input.writer.print("\x1b[34m", .{});
-    try input.writer.print(prompt, .{});
-    try input.writer.print("\x1b[0m", .{});
-    try input.writer.print("{s}", .{input.editor.getString()});
-    try input.writer.print("\x1b[{}G", .{input.editor.cursor + prompt.len + 1});
+    try writer.print("\r\x1b[K", .{});
+    try writer.enableColor();
+    try writer.print(prompt, .{});
+    try writer.disableColor();
+    try writer.print("{s}", .{input.editor.getString()});
+    try writer.print("\x1b[{}G", .{input.editor.cursor + prompt.len + 1});
 }

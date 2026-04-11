@@ -31,7 +31,7 @@ pub fn interface(reporter: *Stderr) Reporter {
     });
 }
 
-pub fn showReport(
+fn showReport(
     ptr: *anyopaque,
     diag: Diagnostic,
     level: Reporter.Level,
@@ -46,7 +46,7 @@ pub fn showReport(
     ctx.flush();
 }
 
-pub fn showSummary(ptr: *anyopaque, count: *const std.EnumArray(Reporter.Level, usize)) void {
+fn showSummary(ptr: *anyopaque, count: *const std.EnumArray(Reporter.Level, usize)) void {
     const reporter: *Stderr = @ptrCast(@alignCast(ptr));
 
     const count_err = count.get(.err);

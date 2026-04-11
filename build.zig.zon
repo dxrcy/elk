@@ -1,8 +1,8 @@
 .{
-    .name = .lcz,
+    .name = .elk,
     .version = "0.1.0",
     .minimum_zig_version = "0.16.0-dev.2670+56253d9e3",
-    .fingerprint = 0x408c4b1072a49302,
+    .fingerprint = 0xa2754ca2e4a559fc,
 
     .paths = .{
         "build.zig",

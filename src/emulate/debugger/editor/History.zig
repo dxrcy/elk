@@ -14,11 +14,12 @@ pub fn readFromFile(history: *History, io: Io, file: Io.File) !void {
 
 fn readFileAlloc(io: Io, gpa: Allocator, file: Io.File, list: *std.ArrayList(u8)) !void {
     const size = try file.length(io);
-    try list.ensureTotalCapacity(gpa, size);
+    try list.ensureTotalCapacity(gpa, size + 1); // Add trailing \n
 
     const bytes_read = try file.readPositionalAll(io, list.allocatedSlice(), 0);
     assert(bytes_read == size);
     list.items.len = size;
+    list.appendAssumeCapacity('\n');
 }
 
 pub fn clear(history: *History) void {
@@ -33,6 +34,8 @@ pub fn push(history: *History, line: []const u8) void {
     const trimmed = std.mem.trim(u8, line, &std.ascii.whitespace);
     assert(trimmed.len == line.len);
     assert(trimmed.len > 0);
+    if (history.store.items.len > 0)
+        assert(history.store.items[history.store.items.len - 1] == '\n');
 
     // Don't push sequential duplicates
     if (history.store.items.len > 0) {

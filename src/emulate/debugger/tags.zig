@@ -47,6 +47,10 @@ pub const single: SingleMap = .init(.{
         .aliases = &.{ "p", "print" },
         .suggestions = &.{ "get", "show", "display", "put", "puts", "out" },
     },
+    .list = .{
+        .aliases = &.{ "l", "list" },
+        .suggestions = &.{ "ls", "listing", "dump", "memory" },
+    },
     .move = .{
         .aliases = &.{ "m", "move" },
         .suggestions = &.{ "set", "mov", "mv", "assign" },

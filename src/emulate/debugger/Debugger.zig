@@ -12,24 +12,26 @@ const Span = @import("../../compile/Span.zig");
 const Parser = @import("../../compile/parse/Parser.zig");
 const Runtime = @import("../Runtime.zig");
 const Instruction = @import("../decode.zig").Instruction;
+const Command = @import("Command.zig");
 const Breakpoints = @import("Breakpoints.zig");
+const Input = @import("Input.zig");
 const parse = @import("parse.zig");
 
-pub const Input = @import("Input.zig");
-pub const Command = @import("Command.zig");
+state: struct {
+    status: Status = .get_action,
+    instruction_count: usize = 0,
+    should_print_pc: bool = true,
+    halt_address: ?u16 = null,
+    current_breakpoint: ?u16 = null,
+},
 
-status: Status,
-instruction_count: usize,
-should_echo_pc: bool,
-halt_address: ?u16,
-current_breakpoint: ?u16,
 breakpoints: Breakpoints,
+initial_state: ?Runtime.State,
+assembly: ?Assembly,
 
 current_line: []const u8,
 input: Input,
-
-initial_state: ?Runtime.State,
-assembly: ?Assembly,
+writer: Writer,
 traps: *const Traps,
 reporter: *Reporter,
 
@@ -53,43 +55,74 @@ const Action = enum {
     stop_runtime,
 };
 
-pub fn init(
-    gpa: std.mem.Allocator,
-    input: Input,
-    assembly_opt: ?Assembly,
-    traps: *const Traps,
-    reporter: *Reporter,
-) error{OutOfMemory}!Debugger {
-    var breakpoints: Breakpoints = .init(gpa);
-    if (assembly_opt) |assembly| {
-        for (assembly.air.lines.items, assembly.air.origin..) |line, address| {
-            const label = line.label orelse
-                continue;
-            if (label.kind != .breakpoint)
-                continue;
-            assert(try breakpoints.insert(@intCast(address), true));
-        }
+pub const Writer = struct {
+    pub const color = 34;
+
+    inner: *Io.Writer,
+
+    pub fn print(writer: *Writer, comptime fmt: []const u8, args: anytype) error{WriteFailed}!void {
+        try writer.inner.print(fmt, args);
     }
 
+    pub fn flush(writer: *Writer) error{WriteFailed}!void {
+        try writer.inner.flush();
+    }
+
+    pub fn printLine(writer: *Writer, comptime fmt: []const u8, args: anytype) !void {
+        try writer.enableColor();
+        try writer.print("| " ++ fmt ++ "\n", args);
+        try writer.disableColor();
+    }
+
+    pub fn enableColor(writer: *Writer) !void {
+        try writer.print("\x1b[{}m", .{color});
+    }
+
+    pub fn disableColor(writer: *Writer) !void {
+        try writer.print("\x1b[0m", .{});
+    }
+};
+
+pub fn init(params: struct {
+    io: Io,
+    gpa: Allocator,
+    reader: *Io.Reader,
+    writer: *Io.Writer,
+    traps: *const Traps,
+    reporter: *Reporter,
+    command_buffer: []u8,
+    assembly: ?Assembly = null,
+    history_file: ?Io.File = null,
+}) error{OutOfMemory}!Debugger {
+    const breakpoints: Breakpoints =
+        if (params.assembly) |assembly|
+            try .initFrom(params.gpa, assembly)
+        else
+            .init(params.gpa);
+
+    const input: Input = .new(
+        params.io,
+        params.reader,
+        params.history_file,
+        .init(params.gpa, params.command_buffer),
+    );
+
     return .{
-        .status = .get_action,
-        .instruction_count = 0,
-        .should_echo_pc = true,
-        .halt_address = null,
-        .current_breakpoint = null,
+        .state = .{},
         .breakpoints = breakpoints,
+        .initial_state = null,
+        .assembly = params.assembly,
         .current_line = "",
         .input = input,
-        .initial_state = null,
-        .assembly = assembly_opt,
-        .traps = traps,
-        .reporter = reporter,
+        .writer = .{ .inner = params.writer },
+        .traps = params.traps,
+        .reporter = params.reporter,
     };
 }
 
 pub fn deinit(debugger: *Debugger, gpa: Allocator) void {
     debugger.breakpoints.deinit();
-    debugger.input.deinit();
+    debugger.input.editor.deinit();
     if (debugger.initial_state) |state|
         state.deinit(gpa);
 }
@@ -103,25 +136,24 @@ pub fn initState(
     debugger.initial_state.?.copyFrom(runtime.state);
 }
 
-pub fn start(debugger: *Debugger) !void {
-    try debugger.printLine("* Welcome to LCZ Debugger *", .{});
+pub fn startMessage(debugger: *Debugger) !void {
+    try debugger.writer.printLine("* Welcome to ELK Debugger *", .{});
+    try debugger.writer.printLine("Type `help` for available commands", .{});
 }
 
-pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
-    if (debugger.status == .inactive)
+pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?enum { @"continue", @"break" } {
+    if (debugger.state.status == .inactive)
         return null;
 
-    try runtime.ensureWriterNewline();
-
     if (!debugger.canProceed(runtime))
-        debugger.should_echo_pc = false;
+        debugger.state.should_print_pc = false;
     if (!debugger.isHalted(runtime))
-        debugger.halt_address = null;
+        debugger.state.halt_address = null;
 
     switch (try debugger.nextAction(runtime)) {
         .proceed => {},
         .disable_debugger => {
-            debugger.status = .inactive;
+            debugger.state.status = .inactive;
             return if (debugger.isHalted(runtime)) .@"break" else .@"continue";
         },
         .stop_runtime => {
@@ -130,29 +162,25 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?Runtime.Control {
     }
 
     if (debugger.isHalted(runtime)) {
-        try debugger.printLine("Currently halted at 0x{x:04}.", .{runtime.state.pc});
-        debugger.status = .get_action;
+        try runtime.ensureWriterNewline();
+        try debugger.writer.printLine("Currently halted at 0x{x:04}.", .{runtime.state.pc});
+        debugger.state.status = .get_action;
         return .@"continue";
     }
 
     if (debugger.isAtBreakpoint(runtime)) {
-        try debugger.printLine("Currently on breakpoint at 0x{x:04}.", .{runtime.state.pc});
-        debugger.current_breakpoint = runtime.state.pc;
-        debugger.status = .get_action;
+        try runtime.ensureWriterNewline();
+        try debugger.writer.printLine("Currently on breakpoint at 0x{x:04}.", .{runtime.state.pc});
+        debugger.state.current_breakpoint = runtime.state.pc;
+        debugger.state.status = .get_action;
         return .@"continue";
     } else {
-        debugger.current_breakpoint = null;
+        debugger.state.current_breakpoint = null;
     }
 
-    debugger.instruction_count += 1;
+    debugger.state.instruction_count += 1;
 
     return null;
-}
-
-fn printLine(debugger: *Debugger, comptime fmt: []const u8, args: anytype) !void {
-    try debugger.input.writer.print("\x1b[34m", .{});
-    try debugger.input.writer.print("| " ++ fmt ++ "\n", args);
-    try debugger.input.writer.print("\x1b[0m", .{});
 }
 
 pub fn catchEvent(
@@ -160,7 +188,7 @@ pub fn catchEvent(
     event: (Runtime.Exception || error{Halt}),
     runtime: *Runtime,
 ) error{WriteFailed}!void {
-    assert(debugger.status != .inactive);
+    assert(debugger.state.status != .inactive);
 
     // PC was incremented after decoding instruction; reverse that
     runtime.state.pc -= 1;
@@ -178,10 +206,11 @@ pub fn catchEvent(
     try debugger.triggerHalt(runtime);
 }
 
-fn triggerHalt(debugger: *Debugger, runtime: *const Runtime) error{WriteFailed}!void {
-    try debugger.printLine("Program halted at 0x{x:04}.", .{runtime.state.pc});
-    debugger.status = .get_action;
-    debugger.halt_address = runtime.state.pc;
+fn triggerHalt(debugger: *Debugger, runtime: *Runtime) error{WriteFailed}!void {
+    try runtime.ensureWriterNewline();
+    try debugger.writer.printLine("Program halted at 0x{x:04}.", .{runtime.state.pc});
+    debugger.state.status = .get_action;
+    debugger.state.halt_address = runtime.state.pc;
 }
 
 fn canProceed(debugger: *const Debugger, runtime: *const Runtime) bool {
@@ -189,13 +218,13 @@ fn canProceed(debugger: *const Debugger, runtime: *const Runtime) bool {
 }
 
 fn isHalted(debugger: *const Debugger, runtime: *const Runtime) bool {
-    return debugger.halt_address == runtime.state.pc;
+    return debugger.state.halt_address == runtime.state.pc;
 }
 
 fn isAtBreakpoint(debugger: *const Debugger, runtime: *const Runtime) bool {
     for (debugger.breakpoints.entries.items) |entry| {
         if (entry.address == runtime.state.pc and
-            entry.address != debugger.current_breakpoint)
+            entry.address != debugger.state.current_breakpoint)
             return true;
     }
     return false;
@@ -203,33 +232,37 @@ fn isAtBreakpoint(debugger: *const Debugger, runtime: *const Runtime) bool {
 
 fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
     while (true) {
-        switch (debugger.status) {
+        switch (debugger.state.status) {
             .inactive => unreachable,
             .get_action => {
+                try runtime.ensureWriterNewline();
                 return try debugger.tryNextAction(runtime) orelse
                     continue;
             },
             .step_over => |*info| {
                 if (runtime.state.pc != info.return_address)
                     return .proceed;
-                if (debugger.instruction_count > 1)
-                    try debugger.printLine("Reached end of subroutine.", .{});
-                debugger.status = .get_action;
+                try runtime.ensureWriterNewline();
+                if (debugger.state.instruction_count > 1)
+                    try debugger.writer.printLine("Reached end of subroutine.", .{});
+                debugger.state.status = .get_action;
                 continue;
             },
             .step_into => |*info| {
                 if (info.count > 0) {
                     info.count -= 1;
                 } else {
-                    debugger.status = .get_action;
+                    try runtime.ensureWriterNewline();
+                    debugger.state.status = .get_action;
                 }
                 return .proceed;
             },
             .step_out => {
                 const instruction = getNextInstruction(runtime);
                 if (instruction == .ret_rets) {
-                    try debugger.printLine("Reached end of subroutine.", .{});
-                    debugger.status = .get_action;
+                    try runtime.ensureWriterNewline();
+                    try debugger.writer.printLine("Reached end of subroutine.", .{});
+                    debugger.state.status = .get_action;
                 }
                 return .proceed;
             },
@@ -256,20 +289,21 @@ fn getNextInstruction(runtime: *const Runtime) ?enum { ret_rets } {
 }
 
 fn tryNextAction(debugger: *Debugger, runtime: *Runtime) !?Action {
-    assert(debugger.status == .get_action);
+    assert(debugger.state.status == .get_action);
+    assert(runtime.writer_is_newline);
 
-    if (debugger.instruction_count > 0)
-        try debugger.printLine("Executed {} instruction{s}.", .{
-            debugger.instruction_count,
-            if (debugger.instruction_count == 1) "" else "s",
+    if (debugger.state.instruction_count > 0)
+        try debugger.writer.printLine("Executed {} instruction{s}.", .{
+            debugger.state.instruction_count,
+            if (debugger.state.instruction_count == 1) "" else "s",
         });
-    if (debugger.should_echo_pc)
-        try debugger.printLine("Program counter is at 0x{x:04}.", .{
+    if (debugger.state.should_print_pc)
+        try debugger.writer.printLine("Program counter is at 0x{x:04}.", .{
             runtime.state.pc,
         });
 
-    debugger.instruction_count = 0;
-    debugger.should_echo_pc = false;
+    debugger.state.instruction_count = 0;
+    debugger.state.should_print_pc = false;
 
     const command_string = debugger.readCommand(runtime) catch |err| switch (err) {
         else => |err2| return err2,
@@ -299,11 +333,14 @@ fn runCommand(
     command: Command,
     source: []const u8,
 ) !?Action {
+    assert(debugger.state.status == .get_action);
+    assert(runtime.writer_is_newline);
+
     switch (command.value) {
         .help => {
-            try debugger.input.writer.print("\x1b[34m", .{});
+            try debugger.writer.enableColor();
             try runtime.writer.writeAll(@embedFile("help.txt"));
-            try debugger.input.writer.print("\x1b[0m", .{});
+            try debugger.writer.disableColor();
         },
 
         .quit => return .disable_debugger,
@@ -322,54 +359,70 @@ fn runCommand(
                 }).abort();
             };
             runtime.state.copyFrom(state);
-            try debugger.printLine("Reset registers and memory to initial state.", .{});
-            debugger.should_echo_pc = true;
+            try debugger.writer.printLine("Reset registers and memory to initial state.", .{});
+            debugger.state.should_print_pc = true;
         },
 
         .registers => {
-            try debugger.input.writer.print("\x1b[34m", .{});
+            try debugger.writer.enableColor();
             try runtime.printRegisters();
-            try debugger.input.writer.print("\x1b[0m", .{});
+            try debugger.writer.disableColor();
         },
 
         .@"continue" => {
-            debugger.status = .@"continue";
-            debugger.should_echo_pc = true;
+            debugger.state.status = .@"continue";
+            debugger.state.should_print_pc = true;
             if (debugger.canProceed(runtime))
-                try debugger.printLine("Continuing program execution...", .{});
+                try debugger.writer.printLine("Continuing program execution...", .{});
         },
 
         .print => |arguments| {
             switch (try debugger.resolveLocation(runtime, arguments.location, source)) {
                 .register => |register| {
-                    try debugger.printLine("Register R{}:", .{register});
-                    try debugger.input.writer.print("\x1b[34m", .{});
+                    try debugger.writer.printLine("Register R{}:", .{register});
+                    try debugger.writer.enableColor();
                     try runtime.printInteger(runtime.state.registers[register]);
-                    try debugger.input.writer.print("\x1b[0m", .{});
+                    try debugger.writer.disableColor();
                 },
                 .address => |address| {
-                    try debugger.printLine("Memory at address 0x{x:04}:", .{address});
-                    try debugger.input.writer.print("\x1b[34m", .{});
+                    try debugger.writer.printLine("Memory at address 0x{x:04}:", .{address});
+                    try debugger.writer.enableColor();
                     try runtime.printInteger(runtime.state.memory[address]);
-                    try debugger.input.writer.print("\x1b[0m", .{});
+                    try debugger.writer.disableColor();
                 },
             }
+        },
+
+        .list => |arguments| {
+            const start = try debugger.resolveMemoryLocation(
+                runtime,
+                arguments.start.value,
+                arguments.start.span,
+                source,
+            );
+            const end = try debugger.resolveMemoryLocation(
+                runtime,
+                arguments.start.value.add(arguments.length.value - 1),
+                arguments.length.span,
+                source,
+            );
+            try debugger.printListing(runtime, start, end);
         },
 
         .move => |arguments| {
             switch (try debugger.resolveLocation(runtime, arguments.location, source)) {
                 .register => |register| {
                     runtime.state.registers[register] = arguments.value.value;
-                    try debugger.printLine(
-                        "| Updated register R{} to 0x{x:04}.n",
+                    try debugger.writer.printLine(
+                        "Updated register R{} to 0x{x:04}.",
                         .{ register, arguments.value.value },
                     );
                 },
                 .address => |address| {
                     try debugger.ensureUserAddress(address, arguments.location.span);
                     runtime.state.memory[address] = arguments.value.value;
-                    try debugger.printLine(
-                        "| Updated memory at address 0x{x:04} to 0x{x:04}.\n",
+                    try debugger.writer.printLine(
+                        "Updated memory at address 0x{x:04} to 0x{x:04}.",
                         .{ address, arguments.value.value },
                     );
                 },
@@ -385,8 +438,8 @@ fn runCommand(
             );
             try debugger.ensureUserAddress(address, arguments.location.span);
             runtime.state.pc = address;
-            try debugger.printLine("Set program counter to 0x{x:04}.", .{address});
-            // debugger.should_echo_pc = true;
+            try debugger.writer.printLine("Set program counter to 0x{x:04}.", .{address});
+            // Don't print PC again.
         },
 
         .assembly => |arguments| {
@@ -400,11 +453,8 @@ fn runCommand(
 
             const line = try debugger.getAssemblyLine(&assembly, address, arguments.location.span);
 
-            var reporter = debugger.copyReporter(assembly.source);
-            reporter.report(.debugger_show_assembly, .{
-                .line = line.span,
-                .address = address,
-            }).proceed();
+            try debugger.writer.printLine("Next instruction, at 0x{x:04}:", .{address});
+            try Reporter.writeSpanContext(debugger.writer.inner, line.span, 5, 0, assembly.source);
         },
 
         .eval => |arguments| {
@@ -413,38 +463,40 @@ fn runCommand(
         },
 
         .echo => |arguments| {
-            try debugger.printLine("[{s}]\n", .{arguments.string.view(source)});
+            try debugger.writer.enableColor();
+            try debugger.writer.print("[{s}]\n", .{arguments.string.view(source)});
+            try debugger.writer.disableColor();
         },
 
         .step_over => {
-            debugger.status = .{ .step_over = .{
+            debugger.state.status = .{ .step_over = .{
                 .return_address = runtime.state.pc + 1,
             } };
-            debugger.should_echo_pc = true;
+            debugger.state.should_print_pc = true;
             // Don't print message here, we can't know if next instruction will change PC.
         },
 
         .step_into => |arguments| {
-            debugger.status = .{ .step_into = .{
+            debugger.state.status = .{ .step_into = .{
                 .count = arguments.count.value - 1,
             } };
-            debugger.should_echo_pc = true;
+            debugger.state.should_print_pc = true;
         },
 
         .step_out => {
-            debugger.status = .step_out;
-            debugger.should_echo_pc = true;
+            debugger.state.status = .step_out;
+            debugger.state.should_print_pc = true;
             if (debugger.canProceed(runtime))
-                try debugger.printLine("Finishing subroutine execution...", .{});
+                try debugger.writer.printLine("Finishing subroutine execution...", .{});
         },
 
         .break_list => {
             if (debugger.breakpoints.entries.items.len == 0) {
-                try debugger.printLine("No breakpoints exist", .{});
+                try debugger.writer.printLine("No breakpoints exist", .{});
                 return null;
             }
-            try debugger.printLine("Breakpoints:", .{});
-            try debugger.printBreakpointTable();
+            try debugger.writer.printLine("Breakpoints:", .{});
+            try debugger.printBreakpoints();
         },
 
         .break_add => |arguments| {
@@ -459,9 +511,9 @@ fn runCommand(
                 try debugger.reporter.report(.debugger_no_space, .{}).abort();
             };
             if (inserted)
-                try debugger.printLine("Added breakpoint at 0x{x:04}", .{address})
+                try debugger.writer.printLine("Added breakpoint at 0x{x:04}", .{address})
             else
-                try debugger.printLine("Breakpoint already exists at 0x{x:04}", .{address});
+                try debugger.writer.printLine("Breakpoint already exists at 0x{x:04}", .{address});
         },
 
         .break_remove => |arguments| {
@@ -473,92 +525,115 @@ fn runCommand(
             );
             const removed = debugger.breakpoints.remove(address);
             if (removed)
-                try debugger.printLine("Removed breakpoint at 0x{x:04}", .{address})
+                try debugger.writer.printLine("Removed breakpoint at 0x{x:04}", .{address})
             else
-                try debugger.printLine("No breakpoint exists at 0x{x:04}", .{address});
+                try debugger.writer.printLine("No breakpoint exists at 0x{x:04}", .{address});
         },
     }
 
     return null;
 }
 
-const max_label_len = 16;
-const max_source_len = 34;
-const empty_marker = "";
+fn printListing(debugger: *Debugger, runtime: *Runtime, start: u16, end: u16) !void {
+    try debugger.writer.enableColor();
 
-fn printBreakpointTable(debugger: *Debugger) !void {
-    try debugger.input.writer.print("\x1b[34m", .{});
+    const line = "+-----------------------------------------------+\n";
+    try debugger.writer.print(line, .{});
+    try debugger.writer.print("|          hex     decoded         label        |\n", .{});
+    try debugger.writer.print(line, .{});
 
-    const delimiter = "+---------+------------+-" ++
-        ("-" ** max_label_len) ++ "-+-" ++
-        ("-" ** max_source_len) ++ "-+\n";
+    for (start..end + 1) |i| {
+        const address: u16 = @intCast(i);
+        const word = runtime.state.memory[address];
 
-    try debugger.input.writer.print(delimiter, .{});
-    try debugger.input.writer.print("| Address | Predefined | {s:^[2]} | {s:^[3]} |\n", .{
-        "Label",       "Source",
-        max_label_len, max_source_len,
-    });
-    try debugger.input.writer.print(delimiter, .{});
+        try debugger.writer.print("| ", .{});
 
-    for (debugger.breakpoints.entries.items) |entry| {
-        try debugger.input.writer.print("|  ", .{});
-        try debugger.input.writer.print("0x{x:04}", .{entry.address});
+        try debugger.writer.print("0x{x:04}", .{address});
 
-        try debugger.input.writer.print(" | ", .{});
-        try debugger.input.writer.print("{s:^10}", .{
-            if (entry.is_label) "Yes" else empty_marker,
+        try debugger.writer.print(" {s}", .{
+            if (debugger.breakpoints.contains(address)) "B" else " ",
         });
 
-        if (!try printBreakpointSource(debugger, entry.address)) {
-            try debugger.input.writer.print(" | ", .{});
-            try debugger.input.writer.print("{s:<[1]}", .{ empty_marker, max_label_len });
-            try debugger.input.writer.print(" | ", .{});
-            try debugger.input.writer.print("{s:<[1]}", .{ empty_marker, max_source_len });
+        try debugger.writer.print(" {x:04}", .{word});
+
+        if (Instruction.decode(word)) |instruction| {
+            const width = 16;
+            var buffer: [width]u8 = undefined;
+            const string = std.fmt.bufPrint(&buffer, "{f}", .{instruction}) catch unreachable;
+            try debugger.writer.print("  {s:<[1]}", .{ string, width });
+        } else |_| {}
+
+        {
+            const width = 12;
+            var buffer: [width]u8 = undefined;
+            var string: []const u8 = buffer[0..0];
+            if (debugger.assembly) |assembly| {
+                if (getAssemblyLineIndexOptional(assembly, address)) |index| {
+                    if (getLineLabel(assembly, index)) |label| {
+                        const name = label.span.view(assembly.source);
+                        const length = @min(name.len, width);
+                        @memcpy(buffer[0..length], name[0..length]);
+                        if (name.len > width)
+                            buffer[width - 1] = '-';
+                        string = buffer[0..length];
+                    }
+                }
+            }
+            try debugger.writer.print("  {s:<[1]}", .{ string, width });
         }
 
-        try debugger.input.writer.print(" |", .{});
-        try debugger.input.writer.print("\n", .{});
+        try debugger.writer.print(" |\n", .{});
     }
 
-    try debugger.input.writer.print(delimiter, .{});
-    try debugger.input.writer.print("\x1b[0m", .{});
+    try debugger.writer.print(line, .{});
+    try debugger.writer.disableColor();
 }
 
-fn printBreakpointSource(debugger: *Debugger, address: u16) !bool {
-    const assembly = debugger.assembly orelse
-        return false;
-    const line = getAssemblyLineOptional(assembly, address) orelse
-        return false;
+fn printBreakpoints(debugger: *Debugger) !void {
+    for (debugger.breakpoints.entries.items) |entry| {
+        try debugger.writer.enableColor();
+        try debugger.writer.print("    | Breakpoint at 0x{x:04}", .{entry.address});
 
-    try debugger.input.writer.print(" | ", .{});
+        blk: {
+            const assembly = debugger.assembly orelse {
+                break :blk;
+            };
 
-    try debugger.input.writer.print("{s:<[1]}", .{
-        if (line.label) |label|
-            maxLength(label.span.view(assembly.source), max_label_len)
-        else
-            empty_marker,
-        max_label_len,
-    });
+            const index = getAssemblyLineIndexOptional(assembly, entry.address) orelse
+                break :blk;
+            const line = &assembly.air.lines.items[index];
 
-    try debugger.input.writer.print(" | ", .{});
+            if (getLineLabel(assembly, index)) |label| {
+                try debugger.writer.print(" (labelled '{s}')", .{
+                    label.span.view(assembly.source),
+                });
+            }
 
-    try debugger.input.writer.print("{s:<[1]}", .{
-        maxLength(getFirstLine(line.span, assembly.source), max_source_len),
-        max_source_len,
-    });
+            try debugger.writer.print(":", .{});
+            try debugger.writer.disableColor();
+            try debugger.writer.print("\n", .{});
 
-    return true;
+            try Reporter.writeSpanContext(debugger.writer.inner, line.span, 1, 0, assembly.source);
+            continue;
+        }
+
+        try debugger.writer.print(" (not in assembly)", .{});
+        try debugger.writer.disableColor();
+        try debugger.writer.print("\n", .{});
+    }
 }
 
-fn maxLength(string: []const u8, max_length: usize) []const u8 {
-    return string[0..@min(string.len, max_length)];
-}
-
-fn getFirstLine(span: Span, source: []const u8) []const u8 {
-    const lines = span.getContainingLines(source).view(source);
-    var line_iter = std.mem.splitScalar(u8, lines, '\n');
-    const first = line_iter.next() orelse unreachable;
-    return std.mem.trim(u8, first, &std.ascii.whitespace);
+fn getLineLabel(assembly: Assembly, index: usize) ?*const Air.Label {
+    for (assembly.air.labels.items) |*label| {
+        if (label.index == index and
+            label.kind != .breakpoint)
+            return label;
+    }
+    for (assembly.air.labels.items) |*label| {
+        if (label.index == index)
+            return label;
+    }
+    return null;
 }
 
 fn evalCommand(
@@ -567,7 +642,7 @@ fn evalCommand(
     assembly: Assembly,
     span: Span,
     source: []const u8,
-) (Runtime.IoError || error{Reported})!void {
+) (Runtime.HostError || error{Reported})!void {
     const line = span.view(source);
 
     const asm_instr = try debugger.parseInstructionLine(
@@ -602,13 +677,12 @@ fn parseInstructionLine(
     assembly: Assembly,
     line: []const u8,
     index: usize,
-) error{Reported}!Parser.Instruction {
+) error{Reported}!Air.Instruction {
     var reporter = debugger.copyReporter(line);
-    var parser = Parser.new(debugger.traps, line, &reporter) orelse
-        return error.Reported;
+    var parser = try Parser.new(debugger.traps, line, &reporter);
 
-    var instruction = try parser.parseInstructionLine();
-    try parser.resolveInstructionLabel(assembly.air, assembly.source, &instruction, index);
+    var instruction = try parser.parseInstruction();
+    try parser.resolveLabelOperand(assembly.air, assembly.source, &instruction, index);
     return instruction;
 }
 
@@ -620,6 +694,7 @@ fn copyReporter(debugger: *const Debugger, source: []const u8) Reporter {
         .extension = reporter.options.policies.extension,
         .smell = reporter.options.policies.smell,
         .style = .permit_all,
+        .case_convention = .permit_all,
     };
     return reporter;
 }
@@ -642,13 +717,13 @@ fn getAssemblyLine(
     return &assembly.air.lines.items[index];
 }
 
-fn getAssemblyLineOptional(assembly: Assembly, address: u16) ?*const Air.Line {
+fn getAssemblyLineIndexOptional(assembly: Assembly, address: u16) ?usize {
     if (address < assembly.air.origin)
         return null;
     const index = address - assembly.air.origin;
     if (index >= assembly.air.lines.items.len)
         return null;
-    return &assembly.air.lines.items[index];
+    return index;
 }
 
 fn resolveLocation(
@@ -713,22 +788,22 @@ fn resolveLabelIndex(
 ) error{Reported}!usize {
     const string = label.view(source);
 
-    if (assembly.air.findLabelDefinition(string, .sensitive, assembly.source)) |result|
-        return result[0];
+    if (assembly.air.findLabel(string, .sensitive, assembly.source)) |result|
+        return result.index;
 
-    if (assembly.air.findLabelDefinition(string, .insensitive, assembly.source)) |result| {
+    if (assembly.air.findLabel(string, .insensitive, assembly.source)) |result| {
         debugger.reporter.report(.debugger_label_partial_match, .{
             .reference = label,
-            .nearest = result[1].span,
-            .declaration_source = assembly.source,
+            .nearest = result.span,
+            .definition_source = assembly.source,
         }).proceed();
-        return result[0];
+        return result.index;
     }
 
-    try debugger.reporter.report(.undeclared_label, .{
+    try debugger.reporter.report(.undefined_label, .{
         .reference = label,
         .nearest = null,
-        .declaration_source = assembly.source,
+        .definition_source = assembly.source,
     }).abort();
 }
 
@@ -742,12 +817,12 @@ fn getAssembly(debugger: *const Debugger, span: Span) error{Reported}!Assembly {
 
 fn ensureUserAddress(debugger: *Debugger, address: u16, span: Span) error{Reported}!void {
     switch (address) {
-        Runtime.USER_MEMORY_START...Runtime.USER_MEMORY_END => {},
+        Runtime.user_memory_start...Runtime.user_memory_end => {},
         else => {
             try debugger.reporter.report(.debugger_address_not_user_memory, .{
                 .address = span,
                 .value = address,
-                .max = Runtime.USER_MEMORY_END,
+                .max = Runtime.user_memory_end,
             }).abort();
         },
     }
@@ -766,7 +841,7 @@ fn readInputLine(debugger: *Debugger, runtime: *Runtime) ![]const u8 {
 
     try runtime.ensureWriterNewline();
     try runtime.tty.enableRawMode();
-    const line = debugger.input.readLine();
+    const line = debugger.input.readLine(&debugger.writer);
     try runtime.tty.disableRawMode();
     return line;
 }

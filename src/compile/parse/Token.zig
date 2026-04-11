@@ -41,7 +41,7 @@ pub const Value = union(enum) {
     colon,
 
     directive: Directive,
-    instruction: Instruction,
+    mnemonic: Mnemonic,
     trap_alias: u8,
     label,
 
@@ -58,7 +58,7 @@ pub const Value = union(enum) {
         stringz,
     };
 
-    pub const Instruction = enum {
+    pub const Mnemonic = enum {
         // Arithmetic
         add,
         @"and",
@@ -110,7 +110,7 @@ pub const Value = union(enum) {
             tryInteger,
             tryString,
             tryDirective,
-            tryInstruction,
+            tryMnemonic,
             tryLabel,
         };
         inline for (parsers) |parser| {
@@ -167,10 +167,10 @@ pub const Value = union(enum) {
         return error.UnknownDirective;
     }
 
-    fn tryInstruction(string: []const u8) Error!?Value {
+    fn tryMnemonic(string: []const u8) Error!?Value {
         assert(string.len > 0);
-        if (matchTagName(Instruction, string)) |instruction| {
-            return .{ .instruction = instruction };
+        if (matchTagName(Mnemonic, string)) |mnemonic| {
+            return .{ .mnemonic = mnemonic };
         }
         return null;
     }
@@ -195,5 +195,76 @@ pub const Value = union(enum) {
                 return tag;
         }
         return null;
+    }
+};
+
+pub const Escaped = struct {
+    delim: Delim,
+    string: []const u8,
+    index: usize,
+    is_escaped: bool,
+
+    pub const Delim = enum(u8) { single = '\'', double = '"' };
+
+    const indicator = '\\';
+    fn escapeChar(char: u8) ?u8 {
+        return switch (char) {
+            indicator => indicator,
+            '"' => '"',
+            '\'' => '\'',
+            'n' => '\n',
+            't' => '\t',
+            'r' => '\r',
+            else => null,
+        };
+    }
+
+    pub fn validLength(delim: Delim, string: []const u8) usize {
+        var length: usize = 0;
+        var escaped: Escaped = .new(delim, string);
+        while (escaped.next()) |result| {
+            _ = result catch continue;
+            length += 1;
+        }
+        return length;
+    }
+
+    pub fn new(delim: Delim, string: []const u8) Escaped {
+        if (string.len > 0) assert(string[string.len - 1] != indicator);
+        return .{
+            .delim = delim,
+            .string = string,
+            .index = 0,
+            .is_escaped = false,
+        };
+    }
+
+    pub fn next(escaped: *Escaped) ?error{InvalidSequence}!u8 {
+        var raw = escaped.nextRaw() orelse
+            return null;
+
+        if (!escaped.is_escaped and raw == indicator) {
+            escaped.is_escaped = true;
+            raw = escaped.nextRaw() orelse
+                unreachable; // Trailing indicator should have been checked already
+        }
+
+        if (!escaped.is_escaped) {
+            if (raw == @intFromEnum(escaped.delim))
+                return error.InvalidSequence;
+            return raw;
+        }
+
+        const char_opt = escapeChar(raw);
+        escaped.is_escaped = false;
+        return char_opt orelse error.InvalidSequence;
+    }
+
+    fn nextRaw(escaped: *Escaped) ?u8 {
+        if (escaped.index >= escaped.string.len)
+            return null;
+        const raw = escaped.string[escaped.index];
+        escaped.index += 1;
+        return raw;
     }
 };

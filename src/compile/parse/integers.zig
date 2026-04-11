@@ -3,12 +3,16 @@ const math = std.math;
 const testing = std.testing;
 const assert = std.debug.assert;
 
+const Escaped = @import("Token.zig").Escaped;
+
 pub const Error = error{
     MalformedInteger,
     ExpectedDigit,
     InvalidDigit,
     UnexpectedDelimiter,
     IntegerTooLarge,
+
+    MalformedCharacter,
 };
 
 const Word = SourceInt(16);
@@ -91,6 +95,7 @@ pub const Form = struct {
     zero: bool,
     /// Contains at least one `_` character.
     delimited: bool,
+    char: bool = false,
 
     pub const Radix = enum(u8) {
         binary = 2,
@@ -192,7 +197,43 @@ const CharIter = struct {
     }
 };
 
+fn tryCharInteger(string: []const u8) Error!?Word {
+    if (string.len == 0 or string[0] != '\'')
+        return null;
+
+    if (string.len < 2 or string[string.len - 1] != '\'')
+        return error.MalformedCharacter;
+
+    const contents = string[1 .. string.len - 1];
+    if (contents.len > 0 and contents[contents.len - 1] == '\\')
+        return error.MalformedCharacter;
+
+    var escaped: Escaped = .new(.single, contents);
+
+    const char = (escaped.next() orelse
+        return error.MalformedCharacter) catch
+        return error.MalformedCharacter;
+
+    if (escaped.next()) |_| {
+        return error.MalformedCharacter;
+    }
+
+    return .{
+        .underlying = char,
+        .form = .{
+            .radix = null,
+            .sign = null,
+            .zero = false,
+            .delimited = false,
+            .char = true,
+        },
+    };
+}
+
 pub fn tryInteger(string: []const u8) Error!?Word {
+    if (try tryCharInteger(string)) |integer|
+        return integer;
+
     if (string.len == 0)
         return null;
 
@@ -542,6 +583,20 @@ test tryInteger {
         .{ "1__23", error.UnexpectedDelimiter },
         .{ "#_23", error.UnexpectedDelimiter },
         .{ "#_2__3_", error.UnexpectedDelimiter },
+        .{ "'", error.MalformedCharacter },
+        .{ "''", error.MalformedCharacter },
+        .{ "'''", error.MalformedCharacter },
+        .{ "''''", error.MalformedCharacter },
+        .{ "'a''", error.MalformedCharacter },
+        .{ "''a'", error.MalformedCharacter },
+        .{ "'a", error.MalformedCharacter },
+        .{ "'aa", error.MalformedCharacter },
+        .{ "'aa'", error.MalformedCharacter },
+        .{ "'\\x'", error.MalformedCharacter },
+        .{ "'a\\n'", error.MalformedCharacter },
+        .{ "'\\na'", error.MalformedCharacter },
+        .{ "'\\n\\n'", error.MalformedCharacter },
+        .{ "'\\xa'", error.MalformedCharacter },
         // Decimal
         .{ "0", .{ .underlying = 0, .form = .{ .radix = null, .sign = null, .zero = false, .delimited = false } } },
         .{ "00", .{ .underlying = 0, .form = .{ .radix = null, .sign = null, .zero = true, .delimited = false } } },
@@ -613,6 +668,12 @@ test tryInteger {
         .{ "0b101", .{ .underlying = 0b101, .form = .{ .radix = .binary, .sign = null, .zero = true, .delimited = false } } },
         .{ "-b0101", .{ .underlying = cast(-0b101), .form = .{ .radix = .binary, .sign = .{ .value = .negative, .position = .pre_radix }, .zero = false, .delimited = false } } },
         .{ "+0b10_1", .{ .underlying = 0b101, .form = .{ .radix = .binary, .sign = .{ .value = .positive, .position = .pre_radix }, .zero = true, .delimited = true } } },
+        // Characters
+        .{ "'0'", .{ .underlying = '0', .form = .{ .radix = null, .sign = null, .zero = false, .delimited = false, .char = true } } },
+        .{ "'a'", .{ .underlying = 'a', .form = .{ .radix = null, .sign = null, .zero = false, .delimited = false, .char = true } } },
+        .{ "'\\n'", .{ .underlying = '\n', .form = .{ .radix = null, .sign = null, .zero = false, .delimited = false, .char = true } } },
+        .{ "'\\''", .{ .underlying = '\'', .form = .{ .radix = null, .sign = null, .zero = false, .delimited = false, .char = true } } },
+        .{ "'\\\"'", .{ .underlying = '"', .form = .{ .radix = null, .sign = null, .zero = false, .delimited = false, .char = true } } },
         // Bounds checking
         .{ "0xffff", .{ .underlying = 0xffff, .form = .{ .radix = .hex, .sign = null, .zero = true, .delimited = false } } },
         .{ "+65535", .{ .underlying = 0xffff, .form = .{ .radix = null, .sign = .{ .value = .positive, .position = .pre_radix }, .zero = false, .delimited = false } } },

@@ -74,6 +74,10 @@ const Parser = struct {
             .print => .{ .print = .{
                 .location = try parser.nextLocation(),
             } },
+            .list => .{ .list = .{
+                .start = try parser.nextOptionalMemoryLocation(),
+                .length = try parser.nextPositiveIntOrDefault(10),
+            } },
             .move => .{ .move = .{
                 .location = try parser.nextLocation(),
                 .value = try parser.nextInteger(),
@@ -85,7 +89,7 @@ const Parser = struct {
                 .location = try parser.nextOptionalMemoryLocation(),
             } },
             .step_into => .{ .step_into = .{
-                .count = try parser.nextOptionalPositiveInt(),
+                .count = try parser.nextPositiveIntOrDefault(1),
             } },
             .break_add => .{ .break_add = .{
                 .location = try parser.nextMemoryLocation(),
@@ -154,10 +158,9 @@ const Parser = struct {
         return .{ .span = argument, .value = integer.underlying };
     }
 
-    fn nextOptionalPositiveInt(parser: *Parser) error{Reported}!Spanned(u16) {
+    fn nextPositiveIntOrDefault(parser: *Parser, default: u16) error{Reported}!Spanned(u16) {
         const argument = parser.next() catch |err| switch (err) {
-            // TODO: Maybe instead, change return to ?Spanned(u16)
-            error.Eof => return .{ .span = .emptyAt(parser.source.len), .value = 1 },
+            error.Eof => return .{ .span = .emptyAt(parser.source.len), .value = default },
         };
 
         const integer = try parser.parseInteger(argument);
@@ -269,6 +272,11 @@ const Parser = struct {
                 try parser.reporter.report(.integer_too_large, .{
                     .integer = argument,
                     .type_info = @typeInfo(u16).int,
+                }).abort();
+            },
+            error.MalformedCharacter => {
+                try parser.reporter.report(.malformed_character, .{
+                    .integer = argument,
                 }).abort();
             },
         };

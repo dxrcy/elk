@@ -4,11 +4,12 @@ const std = @import("std");
 const Io = std.Io;
 const assert = std.debug.assert;
 
+const Policies = @import("../policies.zig").Policies;
+const Span = @import("../compile/Span.zig");
 const Token = @import("../compile/parse/Token.zig");
 const Diagnostic = @import("diagnostic.zig").Diagnostic;
 const Ctx = @import("Ctx.zig");
 
-pub const Policies = @import("../policies.zig").Policies;
 pub const Stderr = @import("Stderr.zig");
 pub const Discarding = @import("Discarding.zig");
 
@@ -39,7 +40,7 @@ pub const Level = enum { err, warn, info };
 
 pub const Options = struct {
     strictness: Strictness = .default,
-    policies: Policies = .default,
+    policies: Policies = .none,
 
     pub const Strictness = enum {
         strict,
@@ -144,4 +145,86 @@ pub fn getLevel(reporter: *const Reporter) ?Level {
     if (reporter.count.get(.warn) > 0)
         return .warn;
     return null;
+}
+
+pub fn writeSpanContext(
+    writer: *std.Io.Writer,
+    span: Span,
+    max_context: usize,
+    indent: usize,
+    source: []const u8,
+) error{WriteFailed}!void {
+    const lines = span.getSurroundingLines(max_context, source);
+    var iter = std.mem.splitScalar(u8, lines.view(source), '\n');
+    while (iter.next()) |line_string| {
+        const line = Span.fromSlice(line_string, source);
+        const line_number = line.getLineNumber(source);
+
+        for (0..indent) |_|
+            try writer.print(" ", .{});
+
+        try writer.print("\x1b[2m", .{});
+        try writer.print("{:3} ", .{line_number});
+        try writer.print("| ", .{});
+        try writer.print("\x1b[0m", .{});
+        try writer.print("\x1b[3m", .{});
+        try writer.print("\x1b[2m", .{});
+
+        {
+            var was_in_span = false;
+            var was_non_valid = false;
+
+            for (line_string, 0..) |char, i| {
+                const index = line.offset + i;
+
+                const in_span = span.containsIndex(index);
+                if (in_span and !was_in_span)
+                    try writer.print("\x1b[22m", .{})
+                else if (!in_span and was_in_span)
+                    try writer.print("\x1b[2m", .{});
+
+                const non_valid = Token.isValidChar(char);
+                if (!non_valid and was_non_valid)
+                    try writer.print("\x1b[31m", .{})
+                else if (non_valid and !was_non_valid)
+                    try writer.print("\x1b[39m", .{});
+
+                if (non_valid)
+                    try writer.print("{c}", .{char})
+                else
+                    try writer.print("?", .{});
+
+                was_in_span = in_span;
+                was_non_valid = non_valid;
+            }
+        }
+
+        try writer.print("\x1b[0m", .{});
+        try writer.print("\n", .{});
+
+        if (!line.overlaps(span) or
+            std.mem.trim(u8, line_string, &std.ascii.whitespace).len == 0)
+        {
+            continue;
+        }
+
+        for (0..indent) |_|
+            try writer.print(" ", .{});
+
+        try writer.print("\x1b[2m", .{});
+        try writer.print("    | ", .{});
+        try writer.print("\x1b[22m", .{});
+        try writer.print("\x1b[36m", .{});
+        for (0..line_string.len + 1) |i| {
+            const index = line.offset + i;
+            if (span.containsIndex(index) or
+                // Still highlight first character if len==0
+                span.offset == index)
+                try writer.print("^", .{})
+            else
+                try writer.print(" ", .{});
+        }
+        try writer.print("\x1b[0m", .{});
+        try writer.print("\n", .{});
+    }
 }

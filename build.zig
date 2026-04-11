@@ -4,7 +4,7 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const module = b.addModule("lcz", .{
+    const module = b.addModule("elk", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
@@ -19,7 +19,7 @@ pub fn build(b: *std.Build) void {
 
     const docs_step = b.step("docs", "Build docs");
     const docs_obj = b.addObject(.{
-        .name = "lcz",
+        .name = "elk",
         .root_module = module,
     });
     const docs = docs_obj.getEmittedDocs();

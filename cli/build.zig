@@ -5,26 +5,31 @@ pub fn build(b: *std.Build) void {
     const optimize = b.standardOptimizeOption(.{});
 
     const exe_mod = b.createModule(.{
-        .root_source_file = b.path("main.zig"),
+        .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
 
-    const lcz_mod = b.dependency("lcz", .{
+    const build_zon_mod = b.createModule(.{
+        .root_source_file = b.path("build.zig.zon"),
+    });
+
+    const elk_dep = b.dependency("elk", .{
         .target = target,
         .optimize = optimize,
-    }).module("lcz");
+    }).module("elk");
 
     const mcz_mod = b.dependency("mcz", .{
         .target = target,
         .optimize = optimize,
     }).module("mcz");
 
-    exe_mod.addImport("lcz", lcz_mod);
+    exe_mod.addImport("build_zon", build_zon_mod);
+    exe_mod.addImport("elk", elk_dep);
     exe_mod.addImport("mcz", mcz_mod);
 
     const exe = b.addExecutable(.{
-        .name = "lcz",
+        .name = "elk",
         .root_module = exe_mod,
     });
     b.installArtifact(exe);
