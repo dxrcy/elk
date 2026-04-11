@@ -4,6 +4,7 @@ const Allocator = std.mem.Allocator;
 const EnvironMap = std.process.Environ.Map;
 
 const elk = @import("elk");
+const mcz = @import("mcz");
 
 const Cli = @import("Cli.zig");
 
@@ -27,10 +28,21 @@ pub fn main(init: std.process.Init) !u8 {
     reporter_impl.verbosity = cli.verbosity;
     reporter.options.policies = cli.policies;
 
-    const traps: elk.Traps = comptime .registerSets(&.{
+    var traps: elk.Traps = comptime .registerSets(&.{
         elk.Traps.Standard,
         elk.Traps.Debug,
     });
+
+    inline for (@typeInfo(MczTraps).@"enum".fields) |field| {
+        traps.register(field.value, .{
+            .alias = field.name,
+            .callback = .withDataDeferInit(
+                *mcz.Connection,
+                @field(mcz_traps, field.name),
+            ),
+        });
+    }
+
     const hooks: elk.Runtime.Hooks = .{};
 
     switch (cli.operation) {
@@ -160,11 +172,19 @@ fn emulate(
         assembly: elk.Debugger.Assembly,
     },
     debug_opt: ?Cli.Debug,
-    traps: *const elk.Traps,
+    traps: *elk.Traps,
     hooks: elk.Runtime.Hooks,
     policies: elk.Policies,
     reporter: *elk.Reporter,
 ) !void {
+    var conn_write_buffer: [1024]u8 = undefined;
+    var conn_read_buffer: [1024]u8 = undefined;
+    var conn: mcz.Connection = try .new(&conn_write_buffer, &conn_read_buffer, io);
+
+    inline for (@typeInfo(MczTraps).@"enum".fields) |field| {
+        traps.initData(field.value, *mcz.Connection, &conn);
+    }
+
     var write_buffer: [64]u8 = undefined;
     var debugger_buffer: [256]u8 = undefined;
     var writer = Io.File.stdout().writer(io, &write_buffer);
@@ -260,3 +280,110 @@ fn openHistoryFile(io: Io, path: []const u8) !Io.File {
 
     return file;
 }
+
+const MczTraps = enum(u8) {
+    chat = 0x28,
+    getp = 0x29,
+    setp = 0x2a,
+    getb = 0x2b,
+    setb = 0x2c,
+    geth = 0x2d,
+};
+
+const mcz_traps = struct {
+    fn chat(runtime: *elk.Runtime, conn: *mcz.Connection) elk.Traps.Result {
+        const memory_str: MemoryStr = .{
+            .runtime = runtime,
+            .start = runtime.state.registers[0],
+        };
+        conn.postToChatFmt("{f}", .{memory_str}) catch
+            return error.TrapFailed;
+    }
+
+    fn getp(runtime: *elk.Runtime, conn: *mcz.Connection) elk.Traps.Result {
+        const player = conn.getPlayerPosition() catch
+            return error.TrapFailed;
+
+        runtime.state.registers[0] = toWord(player.x);
+        runtime.state.registers[1] = toWord(player.y);
+        runtime.state.registers[2] = toWord(player.z);
+    }
+
+    fn setp(runtime: *elk.Runtime, conn: *mcz.Connection) elk.Traps.Result {
+        const player: mcz.Coordinate = .{
+            .x = fromWord(runtime.state.registers[0]),
+            .y = fromWord(runtime.state.registers[1]),
+            .z = fromWord(runtime.state.registers[2]),
+        };
+
+        conn.setPlayerPosition(player) catch
+            return error.TrapFailed;
+    }
+
+    fn getb(runtime: *elk.Runtime, conn: *mcz.Connection) elk.Traps.Result {
+        const coordinate: mcz.Coordinate = .{
+            .x = fromWord(runtime.state.registers[0]),
+            .y = fromWord(runtime.state.registers[1]),
+            .z = fromWord(runtime.state.registers[2]),
+        };
+
+        const block = conn.getBlock(coordinate) catch
+            return error.TrapFailed;
+
+        runtime.state.registers[3] = @truncate(block.id);
+    }
+
+    fn setb(runtime: *elk.Runtime, conn: *mcz.Connection) elk.Traps.Result {
+        const coordinate: mcz.Coordinate = .{
+            .x = fromWord(runtime.state.registers[0]),
+            .y = fromWord(runtime.state.registers[1]),
+            .z = fromWord(runtime.state.registers[2]),
+        };
+
+        const block: mcz.Block = .{
+            .id = runtime.state.registers[3],
+            .mod = 0,
+        };
+
+        conn.setBlock(coordinate, block) catch
+            return error.TrapFailed;
+    }
+
+    fn geth(runtime: *elk.Runtime, conn: *mcz.Connection) elk.Traps.Result {
+        const coordinate: mcz.Coordinate2D = .{
+            .x = fromWord(runtime.state.registers[0]),
+            .z = fromWord(runtime.state.registers[2]),
+        };
+
+        const height = conn.getHeight(coordinate) catch
+            return error.TrapFailed;
+
+        runtime.state.registers[1] = toWord(height);
+    }
+
+    fn toWord(value: i32) u16 {
+        return @bitCast(@as(i16, @truncate(value)));
+    }
+    fn fromWord(value: u16) i32 {
+        return @as(i16, @bitCast(value));
+    }
+
+    const MemoryStr = struct {
+        runtime: *const elk.Runtime,
+        start: u16,
+
+        pub fn format(memory_str: *const MemoryStr, writer: *Io.Writer) Io.Writer.Error!void {
+            for (memory_str.runtime.state.memory[memory_str.start..]) |word| {
+                if (word == 0x0000)
+                    break;
+                const byte: u8 = @truncate(word);
+                const char = switch (byte) {
+                    '\n' | '\t' => ' ',
+                    '\x20'...'\x7e' => byte,
+                    else => continue,
+                };
+                try writer.print("{c}", .{char});
+            }
+        }
+    };
+};
