@@ -62,15 +62,9 @@ pub fn main(init: std.process.Init) !u8 {
             var writer = file.writer(io, &buffer);
 
             switch (operation.output_mode) {
-                .assembly => {
-                    try air.emitWriter(&writer.interface);
-                },
-                .symbols => {
-                    try air.writeSymbols(&writer.interface, source);
-                },
-                .listing => {
-                    try air.writeListing(&writer.interface, source);
-                },
+                .assembly => try air.writeAssembly(&writer.interface),
+                .symbols => try air.writeSymbols(&writer.interface, source),
+                .listing => try air.writeListing(&writer.interface, source),
             }
 
             try writer.flush();
@@ -223,7 +217,7 @@ fn emulate(
             try runtime.readFromFile(io, file, &read_buffer);
         },
         .assembly => |assembly| {
-            try assembly.air.emitRuntime(&runtime);
+            try assembly.air.copyToRuntime(&runtime);
         },
     }
 
