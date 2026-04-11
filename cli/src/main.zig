@@ -43,19 +43,36 @@ pub fn main(init: std.process.Init) !u8 {
             var air = try assemble(gpa, source, &traps, &reporter);
             defer air.deinit(gpa);
 
-            var obj_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-            const obj_path = if (operation.output) |output|
+            const out_extension = switch (operation.output_mode) {
+                .assembly => "obj",
+                .symbols => "sym",
+                .listing => "lst",
+            };
+
+            var out_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
+            const out_path = if (operation.output) |output|
                 output.regular
             else
-                replacePathExtension(&obj_path_buffer, operation.input.regular, "obj");
+                replacePathExtension(&out_path_buffer, operation.input.regular, out_extension);
 
-            var file = try Io.Dir.cwd().createFile(io, obj_path, .{});
+            var file = try Io.Dir.cwd().createFile(io, out_path, .{});
             defer file.close(io);
 
             var buffer: [512]u8 = undefined;
             var writer = file.writer(io, &buffer);
 
-            try air.emitWriter(&writer.interface);
+            switch (operation.output_mode) {
+                .assembly => {
+                    try air.emitWriter(&writer.interface);
+                },
+                .symbols => {
+                    try air.writeSymbols(&writer.interface, source);
+                },
+                .listing => {
+                    unreachable;
+                },
+            }
+
             try writer.flush();
         },
 

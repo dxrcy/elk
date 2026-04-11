@@ -202,7 +202,6 @@ pub fn parse(iter: *ArgIterator) !Cli {
     const unimplemented_args = [_][]const u8{
         "format",
         "clean",
-        "export_symbols",
         "export_listing",
         "import_symbols",
         "commands",

@@ -69,6 +69,7 @@ pub fn deinit(air: *Air, gpa: Allocator) void {
     air.labels.deinit(gpa);
 }
 
+// TODO: Rename
 pub fn emitWriter(air: *const Air, writer: *Io.Writer) !void {
     assert(air.lines.items.len <= 0xffff);
 
@@ -79,6 +80,7 @@ pub fn emitWriter(air: *const Air, writer: *Io.Writer) !void {
     }
 }
 
+// TODO: Rename
 pub fn emitRuntime(air: *const Air, runtime: *Runtime) !void {
     assert(air.lines.items.len <= 0xffff);
 
@@ -86,6 +88,15 @@ pub fn emitRuntime(air: *const Air, runtime: *Runtime) !void {
     for (air.lines.items, 0..) |line, i| {
         const raw = line.statement.encode();
         runtime.state.memory[air.origin + i] = raw;
+    }
+}
+
+pub fn writeSymbols(air: *const Air, writer: *Io.Writer, source: []const u8) !void {
+    for (air.labels.items) |label| {
+        try writer.print("{s:<74} x{x:04}\n", .{
+            label.span.view(source),
+            air.origin + label.index,
+        });
     }
 }
 
