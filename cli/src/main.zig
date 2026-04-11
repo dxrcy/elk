@@ -37,7 +37,7 @@ pub fn main(init: std.process.Init) !u8 {
         traps.register(field.value, .{
             .alias = field.name,
             .callback = .withDataDeferInit(
-                *mcz.Connection,
+                *LazyConnection,
                 @field(mcz_traps, field.name),
             ),
         });
@@ -179,10 +179,14 @@ fn emulate(
 ) !void {
     var conn_write_buffer: [1024]u8 = undefined;
     var conn_read_buffer: [1024]u8 = undefined;
-    var conn: mcz.Connection = try .new(&conn_write_buffer, &conn_read_buffer, io);
+    var conn: LazyConnection = .{ .uninit = .{
+        .read_buffer = &conn_read_buffer,
+        .write_buffer = &conn_write_buffer,
+        .io = io,
+    } };
 
     inline for (@typeInfo(MczTraps).@"enum".fields) |field| {
-        traps.initData(field.value, *mcz.Connection, &conn);
+        traps.initData(field.value, *LazyConnection, &conn);
     }
 
     var write_buffer: [64]u8 = undefined;
@@ -281,6 +285,31 @@ fn openHistoryFile(io: Io, path: []const u8) !Io.File {
     return file;
 }
 
+const LazyConnection = union(enum) {
+    init: mcz.Connection,
+    uninit: struct {
+        read_buffer: []u8,
+        write_buffer: []u8,
+        io: Io,
+    },
+
+    pub fn ensureInit(lazy: *LazyConnection) !*mcz.Connection {
+        switch (lazy.*) {
+            .init => {},
+            .uninit => |setup| {
+                lazy.* = .{
+                    .init = try .new(
+                        setup.write_buffer,
+                        setup.read_buffer,
+                        setup.io,
+                    ),
+                };
+            },
+        }
+        return &lazy.init;
+    }
+};
+
 const MczTraps = enum(u8) {
     chat = 0x28,
     getp = 0x29,
@@ -291,16 +320,20 @@ const MczTraps = enum(u8) {
 };
 
 const mcz_traps = struct {
-    fn chat(runtime: *elk.Runtime, conn: *mcz.Connection) elk.Traps.Result {
+    fn chat(runtime: *elk.Runtime, lazy: *LazyConnection) elk.Traps.Result {
         const memory_str: MemoryStr = .{
             .runtime = runtime,
             .start = runtime.state.registers[0],
         };
+        const conn = lazy.ensureInit() catch
+            return error.TrapFailed;
         conn.postToChatFmt("{f}", .{memory_str}) catch
             return error.TrapFailed;
     }
 
-    fn getp(runtime: *elk.Runtime, conn: *mcz.Connection) elk.Traps.Result {
+    fn getp(runtime: *elk.Runtime, lazy: *LazyConnection) elk.Traps.Result {
+        const conn = lazy.ensureInit() catch
+            return error.TrapFailed;
         const player = conn.getPlayerPosition() catch
             return error.TrapFailed;
 
@@ -309,7 +342,9 @@ const mcz_traps = struct {
         runtime.state.registers[2] = toWord(player.z);
     }
 
-    fn setp(runtime: *elk.Runtime, conn: *mcz.Connection) elk.Traps.Result {
+    fn setp(runtime: *elk.Runtime, lazy: *LazyConnection) elk.Traps.Result {
+        const conn = lazy.ensureInit() catch
+            return error.TrapFailed;
         const player: mcz.Coordinate = .{
             .x = fromWord(runtime.state.registers[0]),
             .y = fromWord(runtime.state.registers[1]),
@@ -320,7 +355,9 @@ const mcz_traps = struct {
             return error.TrapFailed;
     }
 
-    fn getb(runtime: *elk.Runtime, conn: *mcz.Connection) elk.Traps.Result {
+    fn getb(runtime: *elk.Runtime, lazy: *LazyConnection) elk.Traps.Result {
+        const conn = lazy.ensureInit() catch
+            return error.TrapFailed;
         const coordinate: mcz.Coordinate = .{
             .x = fromWord(runtime.state.registers[0]),
             .y = fromWord(runtime.state.registers[1]),
@@ -333,7 +370,9 @@ const mcz_traps = struct {
         runtime.state.registers[3] = @truncate(block.id);
     }
 
-    fn setb(runtime: *elk.Runtime, conn: *mcz.Connection) elk.Traps.Result {
+    fn setb(runtime: *elk.Runtime, lazy: *LazyConnection) elk.Traps.Result {
+        const conn = lazy.ensureInit() catch
+            return error.TrapFailed;
         const coordinate: mcz.Coordinate = .{
             .x = fromWord(runtime.state.registers[0]),
             .y = fromWord(runtime.state.registers[1]),
@@ -349,7 +388,9 @@ const mcz_traps = struct {
             return error.TrapFailed;
     }
 
-    fn geth(runtime: *elk.Runtime, conn: *mcz.Connection) elk.Traps.Result {
+    fn geth(runtime: *elk.Runtime, lazy: *LazyConnection) elk.Traps.Result {
+        const conn = lazy.ensureInit() catch
+            return error.TrapFailed;
         const coordinate: mcz.Coordinate2D = .{
             .x = fromWord(runtime.state.registers[0]),
             .z = fromWord(runtime.state.registers[2]),
