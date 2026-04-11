@@ -157,14 +157,17 @@ pub fn run(runtime: *Runtime) Error!void {
             error.TermiosFailed,
             => |err2| return err2,
 
-            else => |exception| {
+            else => |event| {
                 if (runtime.debugger) |debugger| {
                     if (debugger.state.status != .inactive) {
-                        try debugger.catchEvent(exception, runtime);
+                        try debugger.catchEvent(event, runtime);
                         continue;
                     }
                 }
-                break;
+                switch (event) {
+                    error.Halt => break,
+                    else => |exception| return exception,
+                }
             },
         };
     }
