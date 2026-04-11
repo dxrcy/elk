@@ -156,7 +156,7 @@ const template = .{
         .debug = cli_template.NamedListing{
             .short = 'd',
             .long = "debug",
-            .conflicts = &.{ .assemble, .format, .clean },
+            .conflicts = &.{ .assemble, .check, .format, .clean },
         },
 
         .commands = cli_template.NamedListing{
