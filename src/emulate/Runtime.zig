@@ -97,7 +97,7 @@ pub fn init(params: struct {
     reader: *Io.Reader,
     writer: *Io.Writer,
     traps: *const Traps,
-    hooks: Hooks,
+    hooks: Hooks = .{},
     policies: Policies,
     debugger: ?*Debugger = null,
 }) !Runtime {
