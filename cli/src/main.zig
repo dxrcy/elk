@@ -31,7 +31,6 @@ pub fn main(init: std.process.Init) !u8 {
         elk.Traps.Standard,
         elk.Traps.Debug,
     });
-    const hooks: elk.Runtime.Hooks = .{};
 
     switch (cli.operation) {
         .assemble => |operation| {
@@ -79,7 +78,6 @@ pub fn main(init: std.process.Init) !u8 {
                 .{ .object = file },
                 operation.debug,
                 &traps,
-                hooks,
                 cli.policies,
                 &reporter,
             );
@@ -101,7 +99,6 @@ pub fn main(init: std.process.Init) !u8 {
                 .{ .assembly = .{ .air = &air, .source = source } },
                 operation.debug,
                 &traps,
-                hooks,
                 cli.policies,
                 &reporter,
             );
@@ -161,7 +158,6 @@ fn emulate(
     },
     debug_opt: ?Cli.Debug,
     traps: *const elk.Traps,
-    hooks: elk.Runtime.Hooks,
     policies: elk.Policies,
     reporter: *elk.Reporter,
 ) !void {
@@ -205,7 +201,6 @@ fn emulate(
         .reader = &reader.interface,
         .writer = &writer.interface,
         .traps = traps,
-        .hooks = hooks,
         .policies = policies,
         .debugger = if (debugger_opt) |*debugger| debugger else null,
     });
