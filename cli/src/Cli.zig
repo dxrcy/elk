@@ -24,7 +24,7 @@ const info = struct {
         zon.description ++ " " ++ zon.homepage ++ "\n" ++
         \\
         \\USAGE:
-        ++ "\n    " ++ program ++ " [INPUT] [OPERATION] [...OPTIONS]\n" ++
+        ++ "\n    " ++ program ++ " INPUT [OPERATION] [...OPTIONS]\n" ++
         \\
         \\INPUT:
         \\    Input filename: *.asm, or *.obj when used with --emulate
