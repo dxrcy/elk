@@ -1,6 +1,6 @@
 .{
     .name = .elk,
-    .version = "0.1.0",
+    .version = "0.0.4",
     .author = "darcy",
     .homepage = "https://codeberg.org/dxrcy/elk",
     .description = "Complete LC-3 toolchain.",
