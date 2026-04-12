@@ -7,6 +7,9 @@ const Radix = @import("../compile/parse/integers.zig").Form.Radix;
 const Runtime = @import("../emulate/Runtime.zig");
 const DebuggerCommand = @import("../emulate/debugger/Command.zig");
 const reporting = @import("reporting.zig");
+const Options = reporting.Options;
+const Level = reporting.Level;
+const Response = reporting.Response;
 const Ctx = @import("Ctx.zig");
 
 pub const TokenKinds = struct {
@@ -43,7 +46,7 @@ pub const TokenKinds = struct {
     }
 };
 
-fn strictnessResponse(options: reporting.Options) reporting.Response {
+fn strictnessResponse(options: Options) Response {
     return switch (options.strictness) {
         .strict => .major,
         .normal => .minor,
@@ -52,7 +55,7 @@ fn strictnessResponse(options: reporting.Options) reporting.Response {
 }
 
 fn policyResponse(
-    options: reporting.Options,
+    options: Options,
     comptime category: std.meta.FieldEnum(Policies),
     comptime name: std.meta.FieldEnum(@FieldType(Policies, @tagName(category))),
 ) reporting.Response {
@@ -143,7 +146,7 @@ pub const Diagnostic = union(enum) {
     debugger_expected_eol: struct { found: Span },
     debugger_integer_too_small: struct { integer: Span, minimum: u16 },
 
-    pub fn getResponse(diag: Diagnostic, options: reporting.Options) reporting.Response {
+    pub fn getResponse(diag: Diagnostic, options: Options) Response {
         return switch (diag) {
             .invalid_source_byte,
             .output_too_long,

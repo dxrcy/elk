@@ -7,10 +7,12 @@ const Span = @import("../compile/Span.zig");
 const Token = @import("../compile/parse/Token.zig");
 const reporting = @import("reporting.zig");
 const Reporter = reporting.Reporter;
+const Verbosity = reporting.Options.Verbosity;
+const Level = reporting.Level;
 
 writer: *Io.Writer,
-verbosity: reporting.Options.Verbosity,
-level: ?reporting.Level,
+verbosity: Verbosity,
+level: ?Level,
 depth: usize,
 item_count: ?*usize,
 source: ?[]const u8,
@@ -19,8 +21,8 @@ const indent_width = 4;
 
 pub fn new(
     writer: *Io.Writer,
-    verbosity: reporting.Options.Verbosity,
-    level: ?reporting.Level,
+    verbosity: Verbosity,
+    level: ?Level,
     item_count: ?*usize,
     source: ?[]const u8,
 ) Ctx {
