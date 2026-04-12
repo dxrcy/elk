@@ -5,12 +5,12 @@ const Io = std.Io;
 
 const Span = @import("../compile/Span.zig");
 const Token = @import("../compile/parse/Token.zig");
-const reporter = @import("reporter.zig");
-const Reporter = reporter.Reporter;
+const reporting = @import("reporting.zig");
+const Reporter = reporting.Reporter;
 
 writer: *Io.Writer,
-verbosity: reporter.Options.Verbosity,
-level: ?reporter.Level,
+verbosity: reporting.Options.Verbosity,
+level: ?reporting.Level,
 depth: usize,
 item_count: ?*usize,
 source: ?[]const u8,
@@ -19,8 +19,8 @@ const indent_width = 4;
 
 pub fn new(
     writer: *Io.Writer,
-    verbosity: reporter.Options.Verbosity,
-    level: ?reporter.Level,
+    verbosity: reporting.Options.Verbosity,
+    level: ?reporting.Level,
     item_count: ?*usize,
     source: ?[]const u8,
 ) Ctx {
@@ -150,6 +150,6 @@ fn printSource(ctx: Ctx, span: Span) void {
         },
     }
 
-    reporter.writeSpanContext(ctx.writer, span, 1, ctx.depth * indent_width, source) catch
+    reporting.writeSpanContext(ctx.writer, span, 1, ctx.depth * indent_width, source) catch
         std.debug.panic("failed to write whilst reporting", .{});
 }

@@ -5,6 +5,8 @@ const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
+const reporting = @import("../../reporting/reporting.zig");
+const Reporter = reporting.Primary;
 const Traps = @import("../../Traps.zig");
 const Air = @import("../../compile/Air.zig");
 const Span = @import("../../compile/Span.zig");
@@ -15,10 +17,6 @@ const Command = @import("Command.zig");
 const Breakpoints = @import("Breakpoints.zig");
 const Input = @import("Input.zig");
 const parse = @import("parse.zig");
-
-// TODO: Use better name
-const reporter_ = @import("../../report/reporter.zig");
-const Reporter = reporter_.Primary;
 
 state: struct {
     status: Status = .get_action,
@@ -457,7 +455,7 @@ fn runCommand(
             const line = try debugger.getAssemblyLine(&assembly, address, arguments.location.span);
 
             try debugger.writer.printLine("Next instruction, at 0x{x:04}:", .{address});
-            try reporter_.writeSpanContext(debugger.writer.inner, line.span, 5, 0, assembly.source);
+            try reporting.writeSpanContext(debugger.writer.inner, line.span, 5, 0, assembly.source);
         },
 
         .eval => |arguments| {
@@ -616,7 +614,7 @@ fn printBreakpoints(debugger: *Debugger) !void {
             try debugger.writer.disableColor();
             try debugger.writer.print("\n", .{});
 
-            try reporter_.writeSpanContext(debugger.writer.inner, line.span, 1, 0, assembly.source);
+            try reporting.writeSpanContext(debugger.writer.inner, line.span, 1, 0, assembly.source);
             continue;
         }
 

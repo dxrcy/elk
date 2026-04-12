@@ -6,7 +6,7 @@ const Token = @import("../compile/parse/Token.zig");
 const Radix = @import("../compile/parse/integers.zig").Form.Radix;
 const Runtime = @import("../emulate/Runtime.zig");
 const DebuggerCommand = @import("../emulate/debugger/Command.zig");
-const reporter = @import("reporter.zig");
+const reporting = @import("reporting.zig");
 const Ctx = @import("Ctx.zig");
 
 pub const TokenKinds = struct {
@@ -43,7 +43,7 @@ pub const TokenKinds = struct {
     }
 };
 
-fn strictnessResponse(options: reporter.Options) reporter.Response {
+fn strictnessResponse(options: reporting.Options) reporting.Response {
     return switch (options.strictness) {
         .strict => .major,
         .normal => .minor,
@@ -52,10 +52,10 @@ fn strictnessResponse(options: reporter.Options) reporter.Response {
 }
 
 fn policyResponse(
-    options: reporter.Options,
+    options: reporting.Options,
     comptime category: std.meta.FieldEnum(Policies),
     comptime name: std.meta.FieldEnum(@FieldType(Policies, @tagName(category))),
-) reporter.Response {
+) reporting.Response {
     const policy = @field(@field(options.policies, @tagName(category)), @tagName(name));
     if (policy == .permit)
         return .pass;
@@ -143,7 +143,7 @@ pub const Diagnostic = union(enum) {
     debugger_expected_eol: struct { found: Span },
     debugger_integer_too_small: struct { integer: Span, minimum: u16 },
 
-    pub fn getResponse(diag: Diagnostic, options: reporter.Options) reporter.Response {
+    pub fn getResponse(diag: Diagnostic, options: reporting.Options) reporting.Response {
         return switch (diag) {
             .invalid_source_byte,
             .output_too_long,

@@ -4,7 +4,7 @@ const std = @import("std");
 const assert = std.debug.assert;
 
 const Traps = @import("../../Traps.zig");
-const Reporter = @import("../../report/reporter.zig").Primary;
+const Reporter = @import("../../reporting/reporting.zig").Primary;
 const Operand = @import("../Operand.zig");
 const Span = @import("../Span.zig");
 const Lexer = @import("Lexer.zig");

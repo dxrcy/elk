@@ -12,7 +12,7 @@ pub fn main(init: std.process.Init) !u8 {
 
     var reporter_buffer: [1024]u8 = undefined;
     var reporter_writer = Io.File.stderr().writer(io, &reporter_buffer);
-    var reporter = elk.reporter.Primary.new(&reporter_writer.interface);
+    var reporter = elk.reporting.Primary.new(&reporter_writer.interface);
 
     var args = try init.minimal.args.iterateAllocator(gpa);
     defer args.deinit();
@@ -156,7 +156,7 @@ fn assemble(
     gpa: Allocator,
     source: []const u8,
     traps: *const elk.Traps,
-    reporter: *elk.reporter.Primary,
+    reporter: *elk.reporting.Primary,
 ) !elk.Air {
     var air: elk.Air = .init();
     errdefer air.deinit(gpa);
@@ -192,7 +192,7 @@ fn emulate(
     debug_opt: ?Cli.Debug,
     traps: *const elk.Traps,
     policies: elk.Policies,
-    reporter: *elk.reporter.Primary,
+    reporter: *elk.reporting.Primary,
 ) !void {
     var write_buffer: [64]u8 = undefined;
     var debugger_buffer: [256]u8 = undefined;
