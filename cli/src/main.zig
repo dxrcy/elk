@@ -118,6 +118,14 @@ pub fn main(init: std.process.Init) !u8 {
                 return error.BadFilename;
             }
 
+            _ = Io.Dir.cwd().statFile(io, operation.input, .{}) catch |err| switch (err) {
+                error.FileNotFound => {
+                    std.log.err("--clean requires existing .asm file", .{});
+                    return error.BadFilename;
+                },
+                else => |err2| return err2,
+            };
+
             const extensions = [_][]const u8{ "obj", "sym", "lst" };
             for (extensions) |extension| {
                 var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
