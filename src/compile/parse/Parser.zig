@@ -5,7 +5,7 @@ const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
 const Traps = @import("../../Traps.zig");
-const Reporter = @import("../../report/Reporter.zig");
+const Reporter = @import("../../report/reporter.zig").Primary;
 const Air = @import("../Air.zig");
 const Instruction = @import("../instruction.zig").Instruction;
 const Span = @import("../Span.zig");

@@ -1,5 +1,3 @@
-const Reporter = @This();
-
 const std = @import("std");
 const Io = std.Io;
 const assert = std.debug.assert;
@@ -7,46 +5,29 @@ const assert = std.debug.assert;
 const Policies = @import("../policies.zig").Policies;
 const Span = @import("../compile/Span.zig");
 const Token = @import("../compile/parse/Token.zig");
-const Diagnostic = @import("diagnostic.zig").Diagnostic;
 const Ctx = @import("Ctx.zig");
 
-pub const Stderr = @import("Stderr.zig");
-pub const Discarding = @import("Discarding.zig");
-
-const BUFFER_SIZE = 1024;
-
-options: Options,
-count: std.EnumArray(Level, usize),
-source: ?[]const u8,
-
-ptr: *anyopaque,
-vtable: *const VTable,
-
-const VTable = struct {
-    showReport: *const fn (
-        ptr: *anyopaque,
-        diag: Diagnostic,
-        level: Reporter.Level,
-        source: ?[]const u8,
-    ) void,
-
-    showSummary: *const fn (
-        ptr: *anyopaque,
-        count: *const std.EnumArray(Reporter.Level, usize),
-    ) void,
-};
+// TODO: Move or remove
+pub const Primary = Reporter(@import("diagnostic.zig").Diagnostic);
 
 pub const Level = enum { err, warn, info };
 
 pub const Options = struct {
-    strictness: Strictness = .default,
     policies: Policies = .none,
+    strictness: Strictness = .default,
+    verbosity: Verbosity = .default,
 
     pub const Strictness = enum {
         strict,
         normal,
         relaxed,
         pub const default: Strictness = .normal;
+    };
+
+    pub const Verbosity = enum {
+        normal,
+        quiet,
+        pub const default: Verbosity = .normal;
     };
 };
 
@@ -89,62 +70,101 @@ pub const Response = enum {
     }
 };
 
-pub fn fromImplementation(ptr: *anyopaque, vtable: *const VTable) Reporter {
-    return .{
-        .options = .{},
-        .count = .initFill(0),
-        .source = null,
-        .ptr = ptr,
-        .vtable = vtable,
+pub fn Reporter(comptime Diag: type) type {
+    assert(@typeInfo(Diag).@"union".tag_type != null);
+
+    return struct {
+        const Self = @This();
+
+        writer: *Io.Writer,
+        count: std.EnumArray(Level, usize),
+        options: Options,
+        source: ?[]const u8,
+
+        pub fn new(writer: *Io.Writer) Self {
+            return .{
+                .writer = writer,
+                .count = .initFill(0),
+                .options = .{},
+                .source = null,
+            };
+        }
+
+        pub fn report(
+            reporter: *Self,
+            comptime tag: std.meta.Tag(Diag),
+            info: @FieldType(Diag, @tagName(tag)),
+        ) Response {
+            return reporter.reportInner(@unionInit(Diag, @tagName(tag), info));
+        }
+
+        fn reportInner(reporter: *Self, diag: Diag) Response {
+            const response: Response = diag.getResponse(reporter.options);
+
+            const level: Level = switch (response) {
+                .fatal, .major => .err,
+                .minor => .warn,
+                .info => .info,
+                .pass => return .pass,
+            };
+
+            reporter.count.getPtr(level).* += 1;
+
+            {
+                var ctx_items: usize = 0;
+                const ctx: Ctx = .new(
+                    reporter.writer,
+                    reporter.options.verbosity,
+                    level,
+                    &ctx_items,
+                    reporter.source,
+                );
+                diag.print(ctx);
+                ctx.flush();
+            }
+
+            assert(response != .pass);
+            return response;
+        }
+
+        pub fn summarize(reporter: *Self) void {
+            const count_err = reporter.count.get(.err);
+            const count_warn = reporter.count.get(.warn);
+            // Ignore `info`
+
+            const ctx: Ctx = .new(
+                reporter.writer,
+                reporter.options.verbosity,
+                .warn,
+                null,
+                null,
+            );
+
+            if (count_err > 0) {
+                ctx.print("\x1b[31m", .{});
+                ctx.print("{} errors", .{count_err});
+                ctx.print("\x1b[0m", .{});
+                ctx.print("\n", .{});
+            }
+
+            if (count_warn > 0) {
+                ctx.print("\x1b[33m", .{});
+                ctx.print("{} warnings", .{count_warn});
+                ctx.print("\x1b[0m", .{});
+                ctx.print("\n", .{});
+            }
+
+            ctx.flush();
+        }
+
+        pub fn getLevel(reporter: *const Self) ?Level {
+            if (reporter.count.get(.err) > 0)
+                return .err;
+            if (reporter.count.get(.warn) > 0)
+                return .warn;
+            return null;
+        }
     };
-}
-
-pub fn copyImplementation(reporter: *const Reporter) Reporter {
-    return .{
-        .options = .{},
-        .count = .initFill(0),
-        .source = null,
-        .ptr = reporter.ptr,
-        .vtable = reporter.vtable,
-    };
-}
-
-pub fn report(
-    reporter: *Reporter,
-    comptime tag: std.meta.Tag(Diagnostic),
-    info: @FieldType(Diagnostic, @tagName(tag)),
-) Response {
-    return reporter.reportInner(@unionInit(Diagnostic, @tagName(tag), info));
-}
-
-fn reportInner(reporter: *Reporter, diag: Diagnostic) Response {
-    const response: Response = diag.getResponse(reporter.options);
-
-    const level: Level = switch (response) {
-        .fatal, .major => .err,
-        .minor => .warn,
-        .info => .info,
-        .pass => return .pass,
-    };
-
-    reporter.count.getPtr(level).* += 1;
-
-    reporter.vtable.showReport(reporter.ptr, diag, level, reporter.source);
-
-    assert(response != .pass);
-    return response;
-}
-
-pub fn showSummary(reporter: *Reporter) void {
-    reporter.vtable.showSummary(reporter.ptr, &reporter.count);
-}
-
-pub fn getLevel(reporter: *const Reporter) ?Level {
-    if (reporter.count.get(.err) > 0)
-        return .err;
-    if (reporter.count.get(.warn) > 0)
-        return .warn;
-    return null;
 }
 
 pub fn writeSpanContext(

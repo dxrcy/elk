@@ -1,7 +1,7 @@
 const std = @import("std");
 const assert = std.debug.assert;
 
-const Reporter = @import("../../report/Reporter.zig");
+const Reporter = @import("../../report/reporter.zig").Primary;
 const Span = @import("../../compile/Span.zig");
 const Lexer = @import("../../compile/parse/Lexer.zig");
 const parsing = @import("../../compile/parse/parsing.zig");

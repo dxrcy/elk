@@ -10,8 +10,8 @@ const cli_template = @import("cli_template.zig");
 
 operation: Operation,
 policies: elk.Policies,
-strictness: elk.Reporter.Options.Strictness,
-verbosity: elk.Reporter.Stderr.Verbosity,
+strictness: elk.reporter.Options.Strictness,
+verbosity: elk.reporter.Options.Verbosity,
 
 const info = struct {
     const zon = @import("build_zon");

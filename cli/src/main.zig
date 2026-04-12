@@ -12,8 +12,7 @@ pub fn main(init: std.process.Init) !u8 {
 
     var reporter_buffer: [1024]u8 = undefined;
     var reporter_writer = Io.File.stderr().writer(io, &reporter_buffer);
-    var reporter_impl = elk.Reporter.Stderr.new(&reporter_writer.interface);
-    var reporter = reporter_impl.interface();
+    var reporter = elk.reporter.Primary.new(&reporter_writer.interface);
 
     var args = try init.minimal.args.iterateAllocator(gpa);
     defer args.deinit();
@@ -24,7 +23,7 @@ pub fn main(init: std.process.Init) !u8 {
     };
 
     reporter.options.strictness = cli.strictness;
-    reporter_impl.verbosity = cli.verbosity;
+    reporter.options.verbosity = cli.verbosity;
     reporter.options.policies = cli.policies;
 
     const traps: elk.Traps = comptime .registerSets(&.{
@@ -157,7 +156,7 @@ fn assemble(
     gpa: Allocator,
     source: []const u8,
     traps: *const elk.Traps,
-    reporter: *elk.Reporter,
+    reporter: *elk.reporter.Primary,
 ) !elk.Air {
     var air: elk.Air = .init();
     errdefer air.deinit(gpa);
@@ -167,17 +166,17 @@ fn assemble(
 
     try parser.parseAir(gpa, &air);
     if (reporter.getLevel() == .err) {
-        reporter.showSummary();
+        reporter.summarize();
         return error.ProgramError;
     }
 
     parser.resolveLabelReferences(&air);
     if (reporter.getLevel() == .err) {
-        reporter.showSummary();
+        reporter.summarize();
         return error.ProgramError;
     }
 
-    reporter.showSummary();
+    reporter.summarize();
 
     return air;
 }
@@ -193,7 +192,7 @@ fn emulate(
     debug_opt: ?Cli.Debug,
     traps: *const elk.Traps,
     policies: elk.Policies,
-    reporter: *elk.Reporter,
+    reporter: *elk.reporter.Primary,
 ) !void {
     var write_buffer: [64]u8 = undefined;
     var debugger_buffer: [256]u8 = undefined;

@@ -1,34 +1,32 @@
 const Ctx = @This();
 
 const std = @import("std");
+const Io = std.Io;
 
 const Span = @import("../compile/Span.zig");
 const Token = @import("../compile/parse/Token.zig");
-const Reporter = @import("Reporter.zig");
-const Stderr = @import("Stderr.zig");
+const reporter = @import("reporter.zig");
+const Reporter = reporter.Reporter;
 
-reporter: *Stderr,
-level: ?Reporter.Level,
+writer: *Io.Writer,
+verbosity: reporter.Options.Verbosity,
+level: ?reporter.Level,
 depth: usize,
 item_count: ?*usize,
 source: ?[]const u8,
 
-pub const Verbosity = enum {
-    normal,
-    quiet,
-    pub const default: Verbosity = .normal;
-};
-
 const indent_width = 4;
 
 pub fn new(
-    reporter: *Stderr,
-    level: ?Reporter.Level,
+    writer: *Io.Writer,
+    verbosity: reporter.Options.Verbosity,
+    level: ?reporter.Level,
     item_count: ?*usize,
     source: ?[]const u8,
 ) Ctx {
     return .{
-        .reporter = reporter,
+        .writer = writer,
+        .verbosity = verbosity,
         .level = level,
         .depth = 0,
         .item_count = item_count,
@@ -37,13 +35,13 @@ pub fn new(
 }
 
 pub fn print(ctx: Ctx, comptime fmt: []const u8, args: anytype) void {
-    ctx.reporter.writer.print(fmt, args) catch
-        std.debug.panic("failed to write to reporter file", .{});
+    ctx.writer.print(fmt, args) catch
+        std.debug.panic("failed to write whilst reporting", .{});
 }
 
 pub fn flush(ctx: Ctx) void {
-    ctx.reporter.writer.flush() catch
-        std.debug.panic("failed to flush reporter file", .{});
+    ctx.writer.flush() catch
+        std.debug.panic("failed to flush whilst reporting", .{});
 }
 
 pub fn deepen(ctx: Ctx) Ctx {
@@ -101,7 +99,7 @@ pub fn printTitle(
 
     ctx.print(fmt, args);
 
-    switch (ctx.reporter.verbosity) {
+    switch (ctx.verbosity) {
         .normal => {
             ctx.print("\n", .{});
         },
@@ -112,7 +110,7 @@ pub fn printTitle(
 pub fn printNote(ctx: Ctx, comptime fmt: []const u8, args: anytype) void {
     defer ctx.incrementItemCount();
 
-    switch (ctx.reporter.verbosity) {
+    switch (ctx.verbosity) {
         .normal => {},
         .quiet => return,
     }
@@ -139,7 +137,7 @@ fn printSource(ctx: Ctx, span: Span) void {
     const source = ctx.source orelse
         unreachable;
 
-    switch (ctx.reporter.verbosity) {
+    switch (ctx.verbosity) {
         .normal => {},
         .quiet => {
             // Scuffed!
@@ -152,6 +150,6 @@ fn printSource(ctx: Ctx, span: Span) void {
         },
     }
 
-    Reporter.writeSpanContext(ctx.reporter.writer, span, 1, ctx.depth * indent_width, source) catch
-        std.debug.panic("failed to write to reporter file", .{});
+    reporter.writeSpanContext(ctx.writer, span, 1, ctx.depth * indent_width, source) catch
+        std.debug.panic("failed to write whilst reporting", .{});
 }
