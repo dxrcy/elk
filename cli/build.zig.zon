@@ -5,7 +5,7 @@
     .homepage = "https://codeberg.org/dxrcy/elk",
     .description = "Complete LC-3 toolchain.",
 
-    .minimum_zig_version = "0.16.0-dev.2670+56253d9e3",
+    .minimum_zig_version = "0.16.0",
     .fingerprint = 0xa2754ca228fa976b,
 
     .dependencies = .{

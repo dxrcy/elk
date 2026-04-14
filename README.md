@@ -36,8 +36,8 @@ sudo install <filename> /usr/bin/elk
 
 ### From source
 
-Alternatively, you can build `elk` from source, only requiring Zig
-`0.16.0-dev.3091+557caecaa`:
+Alternatively, you can build `elk` from source, only requiring
+[Zig `0.16.0`](https://ziglang.org/download/#release-0.16.0):
 
 ```sh
 git clone https://codeberg.org/dxrcy/elk
@@ -46,8 +46,6 @@ cd elk/cli
 zig build install -Doptimize=ReleaseSafe
 sudo install zig-out/bin/elk /usr/bin/
 ```
-
-> Once Zig 0.16.0 is released, `elk` will target the latest stable Zig version.
 
 # Features
 
