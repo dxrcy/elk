@@ -21,7 +21,7 @@ pub const PositionalListing = struct {
 pub const NamedListing = struct {
     short: ?u8 = null,
     long: []const u8,
-    requires: []const Id = &.{},
+    requires: []const []const Id = &.{},
     conflicts: []const Id = &.{},
     value: type = void,
     value_parser: ?ValueParser = null,
@@ -154,12 +154,38 @@ fn checkDependencies(comptime template: anytype, args: *const NamedArgs(template
         const listing: NamedListing = @field(template, field.name);
 
         if (isValueSet(@field(args, field.name))) {
-            if (!hasAnyDependency(template, listing.requires, args) and listing.requires.len > 0)
+            if (!hasAnyDependencySet(template, listing.requires, args))
                 return error.MissingRequirement;
             if (hasAnyDependency(template, listing.conflicts, args))
                 return error.ConflictingFlag;
         }
     }
+}
+
+fn hasAnyDependencySet(
+    comptime template: anytype,
+    comptime sets: []const []const NamedListing.Id,
+    args: *const NamedArgs(template),
+) bool {
+    if (sets.len == 0)
+        return true;
+    inline for (sets) |set| {
+        if (hasAllDependencies(template, set, args))
+            return true;
+    }
+    return false;
+}
+
+fn hasAllDependencies(
+    comptime template: anytype,
+    comptime dependencies: []const NamedListing.Id,
+    args: *const NamedArgs(template),
+) bool {
+    inline for (dependencies) |dependency| {
+        if (!hasDependency(template, dependency, args))
+            return false;
+    }
+    return true;
 }
 
 fn hasAnyDependency(

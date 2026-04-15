@@ -139,17 +139,17 @@ const template = .{
             .short = 'o',
             .long = "output",
             .value = cli_template.Path,
-            .requires = &.{ .assemble, .format },
+            .requires = &.{ &.{.assemble}, &.{.format} },
         },
 
         .export_symbols = cli_template.NamedListing{
             .long = "export-symbols",
-            .requires = &.{.assemble},
+            .requires = &.{&.{.assemble}},
             .conflicts = &.{.export_listing},
         },
         .export_listing = cli_template.NamedListing{
             .long = "export-listing",
-            .requires = &.{.assemble},
+            .requires = &.{&.{.assemble}},
             .conflicts = &.{.export_symbols},
         },
 
@@ -163,17 +163,17 @@ const template = .{
             .short = 'c',
             .long = "commands",
             .value = []const u8,
-            .requires = &.{.debug},
+            .requires = &.{&.{.debug}},
         },
         .history_file = cli_template.NamedListing{
             .long = "history-file",
             .value = []const u8,
-            .requires = &.{.debug},
+            .requires = &.{&.{.debug}},
         },
         .import_symbols = cli_template.NamedListing{
             .long = "import-symbols",
             .value = []const u8,
-            .requires = &.{.debug},
+            .requires = &.{&.{.debug}},
         },
 
         .strict = cli_template.NamedListing{
