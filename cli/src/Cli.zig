@@ -173,7 +173,7 @@ const template = .{
         .import_symbols = cli_template.NamedListing{
             .long = "import-symbols",
             .value = []const u8,
-            .requires = &.{&.{.debug}},
+            .requires = &.{&.{.debug, .emulate}},
         },
 
         .strict = cli_template.NamedListing{
