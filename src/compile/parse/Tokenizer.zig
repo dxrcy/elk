@@ -429,8 +429,14 @@ fn ensureSupported(
                 .integer = token.span,
             }).collect(&result);
         } else {
-            const digits = token.span.view(tokenizer.source)[integer.form.prefix_length..];
-            if (case.hasLowercaseAlpha(digits)) {
+            const string = token.span.view(tokenizer.source);
+            if (case.hasUppercaseAlpha(string[0..integer.form.prefix_length])) {
+                tokenizer.reporter.report(.unconventional_case, .{
+                    .token = token.span,
+                    .kind = .integer,
+                }).collect(&result);
+            }
+            if (case.hasLowercaseAlpha(string[integer.form.prefix_length..])) {
                 tokenizer.reporter.report(.unconventional_case, .{
                     .token = token.span,
                     .kind = .integer,
