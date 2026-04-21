@@ -91,7 +91,17 @@ pub const Writer = struct {
         try writer.print(prompt, .{});
         try writer.disableColor();
 
-        try writer.print("{s}", .{string});
+        const trimmed = std.mem.trim(u8, string, &std.ascii.whitespace);
+        const semicolon = std.mem.findScalar(u8, trimmed, ';') orelse trimmed.len;
+        const first = trimmed[0..semicolon];
+        const rest = trimmed[semicolon..];
+
+        try writer.print("{s}", .{first});
+        if (rest.len > 0) {
+            try writer.print("\x1b[2m", .{});
+            try writer.print("{s}", .{rest});
+            try writer.print("\x1b[0m", .{});
+        }
 
         if (cursor_opt) |cursor|
             try writer.print("\x1b[{}G", .{cursor + prompt.len + 1});
