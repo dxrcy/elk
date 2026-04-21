@@ -43,17 +43,17 @@ const info = struct {
         \\            Delete all output files (.obj, .sym, .lst) for an .asm file.
         \\
         \\OPTIONS:
-        \\    -o, --output [FILE]
+        \\    -o, --output <FILE>
         \\            Specify filename of object, symbol table, or listing output.
         \\
         \\    -d, --debug
         \\            Run debugger while emulating. Requires --emulate or (default) operation.
-        \\        --history-file [FILE]
+        \\        --history-file <FILE>
         \\            Specify path for debugger history file. Requires --debug.
         \\
-        \\        --export-symbols [FILE]
+        \\        --export-symbols <FILE>
         \\            Write .sym symbol table file instead of compiling .obj. Requires --assemble.
-        \\        --export-listing [FILE]
+        \\        --export-listing <FILE>
         \\            Write .lst listing file instead of compiling .obj. Requires --assemble.
         \\
         \\        --strict
