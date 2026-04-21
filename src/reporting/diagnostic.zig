@@ -293,7 +293,7 @@ pub const Diagnostic = union(enum) {
                     try ctx.deepen().printSourceNote("Register", .{}, info.token);
                 },
                 .integer => {
-                    try ctx.printTitle("Integer does not use lowercase letters", .{});
+                    try ctx.printTitle("Integer does not use uppercase letters", .{});
                     try ctx.deepen().printSourceNote("Integer", .{}, info.token);
                 },
             },

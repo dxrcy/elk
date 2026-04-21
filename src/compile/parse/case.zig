@@ -19,6 +19,15 @@ pub fn isUppercaseAlpha(string: []const u8) bool {
     return true;
 }
 
+pub fn hasLowercaseAlpha(string: []const u8) bool {
+    assert(string.len > 0);
+    for (string) |char| {
+        if (std.ascii.isLower(char))
+            return true;
+    }
+    return false;
+}
+
 pub fn hasUppercaseAlpha(string: []const u8) bool {
     assert(string.len > 0);
     for (string) |char| {

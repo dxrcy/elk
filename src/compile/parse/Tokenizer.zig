@@ -429,7 +429,8 @@ fn ensureSupported(
                 .integer = token.span,
             }).collect(&result);
         } else {
-            if (case.hasUppercaseAlpha(token.span.view(tokenizer.source))) {
+            const digits = token.span.view(tokenizer.source)[integer.form.prefix_length..];
+            if (case.hasLowercaseAlpha(digits)) {
                 tokenizer.reporter.report(.unconventional_case, .{
                     .token = token.span,
                     .kind = .integer,
