@@ -95,6 +95,8 @@ sudo install zig-out/bin/elk /usr/bin/
 
 - [x] [Tree-sitter parser](https://codeberg.org/dxrcy/tree-sitter-lc3)
 (syntax highlighting)
+- [x] [Inline diagnostic for Neovim](https://github.com/twhlynch/nvim-plugins)
+(see `elk` component)
 <!-- - [ ] Language server -->
 
 ## Supported Applications
