@@ -58,6 +58,7 @@ const Action = enum {
 
 pub const Writer = struct {
     pub const color = 34;
+    const prompt = "> ";
 
     inner: *Io.Writer,
 
@@ -81,6 +82,19 @@ pub const Writer = struct {
 
     pub fn disableColor(writer: *Writer) !void {
         try writer.print("\x1b[0m", .{});
+    }
+
+    pub fn writePrompt(writer: *Writer, string: []const u8, cursor_opt: ?usize) !void {
+        try writer.print("\r\x1b[K", .{});
+
+        try writer.enableColor();
+        try writer.print(prompt, .{});
+        try writer.disableColor();
+
+        try writer.print("{s}", .{string});
+
+        if (cursor_opt) |cursor|
+            try writer.print("\x1b[{}G", .{cursor + prompt.len + 1});
     }
 };
 
@@ -841,6 +855,11 @@ fn ensureUserAddress(debugger: *Debugger, address: u16, span: Span) error{Report
 
 fn readCommand(debugger: *Debugger, runtime: *Runtime) ![]const u8 {
     const line = try debugger.readInputLine(runtime);
+
+    try debugger.writer.writePrompt(line, null);
+    try debugger.writer.print("\n", .{});
+    try debugger.writer.flush();
+
     const first, const rest = parse.splitCommandLine(line);
     debugger.current_line = rest;
     return first;
