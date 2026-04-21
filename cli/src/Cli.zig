@@ -50,6 +50,9 @@ const info = struct {
         \\            Run debugger while emulating. Requires --emulate or (default) operation.
         \\        --history-file <FILE>
         \\            Specify path for debugger history file. Requires --debug.
+        \\        --commands <COMMANDS>
+        \\            Specify initial commands, separated with semicolons, that debugger shall run.
+        \\                Requires --debug.
         \\
         \\        --export-symbols <FILE>
         \\            Write .sym symbol table file instead of compiling .obj. Requires --assemble.
@@ -161,7 +164,7 @@ const template = .{
         },
 
         .commands = cli_template.NamedListing{
-            .short = 'c',
+            // .short = 'c',
             .long = "commands",
             .value = []const u8,
             .requires = &.{&.{.debug}},
@@ -223,7 +226,6 @@ pub fn parse(iter: *ArgIterator) error{ ParseFailed, DisplayMetadata, Unimplemen
     const unimplemented_args = [_][]const u8{
         "format",
         "import_symbols",
-        "commands",
     };
     for (unimplemented_args) |name| {
         inline for (@typeInfo(@TypeOf(args.named)).@"struct".fields) |field| {

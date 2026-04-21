@@ -225,6 +225,7 @@ fn emulate(
             .command_buffer = &debugger_buffer,
             .assembly = assembly,
             .history_file = history_file,
+            .initial_command_line = debug.commands orelse "",
         });
     } else null;
     defer if (debugger_opt) |*debugger| debugger.deinit(gpa);
