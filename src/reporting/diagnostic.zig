@@ -80,7 +80,7 @@ pub const Diagnostic = union(enum) {
     expected_eol: struct { found: Token },
     missing_operand_comma: struct { operand: Span },
     whitespace_comma: struct { comma: Span },
-    unconventional_case: struct { token: Span, kind: enum { directive, mnemonic, trap_alias, label, register, integer } },
+    unconventional_case: struct { token: Span, kind: enum { directive, mnemonic, trap_alias, label, register, integer_prefix, integer_digits } },
 
     // Directives
     unsupported_directive: struct { directive: Span },
@@ -199,7 +199,7 @@ pub const Diagnostic = union(enum) {
                 .trap_alias => policyResponse(options, .case_convention, .trap_aliases),
                 .label => policyResponse(options, .case_convention, .labels),
                 .register => policyResponse(options, .case_convention, .registers),
-                .integer => policyResponse(options, .case_convention, .integers),
+                .integer_prefix, .integer_digits => policyResponse(options, .case_convention, .integers),
             },
             .undesirable_integer_form => policyResponse(options, .style, .undesirable_integer_forms),
 
@@ -292,8 +292,12 @@ pub const Diagnostic = union(enum) {
                     try ctx.printTitle("Register name is not lowercase", .{});
                     try ctx.deepen().printSourceNote("Register", .{}, info.token);
                 },
-                .integer => {
+                .integer_prefix => {
                     try ctx.printTitle("Integer does not use uppercase letters", .{});
+                    try ctx.deepen().printSourceNote("Integer", .{}, info.token);
+                },
+                .integer_digits => {
+                    try ctx.printTitle("Integer prefix is not lowercase", .{});
                     try ctx.deepen().printSourceNote("Integer", .{}, info.token);
                 },
             },

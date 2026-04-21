@@ -433,13 +433,13 @@ fn ensureSupported(
             if (case.hasUppercaseAlpha(string[0..integer.form.prefix_length])) {
                 tokenizer.reporter.report(.unconventional_case, .{
                     .token = token.span,
-                    .kind = .integer,
+                    .kind = .integer_prefix,
                 }).collect(&result);
             }
             if (case.hasLowercaseAlpha(string[integer.form.prefix_length..])) {
                 tokenizer.reporter.report(.unconventional_case, .{
                     .token = token.span,
-                    .kind = .integer,
+                    .kind = .integer_digits,
                 }).collect(&result);
             }
 
