@@ -1,12 +1,23 @@
 .{
     .name = .elk,
-    .version = "0.1.0",
+    .version = "0.1.2",
+    .author = "darcy",
+    .homepage = "https://codeberg.org/dxrcy/elk",
+    .description = "Complete LC-3 toolchain.",
+
     .minimum_zig_version = "0.16.0",
     .fingerprint = 0xa2754ca2e4a559fc,
+
+    .dependencies = .{
+        .mcz = .{
+            .url = "git+https://github.com/dxrcy/mcz#89104409aa94b4b7587a142229cdeaa4fa4f047d",
+            .hash = "mcz-0.1.0-kvwPQhu1AAAXmBTC5OSwCu3ZcTSLq7oD9nVjSjIN8LSk",
+        },
+    },
 
     .paths = .{
         "build.zig",
         "build.zig.zon",
-        "src",
+        "lib",
     },
 }

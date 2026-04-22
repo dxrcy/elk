@@ -1,8 +1,0 @@
-/zig-out/
-/.zig-cache/
-/zig-pkg/
-
-/*.asm
-**/*.obj
-**/*.lc3
-

@@ -41,7 +41,7 @@ Alternatively, you can build `elk` from source, only requiring
 
 ```sh
 git clone https://codeberg.org/dxrcy/elk
-cd elk/cli
+cd elk
 
 zig build install -Doptimize=ReleaseSafe
 sudo install zig-out/bin/elk /usr/bin/
@@ -96,8 +96,7 @@ sudo install zig-out/bin/elk /usr/bin/
 - [x] [Tree-sitter parser](https://codeberg.org/dxrcy/tree-sitter-lc3)
 (syntax highlighting)
 - [x] [Inline diagnostics for VSCode](https://github.com/twhlynch/lc3-elk-diagnostics)
-- [x] [Inline diagnostics for Neovim](https://github.com/twhlynch/nvim-plugins)
-(see `elk` component)
+- [x] [Inline diagnostics for Neovim](https://github.com/twhlynch/elk.nvim)
 - [ ] Language server ([see issue](https://codeberg.org/dxrcy/elk/issues/32))
 
 ## Supported Applications
