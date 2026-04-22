@@ -430,7 +430,9 @@ fn ensureSupported(
             }).collect(&result);
         } else {
             const string = token.span.view(tokenizer.source);
-            if (case.hasUppercaseAlpha(string[0..integer.form.prefix_length])) {
+            if (integer.form.prefix_length > 0 and
+                case.hasUppercaseAlpha(string[0..integer.form.prefix_length]))
+            {
                 tokenizer.reporter.report(.unconventional_case, .{
                     .token = token.span,
                     .kind = .integer_prefix,
