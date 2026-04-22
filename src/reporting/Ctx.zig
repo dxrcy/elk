@@ -149,5 +149,8 @@ fn printSource(ctx: Ctx, span: Span) error{WriteFailed}!void {
         },
     }
 
-    try reporting.writeSpanContext(ctx.writer, span, 1, ctx.depth * indent_width, source);
+    try reporting.writeSpanContext(ctx.writer, span, .{
+        .indent = ctx.depth * indent_width,
+        .max_line_width = 90,
+    }, source);
 }

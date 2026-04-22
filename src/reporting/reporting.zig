@@ -194,22 +194,23 @@ pub fn Reporter(comptime Diag: type) type {
 pub fn writeSpanContext(
     writer: *std.Io.Writer,
     span: Span,
-    max_context: usize,
-    indent: usize,
+    config: struct {
+        indent: usize = 0,
+        max_context: usize = 1,
+        max_line_width: usize = 80,
+    },
     source: []const u8,
 ) error{WriteFailed}!void {
-    const max_columns = 90;
-
-    const lines = span.getSurroundingLines(max_context, source);
+    const lines = span.getSurroundingLines(config.max_context, source);
     var iter = std.mem.splitScalar(u8, lines.view(source), '\n');
     while (iter.next()) |line_string_full| {
-        const line_string = line_string_full[0..@min(line_string_full.len, max_columns)];
-        const is_truncated = line_string_full.len > max_columns;
+        const line_string = line_string_full[0..@min(line_string_full.len, config.max_line_width)];
+        const is_truncated = line_string_full.len > config.max_line_width;
 
         const line = Span.fromSlice(line_string, source);
         const line_number = line.getLineNumber(source);
 
-        for (0..indent) |_|
+        for (0..config.indent) |_|
             try writer.print(" ", .{});
 
         try writer.print("\x1b[2m", .{});
@@ -263,7 +264,7 @@ pub fn writeSpanContext(
             continue;
         }
 
-        for (0..indent) |_|
+        for (0..config.indent) |_|
             try writer.print(" ", .{});
 
         try writer.print("\x1b[2m", .{});
