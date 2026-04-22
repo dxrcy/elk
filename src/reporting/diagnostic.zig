@@ -176,7 +176,6 @@ pub const Diagnostic = union(enum) {
 
             .invalid_label_target,
             .invalid_string_escape,
-            .line_too_long,
             => strictnessResponse(options),
 
             .missing_origin => policyResponse(options, .extension, .implicit_origin),
@@ -205,6 +204,7 @@ pub const Diagnostic = union(enum) {
                 .integer_prefix, .integer_digits => policyResponse(options, .case_convention, .integers),
             },
             .undesirable_integer_form => policyResponse(options, .style, .undesirable_integer_forms),
+            .line_too_long => policyResponse(options, .style, .line_too_long),
 
             .emulate_exception => .fatal,
 
