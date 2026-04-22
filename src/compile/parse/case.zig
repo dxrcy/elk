@@ -19,6 +19,15 @@ pub fn isUppercaseAlpha(string: []const u8) bool {
     return true;
 }
 
+pub fn hasLowercaseAlpha(string: []const u8) bool {
+    assert(string.len > 0);
+    for (string) |char| {
+        if (std.ascii.isLower(char))
+            return true;
+    }
+    return false;
+}
+
 pub fn hasUppercaseAlpha(string: []const u8) bool {
     assert(string.len > 0);
     for (string) |char| {
@@ -53,11 +62,7 @@ pub fn isPascalCase(string: []const u8) bool {
                 .lower, .delim => return false,
                 else => {},
             },
-            .upper => switch (current) {
-                .upper => return false,
-                else => {},
-            },
-            .lower => {},
+            .upper, .lower => {},
             .digit => switch (current) {
                 .lower => return false,
                 else => {},
@@ -82,6 +87,9 @@ test isPascalCase {
     try expect(isPascalCase("AbcDefGhi"));
     try expect(isPascalCase("Abc_Def_Ghi"));
     try expect(isPascalCase("AbcDef_Ghi"));
+    try expect(isPascalCase("AbcDGhi"));
+    try expect(isPascalCase("AbcDGHI"));
+    try expect(isPascalCase("ADefGhi"));
     try expect(isPascalCase("Abc12"));
     try expect(isPascalCase("Abc_12"));
     try expect(isPascalCase("Abc_12Def"));

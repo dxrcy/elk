@@ -5,8 +5,9 @@ const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
+const reporting = @import("../../reporting/reporting.zig");
+const Reporter = reporting.Primary;
 const Traps = @import("../../Traps.zig");
-const Reporter = @import("../../report/Reporter.zig");
 const Air = @import("../../compile/Air.zig");
 const Span = @import("../../compile/Span.zig");
 const Parser = @import("../../compile/parse/Parser.zig");
@@ -57,6 +58,7 @@ const Action = enum {
 
 pub const Writer = struct {
     pub const color = 34;
+    const prompt = "> ";
 
     inner: *Io.Writer,
 
@@ -81,6 +83,29 @@ pub const Writer = struct {
     pub fn disableColor(writer: *Writer) !void {
         try writer.print("\x1b[0m", .{});
     }
+
+    pub fn writePrompt(writer: *Writer, string: []const u8, cursor_opt: ?usize) !void {
+        try writer.print("\r\x1b[K", .{});
+
+        try writer.enableColor();
+        try writer.print(prompt, .{});
+        try writer.disableColor();
+
+        const trimmed = std.mem.trim(u8, string, &std.ascii.whitespace);
+        const semicolon = std.mem.findScalar(u8, trimmed, ';') orelse trimmed.len;
+        const first = trimmed[0..semicolon];
+        const rest = trimmed[semicolon..];
+
+        try writer.print("{s}", .{first});
+        if (rest.len > 0) {
+            try writer.print("\x1b[2m", .{});
+            try writer.print("{s}", .{rest});
+            try writer.print("\x1b[0m", .{});
+        }
+
+        if (cursor_opt) |cursor|
+            try writer.print("\x1b[{}G", .{cursor + prompt.len + 1});
+    }
 };
 
 pub fn init(params: struct {
@@ -93,6 +118,7 @@ pub fn init(params: struct {
     command_buffer: []u8,
     assembly: ?Assembly = null,
     history_file: ?Io.File = null,
+    initial_command_line: []const u8 = "",
 }) error{OutOfMemory}!Debugger {
     const breakpoints: Breakpoints =
         if (params.assembly) |assembly|
@@ -112,7 +138,7 @@ pub fn init(params: struct {
         .breakpoints = breakpoints,
         .initial_state = null,
         .assembly = params.assembly,
-        .current_line = "",
+        .current_line = params.initial_command_line,
         .input = input,
         .writer = .{ .inner = params.writer },
         .traps = params.traps,
@@ -454,7 +480,9 @@ fn runCommand(
             const line = try debugger.getAssemblyLine(&assembly, address, arguments.location.span);
 
             try debugger.writer.printLine("Next instruction, at 0x{x:04}:", .{address});
-            try Reporter.writeSpanContext(debugger.writer.inner, line.span, 5, 0, assembly.source);
+            try reporting.writeSpanContext(debugger.writer.inner, line.span, .{
+                .max_context = arguments.context.value,
+            }, assembly.source);
         },
 
         .eval => |arguments| {
@@ -556,12 +584,15 @@ fn printListing(debugger: *Debugger, runtime: *Runtime, start: u16, end: u16) !v
 
         try debugger.writer.print(" {x:04}", .{word});
 
-        if (Instruction.decode(word)) |instruction| {
+        {
             const width = 16;
             var buffer: [width]u8 = undefined;
-            const string = std.fmt.bufPrint(&buffer, "{f}", .{instruction}) catch unreachable;
+            const string = if (Instruction.decode(word)) |instruction|
+                std.fmt.bufPrint(&buffer, "{f}", .{instruction}) catch unreachable
+            else |_|
+                "";
             try debugger.writer.print("  {s:<[1]}", .{ string, width });
-        } else |_| {}
+        }
 
         {
             const width = 12;
@@ -613,7 +644,7 @@ fn printBreakpoints(debugger: *Debugger) !void {
             try debugger.writer.disableColor();
             try debugger.writer.print("\n", .{});
 
-            try Reporter.writeSpanContext(debugger.writer.inner, line.span, 1, 0, assembly.source);
+            try reporting.writeSpanContext(debugger.writer.inner, line.span, .{}, assembly.source);
             continue;
         }
 
@@ -687,7 +718,7 @@ fn parseInstructionLine(
 }
 
 fn copyReporter(debugger: *const Debugger, source: []const u8) Reporter {
-    var reporter = debugger.reporter.copyImplementation();
+    var reporter = debugger.reporter.*;
     reporter.source = source;
     reporter.options.strictness = .normal;
     reporter.options.policies = .{
@@ -830,6 +861,11 @@ fn ensureUserAddress(debugger: *Debugger, address: u16, span: Span) error{Report
 
 fn readCommand(debugger: *Debugger, runtime: *Runtime) ![]const u8 {
     const line = try debugger.readInputLine(runtime);
+
+    try debugger.writer.writePrompt(line, null);
+    try debugger.writer.print("\n", .{});
+    try debugger.writer.flush();
+
     const first, const rest = parse.splitCommandLine(line);
     debugger.current_line = rest;
     return first;

@@ -78,6 +78,41 @@ pub fn getLineNumber(span: Span, source: []const u8) usize {
     return count;
 }
 
+pub fn getEndLineNumber(span: Span, source: []const u8) usize {
+    var count: usize = 1;
+    for (source[0..(span.offset + span.len)]) |char| {
+        if (char == '\n')
+            count += 1;
+    }
+    return count;
+}
+
+pub fn getColumnNumber(span: Span, source: []const u8) usize {
+    var column: usize = 1;
+    var i: usize = span.offset;
+
+    while (i > 0) {
+        i -= 1;
+        if (source[i] == '\n') break;
+        column += 1;
+    }
+
+    return column;
+}
+
+pub fn getEndColumnNumber(span: Span, source: []const u8) usize {
+    var column: usize = 1;
+    var i: usize = span.offset + span.len;
+
+    while (i > 0) {
+        i -= 1;
+        if (source[i] == '\n') break;
+        column += 1;
+    }
+
+    return column;
+}
+
 pub fn getSurroundingLines(span: Span, max_context: usize, source: []const u8) Span {
     const containing = span.getContainingLines(source);
 

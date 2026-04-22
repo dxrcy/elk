@@ -87,7 +87,7 @@ Mul10_Done
 
 OutputPrompt    .STRINGZ "Your number is: "
 InputPrompt     .STRINGZ "Input a positive number: "
-AsciiLf         .FILL  0x0a
+AsciiLf         .FILL  0x0A
 AsciiZero       .FILL  0x30
 
 .END

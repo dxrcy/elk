@@ -7,7 +7,7 @@ program.
 [Official Codeberg repository](https://codeberg.org/dxrcy/elk)
 | [GitHub mirror](https://github.com/dxrcy/elk)
 
-![Example usage](./images/example1.svg)
+![Example debugger usage](./images/example2.svg)
 
 # Usage
 
@@ -36,8 +36,8 @@ sudo install <filename> /usr/bin/elk
 
 ### From source
 
-Alternatively, you can build `elk` from source, only requiring Zig
-`0.16.0-dev.3091+557caecaa`:
+Alternatively, you can build `elk` from source, only requiring
+[Zig `0.16.0`](https://ziglang.org/download/#release-0.16.0):
 
 ```sh
 git clone https://codeberg.org/dxrcy/elk
@@ -47,7 +47,7 @@ zig build install -Doptimize=ReleaseSafe
 sudo install zig-out/bin/elk /usr/bin/
 ```
 
-> Once Zig 0.16.0 is released, `elk` will target the latest stable Zig version.
+![Example assembler usage](./images/example1.svg)
 
 # Features
 
@@ -95,11 +95,21 @@ sudo install zig-out/bin/elk /usr/bin/
 
 - [x] [Tree-sitter parser](https://codeberg.org/dxrcy/tree-sitter-lc3)
 (syntax highlighting)
-<!-- - [ ] Language server -->
+- [x] [Inline diagnostics for VSCode](https://github.com/twhlynch/lc3-elk-diagnostics)
+- [x] [Inline diagnostics for Neovim](https://github.com/twhlynch/nvim-plugins)
+(see `elk` component)
+- [ ] Language server ([see issue](https://codeberg.org/dxrcy/elk/issues/32))
 
 ## Supported Applications
 
 - [x] [ELCI](https://github.com/rozukke/lace/tree/minecraft) inter-op (see
 [`minecraft` branch](https://codeberg.org/dxrcy/elk/src/branch/minecraft))
 - [ ] Automatic testing framework
+
+# Contributors
+
+<!-- Codeberg has no equivalent -->
+<a href="https://github.com/dxrcy/elk/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=dxrcy/elk" />
+</a>
 

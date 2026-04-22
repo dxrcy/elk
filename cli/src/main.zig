@@ -13,19 +13,18 @@ pub fn main(init: std.process.Init) !u8 {
 
     var reporter_buffer: [1024]u8 = undefined;
     var reporter_writer = Io.File.stderr().writer(io, &reporter_buffer);
-    var reporter_impl = elk.Reporter.Stderr.new(&reporter_writer.interface);
-    var reporter = reporter_impl.interface();
+    var reporter = elk.reporting.Primary.new(&reporter_writer.interface);
 
     var args = try init.minimal.args.iterateAllocator(gpa);
     defer args.deinit();
 
     const cli = Cli.parse(&args) catch |err| switch (err) {
         error.DisplayMetadata => return 0,
-        else => return err,
+        error.ParseFailed, error.UnimplementedFeature => return 1,
     };
 
     reporter.options.strictness = cli.strictness;
-    reporter_impl.verbosity = cli.verbosity;
+    reporter.options.verbosity = cli.verbosity;
     reporter.options.policies = cli.policies;
 
     var traps: elk.Traps = comptime .registerSets(&.{
@@ -43,11 +42,11 @@ pub fn main(init: std.process.Init) !u8 {
         });
     }
 
-    const hooks: elk.Runtime.Hooks = .{};
-
     switch (cli.operation) {
         .assemble => |operation| {
-            const source = try Io.Dir.cwd().readFileAlloc(io, operation.input.regular, gpa, .unlimited);
+            const input_path = operation.input.asRegular() catch unreachable;
+
+            const source = try Io.Dir.cwd().readFileAlloc(io, input_path, gpa, .unlimited);
             defer gpa.free(source);
 
             reporter.source = source;
@@ -56,6 +55,7 @@ pub fn main(init: std.process.Init) !u8 {
             defer air.deinit(gpa);
 
             const out_extension = switch (operation.output_mode) {
+                .none => return 0,
                 .assembly => "obj",
                 .symbols => "sym",
                 .listing => "lst",
@@ -63,9 +63,9 @@ pub fn main(init: std.process.Init) !u8 {
 
             var out_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
             const out_path = if (operation.output) |output|
-                output.regular
+                output.asRegular() catch unreachable
             else
-                replacePathExtension(&out_path_buffer, operation.input.regular, out_extension);
+                replacePathExtension(&out_path_buffer, input_path, out_extension);
 
             var file = try Io.Dir.cwd().createFile(io, out_path, .{});
             defer file.close(io);
@@ -74,6 +74,7 @@ pub fn main(init: std.process.Init) !u8 {
             var writer = file.writer(io, &buffer);
 
             switch (operation.output_mode) {
+                .none => unreachable,
                 .assembly => try air.writeAssembly(&writer.interface),
                 .symbols => try air.writeSymbols(&writer.interface, source),
                 .listing => try air.writeListing(&writer.interface, source),
@@ -83,7 +84,9 @@ pub fn main(init: std.process.Init) !u8 {
         },
 
         .emulate => |operation| {
-            const file = try Io.Dir.cwd().openFile(io, operation.input.regular, .{});
+            const input_path = operation.input.asRegular() catch unreachable;
+
+            const file = try Io.Dir.cwd().openFile(io, input_path, .{});
             try emulate(
                 io,
                 gpa,
@@ -91,14 +94,15 @@ pub fn main(init: std.process.Init) !u8 {
                 .{ .object = file },
                 operation.debug,
                 &traps,
-                hooks,
                 cli.policies,
                 &reporter,
             );
         },
 
         .assemble_emulate => |operation| {
-            const source = try Io.Dir.cwd().readFileAlloc(io, operation.input.regular, gpa, .unlimited);
+            const input_path = operation.input.asRegular() catch unreachable;
+
+            const source = try Io.Dir.cwd().readFileAlloc(io, input_path, gpa, .unlimited);
             defer gpa.free(source);
 
             reporter.source = source;
@@ -113,10 +117,35 @@ pub fn main(init: std.process.Init) !u8 {
                 .{ .assembly = .{ .air = &air, .source = source } },
                 operation.debug,
                 &traps,
-                hooks,
                 cli.policies,
                 &reporter,
             );
+        },
+
+        .clean => |operation| {
+            if (!std.mem.endsWith(u8, operation.input, ".asm")) {
+                std.log.err("--clean requires filename to end with .asm", .{});
+                return error.BadFilename;
+            }
+
+            _ = Io.Dir.cwd().statFile(io, operation.input, .{}) catch |err| switch (err) {
+                error.FileNotFound => {
+                    std.log.err("--clean requires existing .asm file", .{});
+                    return error.BadFilename;
+                },
+                else => |err2| return err2,
+            };
+
+            const extensions = [_][]const u8{ "obj", "sym", "lst" };
+            for (extensions) |extension| {
+                var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
+                const path = replacePathExtension(&path_buffer, operation.input, extension);
+
+                Io.Dir.cwd().deleteFile(io, path) catch |err| switch (err) {
+                    error.FileNotFound => {},
+                    else => |err2| return err2,
+                };
+            }
         },
 
         else => unreachable,
@@ -138,7 +167,7 @@ fn assemble(
     gpa: Allocator,
     source: []const u8,
     traps: *const elk.Traps,
-    reporter: *elk.Reporter,
+    reporter: *elk.reporting.Primary,
 ) !elk.Air {
     var air: elk.Air = .init();
     errdefer air.deinit(gpa);
@@ -148,17 +177,17 @@ fn assemble(
 
     try parser.parseAir(gpa, &air);
     if (reporter.getLevel() == .err) {
-        reporter.showSummary();
+        reporter.summarize();
         return error.ProgramError;
     }
 
     parser.resolveLabelReferences(&air);
     if (reporter.getLevel() == .err) {
-        reporter.showSummary();
+        reporter.summarize();
         return error.ProgramError;
     }
 
-    reporter.showSummary();
+    reporter.summarize();
 
     return air;
 }
@@ -173,9 +202,8 @@ fn emulate(
     },
     debug_opt: ?Cli.Debug,
     traps: *elk.Traps,
-    hooks: elk.Runtime.Hooks,
     policies: elk.Policies,
-    reporter: *elk.Reporter,
+    reporter: *elk.reporting.Primary,
 ) !void {
     var conn_write_buffer: [1024]u8 = undefined;
     var conn_read_buffer: [1024]u8 = undefined;
@@ -220,6 +248,7 @@ fn emulate(
             .command_buffer = &debugger_buffer,
             .assembly = assembly,
             .history_file = history_file,
+            .initial_command_line = debug.commands orelse "",
         });
     } else null;
     defer if (debugger_opt) |*debugger| debugger.deinit(gpa);
@@ -229,7 +258,6 @@ fn emulate(
         .reader = &reader.interface,
         .writer = &writer.interface,
         .traps = traps,
-        .hooks = hooks,
         .policies = policies,
         .debugger = if (debugger_opt) |*debugger| debugger else null,
     });

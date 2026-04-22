@@ -4,7 +4,7 @@ pub const Runtime = @import("emulate/Runtime.zig");
 pub const Debugger = @import("emulate/debugger/Debugger.zig");
 pub const Traps = @import("Traps.zig");
 pub const Policies = @import("policies.zig").Policies;
-pub const Reporter = @import("report/Reporter.zig");
+pub const reporting = @import("reporting/reporting.zig");
 
 test {
     const refAllDecls = @import("std").testing.refAllDecls;
@@ -21,11 +21,9 @@ test {
     refAllDecls(@import("compile/parse/integers.zig"));
     refAllDecls(@import("compile/parse/Token.zig"));
     refAllDecls(@import("callback.zig"));
-    refAllDecls(@import("report/Reporter.zig"));
-    refAllDecls(@import("report/Discarding.zig"));
-    refAllDecls(@import("report/Ctx.zig"));
-    refAllDecls(@import("report/Stderr.zig"));
-    refAllDecls(@import("report/diagnostic.zig"));
+    refAllDecls(@import("reporting/Ctx.zig"));
+    refAllDecls(@import("reporting/diagnostic.zig"));
+    refAllDecls(@import("reporting/reporting.zig"));
     refAllDecls(@import("policies.zig"));
     refAllDecls(@import("Traps.zig"));
     refAllDecls(@import("emulate/decode.zig"));

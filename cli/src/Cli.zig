@@ -5,13 +5,14 @@ const assert = std.debug.assert;
 const ArgIterator = std.process.Args.Iterator;
 
 const elk = @import("elk");
-
 const cli_template = @import("cli_template.zig");
+
+const log = std.log.scoped(.cli);
 
 operation: Operation,
 policies: elk.Policies,
-strictness: elk.Reporter.Options.Strictness,
-verbosity: elk.Reporter.Stderr.Verbosity,
+strictness: elk.reporting.Options.Strictness,
+verbosity: elk.reporting.Options.Verbosity,
 
 const info = struct {
     const zon = @import("build_zon");
@@ -36,19 +37,26 @@ const info = struct {
         \\            Assemble an .asm file and write output.
         \\    -e, --emulate
         \\            Emulate an assembled .obj file. Supports --debug.
+        \\    -c, --check
+        \\            Check an assembly file for errors without assembling.
+        \\        --clean
+        \\            Delete all output files (.obj, .sym, .lst) for an .asm file.
         \\
         \\OPTIONS:
-        \\    -o, --output [FILE]
+        \\    -o, --output <FILE>
         \\            Specify filename of object, symbol table, or listing output.
         \\
         \\    -d, --debug
         \\            Run debugger while emulating. Requires --emulate or (default) operation.
-        \\        --history-file [FILE]
+        \\        --history-file <FILE>
         \\            Specify path for debugger history file. Requires --debug.
+        \\    -C, --commands <COMMANDS>
+        \\            Specify initial commands, separated with semicolons, that debugger shall run.
+        \\                Requires --debug.
         \\
-        \\        --export-symbols [FILE]
+        \\        --export-symbols <FILE>
         \\            Write .sym symbol table file instead of compiling .obj. Requires --assemble.
-        \\        --export-listing [FILE]
+        \\        --export-listing <FILE>
         \\            Write .lst listing file instead of compiling .obj. Requires --assemble.
         \\
         \\        --strict
@@ -78,19 +86,20 @@ const Operation = union(enum) {
     assemble: struct {
         input: cli_template.Path,
         output: ?cli_template.Path,
-        output_mode: enum { assembly, symbols, listing },
+        output_mode: enum { none, assembly, symbols, listing },
     },
     emulate: struct {
         input: cli_template.Path,
         debug: ?Debug,
     },
+    clean: struct {
+        input: []const u8,
+    },
     format: struct {
         input: cli_template.Path,
         output: ?cli_template.Path,
     },
-    clean: struct {
-        input: cli_template.Path,
-    },
+    lsp: struct {},
 };
 
 pub const Debug = struct {
@@ -110,61 +119,70 @@ const template = .{
         .assemble = cli_template.NamedListing{
             .short = 'a',
             .long = "assemble",
-            .conflicts = &.{ .emulate, .format, .clean },
+            .conflicts = &.{ .emulate, .check, .clean, .format, .lsp },
         },
         .emulate = cli_template.NamedListing{
             .short = 'e',
             .long = "emulate",
-            .conflicts = &.{ .assemble, .format, .clean },
+            .conflicts = &.{ .assemble, .check, .clean, .format, .lsp },
         },
-        .format = cli_template.NamedListing{
-            .long = "format",
-            .conflicts = &.{ .assemble, .emulate, .clean },
+        .check = cli_template.NamedListing{
+            .short = 'c',
+            .long = "check",
+            .conflicts = &.{ .assemble, .emulate, .clean, .format, .lsp },
         },
         .clean = cli_template.NamedListing{
             .long = "clean",
-            .conflicts = &.{ .assemble, .emulate, .format },
+            .conflicts = &.{ .assemble, .emulate, .check, .format, .lsp },
+        },
+        .format = cli_template.NamedListing{
+            .long = "format",
+            .conflicts = &.{ .assemble, .emulate, .check, .clean, .lsp },
+        },
+        .lsp = cli_template.NamedListing{
+            .long = "lsp",
+            .conflicts = &.{ .assemble, .emulate, .check, .clean, .format },
         },
 
         .output = cli_template.NamedListing{
             .short = 'o',
             .long = "output",
             .value = cli_template.Path,
-            .requires = &.{ .assemble, .format },
+            .requires = &.{ &.{.assemble}, &.{.format} },
         },
 
         .export_symbols = cli_template.NamedListing{
             .long = "export-symbols",
-            .requires = &.{.assemble},
+            .requires = &.{&.{.assemble}},
             .conflicts = &.{.export_listing},
         },
         .export_listing = cli_template.NamedListing{
             .long = "export-listing",
-            .requires = &.{.assemble},
+            .requires = &.{&.{.assemble}},
             .conflicts = &.{.export_symbols},
         },
 
         .debug = cli_template.NamedListing{
             .short = 'd',
             .long = "debug",
-            .conflicts = &.{ .assemble, .format, .clean },
+            .conflicts = &.{ .assemble, .check, .clean, .format, .lsp },
         },
 
         .commands = cli_template.NamedListing{
-            .short = 'c',
+            .short = 'C',
             .long = "commands",
             .value = []const u8,
-            .requires = &.{.debug},
+            .requires = &.{&.{.debug}},
         },
         .history_file = cli_template.NamedListing{
             .long = "history-file",
             .value = []const u8,
-            .requires = &.{.debug},
+            .requires = &.{&.{.debug}},
         },
         .import_symbols = cli_template.NamedListing{
             .long = "import-symbols",
             .value = []const u8,
-            .requires = &.{.debug},
+            .requires = &.{&.{ .debug, .emulate }},
         },
 
         .strict = cli_template.NamedListing{
@@ -195,9 +213,9 @@ fn parsePolicies(string: []const u8, value: *anyopaque) error{InvalidArgumentVal
         return error.InvalidArgumentValue;
 }
 
-pub fn parse(iter: *ArgIterator) !Cli {
+pub fn parse(iter: *ArgIterator) error{ ParseFailed, DisplayMetadata, UnimplementedFeature }!Cli {
     const args = cli_template.parse(template, iter) catch |err| switch (err) {
-        error.ExpectedPositionalArg,
+        error.Empty,
         error.Help,
         => {
             std.debug.print(info.help ++ "\n", .{});
@@ -212,27 +230,31 @@ pub fn parse(iter: *ArgIterator) !Cli {
 
     const unimplemented_args = [_][]const u8{
         "format",
-        "clean",
+        "lsp",
         "import_symbols",
-        "commands",
     };
     for (unimplemented_args) |name| {
         inline for (@typeInfo(@TypeOf(args.named)).@"struct".fields) |field| {
             if (std.mem.eql(u8, field.name, name) and
                 cli_template.isValueSet(@field(args.named, field.name)))
             {
-                std.log.err("unimplemented feature: {s}\n", .{field.name});
+                log.err("unimplemented feature: {s}", .{field.name});
                 return error.UnimplementedFeature;
             }
         }
     }
 
+    if (args.positional.input == .stdio and args.named.clean) {
+        log.err("unsupported stdin input path for operation", .{});
+        return error.ParseFailed;
+    }
+
     if (args.positional.input == .stdio) {
-        std.log.err("unimplemented feature: stdin input path\n", .{});
+        log.err("unimplemented feature: stdin input path", .{});
         return error.UnimplementedFeature;
     }
     if (args.named.output != null and args.named.output.? == .stdio) {
-        std.log.err("unimplemented feature: stdout output path\n", .{});
+        log.err("unimplemented feature: stdout output path", .{});
         return error.UnimplementedFeature;
     }
 
@@ -274,6 +296,14 @@ fn parseOperation(args: *const cli_template.Args(template)) Operation {
         } };
     }
 
+    if (args.named.check) {
+        return .{ .assemble = .{
+            .input = args.positional.input,
+            .output = null,
+            .output_mode = .none,
+        } };
+    }
+
     if (args.named.format) {
         return .{ .format = .{
             .input = args.positional.input,
@@ -283,7 +313,7 @@ fn parseOperation(args: *const cli_template.Args(template)) Operation {
 
     if (args.named.clean) {
         return .{ .clean = .{
-            .input = args.positional.input,
+            .input = args.positional.input.asRegular() catch unreachable,
         } };
     }
 

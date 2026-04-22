@@ -58,6 +58,7 @@ pub const Policies = packed struct {
         undesirable_integer_forms: Policy,
         missing_operand_commas: Policy,
         whitespace_commas: Policy,
+        line_too_long: Policy,
 
         pub const forbid_all = fillFields(@This(), .forbid);
         pub const permit_all = fillFields(@This(), .permit);

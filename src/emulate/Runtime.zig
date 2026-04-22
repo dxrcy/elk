@@ -92,12 +92,17 @@ pub const Hooks = struct {
     pre_execute: ?Callback(&.{ *Runtime, Instruction }, HostError!void) = null,
 };
 
+pub const SymbolEntry = struct {
+    address: u16,
+    name: []const u8,
+};
+
 pub fn init(params: struct {
     gpa: Allocator,
     reader: *Io.Reader,
     writer: *Io.Writer,
     traps: *const Traps,
-    hooks: Hooks,
+    hooks: Hooks = .{},
     policies: Policies,
     debugger: ?*Debugger = null,
 }) !Runtime {
@@ -136,6 +141,21 @@ pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !voi
         const raw = try reader.interface.takeInt(u16, .big);
         runtime.state.memory[origin + i] = raw;
     }
+}
+
+pub fn patchLabelValue(
+    runtime: *Runtime,
+    name: []const u8,
+    raw_word: u16,
+    symbols: []const SymbolEntry,
+) error{SymbolNotFound}!void {
+    for (symbols) |entry| {
+        if (!std.mem.eql(u8, entry.name, name))
+            continue;
+        runtime.state.memory[entry.address] = raw_word;
+        return;
+    }
+    return error.SymbolNotFound;
 }
 
 pub fn run(runtime: *Runtime) Error!void {

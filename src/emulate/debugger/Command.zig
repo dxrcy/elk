@@ -36,6 +36,7 @@ pub const Value = union(enum) {
     },
     assembly: struct {
         location: Spanned(Location.Memory),
+        context: Spanned(u16),
     },
     eval: struct {
         instruction: Span,

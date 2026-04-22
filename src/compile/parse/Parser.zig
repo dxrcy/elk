@@ -5,7 +5,7 @@ const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
 const Traps = @import("../../Traps.zig");
-const Reporter = @import("../../report/Reporter.zig");
+const Reporter = @import("../../reporting/reporting.zig").Primary;
 const Air = @import("../Air.zig");
 const Instruction = @import("../instruction.zig").Instruction;
 const Span = @import("../Span.zig");
@@ -14,6 +14,8 @@ const Tokenizer = @import("Tokenizer.zig");
 const Lexer = @import("Lexer.zig");
 const Token = @import("Token.zig");
 const case = @import("case.zig");
+
+pub const max_line_width = 80;
 
 tokenizer: Tokenizer,
 origin: ?Span,
@@ -60,6 +62,7 @@ pub fn parseAir(parser: *Parser, gpa: Allocator, air: *Air) error{OutOfMemory}!v
         const control = parser.parseLine(gpa, air) catch |err| switch (err) {
             error.Reported => {
                 parser.tokenizer.discardRemainingLine();
+                _ = parser.removeCurrentLabel(air);
                 continue;
             },
             error.Eof => {
@@ -78,22 +81,46 @@ pub fn parseAir(parser: *Parser, gpa: Allocator, air: *Air) error{OutOfMemory}!v
         }
     }
 
-    if (parser.origin == null) {
-        parser.reporter().report(.missing_origin, .{
-            .first_token = parser.getFirstTokenSpan(),
-        }).proceed(); // Can't return `error.Reported`
-    }
+    if (parser.reporter().isLevelAtMost(.warn)) {
+        if (parser.origin == null) {
+            parser.reporter().report(.missing_origin, .{
+                .first_token = parser.getFirstTokenSpan(),
+            }).proceed(); // Can't return `error.Reported`
+        }
 
-    parser.discardCurrentLabel(air, null) catch
-        {}; // Can't return `error.Reported`
+        parser.discardCurrentLabel(air, null) catch
+            {}; // Can't return `error.Reported`
 
-    if (missing_end) {
-        parser.reporter().report(.missing_end, .{
-            .last_token = parser.tokenizer.latest,
-        }).proceed(); // Can't return `error.Reported`
+        if (missing_end) {
+            parser.reporter().report(.missing_end, .{
+                .last_token = parser.tokenizer.latest,
+            }).proceed(); // Can't return `error.Reported`
+        }
+
+        parser.checkLineWidths() catch
+            {}; // Can't return `error.Reported`
     }
 
     air.assertLabelOrder();
+}
+
+fn checkLineWidths(parser: *Parser) error{Reported}!void {
+    var result: error{Reported}!void = {};
+    var lines = std.mem.splitScalar(u8, parser.source(), '\n');
+    while (lines.next()) |line| {
+        if (line.len <= max_line_width)
+            continue;
+        const overflow = line[max_line_width..];
+
+        parser.reporter().report(.line_too_long, .{
+            .overflow = .{
+                .offset = overflow.ptr - parser.source().ptr,
+                .len = overflow.len,
+            },
+        }).collect(&result);
+    }
+
+    return result;
 }
 
 fn getFirstTokenSpan(parser: *const Parser) ?Span {
@@ -200,7 +227,17 @@ pub fn parseInstruction(parser: *Parser) error{Reported}!Instruction {
     }
 }
 
+// TODO: Rename, too close to `removeCurrentLabel`
 fn discardCurrentLabel(parser: *Parser, air: *Air, target: ?Span) error{Reported}!void {
+    if (parser.removeCurrentLabel(air)) |label| {
+        try parser.reporter().report(.invalid_label_target, .{
+            .label = label,
+            .target = target,
+        }).handle();
+    }
+}
+
+fn removeCurrentLabel(parser: *Parser, air: *Air) ?Span {
     air.assertLabelOrder();
 
     const index = air.lines.items.len;
@@ -215,12 +252,9 @@ fn discardCurrentLabel(parser: *Parser, air: *Air, target: ?Span) error{Reported
             continue;
 
         _ = air.labels.orderedRemove(i - 1);
-
-        try parser.reporter().report(.invalid_label_target, .{
-            .label = label.span,
-            .target = target,
-        }).handle();
+        return label.span;
     }
+    return null;
 }
 
 fn ensureCanAppendLines(parser: *Parser, air: *Air, n: usize, span: Span) error{TooLong}!void {

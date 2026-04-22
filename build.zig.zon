@@ -1,7 +1,7 @@
 .{
     .name = .elk,
     .version = "0.1.0",
-    .minimum_zig_version = "0.16.0-dev.2670+56253d9e3",
+    .minimum_zig_version = "0.16.0",
     .fingerprint = 0xa2754ca2e4a559fc,
 
     .paths = .{

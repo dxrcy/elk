@@ -1,7 +1,7 @@
 const std = @import("std");
 const assert = std.debug.assert;
 
-const Reporter = @import("../../report/Reporter.zig");
+const Reporter = @import("../../reporting/reporting.zig").Primary;
 const Span = @import("../../compile/Span.zig");
 const Lexer = @import("../../compile/parse/Lexer.zig");
 const parsing = @import("../../compile/parse/parsing.zig");
@@ -87,6 +87,7 @@ const Parser = struct {
             } },
             .assembly => .{ .assembly = .{
                 .location = try parser.nextOptionalMemoryLocation(),
+                .context = try parser.nextPositiveIntOrDefault(5),
             } },
             .step_into => .{ .step_into = .{
                 .count = try parser.nextPositiveIntOrDefault(1),

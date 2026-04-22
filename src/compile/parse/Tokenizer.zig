@@ -4,7 +4,7 @@ const std = @import("std");
 const assert = std.debug.assert;
 
 const Traps = @import("../../Traps.zig");
-const Reporter = @import("../../report/Reporter.zig");
+const Reporter = @import("../../reporting/reporting.zig").Primary;
 const Operand = @import("../Operand.zig");
 const Span = @import("../Span.zig");
 const Lexer = @import("Lexer.zig");
@@ -429,10 +429,19 @@ fn ensureSupported(
                 .integer = token.span,
             }).collect(&result);
         } else {
-            if (case.hasUppercaseAlpha(token.span.view(tokenizer.source))) {
+            const string = token.span.view(tokenizer.source);
+            if (integer.form.prefix_length > 0 and
+                case.hasUppercaseAlpha(string[0..integer.form.prefix_length]))
+            {
                 tokenizer.reporter.report(.unconventional_case, .{
                     .token = token.span,
-                    .kind = .integer,
+                    .kind = .integer_prefix,
+                }).collect(&result);
+            }
+            if (case.hasLowercaseAlpha(string[integer.form.prefix_length..])) {
+                tokenizer.reporter.report(.unconventional_case, .{
+                    .token = token.span,
+                    .kind = .integer_digits,
                 }).collect(&result);
             }
 

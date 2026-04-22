@@ -101,8 +101,8 @@ Square_Loop                 ; while (r2 > 0)
     ret
 
 Radius      .FILL #20
-CharLf      .FILL 0x0a      ; '\n'
+CharLf      .FILL 0x0A      ; '\n'
 CharSet     .FILL 0x23      ; '#'
-CharUnset   .FILL 0x2e      ; '.'
+CharUnset   .FILL 0x2E      ; '.'
 
 .END

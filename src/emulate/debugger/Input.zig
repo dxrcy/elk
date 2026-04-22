@@ -60,7 +60,7 @@ pub fn readLine(input: *Input, writer: *Writer) ![]const u8 {
     var eof = false;
 
     while (true) {
-        try input.writePrompt(writer);
+        try writer.writePrompt(input.editor.getString(), input.editor.cursor);
         try writer.flush();
 
         const key = input.readKey() catch |err| switch (err) {
@@ -84,7 +84,7 @@ pub fn readLine(input: *Input, writer: *Writer) ![]const u8 {
         };
     }
 
-    try writer.print("\n", .{});
+    try writer.print("\r\x1b[K", .{});
     try writer.flush();
 
     if (eof) {
@@ -160,14 +160,4 @@ fn readByte(input: *Input) error{ EndOfStream, ReadFailed }!u8 {
         else => return error.ReadFailed,
     };
     return char;
-}
-
-fn writePrompt(input: *const Input, writer: *Writer) !void {
-    const prompt = "> ";
-    try writer.print("\r\x1b[K", .{});
-    try writer.enableColor();
-    try writer.print(prompt, .{});
-    try writer.disableColor();
-    try writer.print("{s}", .{input.editor.getString()});
-    try writer.print("\x1b[{}G", .{input.editor.cursor + prompt.len + 1});
 }
