@@ -6,6 +6,7 @@ program.
 
 [Official Codeberg repository](https://codeberg.org/dxrcy/elk)
 | [GitHub mirror](https://github.com/dxrcy/elk)
+| [Releases](https://github.com/dxrcy/elk/releases).
 
 <div align="center">
 
@@ -33,7 +34,7 @@ elk hello.obj --emulate
 ## Installation
 
 1. Download the latest binary release from
-[GitHub releases](https://github.com/dxrcy/elk/releases/latest).
+[GitHub releases](https://github.com/dxrcy/elk/releases).
 2. Install the downloaded file to your PATH:
 
 ```sh
