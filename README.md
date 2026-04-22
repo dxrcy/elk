@@ -41,7 +41,7 @@ Alternatively, you can build `elk` from source, only requiring
 
 ```sh
 git clone https://codeberg.org/dxrcy/elk
-cd elk/cli
+cd elk
 
 zig build install -Doptimize=ReleaseSafe
 sudo install zig-out/bin/elk /usr/bin/
