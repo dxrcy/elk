@@ -16,6 +16,8 @@ program.
 
 # Usage
 
+> Check out some [example LC-3 programs](examples) here!
+
 ```sh
 # Show all options
 elk --help
