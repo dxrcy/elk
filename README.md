@@ -7,7 +7,11 @@ program.
 [Official Codeberg repository](https://codeberg.org/dxrcy/elk)
 | [GitHub mirror](https://github.com/dxrcy/elk)
 
-![Example debugger usage](./images/example2.svg)
+<div align="center">
+
+![ELK Logo](images/elk.svg)
+
+</div>
 
 # Usage
 
@@ -23,6 +27,8 @@ elk hello.asm --assemble [--output hello.obj]
 # Emulate object file
 elk hello.obj --emulate
 ```
+
+![Example debugger usage](images/example2.svg)
 
 ## Installation
 
@@ -47,7 +53,7 @@ zig build install -Doptimize=ReleaseSafe
 sudo install zig-out/bin/elk /usr/bin/
 ```
 
-![Example assembler usage](./images/example1.svg)
+![Example assembler usage](images/example1.svg)
 
 # Features
 
