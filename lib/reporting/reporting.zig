@@ -160,14 +160,18 @@ pub fn Reporter(comptime Diag: type) type {
 
             if (count_err > 0) {
                 try ctx.writer.print("\x1b[31m", .{});
-                try ctx.writer.print("{} errors", .{count_err});
+                try ctx.writer.print("{} error{s}", .{
+                    count_err, if (count_err == 1) "" else "s",
+                });
                 try ctx.writer.print("\x1b[0m", .{});
                 try ctx.writer.print("\n", .{});
             }
 
             if (count_warn > 0) {
                 try ctx.writer.print("\x1b[33m", .{});
-                try ctx.writer.print("{} warnings", .{count_warn});
+                try ctx.writer.print("{} warnings{s}", .{
+                    count_warn, if (count_warn == 1) "" else "s",
+                });
                 try ctx.writer.print("\x1b[0m", .{});
                 try ctx.writer.print("\n", .{});
             }
