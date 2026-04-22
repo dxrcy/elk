@@ -2,6 +2,7 @@ const std = @import("std");
 
 const Policies = @import("../policies.zig").Policies;
 const Span = @import("../compile/Span.zig");
+const Parser = @import("../compile/parse/Parser.zig");
 const Token = @import("../compile/parse/Token.zig");
 const Radix = @import("../compile/parse/integers.zig").Form.Radix;
 const Runtime = @import("../emulate/Runtime.zig");
@@ -71,6 +72,7 @@ pub const Diagnostic = union(enum) {
     // Assembly file
     invalid_source_byte: struct { byte: usize },
     output_too_long: struct { statement: Span },
+    line_too_long: struct { overflow: Span },
 
     // Misc tokens, statements
     invalid_token: struct { token: Span, guess: ?TokenKinds.Kind },
@@ -174,6 +176,7 @@ pub const Diagnostic = union(enum) {
 
             .invalid_label_target,
             .invalid_string_escape,
+            .line_too_long,
             => strictnessResponse(options),
 
             .missing_origin => policyResponse(options, .extension, .implicit_origin),
@@ -235,6 +238,11 @@ pub const Diagnostic = union(enum) {
                 try ctx.printTitle("Assembly file would emit too many words", .{});
                 try ctx.deepen().printSourceNote("Line", .{}, info.statement);
                 try ctx.deepen().printNote("Object files cannot contain more than 0xffff words", .{});
+            },
+            .line_too_long => |info| {
+                try ctx.printTitle("Line is too long", .{});
+                try ctx.deepen().printSourceNote("Characters past column limit", .{}, info.overflow);
+                try ctx.printNote("Lines should not be longer than {} characters", .{Parser.max_line_width});
             },
 
             .invalid_token => |info| {

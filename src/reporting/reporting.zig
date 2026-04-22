@@ -198,7 +198,7 @@ pub fn writeSpanContext(
     indent: usize,
     source: []const u8,
 ) error{WriteFailed}!void {
-    const max_columns = 70;
+    const max_columns = 90;
 
     const lines = span.getSurroundingLines(max_context, source);
     var iter = std.mem.splitScalar(u8, lines.view(source), '\n');

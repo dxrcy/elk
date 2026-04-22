@@ -15,6 +15,8 @@ const Lexer = @import("Lexer.zig");
 const Token = @import("Token.zig");
 const case = @import("case.zig");
 
+pub const max_line_width = 80;
+
 tokenizer: Tokenizer,
 origin: ?Span,
 
@@ -94,9 +96,31 @@ pub fn parseAir(parser: *Parser, gpa: Allocator, air: *Air) error{OutOfMemory}!v
                 .last_token = parser.tokenizer.latest,
             }).proceed(); // Can't return `error.Reported`
         }
+
+        parser.checkLineWidths() catch
+            {}; // Can't return `error.Reported`
     }
 
     air.assertLabelOrder();
+}
+
+fn checkLineWidths(parser: *Parser) error{Reported}!void {
+    var result: error{Reported}!void = {};
+    var lines = std.mem.splitScalar(u8, parser.source(), '\n');
+    while (lines.next()) |line| {
+        if (line.len <= max_line_width)
+            continue;
+        const overflow = line[max_line_width..];
+
+        parser.reporter().report(.line_too_long, .{
+            .overflow = .{
+                .offset = overflow.ptr - parser.source().ptr,
+                .len = overflow.len,
+            },
+        }).collect(&result);
+    }
+
+    return result;
 }
 
 fn getFirstTokenSpan(parser: *const Parser) ?Span {
