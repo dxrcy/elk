@@ -78,19 +78,21 @@ pub fn parseAir(parser: *Parser, gpa: Allocator, air: *Air) error{OutOfMemory}!v
         }
     }
 
-    if (parser.origin == null) {
-        parser.reporter().report(.missing_origin, .{
-            .first_token = parser.getFirstTokenSpan(),
-        }).proceed(); // Can't return `error.Reported`
-    }
+    if (parser.reporter().isLevelAtMost(.warn)) {
+        if (parser.origin == null) {
+            parser.reporter().report(.missing_origin, .{
+                .first_token = parser.getFirstTokenSpan(),
+            }).proceed(); // Can't return `error.Reported`
+        }
 
-    parser.discardCurrentLabel(air, null) catch
-        {}; // Can't return `error.Reported`
+        parser.discardCurrentLabel(air, null) catch
+            {}; // Can't return `error.Reported`
 
-    if (missing_end) {
-        parser.reporter().report(.missing_end, .{
-            .last_token = parser.tokenizer.latest,
-        }).proceed(); // Can't return `error.Reported`
+        if (missing_end) {
+            parser.reporter().report(.missing_end, .{
+                .last_token = parser.tokenizer.latest,
+            }).proceed(); // Can't return `error.Reported`
+        }
     }
 
     air.assertLabelOrder();
