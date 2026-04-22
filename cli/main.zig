@@ -40,7 +40,10 @@ pub fn main(init: std.process.Init) !u8 {
 
             reporter.source = source;
 
-            var air = try assemble(gpa, source, &traps, &reporter);
+            var air = assemble(gpa, source, &traps, &reporter) catch |err| switch (err) {
+                error.ProgramError => return 1,
+                else => |err2| return err2,
+            };
             defer air.deinit(gpa);
 
             const out_extension = switch (operation.output_mode) {
@@ -96,7 +99,10 @@ pub fn main(init: std.process.Init) !u8 {
 
             reporter.source = source;
 
-            var air = try assemble(gpa, source, &traps, &reporter);
+            var air = assemble(gpa, source, &traps, &reporter) catch |err| switch (err) {
+                error.ProgramError => return 1,
+                else => |err2| return err2,
+            };
             defer air.deinit(gpa);
 
             try emulate(
