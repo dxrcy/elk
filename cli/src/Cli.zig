@@ -92,12 +92,12 @@ const Operation = union(enum) {
         input: cli_template.Path,
         debug: ?Debug,
     },
+    clean: struct {
+        input: []const u8,
+    },
     format: struct {
         input: cli_template.Path,
         output: ?cli_template.Path,
-    },
-    clean: struct {
-        input: []const u8,
     },
 };
 
@@ -118,25 +118,25 @@ const template = .{
         .assemble = cli_template.NamedListing{
             .short = 'a',
             .long = "assemble",
-            .conflicts = &.{ .emulate, .check, .format, .clean },
+            .conflicts = &.{ .emulate, .check, .clean, .format },
         },
         .emulate = cli_template.NamedListing{
             .short = 'e',
             .long = "emulate",
-            .conflicts = &.{ .assemble, .check, .format, .clean },
+            .conflicts = &.{ .assemble, .check, .clean, .format },
         },
         .check = cli_template.NamedListing{
             .short = 'c',
             .long = "check",
-            .conflicts = &.{ .assemble, .emulate, .format, .clean },
-        },
-        .format = cli_template.NamedListing{
-            .long = "format",
-            .conflicts = &.{ .assemble, .emulate, .check, .clean },
+            .conflicts = &.{ .assemble, .emulate, .clean, .format },
         },
         .clean = cli_template.NamedListing{
             .long = "clean",
             .conflicts = &.{ .assemble, .emulate, .check, .format },
+        },
+        .format = cli_template.NamedListing{
+            .long = "format",
+            .conflicts = &.{ .assemble, .emulate, .check, .clean },
         },
 
         .output = cli_template.NamedListing{
@@ -160,7 +160,7 @@ const template = .{
         .debug = cli_template.NamedListing{
             .short = 'd',
             .long = "debug",
-            .conflicts = &.{ .assemble, .check, .format, .clean },
+            .conflicts = &.{ .assemble, .check, .clean, .format },
         },
 
         .commands = cli_template.NamedListing{
