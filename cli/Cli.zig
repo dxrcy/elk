@@ -87,6 +87,7 @@ const Operation = union(enum) {
         input: cli_template.Path,
         output: ?cli_template.Path,
         output_mode: enum { none, assembly, symbols, listing },
+        trap_aliases: ?elk.Traps,
     },
     emulate: struct {
         input: cli_template.Path,
@@ -98,6 +99,7 @@ const Operation = union(enum) {
     format: struct {
         input: cli_template.Path,
         output: ?cli_template.Path,
+        trap_aliases: ?elk.Traps,
     },
     lsp: struct {},
 };
@@ -161,6 +163,12 @@ const template = .{
             .requires = &.{&.{.assemble}},
             .conflicts = &.{.export_symbols},
         },
+        .trap_aliases = cli_template.NamedListing{
+            .long = "trap-aliases",
+            .value = elk.Traps,
+            .value_parser = parseTrapAliases,
+            .requires = &.{ &.{.assemble}, &.{.check}, &.{.format} },
+        },
 
         .debug = cli_template.NamedListing{
             .short = 'd',
@@ -211,6 +219,20 @@ fn parsePolicies(string: []const u8, value: *anyopaque) error{InvalidArgumentVal
 
     policies.* = elk.Policies.parseList(string) catch
         return error.InvalidArgumentValue;
+}
+
+fn parseTrapAliases(string: []const u8, value: *anyopaque) error{InvalidArgumentValue}!void {
+    const traps: *elk.Traps = @ptrCast(@alignCast(value));
+    traps.* = .{ .entries = @splat(.unset) };
+
+    var items = std.mem.tokenizeScalar(u8, string, ',');
+    while (items.next()) |item| {
+        const alias, const vect_string = std.mem.cut(u8, item, "=0x") orelse
+            return error.InvalidArgumentValue;
+        const vect = std.fmt.parseInt(u8, vect_string, 16) catch
+            return error.InvalidArgumentValue;
+        traps.register(vect, .{ .alias = alias, .callback = null });
+    }
 }
 
 pub fn parse(iter: *ArgIterator) error{ ParseFailed, DisplayMetadata, UnimplementedFeature }!Cli {
@@ -282,6 +304,7 @@ fn parseOperation(args: *const cli_template.Args(template)) Operation {
                 .listing
             else
                 .assembly,
+            .trap_aliases = args.named.trap_aliases,
         } };
     }
 
@@ -301,6 +324,7 @@ fn parseOperation(args: *const cli_template.Args(template)) Operation {
             .input = args.positional.input,
             .output = null,
             .output_mode = .none,
+            .trap_aliases = args.named.trap_aliases,
         } };
     }
 
@@ -308,6 +332,7 @@ fn parseOperation(args: *const cli_template.Args(template)) Operation {
         return .{ .format = .{
             .input = args.positional.input,
             .output = args.named.output,
+            .trap_aliases = args.named.trap_aliases,
         } };
     }
 

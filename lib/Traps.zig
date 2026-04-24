@@ -20,7 +20,7 @@ const Entry = struct {
     alias: ?[]const u8,
     callback: ?Callback(&.{*Runtime}, Result),
 
-    const unset: Entry = .{ .alias = null, .callback = null };
+    pub const unset: Entry = .{ .alias = null, .callback = null };
 
     fn isSet(entry: *const Entry) bool {
         return entry.alias != null or
