@@ -40,7 +40,7 @@ elk hello.obj --emulate
 2. Install the downloaded file to your PATH:
 
 ```sh
-sudo install <filename> /usr/bin/elk
+sudo install <filename> /usr/local/bin/elk
 ```
 
 ### From source
@@ -53,7 +53,7 @@ git clone https://codeberg.org/dxrcy/elk
 cd elk
 
 zig build install -Doptimize=ReleaseSafe
-sudo install zig-out/bin/elk /usr/bin/
+sudo install zig-out/bin/elk /usr/local/bin/
 ```
 
 ![Example assembler usage](images/example1.svg)
