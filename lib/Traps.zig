@@ -42,8 +42,29 @@ pub const Debug = enum(u8) {
 };
 
 pub fn register(traps: *Traps, vect: u8, entry: Entry) void {
-    assert(!traps.entries[vect].isSet());
+    assert(traps.canRegister(vect, entry));
     traps.entries[vect] = entry;
+}
+
+pub fn canRegister(traps: *Traps, vect: u8, entry: Entry) bool {
+    if (traps.entries[vect].isSet())
+        return false;
+    if (entry.alias) |alias| {
+        @setEvalBranchQuota(5_000);
+        if (traps.hasAlias(alias))
+            return false;
+    }
+    return true;
+}
+
+fn hasAlias(traps: *Traps, alias: []const u8) bool {
+    for (traps.entries) |entry| {
+        const other_alias = entry.alias orelse
+            continue;
+        if (std.mem.eql(u8, other_alias, alias))
+            return true;
+    }
+    return false;
 }
 
 pub fn registerSets(comptime enums: []const type) Traps {
