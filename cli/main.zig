@@ -26,7 +26,7 @@ pub fn main(init: std.process.Init) !u8 {
     reporter.options.verbosity = cli.verbosity;
     reporter.options.policies = cli.policies;
 
-    const traps: elk.Traps = comptime .registerSets(&.{
+    const default_traps: elk.Traps = comptime .registerSets(&.{
         elk.Traps.Standard,
         elk.Traps.Debug,
     });
@@ -39,6 +39,8 @@ pub fn main(init: std.process.Init) !u8 {
             defer gpa.free(source);
 
             reporter.source = source;
+
+            const traps = operation.trap_aliases orelse default_traps;
 
             var air = assemble(gpa, source, &traps, &reporter) catch |err| switch (err) {
                 error.ProgramError => return 1,
@@ -85,7 +87,7 @@ pub fn main(init: std.process.Init) !u8 {
                 init.environ_map,
                 .{ .object = file },
                 operation.debug,
-                &traps,
+                &default_traps,
                 cli.policies,
                 &reporter,
             );
@@ -99,7 +101,7 @@ pub fn main(init: std.process.Init) !u8 {
 
             reporter.source = source;
 
-            var air = assemble(gpa, source, &traps, &reporter) catch |err| switch (err) {
+            var air = assemble(gpa, source, &default_traps, &reporter) catch |err| switch (err) {
                 error.ProgramError => return 1,
                 else => |err2| return err2,
             };
@@ -111,7 +113,7 @@ pub fn main(init: std.process.Init) !u8 {
                 init.environ_map,
                 .{ .assembly = .{ .air = &air, .source = source } },
                 operation.debug,
-                &traps,
+                &default_traps,
                 cli.policies,
                 &reporter,
             );
