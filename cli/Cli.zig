@@ -231,7 +231,11 @@ fn parseTrapAliases(string: []const u8, value: *anyopaque) error{InvalidArgument
             return error.InvalidArgumentValue;
         const vect = std.fmt.parseInt(u8, vect_string, 16) catch
             return error.InvalidArgumentValue;
-        traps.register(vect, .{ .alias = alias, .callback = null });
+
+        const entry: elk.Traps.Entry = .{ .alias = alias, .callback = null };
+        if (!traps.canRegister(vect, entry))
+            return error.InvalidArgumentValue;
+        traps.register(vect, entry);
     }
 }
 

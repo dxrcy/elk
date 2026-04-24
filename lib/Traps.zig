@@ -16,7 +16,7 @@ pub const Error =
 
 pub const Result = Error!void;
 
-const Entry = struct {
+pub const Entry = struct {
     alias: ?[]const u8,
     callback: ?Callback(&.{*Runtime}, Result),
 
