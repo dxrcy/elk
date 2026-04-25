@@ -141,7 +141,7 @@ fn writeSource(ctx: Ctx, span: Span) error{WriteFailed}!void {
             const start_column = span.getColumnNumber(source.text);
             const end_column = span.getEndColumnNumber(source.text);
 
-            try ctx.writer.print(" ({s} {}:{}-{}:{})", .{
+            try ctx.writer.print(" ({s}:{}:{}-{}:{})", .{
                 source.path orelse "{unknown}", start_line, start_column, end_line, end_column,
             });
             try ctx.writer.print("\n", .{});
