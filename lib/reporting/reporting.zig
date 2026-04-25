@@ -84,6 +84,7 @@ pub fn Reporter(comptime Diag: type) type {
 
     return struct {
         const Self = @This();
+        pub const Diagnostic = Diag;
 
         sink: Sink,
         count: std.EnumArray(Level, usize),
