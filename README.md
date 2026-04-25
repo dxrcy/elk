@@ -1,8 +1,11 @@
-# Elk
+# ELK
 
-Complete [LC-3](https://en.wikipedia.org/wiki/Little_Computer_3) toolchain.
-Available as both a [Zig](https://ziglang.org) library and a command-line
-program.
+ELK is a complete
+[LC-3](https://en.wikipedia.org/wiki/Little_Computer_3) toolchain
+available both as a CLI program and a [Zig](https://ziglang.org)
+library.
+ELK /ɛlk/ strives to be the most compatible and featureful implementation
+available.
 
 [Official Codeberg repository](https://codeberg.org/dxrcy/elk)
 | [Documentation](https://codeberg.org/dxrcy/elk/src/branch/master/DOCS.md)
@@ -22,12 +25,16 @@ program.
 ```sh
 # Show all options
 elk --help
+
 # Assemble and emulate
 elk hello.asm
+
 # Assemble and debug
 elk hello.asm --debug
+
 # Assemble to object file
 elk hello.asm --assemble [--output hello.obj]
+
 # Emulate object file
 elk hello.obj --emulate
 ```
@@ -64,6 +71,10 @@ sudo install <filename> /usr/local/bin/elk
 <a href="https://github.com/dxrcy/elk/graphs/contributors">
     <img src="https://contrib.rocks/image?repo=dxrcy/elk" />
 </a>
+
+> Want to contribute? Check out the
+> [open issues](https://codeberg.org/dxrcy/elk/issues), or share your own ideas!
+> :-)
 
 # Usage Examples
 
