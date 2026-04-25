@@ -296,10 +296,10 @@ sudo install zig-out/bin/elk /usr/local/bin/
 
 ## Neovim
 
-Before setting up [syntax highlighting] or [diagnostics], you need to tell
-Neovim which file extensions to associate with the `lc3` filetype, which you
-can do in any file which runs at startup, eg.
-`init.lua`.
+Before setting up [syntax highlighting](#syntax-highlighting) or
+[diagnostics](#diagnostics), you need to tell Neovim which file extensions to
+associate with the `lc3` filetype, which you can do in any file which runs at
+startup, eg. `init.lua`.
 
 ```lua
 -- init.lua, or any file which be ran on startup
