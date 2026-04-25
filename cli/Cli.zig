@@ -48,11 +48,11 @@ const info = struct {
         \\
         \\    -d, --debug
         \\            Run debugger while emulating. Requires --emulate or (default) operation.
-        \\        --history-file <FILE>
-        \\            Specify path for debugger history file. Requires --debug.
         \\    -C, --commands <COMMANDS>
         \\            Specify initial commands, separated with semicolons, that debugger shall run.
         \\                Requires --debug.
+        \\        --history-file <FILE>
+        \\            Specify path for debugger history file. Requires --debug.
         \\
         \\        --export-symbols <FILE>
         \\            Write .sym symbol table file instead of compiling .obj. Requires --assemble.
