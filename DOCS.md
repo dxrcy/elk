@@ -129,20 +129,71 @@
 - `--quiet`
 - ...
 ### Ignoring lints and enabling extensions
-- `--permit`
-- ...
-- See: [policies]
+
+The option `--permit <POLICIES>` (or `-p <POLICIES>`) specifies a set of
+"policies" to be "permitted" by ELK.
+See [here](#policies) for an explanation of what a "policy" is, and a
+description of all available policies.
+`--permit` may be used with any operation, and may affect assembly, emulation,
+and formatting.
+
+The policy set string `<POLICIES>` is a comma-separated list of policies (of the
+form `CATEGORY.POLICY`) or [predefined policy set](#predefined-policy-sets)
+names (of the form `+PREDEF`).
+These policies and predefined sets may be mixed and matched in any order.
+
+By default, ELK does not enable any policies, thus `--permit ""` is equivalent
+to ommitting the `--permit` option.
+Additionally, leading, trailing, and duplicate commas are ignored.
+
+**Example:** Enable the [stack ISA extension]:
+```sh
+elk example.asm -p extension.stack_instructions
+```
+> By default, ELK will warn (or error if `--strict`) when stack instructions
+>(`push`, `pop`, `call`, `rets`) are assembled or emulated.
+> By specifying that we "permit" this policy, it silences the error.
+
+**Example:** Opt-out of a handful of lints:
+```sh
+elk example.asm --permit +laser,smell.unused_label_definitions,smell.explicit_trap_instructions
+```
+> This permits all of the policies in the predefined set `laser`, as well as
+> permitting "unused" label definitions, and the use of the `trap` mnemonic
+> with an explicit trap vector.
 
 # ELK Features
 
 ## Policies
-- What are policies
-- See also: [extensions]
-- See also: [style guide]
+
+Policies are a way of telling ELK which features or lints you wish to be
+enabled for a certain program.
+By default, all policies are set to `.forbid`, meaning they are all disabled.
+You may opt-into a policy by setting it to `.permit`:
+
+```zig
+var policies: elk.Policies = .none;
+policies.extension.stack_instructions = .permit;
+```
+
+Policies are used throughout ELK, and for both assembly and emulation.
+A breach of policy during the assembly phase will trigger a diagnostic to be
+reported, which, depending on the strictness level, will be classified as a
+warning or an error.
+If a policy is breached during emulation (such as a forbidden ISA extension),
+this will trigger a runtime exception (eg. `error.UnsupportedOpcode`).
 
 ### Categories
 
-- `extensions` - Extension features:
+There are 4 policy categories:
+- `extension`, for extension features. See [extensions].
+- `smell`, for linting of possible "code smells".
+- `style`, for general code style. See [ELK style guide].
+- `case`, for adherence to the case convention. See [ELK style guide].
+
+The policies in each category are as follows:
+
+- `extension`:
     - `stack_instructions`: Enable [stack instructions] ISA extension.
     - `implicit_origin`: Enable [implicit orig].
     - `implicit_end`: Enable [implicit end].
@@ -152,20 +203,17 @@
     - `label_definition_colons`: Allow [colons after label definitions].
     - `multiple_labels`: Allow [multiple labels for a single address].
     - `character_literals`: Allow [character integer literal].
-
-- `smell` - Code linting:
+- `smell`:
     - `pc_offset_literals`: Allow integer literal offsets in place of label references.
     - `explicit_trap_instructions`: Allow `trap` instruction with explicit vector literals.
     - `unknown_trap_vectors`: Allow explicit trap instructions with unknown vector literals.
     - `unused_label_definitions`: Allow label definitions with no references.
-
-- `style` - General code style:
+- `style`:
     - `undesirable_integer_forms`: Allow integer syntax which goes against style guide.
     - `missing_operand_commas`: Don't require commas between operands.
     - `whitespace_commas`: Treat all comma tokens as whitespace.
     - `line_too_long`: Allow lines longer than 80 characters.
-
-- `case` - Case convention:
+- `case`:
     - `mnemonics`: Allow instruction mnemonics which aren't `lowercase`.
     - `trap_aliases`: Allow trap aliases which aren't `lowercase`.
     - `directives`: Allow directives which aren't `UPPERCASE`.
@@ -174,9 +222,20 @@
     - `integers`: Allow integers with uppercase radix (`0X1F`) or lowercase digits (`0x1f`).
 
 ### Predefined policy sets
-- ...
-- `laser`
-- `lace`
+
+Predefined policy sets are used as a shorthand for stating each member of the
+set. These sets are typically used for compatibility with other toolchains.
+
+- `laser`: Compatiblity with [Lace](https://github.com/rozukke/lace), including
+    all extensions.
+    - `extension.stack_instructions`
+    - `extension.implicit_origin`
+    - `extension.implicit_end`
+    - `extension.label_definition_colons`
+    - `style.missing_operand_commas`
+    - `style.whitespace_commas`
+- `lace`: Compatiblity with [Laser](https://github.com/PaperFanz/laser).
+    - `style.undesirable_integer_forms`
 
 ## Custom Traps
 - How to define custom traps
