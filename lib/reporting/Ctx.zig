@@ -58,12 +58,12 @@ fn incrementItemCount(ctx: *const Ctx) void {
         count.* += 1;
 }
 
-fn printDepth(ctx: Ctx) error{WriteFailed}!void {
+fn writeDepth(ctx: Ctx) error{WriteFailed}!void {
     for (0..ctx.depth) |_|
         try ctx.writer.print(" " ** indent_width, .{});
 }
 
-fn printTitle(
+fn writeTitle(
     ctx: Ctx,
     comptime fmt: []const u8,
     args: anytype,
@@ -72,7 +72,7 @@ fn printTitle(
 
     const level = ctx.level orelse
         unreachable;
-    try ctx.printDepth();
+    try ctx.writeDepth();
     switch (level) {
         .err => {
             try ctx.writer.print("\x1b[31m", .{});
@@ -104,7 +104,7 @@ fn printTitle(
     }
 }
 
-fn printNote(ctx: Ctx, comptime fmt: []const u8, args: anytype) error{WriteFailed}!void {
+fn writeNote(ctx: Ctx, comptime fmt: []const u8, args: anytype) error{WriteFailed}!void {
     defer ctx.incrementItemCount();
 
     switch (ctx.verbosity) {
@@ -112,7 +112,7 @@ fn printNote(ctx: Ctx, comptime fmt: []const u8, args: anytype) error{WriteFaile
         .quiet => return,
     }
 
-    try ctx.printDepth();
+    try ctx.writeDepth();
     try ctx.writer.print("\x1b[36m", .{});
     try ctx.writer.print("Note: ", .{});
     try ctx.writer.print("\x1b[0m", .{});
@@ -120,17 +120,17 @@ fn printNote(ctx: Ctx, comptime fmt: []const u8, args: anytype) error{WriteFaile
     try ctx.writer.print("\n", .{});
 }
 
-fn printSourceNote(
+fn writeSourceNote(
     ctx: Ctx,
     comptime fmt: []const u8,
     args: anytype,
     span: Span,
 ) error{WriteFailed}!void {
-    try ctx.printNote(fmt ++ ": ", args);
-    try ctx.printSource(span);
+    try ctx.writeNote(fmt ++ ": ", args);
+    try ctx.writeSource(span);
 }
 
-fn printSource(ctx: Ctx, span: Span) error{WriteFailed}!void {
+fn writeSource(ctx: Ctx, span: Span) error{WriteFailed}!void {
     const source = ctx.source orelse
         unreachable;
 
@@ -154,13 +154,12 @@ fn printSource(ctx: Ctx, span: Span) error{WriteFailed}!void {
         },
     }
 
-    try reporting.writeSpanContext(ctx.writer, span, .{
+    try writeSpanContext(ctx.writer, span, .{
         .indent = ctx.depth * indent_width,
         .max_line_width = 90,
     }, source);
 }
 
-pub fn printDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
 pub fn writeSpanContext(
     writer: *std.Io.Writer,
     span: Span,
@@ -255,120 +254,121 @@ pub fn writeSpanContext(
     }
 }
 
+pub fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
     const source = ctx.source orelse
         unreachable;
 
     switch (diag) {
         .invalid_source_byte => |info| {
-            try ctx.printTitle("Assembly file contains invalid bytes", .{});
-            try ctx.deepen().printSourceNote("Byte", .{}, .{ .offset = info.byte, .len = 1 });
-            try ctx.deepen().printNote("Assembly file must only contain printable ASCII characters", .{});
-            try ctx.deepen().printNote("The assembler cannot read object files", .{});
+            try ctx.writeTitle("Assembly file contains invalid bytes", .{});
+            try ctx.deepen().writeSourceNote("Byte", .{}, .{ .offset = info.byte, .len = 1 });
+            try ctx.deepen().writeNote("Assembly file must only contain printable ASCII characters", .{});
+            try ctx.deepen().writeNote("The assembler cannot read object files", .{});
         },
         .output_too_long => |info| {
-            try ctx.printTitle("Assembly file would emit too many words", .{});
-            try ctx.deepen().printSourceNote("Line", .{}, info.statement);
-            try ctx.deepen().printNote("Object files cannot contain more than 0xffff words", .{});
+            try ctx.writeTitle("Assembly file would emit too many words", .{});
+            try ctx.deepen().writeSourceNote("Line", .{}, info.statement);
+            try ctx.deepen().writeNote("Object files cannot contain more than 0xffff words", .{});
         },
         .line_too_long => |info| {
-            try ctx.printTitle("Line is longer than {} characters", .{Parser.max_line_width});
-            try ctx.deepen().printSourceNote("Characters past column limit", .{}, info.overflow);
+            try ctx.writeTitle("Line is longer than {} characters", .{Parser.max_line_width});
+            try ctx.deepen().writeSourceNote("Characters past column limit", .{}, info.overflow);
         },
 
         .invalid_token => |info| {
-            try ctx.printTitle("Invalid token", .{});
-            try ctx.deepen().printSourceNote("Token", .{}, info.token);
+            try ctx.writeTitle("Invalid token", .{});
+            try ctx.deepen().writeSourceNote("Token", .{}, info.token);
             if (info.guess) |kind|
-                try ctx.deepen().printNote("Cannot parse as {s}", .{TokenKinds.name(kind)})
+                try ctx.deepen().writeNote("Cannot parse as {s}", .{TokenKinds.name(kind)})
             else
-                try ctx.deepen().printNote("Cannot parse as any valid token", .{});
+                try ctx.deepen().writeNote("Cannot parse as any valid token", .{});
         },
         .unexpected_token_kind => |info| {
-            try ctx.printTitle("Unexpected {s}", .{TokenKinds.name(info.found.value)});
-            try ctx.deepen().printSourceNote("Token", .{}, info.found.span);
-            try ctx.deepen().printNote("Expected {f}", .{TokenKinds{ .kinds = info.expected }});
+            try ctx.writeTitle("Unexpected {s}", .{TokenKinds.name(info.found.value)});
+            try ctx.deepen().writeSourceNote("Token", .{}, info.found.span);
+            try ctx.deepen().writeNote("Expected {f}", .{TokenKinds{ .kinds = info.expected }});
         },
         .unexpected_eol => |info| {
-            try ctx.printTitle("Unexpected end of line", .{});
-            try ctx.deepen().printSourceNote("Line ends too early", .{}, info.eol);
-            try ctx.deepen().printNote("Expected {f}", .{TokenKinds{ .kinds = info.expected }});
-            try ctx.deepen().printNote("Instructions cannot span multiple lines", .{});
+            try ctx.writeTitle("Unexpected end of line", .{});
+            try ctx.deepen().writeSourceNote("Line ends too early", .{}, info.eol);
+            try ctx.deepen().writeNote("Expected {f}", .{TokenKinds{ .kinds = info.expected }});
+            try ctx.deepen().writeNote("Instructions cannot span multiple lines", .{});
         },
         .expected_eol => |info| {
-            try ctx.printTitle("Unexpected {s}", .{TokenKinds.name(info.found.value)});
-            try ctx.deepen().printSourceNote("Token", .{}, info.found.span);
-            try ctx.deepen().printNote("Expected end of line", .{});
+            try ctx.writeTitle("Unexpected {s}", .{TokenKinds.name(info.found.value)});
+            try ctx.deepen().writeSourceNote("Token", .{}, info.found.span);
+            try ctx.deepen().writeNote("Expected end of line", .{});
         },
         .missing_operand_comma => |info| {
-            try ctx.printTitle("Missing comma `,` after operand", .{});
-            try ctx.deepen().printSourceNote("Operand", .{}, info.operand);
-            try ctx.deepen().printNote("Operands should be separated with commas", .{});
+            try ctx.writeTitle("Missing comma `,` after operand", .{});
+            try ctx.deepen().writeSourceNote("Operand", .{}, info.operand);
+            try ctx.deepen().writeNote("Operands should be separated with commas", .{});
         },
         .whitespace_comma => |info| {
-            try ctx.printTitle("Unexpected comma `,`", .{});
-            try ctx.deepen().printSourceNote("Comma", .{}, info.comma);
-            try ctx.deepen().printNote("Commas should only appear between instruction operands", .{});
+            try ctx.writeTitle("Unexpected comma `,`", .{});
+            try ctx.deepen().writeSourceNote("Comma", .{}, info.comma);
+            try ctx.deepen().writeNote("Commas should only appear between instruction operands", .{});
         },
         .unconventional_case => |info| switch (info.kind) {
             .mnemonic => {
-                try ctx.printTitle("Instruction mnemonic is not lowercase", .{});
-                try ctx.deepen().printSourceNote("Mnemonic", .{}, info.token);
+                try ctx.writeTitle("Instruction mnemonic is not lowercase", .{});
+                try ctx.deepen().writeSourceNote("Mnemonic", .{}, info.token);
             },
             .trap_alias => {
-                try ctx.printTitle("Trap instruction alias is not lowercase", .{});
-                try ctx.deepen().printSourceNote("Trap alias", .{}, info.token);
+                try ctx.writeTitle("Trap instruction alias is not lowercase", .{});
+                try ctx.deepen().writeSourceNote("Trap alias", .{}, info.token);
             },
             .directive => {
-                try ctx.printTitle("Directive name is not uppercase", .{});
-                try ctx.deepen().printSourceNote("Directive", .{}, info.token);
+                try ctx.writeTitle("Directive name is not uppercase", .{});
+                try ctx.deepen().writeSourceNote("Directive", .{}, info.token);
             },
             .label => {
-                try ctx.printTitle("Label name is not PascalCase", .{});
-                try ctx.deepen().printSourceNote("Label declared here", .{}, info.token);
+                try ctx.writeTitle("Label name is not PascalCase", .{});
+                try ctx.deepen().writeSourceNote("Label declared here", .{}, info.token);
             },
             .register => {
-                try ctx.printTitle("Register name is not lowercase", .{});
-                try ctx.deepen().printSourceNote("Register", .{}, info.token);
+                try ctx.writeTitle("Register name is not lowercase", .{});
+                try ctx.deepen().writeSourceNote("Register", .{}, info.token);
             },
             .integer_prefix => {
-                try ctx.printTitle("Integer prefix is not lowercase", .{});
-                try ctx.deepen().printSourceNote("Integer", .{}, info.token);
+                try ctx.writeTitle("Integer prefix is not lowercase", .{});
+                try ctx.deepen().writeSourceNote("Integer", .{}, info.token);
             },
             .integer_digits => {
-                try ctx.printTitle("Integer does not use uppercase letters", .{});
-                try ctx.deepen().printSourceNote("Integer", .{}, info.token);
+                try ctx.writeTitle("Integer does not use uppercase letters", .{});
+                try ctx.deepen().writeSourceNote("Integer", .{}, info.token);
             },
         },
 
         .unsupported_directive => |info| {
-            try ctx.printTitle("Directive is not supported", .{});
-            try ctx.deepen().printSourceNote("Tried to use directive here", .{}, info.directive);
+            try ctx.writeTitle("Directive is not supported", .{});
+            try ctx.deepen().writeSourceNote("Tried to use directive here", .{}, info.directive);
         },
         .multiple_origins => |info| {
-            try ctx.printTitle("Multiple .ORIG directives", .{});
-            try ctx.deepen().printSourceNote("First declared here", .{}, info.existing);
-            try ctx.deepen().printSourceNote("Tried to redeclare here", .{}, info.new);
+            try ctx.writeTitle("Multiple .ORIG directives", .{});
+            try ctx.deepen().writeSourceNote("First declared here", .{}, info.existing);
+            try ctx.deepen().writeSourceNote("Tried to redeclare here", .{}, info.new);
         },
         .late_origin => |info| {
-            try ctx.printTitle("Origin declared after statements", .{});
-            try ctx.deepen().printSourceNote("Origin declared here", .{}, info.origin);
-            try ctx.deepen().printSourceNote(
+            try ctx.writeTitle("Origin declared after statements", .{});
+            try ctx.deepen().writeSourceNote("Origin declared here", .{}, info.origin);
+            try ctx.deepen().writeSourceNote(
                 "Origin must be declared at start of file",
                 .{},
                 info.first_token orelse .firstCharOf(source),
             );
         },
         .missing_origin => |info| {
-            try ctx.printTitle("Missing .ORIG directive", .{});
-            try ctx.deepen().printSourceNote(
+            try ctx.writeTitle("Missing .ORIG directive", .{});
+            try ctx.deepen().writeSourceNote(
                 "Origin should be declared before any instructions",
                 .{},
                 info.first_token orelse .firstCharOf(source),
             );
         },
         .missing_end => |info| {
-            try ctx.printTitle("Missing .END directive", .{});
-            try ctx.deepen().printSourceNote(
+            try ctx.writeTitle("Missing .END directive", .{});
+            try ctx.deepen().writeSourceNote(
                 "End should be declared after included all instructions",
                 .{},
                 info.last_token orelse .lastCharOf(source),
@@ -376,89 +376,89 @@ pub fn writeSpanContext(
         },
 
         .existing_label_left => |info| {
-            try ctx.printTitle("Multiple labels cannot be declared on the same line", .{});
-            try ctx.deepen().printSourceNote("First label declared here", .{}, info.existing);
-            try ctx.deepen().printSourceNote("Another label declared on the same line", .{}, info.new);
+            try ctx.writeTitle("Multiple labels cannot be declared on the same line", .{});
+            try ctx.deepen().writeSourceNote("First label declared here", .{}, info.existing);
+            try ctx.deepen().writeSourceNote("Another label declared on the same line", .{}, info.new);
         },
         .existing_label_above => |info| {
-            try ctx.printTitle("Line is annotated with multiple labels", .{});
-            try ctx.deepen().printSourceNote("First label declared here", .{}, info.existing);
-            try ctx.deepen().printSourceNote("Another label declared in the same position", .{}, info.new);
+            try ctx.writeTitle("Line is annotated with multiple labels", .{});
+            try ctx.deepen().writeSourceNote("First label declared here", .{}, info.existing);
+            try ctx.deepen().writeSourceNote("Another label declared in the same position", .{}, info.new);
         },
         .invalid_label_target => |info| {
-            try ctx.printTitle("Label is useless in this position", .{});
-            try ctx.deepen().printSourceNote("Label declared here", .{}, info.label);
+            try ctx.writeTitle("Label is useless in this position", .{});
+            try ctx.deepen().writeSourceNote("Label declared here", .{}, info.label);
             if (info.target) |target|
-                try ctx.deepen().printSourceNote("Token cannot be annotated with label", .{}, target)
+                try ctx.deepen().writeSourceNote("Token cannot be annotated with label", .{}, target)
             else
-                try ctx.deepen().printSourceNote("Label is not followed by any token", .{}, .lastCharOf(source));
+                try ctx.deepen().writeSourceNote("Label is not followed by any token", .{}, .lastCharOf(source));
         },
         .label_colon => |info| {
-            try ctx.printTitle("Label followed by colon `:`", .{});
-            try ctx.deepen().printSourceNote("Colon", .{}, info.colon);
-            try ctx.deepen().printNote("A post-label colon is non-standard syntax", .{});
+            try ctx.writeTitle("Label followed by colon `:`", .{});
+            try ctx.deepen().writeSourceNote("Colon", .{}, info.colon);
+            try ctx.deepen().writeNote("A post-label colon is non-standard syntax", .{});
         },
 
         .redefined_label => |info| {
-            try ctx.printTitle("Label already declared", .{});
-            try ctx.deepen().printSourceNote("Label is first declared here", .{}, info.existing);
-            try ctx.deepen().printSourceNote("Tried to redeclare here", .{}, info.new);
+            try ctx.writeTitle("Label already declared", .{});
+            try ctx.deepen().writeSourceNote("Label is first declared here", .{}, info.existing);
+            try ctx.deepen().writeSourceNote("Tried to redeclare here", .{}, info.new);
         },
         .undefined_label => |info| {
-            try ctx.printTitle("Label is not declared", .{});
-            try ctx.deepen().printSourceNote("Label used here", .{}, info.reference);
+            try ctx.writeTitle("Label is not declared", .{});
+            try ctx.deepen().writeSourceNote("Label used here", .{}, info.reference);
             if (info.nearest) |close_match| {
                 try ctx.deepen().withSource(info.definition_source)
-                    .printSourceNote("This label declaration is similar", .{}, close_match);
-                try ctx.deepen().printNote("Label names are case-sensitive", .{});
+                    .writeSourceNote("This label declaration is similar", .{}, close_match);
+                try ctx.deepen().writeNote("Label names are case-sensitive", .{});
             }
         },
         .unused_label => |info| {
-            try ctx.printTitle("Label declaration is not used", .{});
-            try ctx.deepen().printSourceNote("Label declared here", .{}, info.label);
+            try ctx.writeTitle("Label declaration is not used", .{});
+            try ctx.deepen().writeSourceNote("Label declared here", .{}, info.label);
         },
 
         // TODO: Change "operand" to "argument", and elsewhere
         .malformed_integer => |info| {
-            try ctx.printTitle("Malformed integer operand", .{});
-            try ctx.deepen().printSourceNote("Operand", .{}, info.integer);
-            try ctx.deepen().printNote("Integer token is not in an valid form", .{});
+            try ctx.writeTitle("Malformed integer operand", .{});
+            try ctx.deepen().writeSourceNote("Operand", .{}, info.integer);
+            try ctx.deepen().writeNote("Integer token is not in an valid form", .{});
         },
         .malformed_character => |info| {
-            try ctx.printTitle("Malformed character literal operand", .{});
-            try ctx.deepen().printSourceNote("Operand", .{}, info.integer);
-            try ctx.deepen().printNote("Character literal token is invalid", .{});
+            try ctx.writeTitle("Malformed character literal operand", .{});
+            try ctx.deepen().writeSourceNote("Operand", .{}, info.integer);
+            try ctx.deepen().writeNote("Character literal token is invalid", .{});
         },
         .expected_digit => |info| {
-            try ctx.printTitle("Expected digit in integer operand", .{});
-            try ctx.deepen().printSourceNote("Operand", .{}, info.integer);
-            try ctx.deepen().printNote("Integer token ended unexpectedly", .{});
+            try ctx.writeTitle("Expected digit in integer operand", .{});
+            try ctx.deepen().writeSourceNote("Operand", .{}, info.integer);
+            try ctx.deepen().writeNote("Integer token ended unexpectedly", .{});
         },
         .invalid_digit => |info| {
-            try ctx.printTitle("Invalid digit in integer operand", .{});
-            try ctx.deepen().printSourceNote("Operand", .{}, info.integer);
-            try ctx.deepen().printNote("Integer token contains a character which is not valid in the base", .{});
+            try ctx.writeTitle("Invalid digit in integer operand", .{});
+            try ctx.deepen().writeSourceNote("Operand", .{}, info.integer);
+            try ctx.deepen().writeNote("Integer token contains a character which is not valid in the base", .{});
         },
         .unexpected_delimiter => |info| {
-            try ctx.printTitle("Unexpected digit delimiter in integer operand", .{});
-            try ctx.deepen().printSourceNote("Operand", .{}, info.integer);
-            try ctx.deepen().printNote("Delimiter character `_` must appear between digits", .{});
+            try ctx.writeTitle("Unexpected digit delimiter in integer operand", .{});
+            try ctx.deepen().writeSourceNote("Operand", .{}, info.integer);
+            try ctx.deepen().writeNote("Delimiter character `_` must appear between digits", .{});
         },
         .nonstandard_integer_radix => |info| {
-            try ctx.printTitle("Integer uses non-standard base specifier '{t}'", .{info.radix});
-            try ctx.deepen().printSourceNote("Integer", .{}, info.integer);
+            try ctx.writeTitle("Integer uses non-standard base specifier '{t}'", .{info.radix});
+            try ctx.deepen().writeSourceNote("Integer", .{}, info.integer);
         },
         .nonstandard_integer_form => |info| {
-            try ctx.printTitle("Integer uses non-standard syntax", .{});
-            try ctx.deepen().printSourceNote("Integer", .{}, info.integer);
-            try ctx.deepen().printNote("{s}", .{switch (info.reason) {
+            try ctx.writeTitle("Integer uses non-standard syntax", .{});
+            try ctx.deepen().writeSourceNote("Integer", .{}, info.integer);
+            try ctx.deepen().writeNote("{s}", .{switch (info.reason) {
                 .delimiter => "Delimiter character `_` is non-standard",
             }});
         },
         .undesirable_integer_form => |info| {
-            try ctx.printTitle("Integer uses undesirable syntax", .{});
-            try ctx.deepen().printSourceNote("Integer", .{}, info.integer);
-            try ctx.deepen().printNote("{s}", .{switch (info.reason) {
+            try ctx.writeTitle("Integer uses undesirable syntax", .{});
+            try ctx.deepen().writeSourceNote("Integer", .{}, info.integer);
+            try ctx.deepen().writeNote("{s}", .{switch (info.reason) {
                 .missing_zero => "Leading zero should appear before base specifier",
                 .pre_radix_sign => "Sign character should appear after decimal base specifier",
                 .post_radix_sign => "Sign character should appear before non-decimal base specifier",
@@ -466,126 +466,126 @@ pub fn writeSpanContext(
             }});
         },
         .character_integer => |info| {
-            try ctx.printTitle("Use of non-standard character literal token", .{});
-            try ctx.deepen().printSourceNote("Character", .{}, info.integer);
+            try ctx.writeTitle("Use of non-standard character literal token", .{});
+            try ctx.deepen().writeSourceNote("Character", .{}, info.integer);
         },
 
         .integer_too_large => |info| {
-            try ctx.printTitle("Integer operand is too large", .{});
-            try ctx.deepen().printSourceNote("Operand", .{}, info.integer);
-            try ctx.deepen().printNote("Value cannot be represented in {} bits", .{info.type_info.bits});
+            try ctx.writeTitle("Integer operand is too large", .{});
+            try ctx.deepen().writeSourceNote("Operand", .{}, info.integer);
+            try ctx.deepen().writeNote("Value cannot be represented in {} bits", .{info.type_info.bits});
             if (info.type_info.signedness == .signed) {
-                try ctx.deepen().printNote("Since the operand is a signed integer, the highest bit is reserved as the sign bit", .{});
+                try ctx.deepen().writeNote("Since the operand is a signed integer, the highest bit is reserved as the sign bit", .{});
             }
         },
         .offset_too_large => |info| {
-            try ctx.printTitle("Calculated label offset is too large", .{});
-            try ctx.deepen().printSourceNote("Label declared here", .{}, info.definition);
+            try ctx.writeTitle("Calculated label offset is too large", .{});
+            try ctx.deepen().writeSourceNote("Label declared here", .{}, info.definition);
             try ctx.deepen().withSource(info.definition_source)
-                .printSourceNote("Label used here", .{}, info.reference);
-            try ctx.deepen().printNote("Address offset of {} words cannot be represented in {} bits", .{ info.offset, info.bits });
+                .writeSourceNote("Label used here", .{}, info.reference);
+            try ctx.deepen().writeNote("Address offset of {} words cannot be represented in {} bits", .{ info.offset, info.bits });
         },
         .unexpected_negative_integer => |info| {
-            try ctx.printTitle("Integer operand cannot be negative", .{});
-            try ctx.deepen().printSourceNote("Operand", .{}, info.integer);
+            try ctx.writeTitle("Integer operand cannot be negative", .{});
+            try ctx.deepen().writeSourceNote("Operand", .{}, info.integer);
         },
 
         .unmatched_quote => |info| {
-            try ctx.printTitle("String literal does not end with quote `\"`", .{});
-            try ctx.deepen().printSourceNote("String is used here", .{}, info.string);
-            try ctx.deepen().printNote("Strings do not automatically stop at end of line", .{});
+            try ctx.writeTitle("String literal does not end with quote `\"`", .{});
+            try ctx.deepen().writeSourceNote("String is used here", .{}, info.string);
+            try ctx.deepen().writeNote("Strings do not automatically stop at end of line", .{});
         },
         .invalid_string_escape => |info| {
-            try ctx.printTitle("Invalid escape sequence", .{});
-            try ctx.deepen().printSourceNote("String", .{}, info.string);
-            try ctx.deepen().printSourceNote("Erroneous escape sequence", .{}, info.sequence);
+            try ctx.writeTitle("Invalid escape sequence", .{});
+            try ctx.deepen().writeSourceNote("String", .{}, info.string);
+            try ctx.deepen().writeSourceNote("Erroneous escape sequence", .{}, info.sequence);
         },
         .multiline_string => |info| {
-            try ctx.printTitle("String covers multiple lines", .{});
-            try ctx.deepen().printSourceNote("String", .{}, info.string);
+            try ctx.writeTitle("String covers multiple lines", .{});
+            try ctx.deepen().writeSourceNote("String", .{}, info.string);
         },
 
         .stack_instruction => |info| {
-            try ctx.printTitle("Use of non-standard stack instruction `{t}`", .{info.kind});
-            try ctx.deepen().printSourceNote("Instruction is an ISA extension", .{}, info.mnemonic);
+            try ctx.writeTitle("Use of non-standard stack instruction `{t}`", .{info.kind});
+            try ctx.deepen().writeSourceNote("Instruction is an ISA extension", .{}, info.mnemonic);
         },
         .literal_pc_offset => |info| {
-            try ctx.printTitle("Address operand is a literal offset", .{});
-            try ctx.deepen().printSourceNote("Integer", .{}, info.integer);
-            try ctx.deepen().printNote("PC-offset operand should be a label reference, instead of hardcoded offset value", .{});
+            try ctx.writeTitle("Address operand is a literal offset", .{});
+            try ctx.deepen().writeSourceNote("Integer", .{}, info.integer);
+            try ctx.deepen().writeNote("PC-offset operand should be a label reference, instead of hardcoded offset value", .{});
         },
         .explicit_trap_vect => |info| {
-            try ctx.printTitle("Use of trap instruction with explicit vector operand", .{});
-            try ctx.deepen().printSourceNote("Trap vector", .{}, info.vect);
-            try ctx.deepen().printNote("Consider using trap alias `{s}`", .{info.alias});
+            try ctx.writeTitle("Use of trap instruction with explicit vector operand", .{});
+            try ctx.deepen().writeSourceNote("Trap vector", .{}, info.vect);
+            try ctx.deepen().writeNote("Consider using trap alias `{s}`", .{info.alias});
         },
         .undeclared_trap_vect => |info| {
-            try ctx.printTitle("Use of unknown trap vector 0x{x:02}", .{info.value});
-            try ctx.deepen().printSourceNote("Trap vector", .{}, info.vect);
-            try ctx.deepen().printNote("Traps vector 0x{x:02} is not recognized", .{info.value});
+            try ctx.writeTitle("Use of unknown trap vector 0x{x:02}", .{info.value});
+            try ctx.deepen().writeSourceNote("Trap vector", .{}, info.vect);
+            try ctx.deepen().writeNote("Traps vector 0x{x:02} is not recognized", .{info.value});
         },
 
         .emulate_exception => |info| {
-            try ctx.printTitle("Runtime exception: {t}", .{info.code});
+            try ctx.writeTitle("Runtime exception: {t}", .{info.code});
             // TODO: Add additional information
         },
 
         .debugger_requires_assembly => |info| {
-            try ctx.printTitle("Command requires access to assembly", .{});
-            try ctx.deepen().printSourceNote("Command", .{}, info.command);
-            try ctx.deepen().printNote("Debugger does not have access to original assembly", .{});
+            try ctx.writeTitle("Command requires access to assembly", .{});
+            try ctx.deepen().writeSourceNote("Command", .{}, info.command);
+            try ctx.deepen().writeNote("Debugger does not have access to original assembly", .{});
         },
         .debugger_requires_state => |info| {
-            try ctx.printTitle("Command requires initial state to be set", .{});
-            try ctx.deepen().printSourceNote("Command", .{}, info.command);
-            try ctx.deepen().printNote("Debugger does not have access to initial emulator state", .{});
+            try ctx.writeTitle("Command requires initial state to be set", .{});
+            try ctx.deepen().writeSourceNote("Command", .{}, info.command);
+            try ctx.deepen().writeNote("Debugger does not have access to initial emulator state", .{});
         },
         .debugger_address_not_in_assembly => |info| {
-            try ctx.printTitle("Address 0x{x:04} is not contained in assembly source", .{info.value});
-            try ctx.deepen().printNote("Largest address in assembly is 0x{x:04}", .{info.max});
+            try ctx.writeTitle("Address 0x{x:04} is not contained in assembly source", .{info.value});
+            try ctx.deepen().writeNote("Largest address in assembly is 0x{x:04}", .{info.max});
         },
         .debugger_address_not_user_memory => |info| {
-            try ctx.printTitle("Address 0x{x:04} is not in user memory", .{info.value});
-            try ctx.deepen().printSourceNote("Address", .{}, info.address);
-            try ctx.deepen().printNote("Largest address in user memory is 0x{x:04}", .{info.max});
+            try ctx.writeTitle("Address 0x{x:04} is not in user memory", .{info.value});
+            try ctx.deepen().writeSourceNote("Address", .{}, info.address);
+            try ctx.deepen().writeNote("Largest address in user memory is 0x{x:04}", .{info.max});
         },
         .debugger_label_partial_match => |info| {
-            try ctx.printTitle("Label reference does not use correct case", .{});
-            try ctx.deepen().printSourceNote("Label", .{}, info.reference);
+            try ctx.writeTitle("Label reference does not use correct case", .{});
+            try ctx.deepen().writeSourceNote("Label", .{}, info.reference);
             try ctx.deepen().withSource(info.definition_source)
-                .printSourceNote("This label declaration is similar", .{}, info.nearest);
-            try ctx.deepen().printNote("Label names are case-sensitive", .{});
+                .writeSourceNote("This label declaration is similar", .{}, info.nearest);
+            try ctx.deepen().writeNote("Label names are case-sensitive", .{});
         },
         .debugger_no_space => {
-            try ctx.deepen().printTitle("No space left", .{});
+            try ctx.deepen().writeTitle("No space left", .{});
         },
         .debugger_invalid_argument_kind => |info| {
-            try ctx.printTitle("Invalid argument kind", .{});
-            try ctx.deepen().printSourceNote("Argument", .{}, info.found);
+            try ctx.writeTitle("Invalid argument kind", .{});
+            try ctx.deepen().writeSourceNote("Argument", .{}, info.found);
         },
         .debugger_invalid_command => |info| {
-            try ctx.printTitle("Invalid command name", .{});
-            try ctx.deepen().printSourceNote("Command", .{}, info.command);
+            try ctx.writeTitle("Invalid command name", .{});
+            try ctx.deepen().writeSourceNote("Command", .{}, info.command);
             if (info.nearest) |nearest|
-                try ctx.deepen().printNote("Did you mean `{s}`?", .{DebuggerCommand.tagString(nearest)});
+                try ctx.deepen().writeNote("Did you mean `{s}`?", .{DebuggerCommand.tagString(nearest)});
         },
         .debugger_missing_subcommand => |info| {
-            try ctx.printTitle("Missing subcommand for `{s}`", .{info.first.view(source)});
-            try ctx.deepen().printSourceNote("Command requires subcommand", .{}, info.eol);
+            try ctx.writeTitle("Missing subcommand for `{s}`", .{info.first.view(source)});
+            try ctx.deepen().writeSourceNote("Command requires subcommand", .{}, info.eol);
         },
         .debugger_unexpected_eol => |info| {
-            try ctx.printTitle("Missing argument", .{});
-            try ctx.deepen().printSourceNote("Command ends too early", .{}, info.eol);
+            try ctx.writeTitle("Missing argument", .{});
+            try ctx.deepen().writeSourceNote("Command ends too early", .{}, info.eol);
         },
         .debugger_expected_eol => |info| {
-            try ctx.printTitle("Unexpected argument", .{});
-            try ctx.deepen().printSourceNote("Argument", .{}, info.found);
-            try ctx.deepen().printNote("Expected end of command", .{});
+            try ctx.writeTitle("Unexpected argument", .{});
+            try ctx.deepen().writeSourceNote("Argument", .{}, info.found);
+            try ctx.deepen().writeNote("Expected end of command", .{});
         },
         .debugger_integer_too_small => |info| {
-            try ctx.printTitle("Integer argument is too small", .{});
-            try ctx.deepen().printSourceNote("Argument", .{}, info.integer);
-            try ctx.deepen().printNote("Minimum value is {}", .{info.minimum});
+            try ctx.writeTitle("Integer argument is too small", .{});
+            try ctx.deepen().writeSourceNote("Argument", .{}, info.integer);
+            try ctx.deepen().writeNote("Minimum value is {}", .{info.minimum});
         },
     }
 

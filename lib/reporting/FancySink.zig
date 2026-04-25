@@ -45,7 +45,7 @@ pub fn sendDiagnostic(
         &ctx_items,
         source,
     );
-    try ctx.printDiagnostic(diag);
+    try ctx.writeDiagnostic(diag);
 
     try sink.writer.flush();
 }
