@@ -8,6 +8,11 @@ pub const reporting = @import("reporting/reporting.zig");
 
 test {
     const refAllDecls = @import("std").testing.refAllDecls;
+    refAllDecls(@import("reporting/Sink.zig"));
+    refAllDecls(@import("reporting/reporting.zig"));
+    refAllDecls(@import("reporting/Ctx.zig"));
+    refAllDecls(@import("reporting/FancySink.zig"));
+    refAllDecls(@import("reporting/diagnostic.zig"));
     refAllDecls(@import("root.zig"));
     refAllDecls(@import("compile/Operand.zig"));
     refAllDecls(@import("compile/Span.zig"));
@@ -15,15 +20,12 @@ test {
     refAllDecls(@import("compile/Air.zig"));
     refAllDecls(@import("compile/parse/parsing.zig"));
     refAllDecls(@import("compile/parse/case.zig"));
-    refAllDecls(@import("compile/parse/Tokenizer.zig"));
     refAllDecls(@import("compile/parse/Lexer.zig"));
     refAllDecls(@import("compile/parse/Parser.zig"));
     refAllDecls(@import("compile/parse/integers.zig"));
     refAllDecls(@import("compile/parse/Token.zig"));
+    refAllDecls(@import("compile/parse/Tokenizer.zig"));
     refAllDecls(@import("callback.zig"));
-    refAllDecls(@import("reporting/Ctx.zig"));
-    refAllDecls(@import("reporting/diagnostic.zig"));
-    refAllDecls(@import("reporting/reporting.zig"));
     refAllDecls(@import("policies.zig"));
     refAllDecls(@import("Traps.zig"));
     refAllDecls(@import("emulate/decode.zig"));
