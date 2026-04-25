@@ -54,7 +54,6 @@
     - Octal and binary integer literals
     - Character integer literals
     - Multiple labels for one address
-- ELK Style Guide
 - [Installation](#installation)
     - [Install from official releases](#install-from-official-releases)
     - [Install from source](#install-from-source)
@@ -66,6 +65,8 @@
     - [VSCode](#vscode)
         - [Diagnostics](#diagnostics-1)
         - [Syntax Highlighting](#syntax-highlighting-1)
+
+See also: [ELK Style Guide](#STYLE.md).
 
 # Why ELK?
 
@@ -478,31 +479,6 @@ set. These sets are typically used for compatibility with other toolchains.
 - ...
 ## Multiple labels for one address
 - ...
-
-# ELK Style Guide
-
-- See issue: [#14]
-
-- Whitespace
-    - Indentation
-    - Between tokens
-    - Trailing whitespace
-    - Consecutive empty lines
-- Label position
-    - For instructions
-    - For directives
-- Comment alignment
-- Commas
-    - Between operands
-    - Other positions
-- Colons after labels
-- Case convention
-    - Mnemonics
-    - Directives
-    - Registers
-- Integer literal form
-    - Decimal
-    - Non-decimal
 
 # Installation
 
