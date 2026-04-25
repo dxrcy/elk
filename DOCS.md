@@ -2,6 +2,27 @@
 
 > **IMPORTANT: This documentation is incomplete!**
 > See [#49](https://codeberg.org/dxrcy/elk/issues/4).
+> The following table-of-contents shows the sections which are complete.
+
+- ELK Command-Line Interface
+    - Other Flags
+        - [Ignoring lints and enabling extensions](#ignoring-lints-and-enabling-extensions)
+- ELK Features
+    - [Policies](#policies)
+        - [Categories](#categories)
+        - [Predefined policy sets](#predefined-policy-sets)
+- [Installation](#installation)
+    - [Install from official releases](#install-from-official-releases)
+    - [Install from source](#install-from-source)
+    - [Install with system package manager](#install-with-system-package-manager)
+- [Editor Integration](#editor-integration)
+    - [Neovim](#neovim)
+        - [Diagnostics](#diagnostics)
+        - [Syntax Highlighting](#syntax-highlighting)
+    - [VSCode](#vscode)
+        - [Diagnostics](#diagnostics-1)
+        - [Syntax Highlighting](#syntax-highlighting-1)
+
 
 # About LC-3
 - What is LC-3
@@ -307,7 +328,7 @@ set. These sets are typically used for compatibility with other toolchains.
 > [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) or similar
 > compatibility layer.
 
-## Install from offical releases
+## Install from official releases
 
 **1. Download the latest binary release:**
 [available via GitHub releases](https://github.com/dxrcy/elk/releases).
