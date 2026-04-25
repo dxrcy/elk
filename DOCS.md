@@ -239,9 +239,127 @@
 # Editor Integration
 
 ## Neovim
-- Tree-sitter parser
-- Inline diagnostics for Neovim
+
+Before setting up [syntax highlighting] or [diagnostics], you need to tell
+Neovim which file extensions to associate with the `lc3` filetype, which you
+can do in any file which runs at startup, eg.
+`init.lua`.
+
+```lua
+-- init.lua, or any file which be ran on startup
+vim.filetype.add({
+    extension = {
+        asm = "lc3",
+        lc3 = "lc3",
+    },
+})
+```
+
+The following instructions assume that this filetype association is already
+configured.
+
+### Diagnostics
+
+Install the [`elk.nvim`](https://github.com/twhlynch/elk.nvim) Neovim plugin.
+You will also need to
+[install ELK separately](https://codeberg.org/dxrcy/elk#installation), and
+make sure the executable is in your `PATH`.
+
+The following minimal setup uses [`lazy`](https://lazy.folke.io/), however
+`elk.nvim` works with any plugin manager.
+If you are using `lazy`, then add the following file to your plugins directory,
+or as an entry in your plugins table:
+
+```lua
+-- elk.lua
+return {
+    "twhlynch/elk.nvim",
+    opts = {
+        -- See https://github.com/twhlynch/elk.nvim for configuration options
+    },
+}
+```
+
+> When a proper [Language Server](https://codeberg.org/dxrcy/elk/issues/32) is
+> implemented, this setup will become a lot easier, and the functionality more
+> powerful!
+
+### Syntax Highlighting
+
+The following minimal setup uses
+[`nvim-treesitter`](https://github.com/nvim-treesitter/nvim-treesitter)
+(`main` branch) with [`lazy`](https://lazy.folke.io/), however `tree-sitter-lc3`
+works with any tree-sitter implementation and plugin manager.
+
+1. If you are already using `nvim-treesitter` on its `main` branch, then edit
+    your `nvim-treesitter` plugin configuration to add the `lc3` parser, as
+    shown below (using `lazy` as an example).
+2. If you are using `nvim-treesitter` on its older `master` branch, then either
+   update the plugin to `main`, or follow the
+   [older installation instructions](https://github.com/nvim-treesitter/nvim-treesitter/tree/master#adding-parsers)
+3. If you are not using `nvim-treesitter`, then you will need to install the
+    parser manually for `vim.treesitter` to use, which is out of scope for this
+    guide.
+
+```lua
+return {
+    "nvim-treesitter/nvim-treesitter",
+    branch = "main",
+    build = ":TSUpdate",
+
+    config = function()
+        vim.api.nvim_create_autocmd("User", {
+            pattern = "TSUpdate",
+            callback = function()
+                -- Custom parsers go here
+                parsers.lc3 = {
+                    install_info = {
+                        -- nvim-treesitter only supports GitHub links :'(
+                        url = "https://github.com/dxrcy/tree-sitter-lc3",
+                        branch = "master",
+                    },
+                }
+            end,
+        })
+
+        require("nvim-treesitter").install({
+            -- List of parsers to install goes here
+            -- "zig",
+            "lc3",
+        })
+
+        vim.api.nvim_create_autocmd("FileType", {
+            desc = "Enable treesitter in supported buffers",
+            callback = function()
+                pcall(vim.treesitter.start)
+            end,
+        })
+    end
+
+}
+```
+
+> `tree-sitter-elk` relies on the case convention detailed in the in
+> [ELK style guide] to show ambiguity-free syntax highlighting.
+> However, any basic assembly parser will provide reasonable highlighting for
+> LC-3, including
+> [tree-sitter-asm](https://github.com/RubixDev/tree-sitter-asm) provided with
+> `nvim-treesitter`.
+> This option may be preferable for a simpler setup or if you are following a
+> different case convention.
 
 ## Vscode
-- Inline diagnostics for VSCode
+
+### Diagnostics
+
+Install the [ELK Diagnostics](https://github.com/twhlynch/lc3-elk-diagnostics)
+VSCode Extension.
+This will automatically install the
+[latest version of ELK](https://github.com/dxrcy/elk/releases) from GitHub if
+a suitable `elk` executable is not found.
+
+### Syntax Highlighting
+
+> Currently, there is no official ELK syntax highlighting support for VSCode,
+> however there are plenty of generic LC-3 extensions with syntax highlighting.
 
