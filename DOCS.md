@@ -1,11 +1,16 @@
 # ELK Usage Guide
 
+[Official Codeberg repository](https://codeberg.org/dxrcy/elk)
+| [Documentation](https://codeberg.org/dxrcy/elk/src/branch/master/DOCS.md)
+| [Releases](https://github.com/dxrcy/elk/releases)
+| [GitHub mirror](https://github.com/dxrcy/elk)
+
 > **IMPORTANT: This documentation is incomplete!**
 > See [#49](https://codeberg.org/dxrcy/elk/issues/49).
 > The following table-of-contents shows the sections which are complete in blue.
 
 - [About LC-3](#about-lc-3)
-    - [Syntax Overview](#syntax-overview])
+    - [Assembly Overview](#assembly-overview])
     - [Runtime Overview](#runtime-overview)
     - [Available Traps](#available-traps)
 - Why ELK?
@@ -47,11 +52,11 @@ Turing-complete system capable of complex behaviour.
 > This section will be written primarily implementation-nonspecific, however
 > the terminology used may be specific to ELK.
 
-## Syntax Overview
+## Assembly Overview
 
 The LC-3 assembly language is a one-to-one abstraction of an LC-3 program. It
 allocates and initialises memory by using *instructions* and *directives*, each
-of which can be prepended with a *label*.
+of which can be prepended with a *label definition*.
 
 An instruction consists of two parts: the *mnemonic* and the *operands*.
 An instruction mnemonic is a closed set of 16 identifiers, eg. `lea`.
@@ -72,10 +77,10 @@ custom semantics.
 A directive may have a number of arguments following it, such as a *string
 literal* or *integer literal*.
 
-A *trap alias* is an alternative to a `trap` instruction with a hardcoded
-vector, which aids readability. An example is `halt` which is equivalent to
-`trap 0x25`.
-Since a trap's implementation is implemented in the emulator, the set of trap
+A *trap alias* is an alternative to a `trap` instruction, which aids
+readability since it avoids a hardcoded vector operand.
+An example is `halt` which is equivalent to `trap 0x25`.
+Since a trap's behaviour is implemented in the emulator, the set of trap
 aliases is an open set, which the assembler must be aware of to avoid ambiguity
 with labels.
 
@@ -94,8 +99,8 @@ A general-purpose register is written with an `r` or `R` followed by a number
 It is not possible to name a "special" register (such as the program counter) in
 assembly, since these registers are not directly accessible.
 
-An integer literal may be in decimal or hexadecimal, or binary or octal with an
-extension.
+An integer literal may be in decimal or hexadecimal (or binary or octal with an
+extension enabled).
 A decimal integer may be prefixed with a `#` character, but this is optional.
 A hexadecimal integer must be prefixed with a `x` or `X`, which itself may be
 preceeded by a leading `0`.
@@ -111,11 +116,11 @@ unavoidable and necessary.
 ## Runtime Overview
 
 The LC-3 runtime is simple. The state of the entire computer can be expressed as
-a tuple $(M, R, PC, CC)$, where $M$ is $2^{16}$ words of memory, $R$ is 8 16-bit
-general-purpose registers, $PC$ is the program counter, signifying the address
-of the *next instruction to be interpreted*, and $CC$ is the condition code,
-which is one of `negative`, `zero`, or `positive`, signifying the *sign of the
-value in the last-modified register*.
+a tuple $(M, GP, PC, CC)$, where $M$ is $2^{16}$ words of memory, $GP$ are eight
+16-bit general-purpose registers, $PC$ is the program counter register,
+signifying the address of the *next instruction to be interpreted*, and $CC$ is
+the condition code register, which is one of `negative`, `zero`, or `positive`,
+signifying the *sign of the value in the last-modified register*.
 
 Memory is partitioned into segments, with user program memory in the range
 `[0x3000, 0xFDFF]`. Access of memory outside of this user program segment is
