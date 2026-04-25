@@ -15,44 +15,45 @@
     - [Runtime Overview](#runtime-overview)
     - [Available Traps](#available-traps)
 - ELK Command-Line Interface
-    -  Assemble-and-Emulate
-    -  Assemble Only
-        -  Exporting debug files
-    -  Emulate Only
-        -  Check assembly file without compiling
-        -  Clean all output files
-        -  Format assembly file
-        -  Language server
-    -  Debugger
-        -  How to use ELK debugger
-        -  Available commands
-        -  Initial commands
-        -  Change history filepath
-    -  Example
-    -  Output filepath
-    -  Other Flags
+    - Assemble-and-Emulate
+    - Assemble Only
+        - Exporting debug files
+    - Emulate Only
+    - Other Operations
+        - Check assembly file without compiling
+        - Clean all output files
+        - Format assembly file
+        - Language server
+    - Debugger
+        - How to use ELK debugger
+        - Available commands
+        - Initial commands
+        - Change history filepath
+    - Example
+    - Output filepath
     - Other Flags
-        -  Importing a symbol table
+    - Other Flags
+        - Importing a symbol table
         - [Overriding available trap aliases](#overriding-available-trap-aliases)
-        -  Changing diagnostic strictness
-        -  Showing consise diagnostics
+        - Changing diagnostic strictness
+        - Showing consise diagnostics
         - [Ignoring lints and enabling extensions](#ignoring-lints-and-enabling-extensions)
 - ELK Library Features
     - [Policies](#policies)
         - [Categories](#categories)
         - [Predefined policy sets](#predefined-policy-sets)
-    -  Custom Traps
-    -  Runtime Hooks
+    - Custom Traps
+    - Runtime Hooks
 - ELK Extensions to LC-3
-    -  Stack Instructions
-    -  Permissive Syntax
-        -  Implicit `.ORIG` / `.END`
-        -  Multi-line strings
-        -  Permissive integer syntax
-        -  Post-label colons
-    -  Octal and binary integer literals
-    -  Character integer literals
-    -  Multiple labels for one address
+    - Stack Instructions
+    - Permissive Syntax
+        - Implicit `.ORIG` / `.END`
+        - Multi-line strings
+        - Permissive integer syntax
+        - Post-label colons
+    - Octal and binary integer literals
+    - Character integer literals
+    - Multiple labels for one address
 - ELK Style Guide
 - [Installation](#installation)
     - [Install from official releases](#install-from-official-releases)
