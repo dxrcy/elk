@@ -407,7 +407,7 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
                 try ctx.deepen().writeNote("Did you mean `{s}`?", .{DebuggerCommand.tagString(nearest)});
         },
         .debugger_missing_subcommand => |info| {
-            try ctx.writeTitle("Missing subcommand for `{s}`", .{info.first.view(source.text)});
+            try ctx.writeTitle("Missing subcommand for `{s}`", .{info.first.viewString(source.text)});
             try ctx.deepen().writeSourceNote("Command requires subcommand", .{}, info.eol);
         },
         .debugger_unexpected_eol => |info| {

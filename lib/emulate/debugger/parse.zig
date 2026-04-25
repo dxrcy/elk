@@ -13,7 +13,7 @@ const Spanned = Command.Spanned;
 pub fn splitCommandLine(line: []const u8) struct { []const u8, []const u8 } {
     var lexer: Lexer = .new(line, false);
     const token_len = while (lexer.next()) |token| {
-        if (std.mem.eql(u8, token.view(line), ";"))
+        if (std.mem.eql(u8, token.viewString(line), ";"))
             break token.len;
     } else 0;
 
@@ -124,9 +124,9 @@ const Parser = struct {
         while (true) {
             const token = parser.lexer.next() orelse
                 return error.Eof;
-            if (std.mem.eql(u8, token.view(parser.source), ";"))
+            if (std.mem.eql(u8, token.viewString(parser.source), ";"))
                 unreachable;
-            if (std.mem.eql(u8, token.view(parser.source), ","))
+            if (std.mem.eql(u8, token.viewString(parser.source), ","))
                 continue;
             return token;
         }
@@ -190,7 +190,7 @@ const Parser = struct {
             }).abort(),
         };
 
-        if (parsing.tryRegister(argument.view(parser.source))) |register|
+        if (parsing.tryRegister(argument.viewString(parser.source))) |register|
             return .{ .span = argument, .value = .{ .register = register } };
 
         if (try parser.parseMemoryLocation(argument)) |memory|
@@ -247,7 +247,7 @@ const Parser = struct {
     }
 
     fn tryParseInteger(parser: *Parser, argument: Span) error{Reported}!?integers.SourceInt(16) {
-        return integers.tryInteger(argument.view(parser.source)) catch |err| switch (err) {
+        return integers.tryInteger(argument.viewString(parser.source)) catch |err| switch (err) {
             // TODO: These exact same branches exist in `compile/parse`... merge ?
             error.MalformedInteger => {
                 try parser.reporter.report(.malformed_integer, .{
@@ -299,7 +299,7 @@ const Parser = struct {
     fn parsePcOffset(parser: *Parser, argument: Span) error{Reported}!?i16 {
         assert(argument.len > 0);
 
-        if (argument.view(parser.source)[0] != '~')
+        if (argument.viewString(parser.source)[0] != '~')
             return null;
 
         const integer_span: Span = .{ .offset = argument.offset + 1, .len = argument.len - 1 };
@@ -334,7 +334,7 @@ const Parser = struct {
     }
 
     fn parseLabel(parser: *Parser, argument: Span) error{Reported}!?Command.Label {
-        const string = argument.view(parser.source);
+        const string = argument.viewString(parser.source);
 
         const label_string, const offset_string_opt =
             if (std.mem.findAny(u8, string, "+-")) |sign_index| .{
@@ -407,7 +407,7 @@ const Parser = struct {
         double: tags.DoubleEntry,
         first: Span,
     ) error{Reported}!?Spanned(Command.Tag) {
-        if (!anyCandidateMatches(double.first, first.view(parser.source)))
+        if (!anyCandidateMatches(double.first, first.viewString(parser.source)))
             return null;
 
         const second = parser.next() catch |err| switch (err) {
@@ -443,7 +443,7 @@ const Parser = struct {
         singles: *const tags.SingleMap,
         span: Span,
     ) ?Spanned(Command.Tag) {
-        const string = span.view(parser.source);
+        const string = span.viewString(parser.source);
 
         switch (mode) {
             .exact => {

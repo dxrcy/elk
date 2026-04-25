@@ -166,7 +166,7 @@ pub fn writeSpanContext(
     source: []const u8,
 ) error{WriteFailed}!void {
     const lines = span.getSurroundingLines(config.max_context, source);
-    var iter = std.mem.splitScalar(u8, lines.view(source), '\n');
+    var iter = std.mem.splitScalar(u8, lines.viewString(source), '\n');
     while (iter.next()) |line_string_full| {
         const line_string = line_string_full[0..@min(line_string_full.len, config.max_line_width)];
         const is_truncated = line_string_full.len > config.max_line_width;

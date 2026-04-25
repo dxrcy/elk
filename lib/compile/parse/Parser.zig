@@ -129,7 +129,7 @@ fn getFirstTokenSpan(parser: *const Parser) ?Span {
     while (true) {
         const span = lexer.next() orelse
             return null;
-        if (!std.mem.eql(u8, span.view2(parser.source()), "\n"))
+        if (!std.mem.eql(u8, span.view(parser.source()), "\n"))
             return span;
     }
 }
@@ -249,7 +249,7 @@ fn removeCurrentLabel(parser: *Parser, air: *Air) ?Span {
         if (label.index != index)
             break;
 
-        if (Air.Label.Kind.from(label.span.view2(parser.source())) != .normal)
+        if (Air.Label.Kind.from(label.span.view(parser.source())) != .normal)
             continue;
 
         _ = air.labels.orderedRemove(i - 1);
@@ -268,7 +268,7 @@ fn ensureCanAppendLines(parser: *Parser, air: *Air, n: usize, span: Span) error{
 }
 
 fn addLabel(parser: *Parser, gpa: Allocator, air: *Air, label: Span) InnerError!void {
-    if (parser.getLabelWithName(air, label.view2(parser.source()))) |existing_label| {
+    if (parser.getLabelWithName(air, label.view(parser.source()))) |existing_label| {
         try parser.reporter().report(.redefined_label, .{
             .existing = existing_label,
             .new = label,
@@ -291,7 +291,7 @@ fn addLabel(parser: *Parser, gpa: Allocator, air: *Air, label: Span) InnerError!
         }).handle();
     }
 
-    if (!case.isPascalCase(label.view2(parser.source()))) {
+    if (!case.isPascalCase(label.view(parser.source()))) {
         try parser.reporter().report(.unconventional_case, .{
             .token = label,
             .kind = .label,
@@ -310,7 +310,7 @@ fn addLabel(parser: *Parser, gpa: Allocator, air: *Air, label: Span) InnerError!
     try air.labels.append(gpa, .new(
         index,
         label,
-        label.view2(parser.source()),
+        label.view(parser.source()),
     ));
 }
 
@@ -377,7 +377,7 @@ fn parseDirective(
         .stringz => {
             const string = try parser.tokenizer.expectArgument(.string);
             const contents = string.value.in(string.span);
-            const contents_string = contents.view2(parser.source());
+            const contents_string = contents.view(parser.source());
 
             // Check length and allocate lines before proper string iteration
             const length = Token.Escaped.validLength(.double, contents_string) + 1; // Include NUL
@@ -498,7 +498,7 @@ fn parseInstructionOperands(
 
 fn getLabelWithName(parser: *const Parser, air: *Air, new_label: []const u8) ?Span {
     for (air.labels.items) |*label| {
-        if (std.mem.eql(u8, label.span.view2(parser.source()), new_label))
+        if (std.mem.eql(u8, label.span.view(parser.source()), new_label))
             return label.span;
     }
     return null;
@@ -575,7 +575,7 @@ fn resolveFieldLabel(
         .resolved => return,
     }
 
-    const string = operand.span.view2(parser.source());
+    const string = operand.span.view(parser.source());
 
     const definition =
         air.findLabel(string, .sensitive, air_source) orelse {

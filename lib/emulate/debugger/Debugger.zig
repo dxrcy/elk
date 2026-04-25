@@ -494,7 +494,7 @@ fn runCommand(
 
         .echo => |arguments| {
             try debugger.writer.enableColor();
-            try debugger.writer.print("[{s}]\n", .{arguments.string.view(source)});
+            try debugger.writer.print("[{s}]\n", .{arguments.string.viewString(source)});
             try debugger.writer.disableColor();
         },
 
@@ -603,7 +603,7 @@ fn printListing(debugger: *Debugger, runtime: *Runtime, start: u16, end: u16) !v
             if (debugger.assembly) |assembly| {
                 if (getAssemblyLineIndexOptional(assembly, address)) |index| {
                     if (getLineLabel(assembly, index)) |label| {
-                        const name = label.span.view2(assembly.source);
+                        const name = label.span.view(assembly.source);
                         const length = @min(name.len, width);
                         @memcpy(buffer[0..length], name[0..length]);
                         if (name.len > width)
@@ -638,7 +638,7 @@ fn printBreakpoints(debugger: *Debugger) !void {
 
             if (getLineLabel(assembly, index)) |label| {
                 try debugger.writer.print(" (labelled '{s}')", .{
-                    label.span.view2(assembly.source),
+                    label.span.view(assembly.source),
                 });
             }
 
@@ -676,7 +676,7 @@ fn evalCommand(
     span: Span,
     source: []const u8,
 ) (Runtime.HostError || error{Reported})!void {
-    const line = span.view(source);
+    const line = span.viewString(source);
 
     const asm_instr = try debugger.parseInstructionLine(
         assembly,
@@ -821,7 +821,7 @@ fn resolveLabelIndex(
     label: Span,
     source: []const u8,
 ) error{Reported}!usize {
-    const string = label.view(source);
+    const string = label.viewString(source);
 
     if (assembly.air.findLabel(string, .sensitive, assembly.source)) |result|
         return result.index;

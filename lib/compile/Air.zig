@@ -93,7 +93,7 @@ pub fn writeAssembly(air: *const Air, writer: *Io.Writer) !void {
 pub fn writeSymbols(air: *const Air, writer: *Io.Writer, source: []const u8) !void {
     for (air.labels.items) |label| {
         try writer.print("{s:<74} x{x:04}\n", .{
-            label.span.view(source),
+            label.span.viewString(source),
             air.origin + label.index,
         });
     }
@@ -180,7 +180,7 @@ pub fn patchLabelValue(
     source: []const u8,
 ) error{LabelNotFound}!void {
     for (air.labels.items) |label| {
-        if (!std.mem.eql(u8, label.span.view(source), name))
+        if (!std.mem.eql(u8, label.span.viewString(source), name))
             continue;
         // Keep span
         air.lines.items[label.index].statement = .{ .raw_word = raw_word };
@@ -197,7 +197,7 @@ pub fn findLabel(
 ) ?*Label {
     assertLabelOrder(air);
     for (air.labels.items) |*label| {
-        const string = label.span.view2(source);
+        const string = label.span.view(source);
         const matches = switch (case_mode) {
             .sensitive => std.mem.eql(u8, string, reference),
             .insensitive => std.ascii.eqlIgnoreCase(string, reference),

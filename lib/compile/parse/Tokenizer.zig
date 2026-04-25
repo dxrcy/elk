@@ -370,7 +370,7 @@ fn ensureSupported(
     switch (token.value) {
         .directive => {
             // Don't include initial `.`
-            const string = token.span.view2(tokenizer.source)[1..];
+            const string = token.span.view(tokenizer.source)[1..];
             if (!case.isUppercaseAlpha(string)) {
                 tokenizer.reporter.report(.unconventional_case, .{
                     .token = token.span,
@@ -380,7 +380,7 @@ fn ensureSupported(
         },
 
         .mnemonic => {
-            if (!case.isLowercaseAlpha(token.span.view2(tokenizer.source))) {
+            if (!case.isLowercaseAlpha(token.span.view(tokenizer.source))) {
                 tokenizer.reporter.report(.unconventional_case, .{
                     .token = token.span,
                     .kind = .mnemonic,
@@ -389,7 +389,7 @@ fn ensureSupported(
         },
 
         .trap_alias => {
-            if (!case.isLowercaseAlpha(token.span.view2(tokenizer.source))) {
+            if (!case.isLowercaseAlpha(token.span.view(tokenizer.source))) {
                 tokenizer.reporter.report(.unconventional_case, .{
                     .token = token.span,
                     .kind = .trap_alias,
@@ -402,7 +402,7 @@ fn ensureSupported(
         .label => {},
 
         .string => |string| {
-            const value = string.in(token.span).view2(tokenizer.source);
+            const value = string.in(token.span).view(tokenizer.source);
             if (std.mem.containsAtLeast(u8, value, 1, "\n")) {
                 tokenizer.reporter.report(.multiline_string, .{
                     .string = token.span,
@@ -411,7 +411,7 @@ fn ensureSupported(
         },
 
         .register => {
-            const string = token.span.view2(tokenizer.source);
+            const string = token.span.view(tokenizer.source);
             assert(string.len == 2);
             switch (string[0]) {
                 'r' => {},
@@ -430,7 +430,7 @@ fn ensureSupported(
                 .integer = token.span,
             }).collect(&result);
         } else {
-            const string = token.span.view2(tokenizer.source);
+            const string = token.span.view(tokenizer.source);
             if (integer.form.prefix_length > 0 and
                 case.hasUppercaseAlpha(string[0..integer.form.prefix_length]))
             {
