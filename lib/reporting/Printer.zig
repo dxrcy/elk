@@ -6,6 +6,7 @@ const Io = std.Io;
 const Ctx = @import("Ctx.zig");
 const reporting = @import("reporting.zig");
 const Diagnostic = @import("diagnostic.zig").Diagnostic;
+const Printerface = @import("Printerface.zig");
 
 writer: *Io.Writer,
 
@@ -15,13 +16,25 @@ pub fn new(writer: *Io.Writer) Printer {
     };
 }
 
+pub fn interface(printer: *Printer) Printerface {
+    return .{
+        .ptr = printer,
+        .vtable = &.{
+            .printDiagnostic = Printer.printDiagnostic,
+            .printSummary = Printer.printSummary,
+        },
+    };
+}
+
 pub fn printDiagnostic(
-    printer: *Printer,
+    ptr: *anyopaque,
     diag: Diagnostic,
     level: reporting.Level,
     verbosity: reporting.Options.Verbosity,
     source: []const u8,
 ) error{WriteFailed}!void {
+    const printer: *Printer = @ptrCast(@alignCast(ptr));
+
     var ctx_items: usize = 0;
     const ctx: Ctx = .new(
         printer.writer,
@@ -36,10 +49,12 @@ pub fn printDiagnostic(
 }
 
 pub fn printSummary(
-    printer: *Printer,
+    ptr: *anyopaque,
     count: *const std.EnumArray(reporting.Level, usize),
     verbosity: reporting.Options.Verbosity,
 ) error{WriteFailed}!void {
+    const printer: *Printer = @ptrCast(@alignCast(ptr));
+
     const count_err = count.get(.err);
     const count_warn = count.get(.warn);
     // Ignore `info`

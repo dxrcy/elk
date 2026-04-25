@@ -5,7 +5,9 @@ const assert = std.debug.assert;
 const Policies = @import("../policies.zig").Policies;
 const Span = @import("../compile/Span.zig");
 const Token = @import("../compile/parse/Token.zig");
+
 pub const Printer = @import("Printer.zig");
+pub const Printerface = @import("Printerface.zig");
 
 // TODO: Move or remove
 pub const Primary = Reporter(@import("diagnostic.zig").Diagnostic);
@@ -84,12 +86,12 @@ pub fn Reporter(comptime Diag: type) type {
     return struct {
         const Self = @This();
 
-        printer: *Printer,
+        printer: Printerface,
         count: std.EnumArray(Level, usize),
         options: Options,
         source: ?[]const u8,
 
-        pub fn new(printer: *Printer) Self {
+        pub fn new(printer: Printerface) Self {
             return .{
                 .printer = printer,
                 .count = .initFill(0),

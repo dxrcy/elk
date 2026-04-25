@@ -13,7 +13,7 @@ pub fn main(init: std.process.Init) !u8 {
     var reporter_buffer: [1024]u8 = undefined;
     var reporter_writer = Io.File.stderr().writer(io, &reporter_buffer);
     var printer = elk.reporting.Printer.new(&reporter_writer.interface);
-    var reporter = elk.reporting.Primary.new(&printer);
+    var reporter = elk.reporting.Primary.new(printer.interface());
 
     var args = try init.minimal.args.iterateAllocator(gpa);
     defer args.deinit();
