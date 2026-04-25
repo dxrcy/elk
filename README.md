@@ -38,6 +38,9 @@ elk hello.obj --emulate
 
 ## Installation
 
+> **For more detailed installation instructions, see [DOCS.md](
+> https://codeberg.org/dxrcy/elk/src/branch/master/DOCS.md#installation).**
+
 1. Download the latest binary release from
 [GitHub releases](https://github.com/dxrcy/elk/releases).
 2. Install the downloaded file to your PATH:

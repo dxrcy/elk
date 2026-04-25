@@ -236,6 +236,62 @@
     - Decimal
     - Non-decimal
 
+# Installation
+
+> The instructions in this section are for POSIX sytems (Linux, MacOS, BSD,
+> etc).
+> ELK currently does not support Windows (see
+> [#20](https://codeberg.org/dxrcy/elk/issues/20)), but will work on Windows via
+> [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) or similar
+> compatibility layer.
+
+## Install from offical releases
+
+**1. Download the latest binary release:**
+[available via GitHub releases](https://github.com/dxrcy/elk/releases).
+
+**2. Install the downloaded file to your PATH**:
+
+- **a) system-wide:**
+```sh
+sudo install <filename> /usr/local/bin/elk
+```
+
+- **b) OR for current user only:**
+```sh
+mkdir ~/.local/bin/
+sudo install <filename> ~/.local/bin/elk
+```
+
+## Install from source
+
+> Requires [Zig 0.16.x](https://ziglang.org/download/#release-0.16.0).
+
+**1. Make sure Zig 0.16.x is installed:**
+[available here](https://ziglang.org/download/#release-0.16.0).
+
+**2. Download source code:**
+```sh
+git clone https://codeberg.org/dxrcy/elk
+cd elk
+```
+
+**3. Compile with Zig:**
+```sh
+zig build install -Doptimize=ReleaseSafe
+```
+
+**4. Install compiled binary to system path:**
+```sh
+sudo install zig-out/bin/elk /usr/local/bin/
+```
+
+## Install with system package manager
+
+> ELK is currently not available via package managers such as `brew` or `apt`
+> (see [#50](https://codeberg.org/dxrcy/elk/issues/50)).
+> Contribution is very welcome!
+
 # Editor Integration
 
 ## Neovim
@@ -263,7 +319,7 @@ configured.
 Install the [`elk.nvim`](https://github.com/twhlynch/elk.nvim) Neovim plugin.
 You will also need to
 [install ELK separately](https://codeberg.org/dxrcy/elk#installation), and
-make sure the executable is in your `PATH`.
+make sure the executable is in your PATH.
 
 The following minimal setup uses [`lazy`](https://lazy.folke.io/), however
 `elk.nvim` works with any plugin manager.
