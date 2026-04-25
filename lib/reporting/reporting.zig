@@ -5,7 +5,9 @@ const assert = std.debug.assert;
 const Policies = @import("../policies.zig").Policies;
 const Span = @import("../compile/Span.zig");
 const Token = @import("../compile/parse/Token.zig");
+
 const Ctx = @import("Ctx.zig");
+const Printer = @import("Printer.zig");
 
 // TODO: Move or remove
 pub const Primary = Reporter(@import("diagnostic.zig").Diagnostic);
@@ -123,18 +125,14 @@ pub fn Reporter(comptime Diag: type) type {
 
             reporter.count.getPtr(level).* += 1;
 
-            {
-                var ctx_items: usize = 0;
-                const ctx: Ctx = .new(
-                    reporter.writer,
-                    reporter.options.verbosity,
-                    level,
-                    &ctx_items,
-                    reporter.source,
-                );
-                try ctx.printDiagnostic(diag);
-                try ctx.writer.flush();
-            }
+            var printer: Printer = .new(reporter.writer);
+            try printer.printDiagnostic(
+                diag,
+                reporter.options.verbosity,
+                level,
+                reporter.source orelse unreachable,
+            );
+            try printer.writer.flush();
 
             assert(response != .pass);
             return response;
