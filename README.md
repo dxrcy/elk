@@ -7,6 +7,7 @@ program.
 [Official Codeberg repository](https://codeberg.org/dxrcy/elk)
 | [GitHub mirror](https://github.com/dxrcy/elk)
 | [Releases](https://github.com/dxrcy/elk/releases).
+<!-- TODO: Add docs link here once in a reasonable state -->
 
 <div align="center">
 
@@ -17,6 +18,8 @@ program.
 # Usage
 
 > Check out some [example LC-3 programs](examples) here!
+>
+> Check out (work-in-progress) [documentation](DOCS.md) here!
 
 ```sh
 # Show all options
