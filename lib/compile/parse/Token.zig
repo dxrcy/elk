@@ -31,7 +31,7 @@ pub fn isValidChar(char: u8) bool {
 }
 
 pub fn from(span: Span, source: []const u8, traps: *const Traps) Error!Token {
-    const value: Value = try .from(span.view(source), traps);
+    const value: Value = try .from(span.viewString(source), traps);
     return .{ .span = span, .value = value };
 }
 

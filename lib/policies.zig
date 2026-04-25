@@ -8,7 +8,7 @@ pub const Policies = packed struct {
         .extension = .forbid_all,
         .smell = .forbid_all,
         .style = .forbid_all,
-        .case_convention = .forbid_all,
+        .case = .forbid_all,
     };
 
     pub const predefs = struct {
@@ -64,7 +64,7 @@ pub const Policies = packed struct {
         pub const permit_all = fillFields(@This(), .permit);
     },
 
-    case_convention: packed struct {
+    case: packed struct {
         mnemonics: Policy,
         trap_aliases: Policy,
         directives: Policy,

@@ -4,8 +4,10 @@ const assert = std.debug.assert;
 
 const Policies = @import("../policies.zig").Policies;
 const Span = @import("../compile/Span.zig");
+const Source = @import("../compile/Source.zig");
 const Token = @import("../compile/parse/Token.zig");
-const Ctx = @import("Ctx.zig");
+
+pub const Sink = @import("Sink.zig");
 
 // TODO: Move or remove
 pub const Primary = Reporter(@import("diagnostic.zig").Diagnostic);
@@ -83,15 +85,16 @@ pub fn Reporter(comptime Diag: type) type {
 
     return struct {
         const Self = @This();
+        pub const Diagnostic = Diag;
 
-        writer: *Io.Writer,
+        sink: Sink,
         count: std.EnumArray(Level, usize),
         options: Options,
-        source: ?[]const u8,
+        source: ?Source,
 
-        pub fn new(writer: *Io.Writer) Self {
+        pub fn new(sink: Sink) Self {
             return .{
-                .writer = writer,
+                .sink = sink,
                 .count = .initFill(0),
                 .options = .{},
                 .source = null,
@@ -123,56 +126,23 @@ pub fn Reporter(comptime Diag: type) type {
 
             reporter.count.getPtr(level).* += 1;
 
-            {
-                var ctx_items: usize = 0;
-                const ctx: Ctx = .new(
-                    reporter.writer,
-                    reporter.options.verbosity,
-                    level,
-                    &ctx_items,
-                    reporter.source,
-                );
-                try diag.print(ctx);
-                try ctx.writer.flush();
-            }
+            try reporter.sink.sendDiagnostic(
+                diag,
+                level,
+                reporter.options.verbosity,
+                reporter.source orelse unreachable,
+            );
 
             assert(response != .pass);
             return response;
         }
 
         pub fn summarize(reporter: *Self) void {
-            reporter.summarizeInner() catch
-                writeFailed();
-        }
-
-        fn summarizeInner(reporter: *Self) error{WriteFailed}!void {
-            const count_err = reporter.count.get(.err);
-            const count_warn = reporter.count.get(.warn);
-            // Ignore `info`
-
-            const ctx: Ctx = .new(
-                reporter.writer,
+            reporter.sink.sendSummary(
+                &reporter.count,
                 reporter.options.verbosity,
-                .warn,
-                null,
-                null,
-            );
-
-            if (count_err > 0) {
-                try ctx.writer.print("\x1b[31m", .{});
-                try ctx.writer.print("{} errors", .{count_err});
-                try ctx.writer.print("\x1b[0m", .{});
-                try ctx.writer.print("\n", .{});
-            }
-
-            if (count_warn > 0) {
-                try ctx.writer.print("\x1b[33m", .{});
-                try ctx.writer.print("{} warnings", .{count_warn});
-                try ctx.writer.print("\x1b[0m", .{});
-                try ctx.writer.print("\n", .{});
-            }
-
-            try ctx.writer.flush();
+            ) catch
+                writeFailed();
         }
 
         pub fn getLevel(reporter: *const Self) ?Level {
@@ -189,98 +159,4 @@ pub fn Reporter(comptime Diag: type) type {
             return level.order(max).compare(.lte);
         }
     };
-}
-
-pub fn writeSpanContext(
-    writer: *std.Io.Writer,
-    span: Span,
-    config: struct {
-        indent: usize = 0,
-        max_context: usize = 1,
-        max_line_width: usize = 80,
-    },
-    source: []const u8,
-) error{WriteFailed}!void {
-    const lines = span.getSurroundingLines(config.max_context, source);
-    var iter = std.mem.splitScalar(u8, lines.view(source), '\n');
-    while (iter.next()) |line_string_full| {
-        const line_string = line_string_full[0..@min(line_string_full.len, config.max_line_width)];
-        const is_truncated = line_string_full.len > config.max_line_width;
-
-        const line = Span.fromSlice(line_string, source);
-        const line_number = line.getLineNumber(source);
-
-        for (0..config.indent) |_|
-            try writer.print(" ", .{});
-
-        try writer.print("\x1b[2m", .{});
-        try writer.print("{:3} ", .{line_number});
-        try writer.print("| ", .{});
-        try writer.print("\x1b[0m", .{});
-        try writer.print("\x1b[3m", .{});
-        try writer.print("\x1b[2m", .{});
-
-        {
-            var was_in_span = false;
-            var was_non_valid = false;
-
-            for (line_string, 0..) |char, i| {
-                const index = line.offset + i;
-
-                const in_span = span.containsIndex(index);
-                if (in_span and !was_in_span)
-                    try writer.print("\x1b[22m", .{})
-                else if (!in_span and was_in_span)
-                    try writer.print("\x1b[2m", .{});
-
-                const non_valid = Token.isValidChar(char);
-                if (!non_valid and was_non_valid)
-                    try writer.print("\x1b[31m", .{})
-                else if (non_valid and !was_non_valid)
-                    try writer.print("\x1b[39m", .{});
-
-                if (non_valid)
-                    try writer.print("{c}", .{char})
-                else
-                    try writer.print("?", .{});
-
-                was_in_span = in_span;
-                was_non_valid = non_valid;
-            }
-        }
-
-        if (is_truncated) {
-            try writer.print("\x1b[0m", .{});
-            try writer.print("\x1b[36;2m", .{});
-            try writer.print("...", .{});
-        }
-
-        try writer.print("\x1b[0m", .{});
-        try writer.print("\n", .{});
-
-        if (!line.overlaps(span) or
-            std.mem.trim(u8, line_string, &std.ascii.whitespace).len == 0)
-        {
-            continue;
-        }
-
-        for (0..config.indent) |_|
-            try writer.print(" ", .{});
-
-        try writer.print("\x1b[2m", .{});
-        try writer.print("    | ", .{});
-        try writer.print("\x1b[22m", .{});
-        try writer.print("\x1b[36m", .{});
-        for (0..line_string.len + 1) |i| {
-            const index = line.offset + i;
-            if (span.containsIndex(index) or
-                // Still highlight first character if len==0
-                span.offset == index)
-                try writer.print("^", .{})
-            else
-                try writer.print(" ", .{});
-        }
-        try writer.print("\x1b[0m", .{});
-        try writer.print("\n", .{});
-    }
 }

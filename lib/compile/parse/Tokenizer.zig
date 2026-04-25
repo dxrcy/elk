@@ -7,6 +7,7 @@ const Traps = @import("../../Traps.zig");
 const Reporter = @import("../../reporting/reporting.zig").Primary;
 const Operand = @import("../Operand.zig");
 const Span = @import("../Span.zig");
+const Source = @import("../Source.zig");
 const Lexer = @import("Lexer.zig");
 const Token = @import("Token.zig");
 const SourceInt = @import("integers.zig").SourceInt;
@@ -20,14 +21,14 @@ peeked: ?Span,
 latest: ?Span,
 
 traps: *const Traps,
-source: []const u8,
+source: Source,
 reporter: *Reporter,
 
 const TokenKind = std.meta.Tag(Token.Value);
 
 pub fn new(
     traps: *const Traps,
-    source: []const u8,
+    source: Source,
     reporter: *Reporter,
 ) Tokenizer {
     for (traps.entries) |entry| {
@@ -35,11 +36,11 @@ pub fn new(
             assert(case.isLowercaseAlpha(alias));
     }
 
-    for (source) |char|
+    for (source.text) |char|
         assert(Token.isValidChar(char));
 
     return .{
-        .lexer = Lexer.new(source, true),
+        .lexer = Lexer.new(source.text, true),
         .peeked = null,
         .latest = null,
         .traps = traps,
@@ -61,7 +62,7 @@ fn getNextSpan(tokenizer: *Tokenizer) error{Eof}!Span {
 }
 
 fn parseToken(tokenizer: *Tokenizer, span: Span) Token.Error!Token {
-    const token = try Token.from(span, tokenizer.source, tokenizer.traps);
+    const token = try Token.from(span, tokenizer.source.text, tokenizer.traps);
     if (token.value != .newline)
         tokenizer.latest = token.span;
     return token;
@@ -226,7 +227,7 @@ pub fn expectArgument(
         error.Reported => return error.Reported,
         error.Eof => .{
             .value = .newline,
-            .span = .emptyAt(tokenizer.source.len),
+            .span = .endOf(tokenizer.source),
         },
     };
     const value = try argument.convert(token, tokenizer.reporter);

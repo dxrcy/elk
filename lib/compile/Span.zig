@@ -3,6 +3,8 @@ const Span = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 
+const Source = @import("Source.zig");
+
 offset: usize,
 len: usize,
 
@@ -10,8 +12,8 @@ pub fn fromBounds(start: usize, end_: usize) Span {
     return .{ .offset = start, .len = end_ - start };
 }
 
-pub fn emptyAt(offset: usize) Span {
-    return .{ .offset = offset, .len = 0 };
+pub fn endOf(source: Source) Span {
+    return .{ .offset = source.text.len, .len = 0 };
 }
 
 pub fn fromSlice(slice: []const u8, source: []const u8) Span {
@@ -54,8 +56,12 @@ pub fn in(inner: Span, containing: Span) Span {
     };
 }
 
-pub fn view(span: Span, source: []const u8) []const u8 {
+pub fn viewString(span: Span, source: []const u8) []const u8 {
     return source[span.offset..][0..span.len];
+}
+
+pub fn view(span: Span, source: Source) []const u8 {
+    return span.viewString(source.text);
 }
 
 pub fn overlaps(lhs: Span, rhs: Span) bool {
@@ -215,12 +221,12 @@ test getContainingLines {
         log.info("INPUT:   \t\"{s}\"", .{input_string});
         log.info("INPUT:   \t{}", .{input});
         log.info("EXPECTED:\t\"{s}\"", .{expected_string});
-        if (!std.mem.eql(u8, input_string, input.view(source))) {
-            log.info("(INPUT): \t\"{s}\"", .{input.view(source)});
+        if (!std.mem.eql(u8, input_string, input.viewString(source))) {
+            log.info("(INPUT): \t\"{s}\"", .{input.viewString(source)});
             unreachable;
         }
         const actual = input.getContainingLines(source);
-        const actual_string = actual.view(source);
+        const actual_string = actual.viewString(source);
         log.info("ACTUAL:  \t\"{s}\"", .{actual_string});
         log.info("ACTUAL:  \t{}", .{actual});
         try expect(actual.end() <= source.len); // <= is intended

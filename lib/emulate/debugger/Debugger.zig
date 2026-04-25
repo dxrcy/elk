@@ -7,9 +7,11 @@ const assert = std.debug.assert;
 
 const reporting = @import("../../reporting/reporting.zig");
 const Reporter = reporting.Primary;
+const writeSpanContext = reporting.Sink.Fancy.writeSpanContext;
 const Traps = @import("../../Traps.zig");
 const Air = @import("../../compile/Air.zig");
 const Span = @import("../../compile/Span.zig");
+const Source = @import("../../compile/Source.zig");
 const Parser = @import("../../compile/parse/Parser.zig");
 const Runtime = @import("../Runtime.zig");
 const Instruction = @import("../decode.zig").Instruction;
@@ -38,7 +40,7 @@ reporter: *Reporter,
 
 pub const Assembly = struct {
     air: *const Air,
-    source: []const u8,
+    source: Source,
 };
 
 const Status = union(enum) {
@@ -338,14 +340,15 @@ fn tryNextAction(debugger: *Debugger, runtime: *Runtime) !?Action {
         },
     };
 
-    debugger.reporter.source = command_string;
+    const source: Source = .{ .text = command_string, .path = null };
+    debugger.reporter.source = source;
 
-    const command = parse.parseCommand(command_string, debugger.reporter) catch |err| switch (err) {
+    const command = parse.parseCommand(source, debugger.reporter) catch |err| switch (err) {
         error.Reported => return null,
     } orelse
         return null; // No tokens lexed
 
-    const action = debugger.runCommand(runtime, command, command_string) catch |err| switch (err) {
+    const action = debugger.runCommand(runtime, command, source) catch |err| switch (err) {
         error.Reported => return null,
         else => |err2| return err2,
     };
@@ -357,7 +360,7 @@ fn runCommand(
     debugger: *Debugger,
     runtime: *Runtime,
     command: Command,
-    source: []const u8,
+    source: Source,
 ) !?Action {
     assert(debugger.state.status == .get_action);
     assert(runtime.writer_is_newline);
@@ -480,7 +483,7 @@ fn runCommand(
             const line = try debugger.getAssemblyLine(&assembly, address, arguments.location.span);
 
             try debugger.writer.printLine("Next instruction, at 0x{x:04}:", .{address});
-            try reporting.writeSpanContext(debugger.writer.inner, line.span, .{
+            try writeSpanContext(debugger.writer.inner, line.span, .{
                 .max_context = arguments.context.value,
             }, assembly.source);
         },
@@ -644,7 +647,7 @@ fn printBreakpoints(debugger: *Debugger) !void {
             try debugger.writer.disableColor();
             try debugger.writer.print("\n", .{});
 
-            try reporting.writeSpanContext(debugger.writer.inner, line.span, .{}, assembly.source);
+            try writeSpanContext(debugger.writer.inner, line.span, .{}, assembly.source);
             continue;
         }
 
@@ -672,7 +675,7 @@ fn evalCommand(
     runtime: *Runtime,
     assembly: Assembly,
     span: Span,
-    source: []const u8,
+    source: Source,
 ) (Runtime.HostError || error{Reported})!void {
     const line = span.view(source);
 
@@ -709,15 +712,17 @@ fn parseInstructionLine(
     line: []const u8,
     index: usize,
 ) error{Reported}!Air.Instruction {
-    var reporter = debugger.copyReporter(line);
-    var parser = try Parser.new(debugger.traps, line, &reporter);
+    const source: Source = .{ .text = line, .path = null };
+
+    var reporter = debugger.copyReporter(source);
+    var parser = try Parser.new(debugger.traps, source, &reporter);
 
     var instruction = try parser.parseInstruction();
     try parser.resolveLabelOperand(assembly.air, assembly.source, &instruction, index);
     return instruction;
 }
 
-fn copyReporter(debugger: *const Debugger, source: []const u8) Reporter {
+fn copyReporter(debugger: *const Debugger, source: Source) Reporter {
     var reporter = debugger.reporter.*;
     reporter.source = source;
     reporter.options.strictness = .normal;
@@ -725,7 +730,7 @@ fn copyReporter(debugger: *const Debugger, source: []const u8) Reporter {
         .extension = reporter.options.policies.extension,
         .smell = reporter.options.policies.smell,
         .style = .permit_all,
-        .case_convention = .permit_all,
+        .case = .permit_all,
     };
     return reporter;
 }
@@ -761,7 +766,7 @@ fn resolveLocation(
     debugger: *Debugger,
     runtime: *Runtime,
     location: Command.Spanned(Command.Location),
-    source: []const u8,
+    source: Source,
 ) error{Reported}!union(enum) { register: u3, address: u16 } {
     switch (location.value) {
         .register => |register| {
@@ -779,7 +784,7 @@ fn resolveMemoryLocation(
     runtime: *const Runtime,
     memory: Command.Location.Memory,
     span: Span,
-    source: []const u8,
+    source: Source,
 ) error{Reported}!u16 {
     switch (memory) {
         .address => |address| return address,
@@ -815,7 +820,7 @@ fn resolveLabelIndex(
     debugger: *const Debugger,
     assembly: Assembly,
     label: Span,
-    source: []const u8,
+    source: Source,
 ) error{Reported}!usize {
     const string = label.view(source);
 

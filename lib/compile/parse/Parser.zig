@@ -9,6 +9,7 @@ const Reporter = @import("../../reporting/reporting.zig").Primary;
 const Air = @import("../Air.zig");
 const Instruction = @import("../instruction.zig").Instruction;
 const Span = @import("../Span.zig");
+const Source = @import("../Source.zig");
 const Operand = @import("../Operand.zig");
 const Tokenizer = @import("Tokenizer.zig");
 const Lexer = @import("Lexer.zig");
@@ -22,10 +23,10 @@ origin: ?Span,
 
 pub fn new(
     traps: *const Traps,
-    source_: []const u8,
+    source_: Source,
     reporter_: *Reporter,
 ) error{Reported}!Parser {
-    for (source_, 0..) |char, i| {
+    for (source_.text, 0..) |char, i| {
         if (!Token.isValidChar(char)) {
             try reporter_.report(.invalid_source_byte, .{
                 .byte = i,
@@ -39,7 +40,7 @@ pub fn new(
     };
 }
 
-fn source(parser: *const Parser) []const u8 {
+fn source(parser: *const Parser) Source {
     return parser.tokenizer.source;
 }
 fn reporter(parser: *Parser) *Reporter {
@@ -106,7 +107,7 @@ pub fn parseAir(parser: *Parser, gpa: Allocator, air: *Air) error{OutOfMemory}!v
 
 fn checkLineWidths(parser: *Parser) error{Reported}!void {
     var result: error{Reported}!void = {};
-    var lines = std.mem.splitScalar(u8, parser.source(), '\n');
+    var lines = std.mem.splitScalar(u8, parser.source().text, '\n');
     while (lines.next()) |line| {
         if (line.len <= max_line_width)
             continue;
@@ -114,7 +115,7 @@ fn checkLineWidths(parser: *Parser) error{Reported}!void {
 
         parser.reporter().report(.line_too_long, .{
             .overflow = .{
-                .offset = overflow.ptr - parser.source().ptr,
+                .offset = overflow.ptr - parser.source().text.ptr,
                 .len = overflow.len,
             },
         }).collect(&result);
@@ -124,7 +125,7 @@ fn checkLineWidths(parser: *Parser) error{Reported}!void {
 }
 
 fn getFirstTokenSpan(parser: *const Parser) ?Span {
-    var lexer: Lexer = .new(parser.source(), true);
+    var lexer: Lexer = .new(parser.source().text, true);
     while (true) {
         const span = lexer.next() orelse
             return null;
@@ -539,7 +540,7 @@ pub fn resolveLabelReferences(parser: *Parser, air: *Air) void {
 pub fn resolveLabelOperand(
     parser: *Parser,
     air: *const Air,
-    air_source: []const u8,
+    air_source: Source,
     instruction: *Instruction,
     index: usize,
 ) error{Reported}!void {
@@ -559,7 +560,7 @@ pub fn resolveLabelOperand(
 fn resolveFieldLabel(
     parser: *Parser,
     air: *const Air,
-    air_source: []const u8,
+    air_source: Source,
     operand: anytype,
     index: usize,
 ) error{Reported}!void {

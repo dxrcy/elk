@@ -13,7 +13,8 @@ pub fn main(init: std.process.Init) !u8 {
 
     var reporter_buffer: [1024]u8 = undefined;
     var reporter_writer = Io.File.stderr().writer(io, &reporter_buffer);
-    var reporter = elk.reporting.Primary.new(&reporter_writer.interface);
+    var sink = elk.reporting.Sink.Fancy.new(&reporter_writer.interface);
+    var reporter = elk.reporting.Primary.new(sink.interface());
 
     var args = try init.minimal.args.iterateAllocator(gpa);
     defer args.deinit();
@@ -27,13 +28,13 @@ pub fn main(init: std.process.Init) !u8 {
     reporter.options.verbosity = cli.verbosity;
     reporter.options.policies = cli.policies;
 
-    var traps: elk.Traps = comptime .registerSets(&.{
+    var default_traps: elk.Traps = comptime .registerSets(&.{
         elk.Traps.Standard,
         elk.Traps.Debug,
     });
 
     inline for (@typeInfo(MczTraps).@"enum".fields) |field| {
-        traps.register(field.value, .{
+        default_traps.register(field.value, .{
             .alias = field.name,
             .callback = .withDataDeferInit(
                 *LazyConnection,
@@ -44,14 +45,30 @@ pub fn main(init: std.process.Init) !u8 {
 
     switch (cli.operation) {
         .assemble => |operation| {
-            const input_path = operation.input.asRegular() catch unreachable;
+            var input_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
+            const length = try Io.Dir.cwd().realPathFile(
+                io,
+                operation.input.asRegular() catch unreachable,
+                &input_path_buffer,
+            );
+            const input_path = input_path_buffer[0..length];
 
-            const source = try Io.Dir.cwd().readFileAlloc(io, input_path, gpa, .unlimited);
-            defer gpa.free(source);
+            const text = try Io.Dir.cwd().readFileAlloc(io, input_path, gpa, .unlimited);
+            defer gpa.free(text);
+
+            const source: elk.Source = .{
+                .text = text,
+                .path = input_path,
+            };
 
             reporter.source = source;
 
-            var air = try assemble(gpa, source, &traps, &reporter);
+            const traps = operation.trap_aliases orelse default_traps;
+
+            var air = assemble(gpa, source, &traps, &reporter) catch |err| switch (err) {
+                error.ProgramError => return 1,
+                else => |err2| return err2,
+            };
             defer air.deinit(gpa);
 
             const out_extension = switch (operation.output_mode) {
@@ -93,21 +110,35 @@ pub fn main(init: std.process.Init) !u8 {
                 init.environ_map,
                 .{ .object = file },
                 operation.debug,
-                &traps,
+                &default_traps,
                 cli.policies,
                 &reporter,
             );
         },
 
         .assemble_emulate => |operation| {
-            const input_path = operation.input.asRegular() catch unreachable;
+            var input_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
+            const length = try Io.Dir.cwd().realPathFile(
+                io,
+                operation.input.asRegular() catch unreachable,
+                &input_path_buffer,
+            );
+            const input_path = input_path_buffer[0..length];
 
-            const source = try Io.Dir.cwd().readFileAlloc(io, input_path, gpa, .unlimited);
-            defer gpa.free(source);
+            const text = try Io.Dir.cwd().readFileAlloc(io, input_path, gpa, .unlimited);
+            defer gpa.free(text);
+
+            const source: elk.Source = .{
+                .text = text,
+                .path = input_path,
+            };
 
             reporter.source = source;
 
-            var air = try assemble(gpa, source, &traps, &reporter);
+            var air = assemble(gpa, source, &default_traps, &reporter) catch |err| switch (err) {
+                error.ProgramError => return 1,
+                else => |err2| return err2,
+            };
             defer air.deinit(gpa);
 
             try emulate(
@@ -116,7 +147,7 @@ pub fn main(init: std.process.Init) !u8 {
                 init.environ_map,
                 .{ .assembly = .{ .air = &air, .source = source } },
                 operation.debug,
-                &traps,
+                &default_traps,
                 cli.policies,
                 &reporter,
             );
@@ -165,7 +196,7 @@ fn replacePathExtension(buffer: []u8, path: []const u8, extension: []const u8) [
 
 fn assemble(
     gpa: Allocator,
-    source: []const u8,
+    source: elk.Source,
     traps: *const elk.Traps,
     reporter: *elk.reporting.Primary,
 ) !elk.Air {
