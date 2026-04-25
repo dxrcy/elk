@@ -7,6 +7,7 @@ const assert = std.debug.assert;
 
 const reporting = @import("../../reporting/reporting.zig");
 const Reporter = reporting.Primary;
+const writeSpanContext = reporting.Sink.Fancy.writeSpanContext;
 const Traps = @import("../../Traps.zig");
 const Air = @import("../../compile/Air.zig");
 const Span = @import("../../compile/Span.zig");
@@ -480,7 +481,7 @@ fn runCommand(
             const line = try debugger.getAssemblyLine(&assembly, address, arguments.location.span);
 
             try debugger.writer.printLine("Next instruction, at 0x{x:04}:", .{address});
-            try reporting.writeSpanContext(debugger.writer.inner, line.span, .{
+            try writeSpanContext(debugger.writer.inner, line.span, .{
                 .max_context = arguments.context.value,
             }, assembly.source);
         },
@@ -644,7 +645,7 @@ fn printBreakpoints(debugger: *Debugger) !void {
             try debugger.writer.disableColor();
             try debugger.writer.print("\n", .{});
 
-            try reporting.writeSpanContext(debugger.writer.inner, line.span, .{}, assembly.source);
+            try writeSpanContext(debugger.writer.inner, line.span, .{}, assembly.source);
             continue;
         }
 

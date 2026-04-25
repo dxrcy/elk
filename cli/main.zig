@@ -12,7 +12,8 @@ pub fn main(init: std.process.Init) !u8 {
 
     var reporter_buffer: [1024]u8 = undefined;
     var reporter_writer = Io.File.stderr().writer(io, &reporter_buffer);
-    var reporter = elk.reporting.Primary.new(&reporter_writer.interface);
+    var sink = elk.reporting.Sink.Fancy.new(&reporter_writer.interface);
+    var reporter = elk.reporting.Primary.new(sink.interface());
 
     var args = try init.minimal.args.iterateAllocator(gpa);
     defer args.deinit();
