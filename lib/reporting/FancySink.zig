@@ -49,7 +49,7 @@ pub fn sendDiagnostic(
         &ctx_items,
         source,
     );
-    try writeDiagnostic(ctx, diag);
+    try writeDiagnostic(ctx, diag, source);
     try sink.writer.flush();
 }
 
@@ -93,10 +93,7 @@ pub fn sendSummary(
     try sink.writer.flush();
 }
 
-fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
-    const source = ctx.source orelse
-        unreachable;
-
+fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: []const u8) error{WriteFailed}!void {
     switch (diag) {
         .invalid_source_byte => |info| {
             try ctx.writeTitle("Assembly file contains invalid bytes", .{});
