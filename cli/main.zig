@@ -39,7 +39,10 @@ pub fn main(init: std.process.Init) !u8 {
             const text = try Io.Dir.cwd().readFileAlloc(io, input_path, gpa, .unlimited);
             defer gpa.free(text);
 
-            const source: elk.Source = .{ .text = text, .path = "{unknown}" };
+            const source: elk.Source = .{
+                .text = text,
+                .path = input_path,
+            };
 
             reporter.source = source;
 
@@ -102,7 +105,10 @@ pub fn main(init: std.process.Init) !u8 {
             const text = try Io.Dir.cwd().readFileAlloc(io, input_path, gpa, .unlimited);
             defer gpa.free(text);
 
-            const source: elk.Source = .{ .text = text, .path = "{unknown}" };
+            const source: elk.Source = .{
+                .text = text,
+                .path = input_path,
+            };
 
             reporter.source = source;
 
