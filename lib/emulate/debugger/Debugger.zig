@@ -340,7 +340,7 @@ fn tryNextAction(debugger: *Debugger, runtime: *Runtime) !?Action {
         },
     };
 
-    debugger.reporter.source = .{ .text = command_string, .path = "{unknown}" };
+    debugger.reporter.source = .{ .text = command_string, .path = null };
 
     const command = parse.parseCommand(command_string, debugger.reporter) catch |err| switch (err) {
         error.Reported => return null,
@@ -711,7 +711,7 @@ fn parseInstructionLine(
     line: []const u8,
     index: usize,
 ) error{Reported}!Air.Instruction {
-    const source: Source = .{ .text = line, .path = "{unknown}" };
+    const source: Source = .{ .text = line, .path = null };
 
     var reporter = debugger.copyReporter(source);
     var parser = try Parser.new(debugger.traps, source, &reporter);
