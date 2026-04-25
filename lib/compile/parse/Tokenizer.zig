@@ -227,7 +227,7 @@ pub fn expectArgument(
         error.Reported => return error.Reported,
         error.Eof => .{
             .value = .newline,
-            .span = .emptyAt(tokenizer.source.text.len),
+            .span = .endOf(tokenizer.source),
         },
     };
     const value = try argument.convert(token, tokenizer.reporter);

@@ -12,8 +12,8 @@ pub fn fromBounds(start: usize, end_: usize) Span {
     return .{ .offset = start, .len = end_ - start };
 }
 
-pub fn emptyAt(offset: usize) Span {
-    return .{ .offset = offset, .len = 0 };
+pub fn endOf(source: Source) Span {
+    return .{ .offset = source.text.len, .len = 0 };
 }
 
 pub fn fromSlice(slice: []const u8, source: []const u8) Span {

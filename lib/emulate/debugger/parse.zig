@@ -136,7 +136,7 @@ const Parser = struct {
     fn remainingString(parser: *Parser) error{Reported}!Span {
         var first = parser.lexer.next() orelse {
             try parser.reporter.report(.debugger_unexpected_eol, .{
-                .eol = .emptyAt(parser.source.text.len),
+                .eol = .endOf(parser.source),
             }).abort();
         };
 
@@ -151,7 +151,7 @@ const Parser = struct {
     fn nextInteger(parser: *Parser) error{Reported}!Spanned(u16) {
         const argument = parser.next() catch |err| switch (err) {
             error.Eof => try parser.reporter.report(.debugger_unexpected_eol, .{
-                .eol = .emptyAt(parser.source.text.len),
+                .eol = .endOf(parser.source),
             }).abort(),
         };
 
@@ -162,7 +162,7 @@ const Parser = struct {
 
     fn nextPositiveIntOrDefault(parser: *Parser, default: u16) error{Reported}!Spanned(u16) {
         const argument = parser.next() catch |err| switch (err) {
-            error.Eof => return .{ .span = .emptyAt(parser.source.text.len), .value = default },
+            error.Eof => return .{ .span = .endOf(parser.source), .value = default },
         };
 
         const integer = try parser.parseInteger(argument);
@@ -187,7 +187,7 @@ const Parser = struct {
     fn nextLocation(parser: *Parser) error{Reported}!Spanned(Command.Location) {
         const argument = parser.next() catch |err| switch (err) {
             error.Eof => try parser.reporter.report(.debugger_unexpected_eol, .{
-                .eol = .emptyAt(parser.source.text.len),
+                .eol = .endOf(parser.source),
             }).abort(),
         };
 
@@ -206,10 +206,7 @@ const Parser = struct {
         parser: *Parser,
     ) error{Reported}!Spanned(Command.Location.Memory) {
         const argument = parser.next() catch |err| switch (err) {
-            error.Eof => return .{
-                .value = .{ .pc_offset = 0 },
-                .span = .emptyAt(parser.source.text.len),
-            },
+            error.Eof => return .{ .value = .{ .pc_offset = 0 }, .span = .endOf(parser.source) },
         };
 
         // TODO: Report, if is register
@@ -224,9 +221,7 @@ const Parser = struct {
 
     fn nextMemoryLocation(parser: *Parser) error{Reported}!Spanned(Command.Location.Memory) {
         const argument = parser.next() catch |err| switch (err) {
-            error.Eof => try parser.reporter.report(.debugger_unexpected_eol, .{
-                .eol = .emptyAt(parser.source.text.len),
-            }).abort(),
+            error.Eof => try parser.reporter.report(.debugger_unexpected_eol, .{ .eol = .endOf(parser.source) }).abort(),
         };
 
         // TODO: Report, if is register
@@ -416,7 +411,7 @@ const Parser = struct {
                 const tag = double.default orelse {
                     try parser.reporter.report(.debugger_missing_subcommand, .{
                         .first = first,
-                        .eol = .emptyAt(parser.source.text.len),
+                        .eol = .endOf(parser.source),
                     }).abort();
                 };
                 return .{ .span = first, .value = tag };
