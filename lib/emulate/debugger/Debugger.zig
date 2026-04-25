@@ -340,14 +340,15 @@ fn tryNextAction(debugger: *Debugger, runtime: *Runtime) !?Action {
         },
     };
 
-    debugger.reporter.source = .{ .text = command_string, .path = null };
+    const source: Source = .{ .text = command_string, .path = null };
+    debugger.reporter.source = source;
 
-    const command = parse.parseCommand(command_string, debugger.reporter) catch |err| switch (err) {
+    const command = parse.parseCommand(source, debugger.reporter) catch |err| switch (err) {
         error.Reported => return null,
     } orelse
         return null; // No tokens lexed
 
-    const action = debugger.runCommand(runtime, command, command_string) catch |err| switch (err) {
+    const action = debugger.runCommand(runtime, command, source) catch |err| switch (err) {
         error.Reported => return null,
         else => |err2| return err2,
     };
@@ -359,7 +360,7 @@ fn runCommand(
     debugger: *Debugger,
     runtime: *Runtime,
     command: Command,
-    source: []const u8,
+    source: Source,
 ) !?Action {
     assert(debugger.state.status == .get_action);
     assert(runtime.writer_is_newline);
@@ -484,7 +485,7 @@ fn runCommand(
             try debugger.writer.printLine("Next instruction, at 0x{x:04}:", .{address});
             try writeSpanContext(debugger.writer.inner, line.span, .{
                 .max_context = arguments.context.value,
-            }, assembly.source.text);
+            }, assembly.source);
         },
 
         .eval => |arguments| {
@@ -494,7 +495,7 @@ fn runCommand(
 
         .echo => |arguments| {
             try debugger.writer.enableColor();
-            try debugger.writer.print("[{s}]\n", .{arguments.string.viewString(source)});
+            try debugger.writer.print("[{s}]\n", .{arguments.string.view(source)});
             try debugger.writer.disableColor();
         },
 
@@ -646,7 +647,7 @@ fn printBreakpoints(debugger: *Debugger) !void {
             try debugger.writer.disableColor();
             try debugger.writer.print("\n", .{});
 
-            try writeSpanContext(debugger.writer.inner, line.span, .{}, assembly.source.text);
+            try writeSpanContext(debugger.writer.inner, line.span, .{}, assembly.source);
             continue;
         }
 
@@ -674,9 +675,9 @@ fn evalCommand(
     runtime: *Runtime,
     assembly: Assembly,
     span: Span,
-    source: []const u8,
+    source: Source,
 ) (Runtime.HostError || error{Reported})!void {
-    const line = span.viewString(source);
+    const line = span.view(source);
 
     const asm_instr = try debugger.parseInstructionLine(
         assembly,
@@ -765,7 +766,7 @@ fn resolveLocation(
     debugger: *Debugger,
     runtime: *Runtime,
     location: Command.Spanned(Command.Location),
-    source: []const u8,
+    source: Source,
 ) error{Reported}!union(enum) { register: u3, address: u16 } {
     switch (location.value) {
         .register => |register| {
@@ -783,7 +784,7 @@ fn resolveMemoryLocation(
     runtime: *const Runtime,
     memory: Command.Location.Memory,
     span: Span,
-    source: []const u8,
+    source: Source,
 ) error{Reported}!u16 {
     switch (memory) {
         .address => |address| return address,
@@ -819,9 +820,9 @@ fn resolveLabelIndex(
     debugger: *const Debugger,
     assembly: Assembly,
     label: Span,
-    source: []const u8,
+    source: Source,
 ) error{Reported}!usize {
-    const string = label.viewString(source);
+    const string = label.view(source);
 
     if (assembly.air.findLabel(string, .sensitive, assembly.source)) |result|
         return result.index;

@@ -82,8 +82,8 @@ pub fn main(init: std.process.Init) !u8 {
             switch (operation.output_mode) {
                 .none => unreachable,
                 .assembly => try air.writeAssembly(&writer.interface),
-                .symbols => try air.writeSymbols(&writer.interface, source.text),
-                .listing => try air.writeListing(&writer.interface, source.text),
+                .symbols => try air.writeSymbols(&writer.interface, source),
+                .listing => try air.writeListing(&writer.interface, source),
             }
 
             try writer.flush();

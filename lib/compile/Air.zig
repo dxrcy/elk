@@ -90,16 +90,16 @@ pub fn writeAssembly(air: *const Air, writer: *Io.Writer) !void {
     }
 }
 
-pub fn writeSymbols(air: *const Air, writer: *Io.Writer, source: []const u8) !void {
+pub fn writeSymbols(air: *const Air, writer: *Io.Writer, source: Source) !void {
     for (air.labels.items) |label| {
         try writer.print("{s:<74} x{x:04}\n", .{
-            label.span.viewString(source),
+            label.span.view(source),
             air.origin + label.index,
         });
     }
 }
 
-pub fn writeListing(air: *const Air, writer: *Io.Writer, source: []const u8) !void {
+pub fn writeListing(air: *const Air, writer: *Io.Writer, source: Source) !void {
     const helper: ListingHelper = .{ .writer = writer };
     try helper.writeHeader();
 
@@ -107,11 +107,11 @@ pub fn writeListing(air: *const Air, writer: *Io.Writer, source: []const u8) !vo
     var line_no: usize = 1;
 
     // Cut just 1 trailing newline
-    const source_trimmed = std.mem.cutSuffix(u8, source, "\n") orelse source;
+    const source_trimmed = std.mem.cutSuffix(u8, source.text, "\n") orelse source.text;
     var lines = std.mem.splitScalar(u8, source_trimmed, '\n');
 
     while (lines.next()) |string| : (line_no += 1) {
-        const end = @intFromPtr(string.ptr) - @intFromPtr(source.ptr) + string.len;
+        const end = @intFromPtr(string.ptr) - @intFromPtr(source_trimmed.ptr) + string.len;
 
         // If source line corresponds to >0 statements, print the first one here
         if (index < air.lines.items.len and
@@ -177,10 +177,10 @@ pub fn patchLabelValue(
     air: *Air,
     name: []const u8,
     raw_word: u16,
-    source: []const u8,
+    source: Source,
 ) error{LabelNotFound}!void {
     for (air.labels.items) |label| {
-        if (!std.mem.eql(u8, label.span.viewString(source), name))
+        if (!std.mem.eql(u8, label.span.view(source), name))
             continue;
         // Keep span
         air.lines.items[label.index].statement = .{ .raw_word = raw_word };

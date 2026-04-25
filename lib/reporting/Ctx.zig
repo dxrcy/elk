@@ -152,7 +152,7 @@ fn writeSource(ctx: Ctx, span: Span) error{WriteFailed}!void {
     try writeSpanContext(ctx.writer, span, .{
         .indent = ctx.depth * indent_width,
         .max_line_width = 90,
-    }, source.text);
+    }, source);
 }
 
 pub fn writeSpanContext(
@@ -163,16 +163,16 @@ pub fn writeSpanContext(
         max_context: usize = 1,
         max_line_width: usize = 80,
     },
-    source: []const u8,
+    source: Source,
 ) error{WriteFailed}!void {
-    const lines = span.getSurroundingLines(config.max_context, source);
-    var iter = std.mem.splitScalar(u8, lines.viewString(source), '\n');
+    const lines = span.getSurroundingLines(config.max_context, source.text);
+    var iter = std.mem.splitScalar(u8, lines.view(source), '\n');
     while (iter.next()) |line_string_full| {
         const line_string = line_string_full[0..@min(line_string_full.len, config.max_line_width)];
         const is_truncated = line_string_full.len > config.max_line_width;
 
-        const line = Span.fromSlice(line_string, source);
-        const line_number = line.getLineNumber(source);
+        const line = Span.fromSlice(line_string, source.text);
+        const line_number = line.getLineNumber(source.text);
 
         for (0..config.indent) |_|
             try writer.print(" ", .{});
