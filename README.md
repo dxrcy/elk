@@ -63,7 +63,6 @@ sudo install <filename> /usr/local/bin/elk
     - [ELK Command-Line Interface](DOCS.md#elk-command-line-interface)
     - [ELK Library Features](DOCS.md#elk-library-features)
     - [ELK Extensions to LC-3](DOCS.md#elk-extensions-to-lc-3)
-- Style guide
     - [ELK Style Guide](STYLE.md)
 
 # Contributors
