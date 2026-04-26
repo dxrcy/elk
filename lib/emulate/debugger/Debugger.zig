@@ -843,20 +843,23 @@ fn resolveMemoryLocation(
 }
 
 fn resolveLabelAddress(debugger: *const Debugger, label: Span, source: Source) error{Reported}!u16 {
-    if (debugger.getAssemblyAirOpt()) |assembly_air| {
-        if (debugger.assembly_source) |assembly_source| {
-            const address = try debugger.resolveLabelIndex(assembly_air, assembly_source, label, source);
-            const origin = assembly_air.origin;
-            return address + origin; // Overflow should have been handled by assembler
-        }
-    }
+    if (debugger.symbol_provider) |symbol_provider| {
+        switch (symbol_provider) {
+            .air => |air| if (debugger.assembly_source) |assembly_source| {
+                const address = try debugger.resolveLabelIndex(air, assembly_source, label, source);
+                const origin = air.origin;
+                return address + origin; // Overflow should have been handled by assembler
 
-    if (debugger.getSymbolsOpt()) |symbols| {
-        return Runtime.getSymbolAddress(label.view(source), symbols) catch {
-            try debugger.reporter.report(.symbol_not_found, .{
-                .symbol = label,
-            }).abort();
-        };
+            },
+
+            .symbols => |symbols| {
+                return Runtime.getSymbolAddress(label.view(source), symbols) catch {
+                    try debugger.reporter.report(.symbol_not_found, .{
+                        .symbol = label,
+                    }).abort();
+                };
+            },
+        }
     }
 
     try debugger.reporter.report(.debugger_requires_symbols, .{
@@ -906,15 +909,6 @@ fn getAssemblyAirOpt(debugger: *const Debugger) ?*const Air {
     switch (symbol_provider) {
         .air => |air| return air,
         .symbols => return null,
-    }
-}
-
-fn getSymbolsOpt(debugger: *const Debugger) ?[]const Runtime.SymbolEntry {
-    const symbol_provider = debugger.symbol_provider orelse
-        return null;
-    switch (symbol_provider) {
-        .air => return null,
-        .symbols => |symbols| return symbols,
     }
 }
 
