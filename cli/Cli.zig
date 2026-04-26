@@ -94,6 +94,7 @@ const Operation = union(enum) {
     emulate: struct {
         input: cli_template.Path,
         debug: ?Debug,
+        import_symbols: ?[]const u8,
     },
     clean: struct {
         input: []const u8,
@@ -109,7 +110,6 @@ const Operation = union(enum) {
 pub const Debug = struct {
     commands: ?[]const u8,
     history_file: ?[]const u8,
-    import_symbols: ?[]const u8,
 };
 
 const template = .{
@@ -192,7 +192,7 @@ const template = .{
         .import_symbols = cli_template.NamedListing{
             .long = "import-symbols",
             .value = []const u8,
-            .requires = &.{&.{ .debug, .emulate }},
+            .requires = &.{&.{.emulate}},
         },
 
         .strict = cli_template.NamedListing{
@@ -259,7 +259,6 @@ pub fn parse(iter: *ArgIterator) error{ ParseFailed, DisplayMetadata, Unimplemen
     const unimplemented_args = [_][]const u8{
         "format",
         "lsp",
-        "import_symbols",
     };
     for (unimplemented_args) |name| {
         inline for (@typeInfo(@TypeOf(args.named)).@"struct".fields) |field| {
@@ -320,8 +319,8 @@ fn parseOperation(args: *const cli_template.Args(template)) Operation {
             .debug = if (args.named.debug) .{
                 .commands = args.named.commands,
                 .history_file = args.named.history_file,
-                .import_symbols = args.named.import_symbols,
             } else null,
+            .import_symbols = args.named.import_symbols,
         } };
     }
 
@@ -353,7 +352,6 @@ fn parseOperation(args: *const cli_template.Args(template)) Operation {
         .debug = if (args.named.debug) .{
             .commands = args.named.commands,
             .history_file = args.named.history_file,
-            .import_symbols = args.named.import_symbols,
         } else null,
     } };
 }

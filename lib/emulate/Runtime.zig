@@ -149,11 +149,14 @@ pub fn patchLabelValue(
     raw_word: u16,
     symbols: []const SymbolEntry,
 ) error{SymbolNotFound}!void {
+    const address = try getSymbolAddress(name, symbols);
+    runtime.state.memory[address] = raw_word;
+}
+
+pub fn getSymbolAddress(name: []const u8, symbols: []const SymbolEntry) error{SymbolNotFound}!u16 {
     for (symbols) |entry| {
-        if (!std.mem.eql(u8, entry.name, name))
-            continue;
-        runtime.state.memory[entry.address] = raw_word;
-        return;
+        if (std.mem.eql(u8, entry.name, name))
+            return entry.address;
     }
     return error.SymbolNotFound;
 }
