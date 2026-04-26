@@ -1,0 +1,52 @@
+INPUT:
+    Input filename: *.asm, or *.obj when used with --emulate
+
+OPERATION:
+    (default)
+            Assemble and emulate an .asm file. Supports --debug.
+    -a, --assemble
+            Assemble an .asm file and write output.
+    -e, --emulate
+            Emulate an assembled .obj file. Supports --debug.
+    -c, --check
+            Check an assembly file for errors without assembling.
+        --clean
+            Delete all output files (.obj, .sym, .lst) for an .asm file.
+
+OPTIONS:
+    -o, --output <FILE>
+            Specify filename of object, symbol table, or listing output.
+
+    -d, --debug
+            Run debugger while emulating. Requires --emulate or (default) operation.
+    -C, --commands <COMMANDS>
+            Specify initial commands, separated with semicolons, that debugger shall run.
+                Requires --debug.
+        --history-file <FILE>
+            Specify path for debugger history file. Requires --debug.
+
+        --export-symbols <FILE>
+            Write .sym symbol table file instead of compiling .obj. Requires --assemble.
+        --export-listing <FILE>
+            Write .lst listing file instead of compiling .obj. Requires --assemble.
+        --import-symbols <FILE>
+            Read .sym symbol table file, for patching and debugger use. Requires --emulate.
+        --trap-aliases <ALIASES>
+            Override trap aliases to parse (and assemble). Requires --assemble or --check.
+
+        --strict
+            Treat all warnings as errors.
+        --relaxed
+            Ignore all warnings.
+    -q, --quiet
+            Show less output when assembling.
+    -p, --permit <POLICIES>
+            Specify permitted policies or predefined policy sets.
+            Eg. --permit +laser,extension.stack_instructions
+
+ EXAMPLES:
+     elk hello.asm
+     elk hello.asm --debug
+     elk hello.asm --assemble --output hello.obj --strict --quiet
+     elk hello.asm --assemble --export-listing
+     elk hello.obj --emulate --permit +laser,extension.stack_instructions
