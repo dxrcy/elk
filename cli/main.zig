@@ -289,7 +289,7 @@ fn emulate(
             break :file null;
         };
 
-        const symbol_provider: elk.Debugger.SymbolProvider = switch (runtime_source) {
+        const provider: elk.Debugger.Provider = switch (runtime_source) {
             .object => |object| if (object.symbols) |symbols| .{ .symbols = symbols } else .none,
             .assembly => |assembly| .{ .assembly = assembly },
         };
@@ -302,7 +302,7 @@ fn emulate(
             .traps = traps,
             .reporter = reporter,
             .command_buffer = &debugger_buffer,
-            .symbol_provider = symbol_provider,
+            .provider = provider,
             .history_file = history_file,
             .initial_command_line = debug.commands orelse "",
         });

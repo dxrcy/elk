@@ -30,8 +30,7 @@ state: struct {
 
 breakpoints: Breakpoints,
 initial_state: ?Runtime.State,
-
-symbol_provider: SymbolProvider,
+provider: Provider,
 
 current_line: []const u8,
 input: Input,
@@ -39,7 +38,7 @@ writer: Writer,
 traps: *const Traps,
 reporter: *Reporter,
 
-pub const SymbolProvider = union(enum) {
+pub const Provider = union(enum) {
     none,
     assembly: Assembly,
     symbols: []const Runtime.SymbolEntry,
@@ -125,11 +124,11 @@ pub fn init(params: struct {
     traps: *const Traps,
     reporter: *Reporter,
     command_buffer: []u8,
-    symbol_provider: SymbolProvider,
+    provider: Provider,
     history_file: ?Io.File = null,
     initial_command_line: []const u8 = "",
 }) error{OutOfMemory}!Debugger {
-    const breakpoints: Breakpoints = switch (params.symbol_provider) {
+    const breakpoints: Breakpoints = switch (params.provider) {
         .assembly => |assembly| try .initFrom(params.gpa, assembly.air),
         .none, .symbols => .init(params.gpa),
     };
@@ -145,7 +144,7 @@ pub fn init(params: struct {
         .state = .{},
         .breakpoints = breakpoints,
         .initial_state = null,
-        .symbol_provider = params.symbol_provider,
+        .provider = params.provider,
         .current_line = params.initial_command_line,
         .input = input,
         .writer = .{ .inner = params.writer },
@@ -828,7 +827,7 @@ fn resolveMemoryLocation(
 }
 
 fn resolveLabelAddress(debugger: *const Debugger, label: Span, source: Source) error{Reported}!u16 {
-    switch (debugger.symbol_provider) {
+    switch (debugger.provider) {
         .none => {},
 
         .assembly => |assembly| {
@@ -887,7 +886,7 @@ fn getAssembly(debugger: *const Debugger, span: Span) error{Reported}!Assembly {
 }
 
 fn getAssemblyOpt(debugger: *const Debugger) ?Assembly {
-    switch (debugger.symbol_provider) {
+    switch (debugger.provider) {
         .assembly => |assembly| return assembly,
         .none, .symbols => return null,
     }
