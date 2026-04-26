@@ -109,7 +109,7 @@ pub fn main(init: std.process.Init) !u8 {
                 init.environ_map,
                 .{ .object = .{
                     .file = file,
-                    .symbols = symbols.items,
+                    .symbols = if (operation.import_symbols != null) symbols.items else null,
                 } },
                 operation.debug,
                 &default_traps,

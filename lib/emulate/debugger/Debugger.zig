@@ -30,7 +30,7 @@ state: struct {
 
 breakpoints: Breakpoints,
 initial_state: ?Runtime.State,
-// TODO: Replace these two fields with a union field
+// TODO: Replace these two fields with a union field?
 assembly: ?Assembly,
 symbols: ?[]const Runtime.SymbolEntry,
 
@@ -805,12 +805,8 @@ fn resolveMemoryLocation(
         },
 
         .label => |label| {
-            const assembly = try debugger.getAssembly(label.name);
-            const address = try debugger.resolveLabelIndex(assembly, label.name, source);
-
-            const combined = @as(isize, @intCast(address + assembly.air.origin)) + label.offset;
-
-            return std.math.cast(u16, combined) orelse {
+            const address = try debugger.resolveLabelAddress(label.name, source);
+            return std.math.cast(u16, @as(i17, address) + label.offset) orelse {
                 try debugger.reporter.report(.integer_too_large, .{
                     .integer = span,
                     .type_info = @typeInfo(u16).int,
@@ -820,12 +816,32 @@ fn resolveMemoryLocation(
     }
 }
 
+fn resolveLabelAddress(debugger: *const Debugger, label: Span, source: Source) error{Reported}!u16 {
+    if (debugger.assembly) |assembly| {
+        const address = try debugger.resolveLabelIndex(assembly, label, source);
+        const origin = assembly.air.origin;
+        return address + origin; // Overflow should have been handled by assembler
+    }
+
+    if (debugger.symbols) |symbols| {
+        return Runtime.getSymbolAddress(label.view(source), symbols) catch {
+            try debugger.reporter.report(.symbol_not_found, .{
+                .symbol = label,
+            }).abort();
+        };
+    }
+
+    try debugger.reporter.report(.debugger_requires_symbols, .{
+        .command = label,
+    }).abort();
+}
+
 fn resolveLabelIndex(
     debugger: *const Debugger,
     assembly: Assembly,
     label: Span,
     source: Source,
-) error{Reported}!usize {
+) error{Reported}!u16 {
     const string = label.view(source);
 
     if (assembly.air.findLabel(string, .sensitive, assembly.source)) |result|

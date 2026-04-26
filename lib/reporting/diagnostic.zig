@@ -133,6 +133,7 @@ pub const Diagnostic = union(enum) {
     // TODO: Reorder
     // TODO: Distinguish command vs label
     debugger_requires_assembly: struct { command: Span },
+    debugger_requires_symbols: struct { command: Span },
     debugger_requires_state: struct { command: Span },
     debugger_address_not_in_assembly: struct { value: u16, max: u16 },
     debugger_address_not_user_memory: struct { address: Span, value: u16, max: u16 },
@@ -146,6 +147,9 @@ pub const Diagnostic = union(enum) {
     debugger_unexpected_eol: struct { eol: Span },
     debugger_expected_eol: struct { found: Span },
     debugger_integer_too_small: struct { integer: Span, minimum: u16 },
+
+    // Shared
+    symbol_not_found: struct { symbol: Span },
 
     pub fn getResponse(diag: Diagnostic, options: Options) Response {
         return switch (diag) {
@@ -169,6 +173,7 @@ pub const Diagnostic = union(enum) {
             .offset_too_large,
             .unexpected_negative_integer,
             .unmatched_quote,
+            .symbol_not_found,
             => .fatal,
 
             .existing_label_left => .major,
@@ -207,7 +212,9 @@ pub const Diagnostic = union(enum) {
 
             .emulate_exception => .fatal,
 
+            // TODO: Merge appropriate branches
             .debugger_requires_assembly => .fatal,
+            .debugger_requires_symbols => .fatal,
             .debugger_requires_state => .fatal,
             .debugger_address_not_in_assembly => .fatal,
             .debugger_address_not_user_memory => .fatal,
