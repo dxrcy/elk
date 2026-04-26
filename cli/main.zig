@@ -102,16 +102,15 @@ pub fn main(init: std.process.Init) !u8 {
                 try readSymbolTable(io, gpa, symbol_names.allocator(), sym_path, &symbols);
             }
 
-            for (symbols.items) |entry| {
-                std.debug.print("[{s}] 0x{x:04}\n", .{ entry.name, entry.address });
-            }
-
             const file = try Io.Dir.cwd().openFile(io, input_path, .{});
             try emulate(
                 io,
                 gpa,
                 init.environ_map,
-                .{ .object = file },
+                .{ .object = .{
+                    .file = file,
+                    .symbols = symbols.items,
+                } },
                 operation.debug,
                 &default_traps,
                 cli.policies,
@@ -263,7 +262,10 @@ fn emulate(
     gpa: Allocator,
     environ_map: *const EnvironMap,
     runtime_source: union(enum) {
-        object: Io.File,
+        object: struct {
+            file: Io.File,
+            symbols: ?[]const elk.Runtime.SymbolEntry,
+        },
         assembly: elk.Debugger.Assembly,
     },
     debug_opt: ?Cli.Debug,
@@ -291,6 +293,10 @@ fn emulate(
             .object => null,
             .assembly => |assembly| assembly,
         };
+        const symbols = switch (runtime_source) {
+            .object => |object| object.symbols,
+            .assembly => null,
+        };
 
         break :debugger try .init(.{
             .io = io,
@@ -301,6 +307,7 @@ fn emulate(
             .reporter = reporter,
             .command_buffer = &debugger_buffer,
             .assembly = assembly,
+            .symbols = symbols,
             .history_file = history_file,
             .initial_command_line = debug.commands orelse "",
         });
@@ -318,9 +325,9 @@ fn emulate(
     defer runtime.deinit(gpa);
 
     switch (runtime_source) {
-        .object => |file| {
+        .object => |object| {
             var read_buffer: [1024]u8 = undefined;
-            try runtime.readFromFile(io, file, &read_buffer);
+            try runtime.readFromFile(io, object.file, &read_buffer);
         },
         .assembly => |assembly| {
             try assembly.air.copyToRuntime(&runtime);
