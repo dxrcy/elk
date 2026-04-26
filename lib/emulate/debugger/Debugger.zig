@@ -40,12 +40,6 @@ writer: Writer,
 traps: *const Traps,
 reporter: *Reporter,
 
-// TODO: Remove
-pub const Assembly = struct {
-    air: *const Air,
-    source: Source,
-};
-
 pub const SymbolProvider = union(enum) {
     air: *const Air,
     symbols: []const Runtime.SymbolEntry,
@@ -126,16 +120,12 @@ pub fn init(params: struct {
     traps: *const Traps,
     reporter: *Reporter,
     command_buffer: []u8,
-    assembly: ?Assembly = null,
-    symbols: ?[]const Runtime.SymbolEntry = null,
+    symbol_provider: ?SymbolProvider,
+    assembly_source: ?Source = null,
     history_file: ?Io.File = null,
     initial_command_line: []const u8 = "",
 }) error{OutOfMemory}!Debugger {
-    const breakpoints: Breakpoints =
-        if (params.assembly) |assembly|
-            try .initFrom(params.gpa, assembly)
-        else
-            .init(params.gpa);
+    const breakpoints = try initBreakpoints(params.gpa, params.symbol_provider);
 
     const input: Input = .new(
         params.io,
@@ -148,13 +138,8 @@ pub fn init(params: struct {
         .state = .{},
         .breakpoints = breakpoints,
         .initial_state = null,
-        .assembly_source = if (params.assembly) |assembly| assembly.source else null,
-        .symbol_provider = if (params.assembly) |assembly|
-            .{ .air = assembly.air }
-        else if (params.symbols) |symbols|
-            .{ .symbols = symbols }
-        else
-            null,
+        .symbol_provider = params.symbol_provider,
+        .assembly_source = params.assembly_source,
         .current_line = params.initial_command_line,
         .input = input,
         .writer = .{ .inner = params.writer },
@@ -168,6 +153,17 @@ pub fn deinit(debugger: *Debugger, gpa: Allocator) void {
     debugger.input.editor.deinit();
     if (debugger.initial_state) |state|
         state.deinit(gpa);
+}
+
+fn initBreakpoints(
+    gpa: Allocator,
+    symbol_provider_opt: ?SymbolProvider,
+) error{OutOfMemory}!Breakpoints {
+    if (symbol_provider_opt) |provider| switch (provider) {
+        .air => |air| return try .initFrom(gpa, air),
+        .symbols => {},
+    };
+    return .init(gpa);
 }
 
 pub fn initState(
