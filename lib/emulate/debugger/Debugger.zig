@@ -31,7 +31,7 @@ state: struct {
 breakpoints: Breakpoints,
 initial_state: ?Runtime.State,
 
-symbol_provider: ?SymbolProvider,
+symbol_provider: SymbolProvider,
 assembly_source: ?Source,
 
 current_line: []const u8,
@@ -41,6 +41,7 @@ traps: *const Traps,
 reporter: *Reporter,
 
 pub const SymbolProvider = union(enum) {
+    none,
     air: *const Air,
     symbols: []const Runtime.SymbolEntry,
 };
@@ -120,12 +121,15 @@ pub fn init(params: struct {
     traps: *const Traps,
     reporter: *Reporter,
     command_buffer: []u8,
-    symbol_provider: ?SymbolProvider,
+    symbol_provider: SymbolProvider,
     assembly_source: ?Source = null,
     history_file: ?Io.File = null,
     initial_command_line: []const u8 = "",
 }) error{OutOfMemory}!Debugger {
-    const breakpoints = try initBreakpoints(params.gpa, params.symbol_provider);
+    const breakpoints: Breakpoints = switch (params.symbol_provider) {
+        .air => |air| try .initFrom(params.gpa, air),
+        .none, .symbols => .init(params.gpa),
+    };
 
     const input: Input = .new(
         params.io,
@@ -153,17 +157,6 @@ pub fn deinit(debugger: *Debugger, gpa: Allocator) void {
     debugger.input.editor.deinit();
     if (debugger.initial_state) |state|
         state.deinit(gpa);
-}
-
-fn initBreakpoints(
-    gpa: Allocator,
-    symbol_provider_opt: ?SymbolProvider,
-) error{OutOfMemory}!Breakpoints {
-    if (symbol_provider_opt) |provider| switch (provider) {
-        .air => |air| return try .initFrom(gpa, air),
-        .symbols => {},
-    };
-    return .init(gpa);
 }
 
 pub fn initState(
@@ -843,23 +836,21 @@ fn resolveMemoryLocation(
 }
 
 fn resolveLabelAddress(debugger: *const Debugger, label: Span, source: Source) error{Reported}!u16 {
-    if (debugger.symbol_provider) |symbol_provider| {
-        switch (symbol_provider) {
-            .air => |air| if (debugger.assembly_source) |assembly_source| {
-                const address = try debugger.resolveLabelIndex(air, assembly_source, label, source);
-                const origin = air.origin;
-                return address + origin; // Overflow should have been handled by assembler
+    switch (debugger.symbol_provider) {
+        .none => {},
+        .air => |air| if (debugger.assembly_source) |assembly_source| {
+            const address = try debugger.resolveLabelIndex(air, assembly_source, label, source);
+            const origin = air.origin;
+            return address + origin; // Overflow should have been handled by assembler
 
-            },
-
-            .symbols => |symbols| {
-                return Runtime.getSymbolAddress(label.view(source), symbols) catch {
-                    try debugger.reporter.report(.symbol_not_found, .{
-                        .symbol = label,
-                    }).abort();
-                };
-            },
-        }
+        },
+        .symbols => |symbols| {
+            return Runtime.getSymbolAddress(label.view(source), symbols) catch {
+                try debugger.reporter.report(.symbol_not_found, .{
+                    .symbol = label,
+                }).abort();
+            };
+        },
     }
 
     try debugger.reporter.report(.debugger_requires_symbols, .{
@@ -904,11 +895,9 @@ fn getAssemblyAir(debugger: *const Debugger, span: Span) error{Reported}!*const 
 }
 
 fn getAssemblyAirOpt(debugger: *const Debugger) ?*const Air {
-    const symbol_provider = debugger.symbol_provider orelse
-        return null;
-    switch (symbol_provider) {
+    switch (debugger.symbol_provider) {
         .air => |air| return air,
-        .symbols => return null,
+        .none, .symbols => return null,
     }
 }
 

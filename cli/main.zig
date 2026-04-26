@@ -292,8 +292,8 @@ fn emulate(
             break :file null;
         };
 
-        const symbol_provider: ?elk.Debugger.SymbolProvider = switch (runtime_source) {
-            .object => |object| if (object.symbols) |symbols| .{ .symbols = symbols } else null,
+        const symbol_provider: elk.Debugger.SymbolProvider = switch (runtime_source) {
+            .object => |object| if (object.symbols) |symbols| .{ .symbols = symbols } else .none,
             .assembly => |assembly| .{ .air = assembly.air },
         };
         const assembly_source = switch (runtime_source) {
