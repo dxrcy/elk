@@ -30,10 +30,9 @@ state: struct {
 
 breakpoints: Breakpoints,
 initial_state: ?Runtime.State,
-// TODO: Replace these three fields something better !
-assembly_air: ?*const Air,
+
+symbol_provider: ?SymbolProvider,
 assembly_source: ?Source,
-symbols: ?[]const Runtime.SymbolEntry,
 
 current_line: []const u8,
 input: Input,
@@ -41,10 +40,15 @@ writer: Writer,
 traps: *const Traps,
 reporter: *Reporter,
 
-// TODO: Remove if possible !
+// TODO: Remove
 pub const Assembly = struct {
     air: *const Air,
     source: Source,
+};
+
+pub const SymbolProvider = union(enum) {
+    air: *const Air,
+    symbols: []const Runtime.SymbolEntry,
 };
 
 const Status = union(enum) {
@@ -144,9 +148,13 @@ pub fn init(params: struct {
         .state = .{},
         .breakpoints = breakpoints,
         .initial_state = null,
-        .assembly_air = if (params.assembly) |assembly| assembly.air else null,
         .assembly_source = if (params.assembly) |assembly| assembly.source else null,
-        .symbols = params.symbols,
+        .symbol_provider = if (params.assembly) |assembly|
+            .{ .air = assembly.air }
+        else if (params.symbols) |symbols|
+            .{ .symbols = symbols }
+        else
+            null,
         .current_line = params.initial_command_line,
         .input = input,
         .writer = .{ .inner = params.writer },
@@ -620,7 +628,7 @@ fn printListing(debugger: *Debugger, runtime: *Runtime, start: u16, end: u16) !v
             var buffer: [width]u8 = undefined;
             var string: []const u8 = buffer[0..0];
             // TODO: This should also work via imported symbol table! #53
-            if (debugger.assembly_air) |assembly_air| {
+            if (debugger.getAssemblyAirOpt()) |assembly_air| {
                 if (debugger.assembly_source) |assembly_source| {
                     if (getAssemblyLineIndexOptional(assembly_air, address)) |index| {
                         if (getLineLabel(assembly_air, index)) |label| {
@@ -650,7 +658,7 @@ fn printBreakpoints(debugger: *Debugger) !void {
         try debugger.writer.print("    | Breakpoint at 0x{x:04}", .{entry.address});
 
         blk: {
-            const assembly_air = debugger.assembly_air orelse
+            const assembly_air = debugger.getAssemblyAirOpt() orelse
                 break :blk;
             const assembly_source = debugger.assembly_source orelse
                 break :blk;
@@ -839,7 +847,7 @@ fn resolveMemoryLocation(
 }
 
 fn resolveLabelAddress(debugger: *const Debugger, label: Span, source: Source) error{Reported}!u16 {
-    if (debugger.assembly_air) |assembly_air| {
+    if (debugger.getAssemblyAirOpt()) |assembly_air| {
         if (debugger.assembly_source) |assembly_source| {
             const address = try debugger.resolveLabelIndex(assembly_air, assembly_source, label, source);
             const origin = assembly_air.origin;
@@ -847,7 +855,7 @@ fn resolveLabelAddress(debugger: *const Debugger, label: Span, source: Source) e
         }
     }
 
-    if (debugger.symbols) |symbols| {
+    if (debugger.getSymbolsOpt()) |symbols| {
         return Runtime.getSymbolAddress(label.view(source), symbols) catch {
             try debugger.reporter.report(.symbol_not_found, .{
                 .symbol = label,
@@ -889,11 +897,29 @@ fn resolveLabelIndex(
 }
 
 fn getAssemblyAir(debugger: *const Debugger, span: Span) error{Reported}!*const Air {
-    return debugger.assembly_air orelse {
+    return debugger.getAssemblyAirOpt() orelse {
         try debugger.reporter.report(.debugger_requires_assembly, .{
             .command = span,
         }).abort();
     };
+}
+
+fn getAssemblyAirOpt(debugger: *const Debugger) ?*const Air {
+    const symbol_provider = debugger.symbol_provider orelse
+        return null;
+    switch (symbol_provider) {
+        .air => |air| return air,
+        .symbols => return null,
+    }
+}
+
+fn getSymbolsOpt(debugger: *const Debugger) ?[]const Runtime.SymbolEntry {
+    const symbol_provider = debugger.symbol_provider orelse
+        return null;
+    switch (symbol_provider) {
+        .air => return null,
+        .symbols => |symbols| return symbols,
+    }
 }
 
 fn getAssemblySource(debugger: *const Debugger, span: Span) error{Reported}!Source {
