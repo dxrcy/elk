@@ -3,10 +3,7 @@ const Command = @This();
 const std = @import("std");
 
 const Span = @import("../../compile/Span.zig");
-
-pub fn Spanned(comptime K: type) type {
-    return struct { span: Span, value: K };
-}
+const Spanned = Span.Spanned;
 
 line: Span,
 tag: Span,

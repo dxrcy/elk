@@ -773,7 +773,7 @@ fn getAssemblyLineIndexOptional(air: *const Air, address: u16) ?usize {
 fn resolveLocation(
     debugger: *Debugger,
     runtime: *Runtime,
-    location: Command.Spanned(Command.Location),
+    location: Span.Spanned(Command.Location),
     source: Source,
 ) error{Reported}!union(enum) { register: u3, address: u16 } {
     switch (location.value) {

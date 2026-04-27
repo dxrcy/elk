@@ -222,7 +222,7 @@ pub fn expectEol(tokenizer: *Tokenizer) error{Reported}!void {
 pub fn expectArgument(
     tokenizer: *Tokenizer,
     comptime argument: Argument,
-) error{Reported}!Operand.Spanned(argument.Value()) {
+) error{Reported}!Span.Spanned(argument.Value()) {
     const token: Token = tokenizer.nextAfterComma() catch |err| switch (err) {
         error.Reported => return error.Reported,
         error.Eof => .{

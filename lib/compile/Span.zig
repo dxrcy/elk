@@ -5,6 +5,10 @@ const assert = std.debug.assert;
 
 const Source = @import("Source.zig");
 
+pub fn Spanned(comptime K: type) type {
+    return struct { span: Span, value: K };
+}
+
 offset: usize,
 len: usize,
 

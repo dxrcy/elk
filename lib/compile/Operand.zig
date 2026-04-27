@@ -2,6 +2,7 @@ const std = @import("std");
 const assert = std.debug.assert;
 
 const Span = @import("Span.zig");
+const Spanned = Span.Spanned;
 const Form = @import("parse/integers.zig").Form;
 
 // Shorthand
@@ -12,13 +13,6 @@ pub const Offset6 = Spanned(value.Offset6);
 pub const ConditionMask = Spanned(value.ConditionMask);
 pub fn PcOffset(comptime size: u4) type {
     return Spanned(value.PcOffset(size));
-}
-
-pub fn Spanned(comptime K: type) type {
-    return struct {
-        span: Span,
-        value: K,
-    };
 }
 
 pub fn Formed(comptime I: type) type {
