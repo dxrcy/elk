@@ -33,12 +33,12 @@ pub fn main(init: std.process.Init) !u8 {
         elk.Traps.Debug,
     });
 
-    inline for (@typeInfo(MczTraps).@"enum".fields) |field| {
+    inline for (@typeInfo(McTrap).@"enum".fields) |field| {
         default_traps.register(field.value, .{
             .alias = field.name,
             .callback = .withDataDeferInit(
                 *LazyConnection,
-                @field(mcz_traps, field.name),
+                @field(mc_traps, field.name),
             ),
         });
     }
@@ -291,7 +291,7 @@ fn emulate(
         .io = io,
     } };
 
-    inline for (@typeInfo(MczTraps).@"enum".fields) |field| {
+    inline for (@typeInfo(McTrap).@"enum".fields) |field| {
         traps.initData(field.value, *LazyConnection, &conn);
     }
 
@@ -416,7 +416,7 @@ const LazyConnection = union(enum) {
     }
 };
 
-const MczTraps = enum(u8) {
+const McTrap = enum(u8) {
     chat = 0x28,
     getp = 0x29,
     setp = 0x2a,
@@ -425,7 +425,7 @@ const MczTraps = enum(u8) {
     geth = 0x2d,
 };
 
-const mcz_traps = struct {
+const mc_traps = struct {
     fn chat(runtime: *elk.Runtime, lazy: *LazyConnection) elk.Traps.Result {
         const memory_str: MemoryStr = .{
             .runtime = runtime,
@@ -511,7 +511,7 @@ const mcz_traps = struct {
     }
 
     fn handleConnectionError(
-        comptime trap: MczTraps,
+        comptime trap: McTrap,
         comptime operation: []const u8,
         err: anyerror,
     ) error{TrapFailed} {
