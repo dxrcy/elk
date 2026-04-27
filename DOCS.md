@@ -70,8 +70,8 @@ See also: [ELK Style Guide](#STYLE.md).
 
 # Why ELK?
 
-ELK focuses on feature richness and frictionless usage, without sacrificing
-compatibility.
+**ELK** (*Extended LC-3 Kit*) focuses on feature richness and frictionless
+usage, without sacrificing compatibility.
 It achieves this in two ways: by isolating the two project components (library
 and command-line interface), and giving users control over everything from
 custom traps to extension features.

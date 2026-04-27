@@ -4,8 +4,8 @@ ELK is a complete
 [LC-3](https://en.wikipedia.org/wiki/Little_Computer_3) toolchain
 available both as a CLI program and a [Zig](https://ziglang.org)
 library.
-ELK /ɛlk/ strives to be the most compatible and featureful implementation
-available.
+ELK /ɛlk/ stands for **Extended LC-3 Kit**, and strives to be the most
+compatible and featureful implementation available.
 
 [Official Codeberg repository](https://codeberg.org/dxrcy/elk)
 | [Documentation](https://codeberg.org/dxrcy/elk/src/branch/master/DOCS.md)
