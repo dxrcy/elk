@@ -431,17 +431,17 @@ const mcz_traps = struct {
             .runtime = runtime,
             .start = runtime.state.registers[0],
         };
-        const conn = lazy.ensureInit() catch
-            return error.TrapFailed;
-        conn.postToChatFmt("{f}", .{memory_str}) catch
-            return error.TrapFailed;
+        const conn = lazy.ensureInit() catch |err|
+            return handleConnectionError(.chat, "connect", err);
+        conn.postToChatFmt("{f}", .{memory_str}) catch |err|
+            return handleConnectionError(.chat, "post to chat", err);
     }
 
     fn getp(runtime: *elk.Runtime, lazy: *LazyConnection) elk.Traps.Result {
-        const conn = lazy.ensureInit() catch
-            return error.TrapFailed;
-        const player = conn.getPlayerPosition() catch
-            return error.TrapFailed;
+        const conn = lazy.ensureInit() catch |err|
+            return handleConnectionError(.getp, "connect", err);
+        const player = conn.getPlayerPosition() catch |err|
+            return handleConnectionError(.getp, "get player position", err);
 
         runtime.state.registers[0] = toWord(player.x);
         runtime.state.registers[1] = toWord(player.y);
@@ -449,36 +449,37 @@ const mcz_traps = struct {
     }
 
     fn setp(runtime: *elk.Runtime, lazy: *LazyConnection) elk.Traps.Result {
-        const conn = lazy.ensureInit() catch
-            return error.TrapFailed;
+        const conn = lazy.ensureInit() catch |err|
+            return handleConnectionError(.setp, "connect", err);
         const player: mcz.Coordinate = .{
             .x = fromWord(runtime.state.registers[0]),
             .y = fromWord(runtime.state.registers[1]),
             .z = fromWord(runtime.state.registers[2]),
         };
 
-        conn.setPlayerPosition(player) catch
-            return error.TrapFailed;
+        conn.setPlayerPosition(player) catch |err|
+            return handleConnectionError(.setp, "set player position", err);
     }
 
     fn getb(runtime: *elk.Runtime, lazy: *LazyConnection) elk.Traps.Result {
-        const conn = lazy.ensureInit() catch
-            return error.TrapFailed;
+        const conn = lazy.ensureInit() catch |err|
+            return handleConnectionError(.getb, "connect", err);
         const coordinate: mcz.Coordinate = .{
             .x = fromWord(runtime.state.registers[0]),
             .y = fromWord(runtime.state.registers[1]),
             .z = fromWord(runtime.state.registers[2]),
         };
 
-        const block = conn.getBlock(coordinate) catch
-            return error.TrapFailed;
+        const block = conn.getBlock(coordinate) catch |err|
+            return handleConnectionError(.getb, "get block", err);
 
         runtime.state.registers[3] = @truncate(block.id);
     }
 
     fn setb(runtime: *elk.Runtime, lazy: *LazyConnection) elk.Traps.Result {
-        const conn = lazy.ensureInit() catch
-            return error.TrapFailed;
+        const conn = lazy.ensureInit() catch |err|
+            return handleConnectionError(.setb, "connect", err);
+
         const coordinate: mcz.Coordinate = .{
             .x = fromWord(runtime.state.registers[0]),
             .y = fromWord(runtime.state.registers[1]),
@@ -490,22 +491,36 @@ const mcz_traps = struct {
             .mod = 0,
         };
 
-        conn.setBlock(coordinate, block) catch
-            return error.TrapFailed;
+        conn.setBlock(coordinate, block) catch |err|
+            return handleConnectionError(.setb, "set block", err);
     }
 
     fn geth(runtime: *elk.Runtime, lazy: *LazyConnection) elk.Traps.Result {
-        const conn = lazy.ensureInit() catch
-            return error.TrapFailed;
+        const conn = lazy.ensureInit() catch |err|
+            return handleConnectionError(.geth, "connect", err);
+
         const coordinate: mcz.Coordinate2D = .{
             .x = fromWord(runtime.state.registers[0]),
             .z = fromWord(runtime.state.registers[2]),
         };
 
-        const height = conn.getHeight(coordinate) catch
-            return error.TrapFailed;
+        const height = conn.getHeight(coordinate) catch |err|
+            return handleConnectionError(.geth, "get height", err);
 
         runtime.state.registers[1] = toWord(height);
+    }
+
+    fn handleConnectionError(
+        comptime trap: MczTraps,
+        comptime operation: []const u8,
+        err: anyerror,
+    ) error{TrapFailed} {
+        std.log.err(
+            "ELCI trap \"{t}\" failed to {s}: {t}",
+            .{ trap, operation, err },
+        );
+        std.log.info("check that the ELCI server is live and accessible", .{});
+        return error.TrapFailed;
     }
 
     fn toWord(value: i32) u16 {
