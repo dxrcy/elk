@@ -103,12 +103,25 @@ pub fn main(init: std.process.Init) !u8 {
         .emulate => |operation| {
             const input_path = operation.input.asRegular() catch unreachable;
 
+            var symbols: std.ArrayList(elk.Runtime.SymbolEntry) = .empty;
+            defer symbols.deinit(gpa);
+
+            var symbol_names = std.heap.ArenaAllocator.init(gpa);
+            defer symbol_names.deinit();
+
+            if (operation.import_symbols) |sym_path| {
+                try readSymbolTable(io, gpa, symbol_names.allocator(), sym_path, &symbols);
+            }
+
             const file = try Io.Dir.cwd().openFile(io, input_path, .{});
             try emulate(
                 io,
                 gpa,
                 init.environ_map,
-                .{ .object = file },
+                .{ .object = .{
+                    .file = file,
+                    .symbols = if (operation.import_symbols != null) symbols.items else null,
+                } },
                 operation.debug,
                 &default_traps,
                 cli.policies,
@@ -185,8 +198,39 @@ pub fn main(init: std.process.Init) !u8 {
     return 0;
 }
 
+fn readSymbolTable(
+    io: Io,
+    gpa: Allocator,
+    arena: Allocator,
+    filepath: []const u8,
+    symbols: *std.ArrayList(elk.Runtime.SymbolEntry),
+) !void {
+    var file = try Io.Dir.cwd().openFile(io, filepath, .{});
+    defer file.close(io);
+
+    var buffer: [512]u8 = undefined;
+    var reader = file.reader(io, &buffer);
+
+    while (try reader.interface.takeDelimiter('\n')) |line| {
+        var columns = std.mem.tokenizeScalar(u8, line, ' ');
+
+        const name_temp = columns.next() orelse
+            return error.MalformedSymbolTable;
+        const address_string = columns.next() orelse
+            return error.MalformedSymbolTable;
+
+        if (address_string.len != 5 or address_string[0] != 'x')
+            return error.MalformedSymbolTable;
+        const address = std.fmt.parseInt(u16, address_string[1..], 16) catch
+            return error.MalformedSymbolTable;
+
+        const name = try arena.dupe(u8, name_temp);
+
+        try symbols.append(gpa, .{ .address = address, .name = name });
+    }
+}
+
 fn replacePathExtension(buffer: []u8, path: []const u8, extension: []const u8) []u8 {
-    // FIXME: Assert can fit in buffer
     const index = std.mem.findScalarLast(u8, path, '.') orelse 0;
     @memcpy(buffer[0..index], path[0..index]);
     buffer[index] = '.';
@@ -228,7 +272,10 @@ fn emulate(
     gpa: Allocator,
     environ_map: *const EnvironMap,
     runtime_source: union(enum) {
-        object: Io.File,
+        object: struct {
+            file: Io.File,
+            symbols: ?[]const elk.Runtime.SymbolEntry,
+        },
         assembly: elk.Debugger.Assembly,
     },
     debug_opt: ?Cli.Debug,
@@ -264,9 +311,9 @@ fn emulate(
             break :file null;
         };
 
-        const assembly = switch (runtime_source) {
-            .object => null,
-            .assembly => |assembly| assembly,
+        const provider: elk.Debugger.Provider = switch (runtime_source) {
+            .object => |object| if (object.symbols) |symbols| .{ .symbols = symbols } else .none,
+            .assembly => |assembly| .{ .assembly = assembly },
         };
 
         break :debugger try .init(.{
@@ -277,7 +324,7 @@ fn emulate(
             .traps = traps,
             .reporter = reporter,
             .command_buffer = &debugger_buffer,
-            .assembly = assembly,
+            .provider = provider,
             .history_file = history_file,
             .initial_command_line = debug.commands orelse "",
         });
@@ -295,9 +342,9 @@ fn emulate(
     defer runtime.deinit(gpa);
 
     switch (runtime_source) {
-        .object => |file| {
+        .object => |object| {
             var read_buffer: [1024]u8 = undefined;
-            try runtime.readFromFile(io, file, &read_buffer);
+            try runtime.readFromFile(io, object.file, &read_buffer);
         },
         .assembly => |assembly| {
             try assembly.air.copyToRuntime(&runtime);

@@ -22,62 +22,10 @@ const info = struct {
 
     const help =
         program ++ " " ++ version ++ " by " ++ zon.author ++ ".\n" ++
-        zon.description ++ " " ++ zon.homepage ++ "\n" ++
-        \\
-        \\USAGE:
-        ++ "\n    " ++ program ++ " INPUT [OPERATION] [...OPTIONS]\n" ++
-        \\
-        \\INPUT:
-        \\    Input filename: *.asm, or *.obj when used with --emulate
-        \\
-        \\OPERATION:
-        \\    (default)
-        \\            Assemble and emulate an .asm file. Supports --debug.
-        \\    -a, --assemble
-        \\            Assemble an .asm file and write output.
-        \\    -e, --emulate
-        \\            Emulate an assembled .obj file. Supports --debug.
-        \\    -c, --check
-        \\            Check an assembly file for errors without assembling.
-        \\        --clean
-        \\            Delete all output files (.obj, .sym, .lst) for an .asm file.
-        \\
-        \\OPTIONS:
-        \\    -o, --output <FILE>
-        \\            Specify filename of object, symbol table, or listing output.
-        \\
-        \\    -d, --debug
-        \\            Run debugger while emulating. Requires --emulate or (default) operation.
-        \\    -C, --commands <COMMANDS>
-        \\            Specify initial commands, separated with semicolons, that debugger shall run.
-        \\                Requires --debug.
-        \\        --history-file <FILE>
-        \\            Specify path for debugger history file. Requires --debug.
-        \\
-        \\        --export-symbols <FILE>
-        \\            Write .sym symbol table file instead of compiling .obj. Requires --assemble.
-        \\        --export-listing <FILE>
-        \\            Write .lst listing file instead of compiling .obj. Requires --assemble.
-        \\        --trap-aliases <ALIASES>
-        \\            Override trap aliases to parse (and assemble). Requires --assemble or --check.
-        \\
-        \\        --strict
-        \\            Treat all warnings as errors.
-        \\        --relaxed
-        \\            Ignore all warnings.
-        \\    -q, --quiet
-        \\            Show less output when assembling.
-        \\    -p, --permit <POLICIES>
-        \\            Specify permitted policies or predefined policy sets.
-        \\            Eg. --permit +laser,extension.stack_instructions
-        \\
-        \\ EXAMPLES:
-        \\     elk hello.asm
-        \\     elk hello.asm --debug
-        \\     elk hello.asm --assemble --output hello.obj --strict --quiet
-        \\     elk hello.asm --assemble --export-listing
-        \\     elk hello.obj --emulate --permit +laser,extension.stack_instructions
-        ;
+        zon.description ++ " " ++ zon.homepage ++
+        "\n\n" ++ "USAGE:" ++
+        "\n    " ++ program ++ " INPUT [OPERATION] [...OPTIONS]" ++
+        "\n\n" ++ @embedFile("help.txt"); // Includes trailing newline
 };
 
 const Operation = union(enum) {
@@ -94,6 +42,7 @@ const Operation = union(enum) {
     emulate: struct {
         input: cli_template.Path,
         debug: ?Debug,
+        import_symbols: ?[]const u8,
     },
     clean: struct {
         input: []const u8,
@@ -109,7 +58,6 @@ const Operation = union(enum) {
 pub const Debug = struct {
     commands: ?[]const u8,
     history_file: ?[]const u8,
-    import_symbols: ?[]const u8,
 };
 
 const template = .{
@@ -192,7 +140,7 @@ const template = .{
         .import_symbols = cli_template.NamedListing{
             .long = "import-symbols",
             .value = []const u8,
-            .requires = &.{&.{ .debug, .emulate }},
+            .requires = &.{&.{.emulate}},
         },
 
         .strict = cli_template.NamedListing{
@@ -259,7 +207,6 @@ pub fn parse(iter: *ArgIterator) error{ ParseFailed, DisplayMetadata, Unimplemen
     const unimplemented_args = [_][]const u8{
         "format",
         "lsp",
-        "import_symbols",
     };
     for (unimplemented_args) |name| {
         inline for (@typeInfo(@TypeOf(args.named)).@"struct".fields) |field| {
@@ -320,8 +267,8 @@ fn parseOperation(args: *const cli_template.Args(template)) Operation {
             .debug = if (args.named.debug) .{
                 .commands = args.named.commands,
                 .history_file = args.named.history_file,
-                .import_symbols = args.named.import_symbols,
             } else null,
+            .import_symbols = args.named.import_symbols,
         } };
     }
 
@@ -353,7 +300,6 @@ fn parseOperation(args: *const cli_template.Args(template)) Operation {
         .debug = if (args.named.debug) .{
             .commands = args.named.commands,
             .history_file = args.named.history_file,
-            .import_symbols = args.named.import_symbols,
         } else null,
     } };
 }

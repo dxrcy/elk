@@ -70,8 +70,8 @@ See also: [ELK Style Guide](#STYLE.md).
 
 # Why ELK?
 
-ELK focuses on feature richness and frictionless usage, without sacrificing
-compatibility.
+**ELK** (*Extended LC-3 Kit*) focuses on feature richness and frictionless
+usage, without sacrificing compatibility.
 It achieves this in two ways: by isolating the two project components (library
 and command-line interface), and giving users control over everything from
 custom traps to extension features.
@@ -635,7 +635,6 @@ return {
             end,
         })
     end
-
 }
 ```
 
@@ -650,6 +649,8 @@ return {
 
 ## Vscode
 
+<!-- TODO: Add link to extension pack -->
+
 ### Diagnostics
 
 Install the [ELK Diagnostics](https://github.com/twhlynch/lc3-elk-diagnostics)
@@ -660,8 +661,11 @@ a suitable `elk` executable is not found.
 
 ### Syntax Highlighting
 
-> Currently, there is no official ELK syntax highlighting support for VSCode,
-> however there are plenty of generic LC-3 extensions with syntax highlighting.
+Install the
+[ELK Syntax Highlighting](https://github.com/twhlynch/lc3-assembly-syntax)
+VSCode Extension.
+This extension does **not** require ELK to be installed, and it will **not**
+download ELK.
 
 ---
 

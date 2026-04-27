@@ -3,13 +3,13 @@ const assert = std.debug.assert;
 
 const Reporter = @import("../../reporting/reporting.zig").Primary;
 const Span = @import("../../compile/Span.zig");
+const Spanned = Span.Spanned;
 const Source = @import("../../compile/Source.zig");
 const Lexer = @import("../../compile/parse/Lexer.zig");
 const parsing = @import("../../compile/parse/parsing.zig");
 const integers = @import("../../compile/parse/integers.zig");
 const Command = @import("Command.zig");
 const tags = @import("tags.zig");
-const Spanned = Command.Spanned;
 
 pub fn splitCommandLine(line: []const u8) struct { []const u8, []const u8 } {
     var lexer: Lexer = .new(line, false);

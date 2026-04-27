@@ -30,13 +30,19 @@ state: struct {
 
 breakpoints: Breakpoints,
 initial_state: ?Runtime.State,
-assembly: ?Assembly,
+provider: Provider,
 
 current_line: []const u8,
 input: Input,
 writer: Writer,
 traps: *const Traps,
 reporter: *Reporter,
+
+pub const Provider = union(enum) {
+    none,
+    assembly: Assembly,
+    symbols: []const Runtime.SymbolEntry,
+};
 
 pub const Assembly = struct {
     air: *const Air,
@@ -118,15 +124,14 @@ pub fn init(params: struct {
     traps: *const Traps,
     reporter: *Reporter,
     command_buffer: []u8,
-    assembly: ?Assembly = null,
+    provider: Provider,
     history_file: ?Io.File = null,
     initial_command_line: []const u8 = "",
 }) error{OutOfMemory}!Debugger {
-    const breakpoints: Breakpoints =
-        if (params.assembly) |assembly|
-            try .initFrom(params.gpa, assembly)
-        else
-            .init(params.gpa);
+    const breakpoints: Breakpoints = switch (params.provider) {
+        .assembly => |assembly| try .initFrom(params.gpa, assembly.air),
+        .none, .symbols => .init(params.gpa),
+    };
 
     const input: Input = .new(
         params.io,
@@ -139,7 +144,7 @@ pub fn init(params: struct {
         .state = .{},
         .breakpoints = breakpoints,
         .initial_state = null,
-        .assembly = params.assembly,
+        .provider = params.provider,
         .current_line = params.initial_command_line,
         .input = input,
         .writer = .{ .inner = params.writer },
@@ -473,6 +478,7 @@ fn runCommand(
 
         .assembly => |arguments| {
             const assembly = try debugger.getAssembly(command.tag);
+
             const address = try debugger.resolveMemoryLocation(
                 runtime,
                 arguments.location.value,
@@ -480,7 +486,7 @@ fn runCommand(
                 source,
             );
 
-            const line = try debugger.getAssemblyLine(&assembly, address, arguments.location.span);
+            const line = try debugger.getAssemblyLine(assembly.air, address, arguments.location.span);
 
             try debugger.writer.printLine("Next instruction, at 0x{x:04}:", .{address});
             try writeSpanContext(debugger.writer.inner, line.span, .{
@@ -489,6 +495,7 @@ fn runCommand(
         },
 
         .eval => |arguments| {
+            // TODO: Eval should also work with symbol table instead of assembly! #53
             const assembly = try debugger.getAssembly(command.tag);
             try debugger.evalCommand(runtime, assembly, arguments.instruction, source);
         },
@@ -601,9 +608,10 @@ fn printListing(debugger: *Debugger, runtime: *Runtime, start: u16, end: u16) !v
             const width = 12;
             var buffer: [width]u8 = undefined;
             var string: []const u8 = buffer[0..0];
-            if (debugger.assembly) |assembly| {
-                if (getAssemblyLineIndexOptional(assembly, address)) |index| {
-                    if (getLineLabel(assembly, index)) |label| {
+            // TODO: This should also work via imported symbol table! #53
+            if (debugger.getAssemblyOpt()) |assembly| {
+                if (getAssemblyLineIndexOptional(assembly.air, address)) |index| {
+                    if (getLineLabel(assembly.air, index)) |label| {
                         const name = label.span.view(assembly.source);
                         const length = @min(name.len, width);
                         @memcpy(buffer[0..length], name[0..length]);
@@ -629,15 +637,15 @@ fn printBreakpoints(debugger: *Debugger) !void {
         try debugger.writer.print("    | Breakpoint at 0x{x:04}", .{entry.address});
 
         blk: {
-            const assembly = debugger.assembly orelse {
+            // TODO: This should also work via imported symbol table! #53
+            const assembly = debugger.getAssemblyOpt() orelse
                 break :blk;
-            };
 
-            const index = getAssemblyLineIndexOptional(assembly, entry.address) orelse
+            const index = getAssemblyLineIndexOptional(assembly.air, entry.address) orelse
                 break :blk;
             const line = &assembly.air.lines.items[index];
 
-            if (getLineLabel(assembly, index)) |label| {
+            if (getLineLabel(assembly.air, index)) |label| {
                 try debugger.writer.print(" (labelled '{s}')", .{
                     label.span.view(assembly.source),
                 });
@@ -657,13 +665,13 @@ fn printBreakpoints(debugger: *Debugger) !void {
     }
 }
 
-fn getLineLabel(assembly: Assembly, index: usize) ?*const Air.Label {
-    for (assembly.air.labels.items) |*label| {
+fn getLineLabel(air: *const Air, index: usize) ?*const Air.Label {
+    for (air.labels.items) |*label| {
         if (label.index == index and
             label.kind != .breakpoint)
             return label;
     }
-    for (assembly.air.labels.items) |*label| {
+    for (air.labels.items) |*label| {
         if (label.index == index)
             return label;
     }
@@ -737,27 +745,27 @@ fn copyReporter(debugger: *const Debugger, source: Source) Reporter {
 
 fn getAssemblyLine(
     debugger: *Debugger,
-    assembly: *const Assembly,
+    air: *const Air,
     address: u16,
     span: Span,
 ) error{Reported}!*const Air.Line {
     try debugger.ensureUserAddress(address, span);
     // Overflow is not possible since address is in user memory
-    const index = address - assembly.air.origin;
-    if (index >= assembly.air.lines.items.len) {
+    const index = address - air.origin;
+    if (index >= air.lines.items.len) {
         try debugger.reporter.report(.debugger_address_not_in_assembly, .{
             .value = address,
-            .max = @intCast(assembly.air.origin + assembly.air.lines.items.len - 1),
+            .max = @intCast(air.origin + air.lines.items.len - 1),
         }).abort();
     }
-    return &assembly.air.lines.items[index];
+    return &air.lines.items[index];
 }
 
-fn getAssemblyLineIndexOptional(assembly: Assembly, address: u16) ?usize {
-    if (address < assembly.air.origin)
+fn getAssemblyLineIndexOptional(air: *const Air, address: u16) ?usize {
+    if (address < air.origin)
         return null;
-    const index = address - assembly.air.origin;
-    if (index >= assembly.air.lines.items.len)
+    const index = address - air.origin;
+    if (index >= air.lines.items.len)
         return null;
     return index;
 }
@@ -765,7 +773,7 @@ fn getAssemblyLineIndexOptional(assembly: Assembly, address: u16) ?usize {
 fn resolveLocation(
     debugger: *Debugger,
     runtime: *Runtime,
-    location: Command.Spanned(Command.Location),
+    location: Span.Spanned(Command.Location),
     source: Source,
 ) error{Reported}!union(enum) { register: u3, address: u16 } {
     switch (location.value) {
@@ -801,12 +809,8 @@ fn resolveMemoryLocation(
         },
 
         .label => |label| {
-            const assembly = try debugger.getAssembly(label.name);
-            const address = try debugger.resolveLabelIndex(assembly, label.name, source);
-
-            const combined = @as(isize, @intCast(address + assembly.air.origin)) + label.offset;
-
-            return std.math.cast(u16, combined) orelse {
+            const address = try debugger.resolveLabelAddress(label.name, source);
+            return std.math.cast(u16, @as(i17, address) + label.offset) orelse {
                 try debugger.reporter.report(.integer_too_large, .{
                     .integer = span,
                     .type_info = @typeInfo(u16).int,
@@ -816,12 +820,36 @@ fn resolveMemoryLocation(
     }
 }
 
+fn resolveLabelAddress(debugger: *const Debugger, label: Span, source: Source) error{Reported}!u16 {
+    switch (debugger.provider) {
+        .none => {},
+
+        .assembly => |assembly| {
+            const address = try debugger.resolveLabelIndex(assembly, label, source);
+            const origin = assembly.air.origin;
+            return address + origin; // Overflow should have been handled by assembler
+        },
+
+        .symbols => |symbols| {
+            return Runtime.getSymbolAddress(label.view(source), symbols) catch {
+                try debugger.reporter.report(.symbol_not_found, .{
+                    .symbol = label,
+                }).abort();
+            };
+        },
+    }
+
+    try debugger.reporter.report(.debugger_requires_symbols, .{
+        .command = label,
+    }).abort();
+}
+
 fn resolveLabelIndex(
     debugger: *const Debugger,
     assembly: Assembly,
     label: Span,
     source: Source,
-) error{Reported}!usize {
+) error{Reported}!u16 {
     const string = label.view(source);
 
     if (assembly.air.findLabel(string, .sensitive, assembly.source)) |result|
@@ -844,11 +872,18 @@ fn resolveLabelIndex(
 }
 
 fn getAssembly(debugger: *const Debugger, span: Span) error{Reported}!Assembly {
-    return debugger.assembly orelse {
+    return debugger.getAssemblyOpt() orelse {
         try debugger.reporter.report(.debugger_requires_assembly, .{
             .command = span,
         }).abort();
     };
+}
+
+fn getAssemblyOpt(debugger: *const Debugger) ?Assembly {
+    switch (debugger.provider) {
+        .assembly => |assembly| return assembly,
+        .none, .symbols => return null,
+    }
 }
 
 fn ensureUserAddress(debugger: *Debugger, address: u16, span: Span) error{Reported}!void {

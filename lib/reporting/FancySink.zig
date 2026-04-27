@@ -372,6 +372,12 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
             try ctx.deepen().writeSourceNote("Command", .{}, info.command);
             try ctx.deepen().writeNote("Debugger does not have access to original assembly", .{});
         },
+        .debugger_requires_symbols => |info| {
+            try ctx.writeTitle("Command requires access to assembly or symbol table", .{});
+            try ctx.deepen().writeSourceNote("Command", .{}, info.command);
+            try ctx.deepen().writeNote("Debugger does not have access to original assembly", .{});
+            try ctx.deepen().writeNote("Debugger does not have access to imported symbol table", .{});
+        },
         .debugger_requires_state => |info| {
             try ctx.writeTitle("Command requires initial state to be set", .{});
             try ctx.deepen().writeSourceNote("Command", .{}, info.command);
@@ -423,6 +429,11 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
             try ctx.writeTitle("Integer argument is too small", .{});
             try ctx.deepen().writeSourceNote("Argument", .{}, info.integer);
             try ctx.deepen().writeNote("Minimum value is {}", .{info.minimum});
+        },
+
+        .symbol_not_found => |info| {
+            try ctx.writeTitle("Symbol not found", .{});
+            try ctx.deepen().writeSourceNote("Symbol name", .{}, info.symbol);
         },
     }
 
