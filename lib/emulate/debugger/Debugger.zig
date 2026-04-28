@@ -236,14 +236,15 @@ pub fn catchEvent(
         },
     }
 
-    try debugger.triggerHalt(runtime);
+    try debugger.triggerHalt(runtime, event == error.Halt);
 }
 
-fn triggerHalt(debugger: *Debugger, runtime: *Runtime) error{WriteFailed}!void {
+fn triggerHalt(debugger: *Debugger, runtime: *Runtime, permanent: bool) error{WriteFailed}!void {
     try runtime.ensureWriterNewline();
     try debugger.writer.printLine("Program halted at 0x{x:04}.", .{runtime.state.pc});
     debugger.state.status = .get_action;
-    debugger.state.halt_address = runtime.state.pc;
+    if (permanent)
+        debugger.state.halt_address = runtime.state.pc;
 }
 
 fn canProceed(debugger: *const Debugger, runtime: *const Runtime) bool {
@@ -705,7 +706,7 @@ fn evalCommand(
         => |err2| return err2,
 
         error.Halt => {
-            try debugger.triggerHalt(runtime);
+            try debugger.triggerHalt(runtime, true);
         },
 
         else => |err2| try debugger.reporter.report(.emulate_exception, .{
