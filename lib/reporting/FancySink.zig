@@ -84,7 +84,7 @@ pub fn sendSummary(
 
     if (count_warn > 0) {
         try ctx.writer.print("\x1b[33m", .{});
-        try ctx.writer.print("{} warnings{s}", .{
+        try ctx.writer.print("{} warning{s}", .{
             count_warn, if (count_warn == 1) "" else "s",
         });
         try ctx.writer.print("\x1b[0m", .{});
