@@ -15,6 +15,8 @@ pub const Instruction = @import("decode.zig").Instruction;
 pub const memory_size = 0x1_0000;
 pub const user_memory_start = 0x3000;
 pub const user_memory_end = 0xFDFF;
+const memory_init_user = 0x0000;
+const memory_init_privileged = 0xdead;
 
 state: State,
 
@@ -36,7 +38,11 @@ pub const State = struct {
 
     pub fn init(gpa: Allocator) error{OutOfMemory}!State {
         const memory = try gpa.alloc(u16, memory_size);
-        @memset(memory, 0x0000);
+
+        @memset(memory[0..user_memory_start], memory_init_privileged);
+        @memset(memory[user_memory_start..user_memory_end], memory_init_user);
+        @memset(memory[user_memory_end..], memory_init_privileged);
+
         return .{
             .memory = memory,
             .registers = .{ 0, 0, 0, 0, 0, 0, 0, user_memory_end },
