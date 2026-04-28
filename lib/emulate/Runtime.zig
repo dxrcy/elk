@@ -246,7 +246,7 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
             runtime.state.pc = runtime.state.registers[operands.base];
         },
         .jsr_jsrr => |variant| {
-            runtime.state.registers[7] = runtime.state.pc;
+            const previous_pc = runtime.state.pc;
             switch (variant) {
                 .jsr => |operands| {
                     runtime.state.pc +%= signExtend(operands.pc_offset);
@@ -255,6 +255,7 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
                     runtime.state.pc = runtime.state.registers[operands.base];
                 },
             }
+            runtime.state.registers[7] = previous_pc;
         },
 
         .lea => |operands| {
