@@ -43,6 +43,7 @@ const Operation = union(enum) {
         input: cli_template.Path,
         debug: ?Debug,
         import_symbols: ?[]const u8,
+        patch_symbols: ?[]const u8,
     },
     clean: struct {
         input: []const u8,
@@ -119,6 +120,12 @@ const template = .{
             .value_parser = parseTrapAliases,
             .requires = &.{ &.{.assemble}, &.{.check}, &.{.format} },
         },
+        .patch_symbols = cli_template.NamedListing{
+            .long = "patch",
+            .value = []const u8,
+            .value_parser = parsePatches,
+            .requires = &.{&.{ .emulate, .import_symbols }},
+        },
 
         .debug = cli_template.NamedListing{
             .short = 'd',
@@ -186,6 +193,22 @@ fn parseTrapAliases(string: []const u8, value: *anyopaque) error{InvalidArgument
         if (!traps.canRegister(vect, entry))
             return error.InvalidArgumentValue;
         traps.register(vect, entry);
+    }
+}
+
+fn parsePatches(string: []const u8, value: *anyopaque) error{InvalidArgumentValue}!void {
+    const patches: *[]const u8 = @ptrCast(@alignCast(value));
+    patches.* = string;
+
+    var items = std.mem.tokenizeScalar(u8, string, ',');
+    while (items.next()) |item| {
+        const symbol, const word_string = std.mem.cut(u8, item, "=0x") orelse
+            return error.InvalidArgumentValue;
+        const word = std.fmt.parseInt(u16, word_string, 16) catch
+            return error.InvalidArgumentValue;
+        // TODO: Check if already patched
+        _ = symbol;
+        _ = word;
     }
 }
 
@@ -269,6 +292,7 @@ fn parseOperation(args: *const cli_template.Args(template)) Operation {
                 .history_file = args.named.history_file,
             } else null,
             .import_symbols = args.named.import_symbols,
+            .patch_symbols = args.named.patch_symbols,
         } };
     }
 

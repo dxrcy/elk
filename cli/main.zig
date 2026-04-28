@@ -111,6 +111,7 @@ pub fn main(init: std.process.Init) !u8 {
                     .file = file,
                     .symbols = if (operation.import_symbols != null) symbols.items else null,
                 } },
+                operation.patch_symbols,
                 operation.debug,
                 &default_traps,
                 cli.policies,
@@ -148,6 +149,7 @@ pub fn main(init: std.process.Init) !u8 {
                 gpa,
                 init.environ_map,
                 .{ .assembly = .{ .air = &air, .source = source } },
+                null,
                 operation.debug,
                 &default_traps,
                 cli.policies,
@@ -267,6 +269,7 @@ fn emulate(
         },
         assembly: elk.Debugger.Assembly,
     },
+    patch_symbols: ?[]const u8,
     debug_opt: ?Cli.Debug,
     traps: *const elk.Traps,
     policies: elk.Policies,
@@ -326,6 +329,17 @@ fn emulate(
         .assembly => |assembly| {
             try assembly.air.copyToRuntime(&runtime);
         },
+    }
+
+    if (patch_symbols) |patches| {
+        var items = std.mem.tokenizeScalar(u8, patches, ',');
+        while (items.next()) |item| {
+            const symbol, const word_string = std.mem.cut(u8, item, "=0x") orelse
+                unreachable;
+            const word = std.fmt.parseInt(u16, word_string, 16) catch
+                unreachable;
+            std.debug.print("TODO: patch [{s}] 0x{x:04}\n", .{ symbol, word });
+        }
     }
 
     if (debugger_opt) |*debugger|
