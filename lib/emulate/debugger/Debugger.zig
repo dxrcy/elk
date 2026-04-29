@@ -99,7 +99,11 @@ pub const Writer = struct {
         try writer.print(prompt, .{});
         try writer.disableColor();
 
-        const trimmed = std.mem.trim(u8, string, &std.ascii.whitespace);
+        const trimmed = if (cursor_opt == null)
+            std.mem.trim(u8, string, &std.ascii.whitespace)
+        else
+            string;
+
         const semicolon = std.mem.findScalar(u8, trimmed, ';') orelse trimmed.len;
         const first = trimmed[0..semicolon];
         const rest = trimmed[semicolon..];
