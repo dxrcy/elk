@@ -4,7 +4,7 @@
 
 TODO:
 - Integer literal form
-    - Add zero before non-decimal radix symbol
+    - Remove zero before non-decimal radix symbol
     - Move sign character to before non-decimal radix symbol
     - Move sign character to after decimal radix symbol
 - Alignment
@@ -427,26 +427,26 @@ Integer prefixes must be lowercase.
 
 **Yes:**
 ```
-.FILL 0x14
-.FILL b101
+.FILL x14
+.FILL 0b101
 ```
 **No:**
 ```
-.FILL 0X14
-.FILL B101
+.FILL X14
+.FILL 0B101
 ```
 
 Integer digits must be uppercase.
 
 **Yes:**
 ```
-.FILL 0xDEAD
-.FILL 0x7F
+.FILL xDEAD
+.FILL x7F
 ```
 **No:**
 ```
-.FILL 0xDeaD
-.FILL 0x7f
+.FILL xDeaD
+.FILL x7f
 ```
 
 ## Integer Literals
