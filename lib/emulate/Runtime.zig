@@ -407,7 +407,7 @@ pub fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
 
     try runtime.writer.print("+----------------+-----------------+\n", .{});
     try runtime.writer.print(
-        "|    PC x{x:04}    |   CC {s}   |\n",
+        "|    PC x{X:04}    |   CC {s}   |\n",
         .{ runtime.state.pc, switch (runtime.state.condition) {
             .negative => "NEGATIVE",
             .zero => "  ZERO  ",
@@ -431,7 +431,7 @@ pub fn printInteger(runtime: *Runtime, integer: u16) error{WriteFailed}!void {
 
 fn printIntegerForms(runtime: *Runtime, word: u16) error{WriteFailed}!void {
     try runtime.writer.print(
-        "x{x:04}  {:7}  {:6}   ",
+        "x{X:04}  {:7}  {:6}   ",
         .{ word, @as(i16, @bitCast(word)), word },
     );
     try runtime.printDisplayChar(word);

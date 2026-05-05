@@ -92,7 +92,7 @@ pub fn writeAssembly(air: *const Air, writer: *Io.Writer) !void {
 
 pub fn writeSymbols(air: *const Air, writer: *Io.Writer, source: Source) !void {
     for (air.labels.items) |label| {
-        try writer.print("{s:<74} x{x:04}\n", .{
+        try writer.print("{s:<74} x{X:04}\n", .{
             label.span.view(source),
             air.origin + label.index,
         });
