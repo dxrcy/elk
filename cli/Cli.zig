@@ -1,11 +1,12 @@
 const Cli = @This();
 
 const std = @import("std");
+const Io = std.Io;
 const assert = std.debug.assert;
 const ArgIterator = std.process.Args.Iterator;
 
 const elk = @import("elk");
-const cli_template = @import("cli_template.zig");
+const templating = @import("templating.zig");
 
 const log = std.log.scoped(.cli);
 
@@ -30,17 +31,17 @@ const info = struct {
 
 const Operation = union(enum) {
     assemble_emulate: struct {
-        input: cli_template.Path,
+        input: templating.Path,
         debug: ?Debug,
     },
     assemble: struct {
-        input: cli_template.Path,
-        output: ?cli_template.Path,
+        input: templating.Path,
+        output: ?templating.Path,
         output_mode: enum { none, assembly, symbols, listing },
         trap_aliases: ?elk.Traps,
     },
     emulate: struct {
-        input: cli_template.Path,
+        input: templating.Path,
         debug: ?Debug,
         import_symbols: ?[]const u8,
     },
@@ -48,8 +49,8 @@ const Operation = union(enum) {
         input: []const u8,
     },
     format: struct {
-        input: cli_template.Path,
-        output: ?cli_template.Path,
+        input: templating.Path,
+        output: ?templating.Path,
         trap_aliases: ?elk.Traps,
     },
     lsp: struct {},
@@ -60,102 +61,86 @@ pub const Debug = struct {
     history_file: ?[]const u8,
 };
 
+const Args = templating.Args(template);
+
 const template = .{
     .positional = .{
-        .input = cli_template.PositionalListing{
-            .value = cli_template.Path,
+        .input = templating.PositionalListing{
+            .value = templating.Path,
         },
     },
 
     .named = .{
-        .assemble = cli_template.NamedListing{
+        .assemble = templating.NamedListing{
             .short = 'a',
             .long = "assemble",
-            .conflicts = &.{ .emulate, .check, .clean, .format, .lsp },
         },
-        .emulate = cli_template.NamedListing{
+        .emulate = templating.NamedListing{
             .short = 'e',
             .long = "emulate",
-            .conflicts = &.{ .assemble, .check, .clean, .format, .lsp },
         },
-        .check = cli_template.NamedListing{
+        .check = templating.NamedListing{
             .short = 'c',
             .long = "check",
-            .conflicts = &.{ .assemble, .emulate, .clean, .format, .lsp },
         },
-        .clean = cli_template.NamedListing{
+        .clean = templating.NamedListing{
             .long = "clean",
-            .conflicts = &.{ .assemble, .emulate, .check, .format, .lsp },
         },
-        .format = cli_template.NamedListing{
+        .format = templating.NamedListing{
             .long = "format",
-            .conflicts = &.{ .assemble, .emulate, .check, .clean, .lsp },
         },
-        .lsp = cli_template.NamedListing{
+        .lsp = templating.NamedListing{
             .long = "lsp",
-            .conflicts = &.{ .assemble, .emulate, .check, .clean, .format },
         },
 
-        .output = cli_template.NamedListing{
+        .output = templating.NamedListing{
             .short = 'o',
             .long = "output",
-            .value = cli_template.Path,
-            .requires = &.{ &.{.assemble}, &.{.format} },
+            .value = templating.Path,
         },
 
-        .export_symbols = cli_template.NamedListing{
+        .export_symbols = templating.NamedListing{
             .long = "export-symbols",
-            .requires = &.{&.{.assemble}},
-            .conflicts = &.{.export_listing},
         },
-        .export_listing = cli_template.NamedListing{
+        .export_listing = templating.NamedListing{
             .long = "export-listing",
-            .requires = &.{&.{.assemble}},
-            .conflicts = &.{.export_symbols},
         },
-        .trap_aliases = cli_template.NamedListing{
+        .trap_aliases = templating.NamedListing{
             .long = "trap-aliases",
             .value = elk.Traps,
             .value_parser = parseTrapAliases,
-            .requires = &.{ &.{.assemble}, &.{.check}, &.{.format} },
         },
 
-        .debug = cli_template.NamedListing{
+        .debug = templating.NamedListing{
             .short = 'd',
             .long = "debug",
-            .conflicts = &.{ .assemble, .check, .clean, .format, .lsp },
         },
 
-        .commands = cli_template.NamedListing{
+        .commands = templating.NamedListing{
             .short = 'C',
             .long = "commands",
             .value = []const u8,
-            .requires = &.{&.{.debug}},
         },
-        .history_file = cli_template.NamedListing{
+        .history_file = templating.NamedListing{
             .long = "history-file",
             .value = []const u8,
-            .requires = &.{&.{.debug}},
         },
-        .import_symbols = cli_template.NamedListing{
+        .import_symbols = templating.NamedListing{
             .long = "import-symbols",
             .value = []const u8,
-            .requires = &.{&.{.emulate}},
         },
 
-        .strict = cli_template.NamedListing{
+        .strict = templating.NamedListing{
             .long = "strict",
-            .conflicts = &.{.relaxed},
         },
-        .relaxed = cli_template.NamedListing{
+        .relaxed = templating.NamedListing{
             .long = "relaxed",
-            .conflicts = &.{.strict},
         },
-        .quiet = cli_template.NamedListing{
+        .quiet = templating.NamedListing{
             .short = 'q',
             .long = "quiet",
         },
-        .permit = cli_template.NamedListing{
+        .permit = templating.NamedListing{
             .short = 'p',
             .long = "permit",
             .value = elk.Policies,
@@ -190,7 +175,7 @@ fn parseTrapAliases(string: []const u8, value: *anyopaque) error{InvalidArgument
 }
 
 pub fn parse(iter: *ArgIterator) error{ ParseFailed, DisplayMetadata, UnimplementedFeature }!Cli {
-    const args = cli_template.parse(template, iter) catch |err| switch (err) {
+    const args = templating.parse(template, iter) catch |err| switch (err) {
         error.Empty,
         error.Help,
         => {
@@ -211,7 +196,7 @@ pub fn parse(iter: *ArgIterator) error{ ParseFailed, DisplayMetadata, Unimplemen
     for (unimplemented_args) |name| {
         inline for (@typeInfo(@TypeOf(args.named)).@"struct".fields) |field| {
             if (std.mem.eql(u8, field.name, name) and
-                cli_template.isValueSet(@field(args.named, field.name)))
+                templating.isValueSet(@field(args.named, field.name)))
             {
                 log.err("unimplemented feature: {s}", .{field.name});
                 return error.UnimplementedFeature;
@@ -233,8 +218,10 @@ pub fn parse(iter: *ArgIterator) error{ ParseFailed, DisplayMetadata, Unimplemen
         return error.UnimplementedFeature;
     }
 
+    const operation = try parseOperation(&args);
+
     return .{
-        .operation = parseOperation(&args),
+        .operation = operation,
         .policies = args.named.permit orelse .none,
         .strictness = if (args.named.strict)
             .strict
@@ -246,7 +233,12 @@ pub fn parse(iter: *ArgIterator) error{ ParseFailed, DisplayMetadata, Unimplemen
     };
 }
 
-fn parseOperation(args: *const cli_template.Args(template)) Operation {
+fn parseOperation(args: *const Args) error{ParseFailed}!Operation {
+    try checkGroup(.operation, enum { assemble, emulate, check, clean, format, lsp }, args);
+
+    if (args.named.debug)
+        try checkConflicts(.debug, &.{}, &.{ .assemble, .check, .clean, .format, .lsp }, args);
+
     if (args.named.assemble) {
         return .{ .assemble = .{
             .input = args.positional.input,
@@ -281,17 +273,17 @@ fn parseOperation(args: *const cli_template.Args(template)) Operation {
         } };
     }
 
+    if (args.named.clean) {
+        return .{ .clean = .{
+            .input = args.positional.input.asRegular() catch unreachable,
+        } };
+    }
+
     if (args.named.format) {
         return .{ .format = .{
             .input = args.positional.input,
             .output = args.named.output,
             .trap_aliases = args.named.trap_aliases,
-        } };
-    }
-
-    if (args.named.clean) {
-        return .{ .clean = .{
-            .input = args.positional.input.asRegular() catch unreachable,
         } };
     }
 
@@ -302,4 +294,55 @@ fn parseOperation(args: *const cli_template.Args(template)) Operation {
             .history_file = args.named.history_file,
         } else null,
     } };
+}
+
+fn checkGroup(
+    comptime name: @EnumLiteral(),
+    comptime Group: type,
+    args: *const Args,
+) error{ParseFailed}!void {
+    const GroupFmt = struct {
+        pub fn format(_: @This(), writer: *Io.Writer) Io.Writer.Error!void {
+            for (std.meta.tags(Group), 0..) |tag, i| {
+                if (i > 0)
+                    try writer.print(", ", .{});
+                try writer.print("{t}", .{tag});
+            }
+        }
+    };
+
+    var existing = false;
+    inline for (comptime std.meta.tags(Group)) |flag| {
+        if (templating.isValueSet(@field(args.named, @tagName(flag)))) {
+            if (existing) {
+                log.err(
+                    "multiple flags given for `{t}`: must be one of [{f}]",
+                    .{ name, GroupFmt{} },
+                );
+                return error.ParseFailed;
+            } else {
+                existing = true;
+            }
+        }
+    }
+}
+
+fn checkConflicts(
+    comptime name: @EnumLiteral(),
+    comptime requires: []const @EnumLiteral(),
+    comptime conflicts: []const @EnumLiteral(),
+    args: *const Args,
+) error{ParseFailed}!void {
+    inline for (requires) |require| {
+        if (templating.isValueSet(@field(args.named, @tagName(require)))) {
+            log.err("flag `{t}` cannot be used without required flag `{t}`", .{ name, require });
+            return error.ParseFailed;
+        }
+    }
+    inline for (conflicts) |conflict| {
+        if (templating.isValueSet(@field(args.named, @tagName(conflict)))) {
+            log.err("flag `{t}` cannot be used with conflicting flag `{t}`", .{ name, conflict });
+            return error.ParseFailed;
+        }
+    }
 }

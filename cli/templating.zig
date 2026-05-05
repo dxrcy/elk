@@ -23,8 +23,6 @@ pub const PositionalListing = struct {
 pub const NamedListing = struct {
     short: ?u8 = null,
     long: []const u8,
-    requires: []const []const Id = &.{},
-    conflicts: []const Id = &.{},
     value: type = void,
     value_parser: ?ValueParser = null,
 
@@ -112,8 +110,6 @@ pub fn parse(comptime template: anytype, iter: *ArgIterator) error{
         return error.ParseFailed;
     }
 
-    try checkDependencies(template.named, &args.named);
-
     return args;
 }
 
@@ -176,76 +172,6 @@ pub fn isValueSet(value: anytype) bool {
         .optional => value != null,
         else => unreachable,
     };
-}
-
-fn checkDependencies(
-    comptime template: anytype,
-    args: *const NamedArgs(template),
-) error{ParseFailed}!void {
-    inline for (@typeInfo(@TypeOf(template)).@"struct".fields) |field| {
-        const listing: NamedListing = @field(template, field.name);
-
-        if (isValueSet(@field(args, field.name))) {
-            if (!hasAnyDependencySet(template, listing.requires, args)) {
-                log.err("flag `{s}` cannot be used without required flag", .{field.name});
-                return error.ParseFailed;
-            }
-            if (hasAnyDependency(template, listing.conflicts, args)) {
-                log.err("flag `{s}` cannot be used with conflicting flag", .{field.name});
-                return error.ParseFailed;
-            }
-        }
-    }
-}
-
-fn hasAnyDependencySet(
-    comptime template: anytype,
-    comptime sets: []const []const NamedListing.Id,
-    args: *const NamedArgs(template),
-) bool {
-    if (sets.len == 0)
-        return true;
-    inline for (sets) |set| {
-        if (hasAllDependencies(template, set, args))
-            return true;
-    }
-    return false;
-}
-
-fn hasAllDependencies(
-    comptime template: anytype,
-    comptime dependencies: []const NamedListing.Id,
-    args: *const NamedArgs(template),
-) bool {
-    inline for (dependencies) |dependency| {
-        if (!hasDependency(template, dependency, args))
-            return false;
-    }
-    return true;
-}
-
-fn hasAnyDependency(
-    comptime template: anytype,
-    comptime dependencies: []const NamedListing.Id,
-    args: *const NamedArgs(template),
-) bool {
-    inline for (dependencies) |dependency| {
-        if (hasDependency(template, dependency, args))
-            return true;
-    }
-    return false;
-}
-
-fn hasDependency(
-    comptime template: anytype,
-    dependency: NamedListing.Id,
-    args: *const NamedArgs(template),
-) bool {
-    inline for (@typeInfo(@TypeOf(template)).@"struct".fields) |field| {
-        if (std.mem.eql(u8, field.name, @tagName(dependency)))
-            return isValueSet(@field(args, field.name));
-    }
-    unreachable; // conflict entry is not a valid field name
 }
 
 fn parseFlagValue(
