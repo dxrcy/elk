@@ -177,7 +177,7 @@ fn parseTrapAliases(string: []const u8, value: *anyopaque) error{InvalidArgument
 
     var items = std.mem.tokenizeScalar(u8, string, ',');
     while (items.next()) |item| {
-        const alias, const vect_string = std.mem.cut(u8, item, "=0x") orelse
+        const alias, const vect_string = std.mem.cut(u8, item, "=x") orelse
             return error.InvalidArgumentValue;
         const vect = std.fmt.parseInt(u8, vect_string, 16) catch
             return error.InvalidArgumentValue;
