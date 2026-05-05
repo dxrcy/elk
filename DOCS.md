@@ -103,6 +103,9 @@ Turing-complete system capable of complex behaviour.
 > This section will be written primarily implementation-nonspecific, however
 > the terminology used may be specific to ELK.
 
+ELK implements LC-3 according to
+*Patt & Patel, 2003 — Introduction to Computing Systems, ISBN 0-07-246750-9*.
+
 ## Assembly Overview
 
 The LC-3 assembly language is a one-to-one abstraction of an LC-3 program. It
