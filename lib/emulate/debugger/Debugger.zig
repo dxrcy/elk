@@ -200,14 +200,14 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?enum { @"continue", @"br
 
     if (debugger.isHalted(runtime)) {
         try runtime.ensureWriterNewline();
-        try debugger.writer.printLine("Currently halted at 0x{x:04}.", .{runtime.state.pc});
+        try debugger.writer.printLine("Currently halted at x{x:04}.", .{runtime.state.pc});
         debugger.state.status = .get_action;
         return .@"continue";
     }
 
     if (debugger.isAtBreakpoint(runtime)) {
         try runtime.ensureWriterNewline();
-        try debugger.writer.printLine("Currently on breakpoint at 0x{x:04}.", .{runtime.state.pc});
+        try debugger.writer.printLine("Currently on breakpoint at x{x:04}.", .{runtime.state.pc});
         debugger.state.current_breakpoint = runtime.state.pc;
         debugger.state.status = .get_action;
         return .@"continue";
@@ -245,7 +245,7 @@ pub fn catchEvent(
 
 fn triggerHalt(debugger: *Debugger, runtime: *Runtime, permanent: bool) error{WriteFailed}!void {
     try runtime.ensureWriterNewline();
-    try debugger.writer.printLine("Program halted at 0x{x:04}.", .{runtime.state.pc});
+    try debugger.writer.printLine("Program halted at x{x:04}.", .{runtime.state.pc});
     debugger.state.status = .get_action;
     if (permanent)
         debugger.state.halt_address = runtime.state.pc;
@@ -336,7 +336,7 @@ fn tryNextAction(debugger: *Debugger, runtime: *Runtime) !?Action {
             if (debugger.state.instruction_count == 1) "" else "s",
         });
     if (debugger.state.should_print_pc)
-        try debugger.writer.printLine("Program counter is at 0x{x:04}.", .{
+        try debugger.writer.printLine("Program counter is at x{x:04}.", .{
             runtime.state.pc,
         });
 
@@ -424,7 +424,7 @@ fn runCommand(
                     try debugger.writer.disableColor();
                 },
                 .address => |address| {
-                    try debugger.writer.printLine("Memory at address 0x{x:04}:", .{address});
+                    try debugger.writer.printLine("Memory at address x{x:04}:", .{address});
                     try debugger.writer.enableColor();
                     try runtime.printInteger(runtime.state.memory[address]);
                     try debugger.writer.disableColor();
@@ -453,7 +453,7 @@ fn runCommand(
                 .register => |register| {
                     runtime.state.registers[register] = arguments.value.value;
                     try debugger.writer.printLine(
-                        "Updated register R{} to 0x{x:04}.",
+                        "Updated register R{} to x{x:04}.",
                         .{ register, arguments.value.value },
                     );
                 },
@@ -461,7 +461,7 @@ fn runCommand(
                     try debugger.ensureUserAddress(address, arguments.location.span);
                     runtime.state.memory[address] = arguments.value.value;
                     try debugger.writer.printLine(
-                        "Updated memory at address 0x{x:04} to 0x{x:04}.",
+                        "Updated memory at address x{x:04} to x{x:04}.",
                         .{ address, arguments.value.value },
                     );
                 },
@@ -477,7 +477,7 @@ fn runCommand(
             );
             try debugger.ensureUserAddress(address, arguments.location.span);
             runtime.state.pc = address;
-            try debugger.writer.printLine("Set program counter to 0x{x:04}.", .{address});
+            try debugger.writer.printLine("Set program counter to x{x:04}.", .{address});
             // Don't print PC again.
         },
 
@@ -493,7 +493,7 @@ fn runCommand(
 
             const line = try debugger.getAssemblyLine(assembly.air, address, arguments.location.span);
 
-            try debugger.writer.printLine("Next instruction, at 0x{x:04}:", .{address});
+            try debugger.writer.printLine("Next instruction, at x{x:04}:", .{address});
             try writeSpanContext(debugger.writer.inner, line.span, .{
                 .max_context = arguments.context.value,
             }, assembly.source);
@@ -554,9 +554,9 @@ fn runCommand(
                 try debugger.reporter.report(.debugger_no_space, .{}).abort();
             };
             if (inserted)
-                try debugger.writer.printLine("Added breakpoint at 0x{x:04}", .{address})
+                try debugger.writer.printLine("Added breakpoint at x{x:04}", .{address})
             else
-                try debugger.writer.printLine("Breakpoint already exists at 0x{x:04}", .{address});
+                try debugger.writer.printLine("Breakpoint already exists at x{x:04}", .{address});
         },
 
         .break_remove => |arguments| {
@@ -568,9 +568,9 @@ fn runCommand(
             );
             const removed = debugger.breakpoints.remove(address);
             if (removed)
-                try debugger.writer.printLine("Removed breakpoint at 0x{x:04}", .{address})
+                try debugger.writer.printLine("Removed breakpoint at x{x:04}", .{address})
             else
-                try debugger.writer.printLine("No breakpoint exists at 0x{x:04}", .{address});
+                try debugger.writer.printLine("No breakpoint exists at x{x:04}", .{address});
         },
     }
 
@@ -591,7 +591,7 @@ fn printListing(debugger: *Debugger, runtime: *Runtime, start: u16, end: u16) !v
 
         try debugger.writer.print("| ", .{});
 
-        try debugger.writer.print("0x{x:04}", .{address});
+        try debugger.writer.print("x{x:04}", .{address});
 
         try debugger.writer.print(" {s}", .{
             if (debugger.breakpoints.contains(address)) "B" else " ",
@@ -639,7 +639,7 @@ fn printListing(debugger: *Debugger, runtime: *Runtime, start: u16, end: u16) !v
 fn printBreakpoints(debugger: *Debugger) !void {
     for (debugger.breakpoints.entries.items) |entry| {
         try debugger.writer.enableColor();
-        try debugger.writer.print("    | Breakpoint at 0x{x:04}", .{entry.address});
+        try debugger.writer.print("    | Breakpoint at x{x:04}", .{entry.address});
 
         blk: {
             // TODO: This should also work via imported symbol table! #53

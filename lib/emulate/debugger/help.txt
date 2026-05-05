@@ -51,6 +51,6 @@ Available Commands:
         Exit debugger and emulator.
 
 Note: An Address argument can be one of the following:
-    1. An absolute address value            0x3010
+    1. An absolute address value            x3010
     2. A label with an optional offset      Foo, Hello+4
     3. An offset from the program counter   ~, ~3, ~-x10
