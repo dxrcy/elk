@@ -296,7 +296,7 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
             try ctx.writeTitle("Integer uses undesirable syntax", .{});
             try ctx.deepen().writeSourceNote("Integer", .{}, info.integer);
             try ctx.deepen().writeNote("{s}", .{switch (info.reason) {
-                .missing_zero => "Leading zero should appear before base specifier",
+                .leading_zero => "Leading zero should not appear before base specifier",
                 .pre_radix_sign => "Sign character should appear after decimal base specifier",
                 .post_radix_sign => "Sign character should appear before non-decimal base specifier",
                 .implicit_radix => "Decimal integer literal should begin with `#`",

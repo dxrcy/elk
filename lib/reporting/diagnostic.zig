@@ -107,7 +107,7 @@ pub const Diagnostic = union(enum) {
     unexpected_delimiter: struct { integer: Span },
     nonstandard_integer_radix: struct { integer: Span, radix: Radix },
     nonstandard_integer_form: struct { integer: Span, reason: enum { delimiter } },
-    undesirable_integer_form: struct { integer: Span, reason: enum { missing_zero, pre_radix_sign, post_radix_sign, implicit_radix } },
+    undesirable_integer_form: struct { integer: Span, reason: enum { leading_zero, pre_radix_sign, post_radix_sign, implicit_radix } },
     character_integer: struct { integer: Span },
 
     // Integer bounds

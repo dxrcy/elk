@@ -514,10 +514,10 @@ fn ensureSupported(
                 }).collect(&result);
             }
             if (integer.form.radix) |radix| switch (radix) {
-                .hex, .octal, .binary => if (!integer.form.zero) {
+                .hex, .octal, .binary => if (integer.form.zero) {
                     tokenizer.reporter.report(.undesirable_integer_form, .{
                         .integer = token.span,
-                        .reason = .missing_zero,
+                        .reason = .leading_zero,
                     }).collect(&result);
                 },
                 else => assert(!integer.form.zero),
