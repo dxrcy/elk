@@ -1,4 +1,4 @@
-.ORIG 0x3000
+.ORIG x3000
 
     lea r0, InputPrompt
     puts
@@ -16,9 +16,9 @@
 
 
 ; @output r1 result
-ReadUint_R0 .FILL 0x0
-ReadUint_R2 .FILL 0x0
-ReadUint_R7 .FILL 0x0
+ReadUint_R0 .FILL x0
+ReadUint_R2 .FILL x0
+ReadUint_R7 .FILL x0
 ReadUint
     st r0, ReadUint_R0
     st r2, ReadUint_R2
@@ -67,7 +67,7 @@ ReadUint_Done
 
 ; @input  r1 x
 ; @output r1 10*x
-Mul10_R2 .FILL 0x0
+Mul10_R2 .FILL x0
 Mul10
     st r2, Mul10_R2
 
@@ -87,7 +87,7 @@ Mul10_Done
 
 OutputPrompt    .STRINGZ "Your number is: "
 InputPrompt     .STRINGZ "Input a positive number: "
-AsciiLf         .FILL  0x0A
-AsciiZero       .FILL  0x30
+AsciiLf         .FILL  x0A
+AsciiZero       .FILL  x30
 
 .END

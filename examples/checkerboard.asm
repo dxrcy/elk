@@ -1,4 +1,4 @@
-.ORIG 0x3000
+.ORIG x3000
 
     ld r1, Height
 Rows
@@ -7,7 +7,7 @@ Rows
 Columns
 
     add r3, r1, r2
-    and r3, r3, 0x1
+    and r3, r3, x1
     brnp CharElse
 
     lea r0, Solid
@@ -31,7 +31,7 @@ CharEnd
 
     halt
 
-Newline .FILL 0x0A  ; '\n'
+Newline .FILL x0A ; '\n'
 
 Width   .FILL #20
 Height  .FILL #20

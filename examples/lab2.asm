@@ -1,4 +1,4 @@
-.ORIG 0x3000
+.ORIG x3000
 
     ; r0    X
     ; r1    Y
@@ -10,9 +10,9 @@
     ; r7    Value of abs(r1) (later becomes -abs(r1))
 
     ; Load the input values
-    ld r0, AddrX        ; Load into r0 the value at 0x3100
-    ldr r0, r0, #0      ; Load into r0 the value at 0x3100
-    ldi r1, AddrY       ; Load into r1 the value at 0x3101
+    ld r0, AddrX        ; Load into r0 the value at x3100
+    ldr r0, r0, #0      ; Load into r0 the value at x3100
+    ldi r1, AddrY       ; Load into r1 the value at x3101
 
     ld r2, AddrResults  ; Set r2 to the address of the results (x3102)
 
@@ -34,16 +34,16 @@ AbsXEnd                 ; }
     add r7, r5, #0      ;     r7 = r5 (= -r1)
 AbsYEnd                 ; }
 
-    ; Store the result of (r0 - r1) at 0x3122 (x3122 + 0)
+    ; Store the result of (r0 - r1) at x3122 (x3122 + 0)
     add r3, r0, r5      ; r3 = r0 + r5 (= r0 - r2)
     str r3, r2, #0      ; memory[r2 + 0] = r3
 
-    ; Store the result of abs(r0) at 0x3123 (x3122 + 1)
+    ; Store the result of abs(r0) at x3123 (x3122 + 1)
     str r6, r2, #1      ; memory[r2 + 1] = r6
-    ; Store the result of abs(r1) at 0x3124 (x3122 + 2)
+    ; Store the result of abs(r1) at x3124 (x3122 + 2)
     str r7, r2, #2      ; memory[r2 + 2] = r7
 
-    ; Store a number at 0x3125 (x3122 + 3)
+    ; Store a number at x3125 (x3122 + 3)
     ;     0: if abs(r0) == abs(r1)
     ;     1: if abs(r0) > abs(r1)
     ;     2: if abs(r0) < abs(r1)
@@ -65,8 +65,8 @@ MaxEnd                  ; }
 
     halt
 
-AddrX       .FILL 0x3120     ; X is stored at 0x3120
-AddrY       .FILL 0x3121     ; Y is stored at 0x3121
-AddrResults .FILL 0x3122     ; The result values start at address 0x3102
+AddrX       .FILL x3120 ; X is stored at x3120
+AddrY       .FILL x3121 ; Y is stored at x3121
+AddrResults .FILL x3122 ; The result values start at address x3102
 
 .END
