@@ -84,7 +84,7 @@ pub fn sendSummary(
 
     if (count_warn > 0) {
         try ctx.writer.print("\x1b[33m", .{});
-        try ctx.writer.print("{} warnings{s}", .{
+        try ctx.writer.print("{} warning{s}", .{
             count_warn, if (count_warn == 1) "" else "s",
         });
         try ctx.writer.print("\x1b[0m", .{});
@@ -105,7 +105,7 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
         .output_too_long => |info| {
             try ctx.writeTitle("Assembly file would emit too many words", .{});
             try ctx.deepen().writeSourceNote("Line", .{}, info.statement);
-            try ctx.deepen().writeNote("Object files cannot contain more than 0xffff words", .{});
+            try ctx.deepen().writeNote("Object files cannot contain more than xFFFF words", .{});
         },
         .line_too_long => |info| {
             try ctx.writeTitle("Line is longer than {} characters", .{Parser.max_line_width});
@@ -296,7 +296,7 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
             try ctx.writeTitle("Integer uses undesirable syntax", .{});
             try ctx.deepen().writeSourceNote("Integer", .{}, info.integer);
             try ctx.deepen().writeNote("{s}", .{switch (info.reason) {
-                .missing_zero => "Leading zero should appear before base specifier",
+                .leading_zero => "Leading zero should not appear before base specifier",
                 .pre_radix_sign => "Sign character should appear after decimal base specifier",
                 .post_radix_sign => "Sign character should appear before non-decimal base specifier",
                 .implicit_radix => "Decimal integer literal should begin with `#`",
@@ -357,9 +357,9 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
             try ctx.deepen().writeNote("Consider using trap alias `{s}`", .{info.alias});
         },
         .undeclared_trap_vect => |info| {
-            try ctx.writeTitle("Use of unknown trap vector 0x{x:02}", .{info.value});
+            try ctx.writeTitle("Use of unknown trap vector x{x:02}", .{info.value});
             try ctx.deepen().writeSourceNote("Trap vector", .{}, info.vect);
-            try ctx.deepen().writeNote("Traps vector 0x{x:02} is not recognized", .{info.value});
+            try ctx.deepen().writeNote("Traps vector x{x:02} is not recognized", .{info.value});
         },
 
         .emulate_exception => |info| {
@@ -384,13 +384,13 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
             try ctx.deepen().writeNote("Debugger does not have access to initial emulator state", .{});
         },
         .debugger_address_not_in_assembly => |info| {
-            try ctx.writeTitle("Address 0x{x:04} is not contained in assembly source", .{info.value});
-            try ctx.deepen().writeNote("Largest address in assembly is 0x{x:04}", .{info.max});
+            try ctx.writeTitle("Address x{x:04} is not contained in assembly source", .{info.value});
+            try ctx.deepen().writeNote("Largest address in assembly is x{x:04}", .{info.max});
         },
         .debugger_address_not_user_memory => |info| {
-            try ctx.writeTitle("Address 0x{x:04} is not in user memory", .{info.value});
+            try ctx.writeTitle("Address x{x:04} is not in user memory", .{info.value});
             try ctx.deepen().writeSourceNote("Address", .{}, info.address);
-            try ctx.deepen().writeNote("Largest address in user memory is 0x{x:04}", .{info.max});
+            try ctx.deepen().writeNote("Largest address in user memory is x{x:04}", .{info.max});
         },
         .debugger_label_partial_match => |info| {
             try ctx.writeTitle("Label reference does not use correct case", .{});

@@ -15,6 +15,8 @@ pub const Instruction = @import("decode.zig").Instruction;
 pub const memory_size = 0x1_0000;
 pub const user_memory_start = 0x3000;
 pub const user_memory_end = 0xFDFF;
+const memory_init_user = 0x0000;
+const memory_init_privileged = 0xdead;
 
 state: State,
 
@@ -36,7 +38,11 @@ pub const State = struct {
 
     pub fn init(gpa: Allocator) error{OutOfMemory}!State {
         const memory = try gpa.alloc(u16, memory_size);
-        @memset(memory, 0x0000);
+
+        @memset(memory[0..user_memory_start], memory_init_privileged);
+        @memset(memory[user_memory_start..user_memory_end], memory_init_user);
+        @memset(memory[user_memory_end..], memory_init_privileged);
+
         return .{
             .memory = memory,
             .registers = .{ 0, 0, 0, 0, 0, 0, 0, user_memory_end },
@@ -64,12 +70,12 @@ const Error = Exception || HostError;
 
 /// The user's program or configuration (traps, policies) is erroneous.
 pub const Exception = error{
-    PcOutOfBounds,
     IncorrectPadding,
     InvalidOperand,
     UnhandledTrap,
     UnsupportedRti,
     UnpermittedOpcode,
+    UnpermittedMemoryAccess,
     TrapFailed,
 };
 
@@ -148,9 +154,9 @@ pub fn patchLabelValue(
     name: []const u8,
     raw_word: u16,
     symbols: []const SymbolEntry,
-) error{SymbolNotFound}!void {
+) error{ SymbolNotFound, UnpermittedMemoryAccess }!void {
     const address = try getSymbolAddress(name, symbols);
-    runtime.state.memory[address] = raw_word;
+    runtime.state.setMemory(address, raw_word);
 }
 
 pub fn getSymbolAddress(name: []const u8, symbols: []const SymbolEntry) error{SymbolNotFound}!u16 {
@@ -197,12 +203,7 @@ pub fn run(runtime: *Runtime) Error!void {
 }
 
 fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
-    switch (runtime.state.pc) {
-        user_memory_start...user_memory_end => {},
-        else => return error.PcOutOfBounds,
-    }
-
-    const word = runtime.state.memory[runtime.state.pc];
+    const word = try runtime.getMemory(runtime.state.pc);
     runtime.state.pc += 1;
 
     if (runtime.hooks.pre_decode) |pre_decode|
@@ -246,7 +247,7 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
             runtime.state.pc = runtime.state.registers[operands.base];
         },
         .jsr_jsrr => |variant| {
-            runtime.state.registers[7] = runtime.state.pc;
+            const previous_pc = runtime.state.pc;
             switch (variant) {
                 .jsr => |operands| {
                     runtime.state.pc +%= signExtend(operands.pc_offset);
@@ -255,6 +256,7 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
                     runtime.state.pc = runtime.state.registers[operands.base];
                 },
             }
+            runtime.state.registers[7] = previous_pc;
         },
 
         .lea => |operands| {
@@ -263,27 +265,32 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
         },
         .ld => |operands| {
             const address = runtime.state.pc +% signExtend(operands.pc_offset);
-            runtime.setRegister(operands.dest, runtime.state.memory[address]);
+            const value = try runtime.getMemory(address);
+            runtime.setRegister(operands.dest, value);
         },
         .ldi => |operands| {
-            const address = runtime.state.memory[runtime.state.pc +% signExtend(operands.pc_offset)];
-            runtime.setRegister(operands.dest, runtime.state.memory[address]);
+            const indirect = runtime.state.pc +% signExtend(operands.pc_offset);
+            const address = try runtime.getMemory(indirect);
+            const value = try runtime.getMemory(address);
+            runtime.setRegister(operands.dest, value);
         },
         .ldr => |operands| {
             const address = runtime.state.registers[operands.base] + signExtend(operands.offset);
-            runtime.setRegister(operands.dest, runtime.state.memory[address]);
+            const value = try runtime.getMemory(address);
+            runtime.setRegister(operands.dest, value);
         },
         .st => |operands| {
             const address = runtime.state.pc +% signExtend(operands.pc_offset);
-            runtime.state.memory[address] = runtime.state.registers[operands.src];
+            try runtime.setMemory(address, runtime.state.registers[operands.src]);
         },
         .sti => |operands| {
-            const address = runtime.state.memory[runtime.state.pc +% signExtend(operands.pc_offset)];
-            runtime.state.memory[address] = runtime.state.registers[operands.src];
+            const indirect = runtime.state.pc +% signExtend(operands.pc_offset);
+            const address = try runtime.getMemory(indirect);
+            try runtime.setMemory(address, runtime.state.registers[operands.src]);
         },
         .str => |operands| {
             const address = runtime.state.registers[operands.base] + signExtend(operands.offset);
-            runtime.state.memory[address] = runtime.state.registers[operands.src];
+            try runtime.setMemory(address, runtime.state.registers[operands.src]);
         },
 
         .trap => |operands| {
@@ -305,18 +312,18 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
             // Do not set condition for any operation
             switch (variant) {
                 .pop => |operands| {
-                    const value = runtime.stackPop();
+                    const value = try runtime.stackPop();
                     runtime.state.registers[operands.dest] = value;
                 },
                 .push => |operands| {
                     const value = runtime.state.registers[operands.src];
-                    runtime.stackPush(value);
+                    try runtime.stackPush(value);
                 },
                 .rets => {
-                    runtime.state.pc = runtime.stackPop();
+                    runtime.state.pc = try runtime.stackPop();
                 },
                 .call => |operands| {
-                    runtime.stackPush(runtime.state.pc);
+                    try runtime.stackPush(runtime.state.pc);
                     runtime.state.pc +%= signExtend(operands.pc_offset);
                 },
             }
@@ -336,15 +343,32 @@ fn setRegister(runtime: *Runtime, register: u3, value: u16) void {
             .positive;
 }
 
-fn stackPush(runtime: *Runtime, value: u16) void {
-    runtime.state.registers[7] -%= 1;
-    const stack_ptr = runtime.state.registers[7];
-    runtime.state.memory[stack_ptr] = value;
+fn getMemory(runtime: *Runtime, address: u16) error{UnpermittedMemoryAccess}!u16 {
+    try checkMemoryAccess(address);
+    return runtime.state.memory[address];
 }
 
-fn stackPop(runtime: *Runtime) u16 {
+fn setMemory(runtime: *Runtime, address: u16, value: u16) error{UnpermittedMemoryAccess}!void {
+    try checkMemoryAccess(address);
+    runtime.state.memory[address] = value;
+}
+
+fn checkMemoryAccess(address: u16) error{UnpermittedMemoryAccess}!void {
+    switch (address) {
+        user_memory_start...user_memory_end => {},
+        else => return error.UnpermittedMemoryAccess,
+    }
+}
+
+fn stackPush(runtime: *Runtime, value: u16) error{UnpermittedMemoryAccess}!void {
+    runtime.state.registers[7] -%= 1;
     const stack_ptr = runtime.state.registers[7];
-    const value = runtime.state.memory[stack_ptr];
+    try runtime.setMemory(stack_ptr, value);
+}
+
+fn stackPop(runtime: *Runtime) error{UnpermittedMemoryAccess}!u16 {
+    const stack_ptr = runtime.state.registers[7];
+    const value = try runtime.getMemory(stack_ptr);
     runtime.state.registers[7] +%= 1;
     return value;
 }
@@ -372,8 +396,8 @@ pub fn writeChar(runtime: *Runtime, char: u8) error{WriteFailed}!void {
 
 pub fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
     try runtime.ensureWriterNewline();
-    try runtime.writer.print("+-----------------------------------+\n", .{});
-    try runtime.writer.print("|        hex      int    uint   chr |\n", .{});
+    try runtime.writer.print("+----------------------------------+\n", .{});
+    try runtime.writer.print("|       hex      int    uint   chr |\n", .{});
 
     for (runtime.state.registers, 0..8) |word, i| {
         try runtime.writer.print("| R{}  ", .{i});
@@ -381,33 +405,33 @@ pub fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
         try runtime.writer.print(" |\n", .{});
     }
 
-    try runtime.writer.print("+-----------------+-----------------+\n", .{});
+    try runtime.writer.print("+----------------+-----------------+\n", .{});
     try runtime.writer.print(
-        "|    PC 0x{x:04}    |   CC {s}   |\n",
+        "|    PC x{x:04}    |   CC {s}   |\n",
         .{ runtime.state.pc, switch (runtime.state.condition) {
             .negative => "NEGATIVE",
             .zero => "  ZERO  ",
             .positive => "POSITIVE",
         } },
     );
-    try runtime.writer.print("+-----------------+-----------------+\n", .{});
+    try runtime.writer.print("+----------------+-----------------+\n", .{});
 }
 
 pub fn printInteger(runtime: *Runtime, integer: u16) error{WriteFailed}!void {
     try runtime.ensureWriterNewline();
-    try runtime.writer.print("+-------------------------------+\n", .{});
-    try runtime.writer.print("|    hex      int    uint   chr |\n", .{});
+    try runtime.writer.print("+------------------------------+\n", .{});
+    try runtime.writer.print("|   hex      int    uint   chr |\n", .{});
 
     try runtime.writer.print("| ", .{});
     try runtime.printIntegerForms(integer);
     try runtime.writer.print(" |\n", .{});
 
-    try runtime.writer.print("+-------------------------------+\n", .{});
+    try runtime.writer.print("+------------------------------+\n", .{});
 }
 
 fn printIntegerForms(runtime: *Runtime, word: u16) error{WriteFailed}!void {
     try runtime.writer.print(
-        "0x{x:04}  {:7}  {:6}   ",
+        "x{x:04}  {:7}  {:6}   ",
         .{ word, @as(i16, @bitCast(word)), word },
     );
     try runtime.printDisplayChar(word);

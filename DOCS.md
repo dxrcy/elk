@@ -130,7 +130,7 @@ literal* or *integer literal*.
 
 A *trap alias* is an alternative to a `trap` instruction, which aids
 readability since it avoids a hardcoded vector operand.
-An example is `halt` which is equivalent to `trap 0x25`.
+An example is `halt` which is equivalent to `trap x25`.
 Since a trap's behaviour is implemented in the emulator, the set of trap
 aliases is an open set, which the assembler must be aware of to avoid ambiguity
 with labels.
@@ -155,8 +155,7 @@ extension enabled).
 A decimal integer may be prefixed with a `#` character, but this is optional.
 A hexadecimal integer must be prefixed with a `x` or `X`, which itself may be
 preceeded by a leading `0`.
-These are examples of valid hexadecimal integer literals: `0x1f`, `xbeef`,
-`0X0`.
+These are examples of valid hexadecimal integer literals: `x1f`, `xbeef`, `X0`.
 Because of this bespoke syntax, a token beginning with `x` or `X`, which is
 intended to be a label, may instead be parsed as a hexadecimal integer; this is
 unavoidable and necessary.
@@ -174,10 +173,10 @@ the condition code register, which is one of `negative`, `zero`, or `positive`,
 signifying the *sign of the value in the last-modified register*.
 
 Memory is partitioned into segments, with user program memory in the range
-`[0x3000, 0xFDFF]`. Access of memory outside of this user program segment is
+`[x3000, xFDFF]`. Access of memory outside of this user program segment is
 implementation-specific and thus undefined in this context.
 An assembled LC-3 program is loaded into memory at the program's "origin" (the
-address specified by `.ORIG`), which is typically `0x3000` (the start of user
+address specified by `.ORIG`), which is typically `x3000` (the start of user
 memory).
 The rest of user memory, as well as all general purpose registers, are
 typically initialised to zero.
@@ -213,14 +212,14 @@ debugging use and may be undefined on other implementations.
 
 | Type | Alias | Vector | Name | Description |
 |------|-------|--------|------|-------------|
-| Standard  | `getc`  | `0x20` | "Get Char"          | Read character from stdin, store in `r0`, **without echoing** |
-| Standard  | `out`   | `0x21` | "Output Char"       | Load from `r0`, write to stdout as a character  |
-| Standard  | `puts`  | `0x22` | "Put String"        | Load address from `r0`, write each **word** starting from that address to stdout until null terminator (`0x0000`) is reached |
-| Standard  | `in`    | `0x23` | "Input Char"        | Read character from stdin, store in `r0`, **echo to stdout** |
-| Standard  | `putsp` | `0x24` | "Put String Padded" | Load address from `r0`, write each **byte** starting from that address to stdout until null terminator (`0x00`) is reached |
-| Standard  | `halt`  | `0x25` | "Halt"              | Ends program |
-| Extension | `putn`  | `0x26` | "Put Number"        | Load from `r0`, write to stdout as an integer |
-| Extension | `reg`   | `0x27` | "Registers"         | Write all register values to stdout, in a table form |
+| Standard  | `getc`  | `x20` | "Get Char"          | Read character from stdin, store in `r0`, **without echoing** |
+| Standard  | `out`   | `x21` | "Output Char"       | Load from `r0`, write to stdout as a character  |
+| Standard  | `puts`  | `x22` | "Put String"        | Load address from `r0`, write each **word** starting from that address to stdout until null terminator (`x0000`) is reached |
+| Standard  | `in`    | `x23` | "Input Char"        | Read character from stdin, store in `r0`, **echo to stdout** |
+| Standard  | `putsp` | `x24` | "Put String Padded" | Load address from `r0`, write each **byte** starting from that address to stdout until null terminator (`x00`) is reached |
+| Standard  | `halt`  | `x25` | "Halt"              | Ends program |
+| Extension | `putn`  | `x26` | "Put Number"        | Load from `r0`, write to stdout as an integer |
+| Extension | `reg`   | `x27` | "Registers"         | Write all register values to stdout, in a table form |
 
 # ELK Command-Line Interface
 - Overview
@@ -299,7 +298,7 @@ This new set of aliases will *replace* the existing set.
 
 An alias set `<ALISES>` is a comma-separated list of trap alias definitions of
 the form (`ALIAS=VECTOR`), where `ALIAS` is an identifier and `VECTOR` is the
-hexadecimal trap vector prefixed with `0x`.
+hexadecimal trap vector prefixed with `x`.
 See [available traps](#available-traps) for a list of built-in trap aliases and
 their vectors.
 
@@ -317,7 +316,7 @@ elk example.asm --assemble --trap-aliases ""
 
 **Example:** Check assembly code, with additional trap aliases
 ```sh
-elk example.asm --check --trap-aliases "getc=0x20,out=0x21,puts=0x22,in=0x23,putsp=0x24,halt=0x25,putn=0x26,reg=0x27,explode=0x40"
+elk example.asm --check --trap-aliases "getc=x20,out=x21,puts=x22,in=x23,putsp=x24,halt=x25,putn=x26,reg=x27,explode=x40"
 ```
 > Since standard and extension trap aliases were specified, they will still
 > work.
@@ -426,7 +425,7 @@ The policies in each category are as follows:
     - `directives`: Allow directives which aren't `UPPERCASE`.
     - `labels`: Allow labels which aren't `PascalCase_WithUnderscores`.
     - `registers`: Allow registers with capital `R`.
-    - `integers`: Allow integers with uppercase radix (`0X1F`) or lowercase digits (`0x1f`).
+    - `integers`: Allow integers with uppercase radix (`X1F`) or lowercase digits (`x1f`).
 
 ### Predefined policy sets
 
