@@ -76,7 +76,7 @@ pub fn copyToRuntime(air: *const Air, runtime: *Runtime) !void {
     runtime.state.pc = air.origin;
     for (air.lines.items, 0..) |line, i| {
         const raw = line.statement.encode();
-        runtime.state.memory[air.origin + i] = raw;
+        try runtime.setMemory(@intCast(air.origin + i), raw);
     }
 }
 

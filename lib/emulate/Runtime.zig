@@ -145,7 +145,7 @@ pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !voi
     const words = metadata.size / 2 - 1;
     while (i < words) : (i += 1) {
         const raw = try reader.interface.takeInt(u16, .big);
-        runtime.state.memory[origin + i] = raw;
+        try runtime.setMemory(@intCast(origin + i), raw);
     }
 }
 
@@ -343,12 +343,12 @@ fn setRegister(runtime: *Runtime, register: u3, value: u16) void {
             .positive;
 }
 
-fn getMemory(runtime: *Runtime, address: u16) error{UnpermittedMemoryAccess}!u16 {
+pub fn getMemory(runtime: *Runtime, address: u16) error{UnpermittedMemoryAccess}!u16 {
     try checkMemoryAccess(address);
     return runtime.state.memory[address];
 }
 
-fn setMemory(runtime: *Runtime, address: u16, value: u16) error{UnpermittedMemoryAccess}!void {
+pub fn setMemory(runtime: *Runtime, address: u16, value: u16) error{UnpermittedMemoryAccess}!void {
     try checkMemoryAccess(address);
     runtime.state.memory[address] = value;
 }
