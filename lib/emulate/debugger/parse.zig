@@ -73,7 +73,7 @@ const Parser = struct {
             => |void_tag| @unionInit(Command.Value, @tagName(void_tag), {}),
 
             .print => .{ .print = .{
-                .location = try parser.nextLocation(),
+                .location = try parser.nextOptionalLocation(),
             } },
             .list => .{ .list = .{
                 .start = try parser.nextOptionalMemoryLocation(),
@@ -190,23 +190,32 @@ const Parser = struct {
                 .eol = .endOf(parser.source),
             }).abort(),
         };
+        const value = try parser.parseLocation(argument);
+        return .{ .span = argument, .value = value };
+    }
 
-        if (parsing.tryRegister(argument.view(parser.source))) |register|
-            return .{ .span = argument, .value = .{ .register = register } };
+    fn nextOptionalLocation(
+        parser: *Parser,
+    ) error{Reported}!Spanned(Command.Location) {
+        const argument = parser.next() catch |err| switch (err) {
+            error.Eof => return .{
+                .value = .{ .memory = .{ .pc_offset = 0 } },
+                .span = .endOf(parser.source),
+            },
+        };
 
-        if (try parser.parseMemoryLocation(argument)) |memory|
-            return .{ .span = argument, .value = .{ .memory = memory } };
-
-        try parser.reporter.report(.debugger_invalid_argument_kind, .{
-            .found = argument,
-        }).abort();
+        const value = try parser.parseLocation(argument);
+        return .{ .span = argument, .value = value };
     }
 
     fn nextOptionalMemoryLocation(
         parser: *Parser,
     ) error{Reported}!Spanned(Command.Location.Memory) {
         const argument = parser.next() catch |err| switch (err) {
-            error.Eof => return .{ .value = .{ .pc_offset = 0 }, .span = .endOf(parser.source) },
+            error.Eof => return .{
+                .value = .{ .pc_offset = 0 },
+                .span = .endOf(parser.source),
+            },
         };
 
         // TODO: Report, if is register
@@ -277,6 +286,17 @@ const Parser = struct {
                 }).abort();
             },
         };
+    }
+
+    fn parseLocation(parser: *Parser, argument: Span) error{Reported}!Command.Location {
+        if (parsing.tryRegister(argument.view(parser.source))) |register|
+            return .{ .register = register };
+        if (try parser.parseMemoryLocation(argument)) |memory|
+            return .{ .memory = memory };
+
+        try parser.reporter.report(.debugger_invalid_argument_kind, .{
+            .found = argument,
+        }).abort();
     }
 
     fn parseMemoryLocation(
