@@ -417,6 +417,7 @@ The policies in each category are as follows:
     - `explicit_trap_instructions`: Allow `trap` instruction with explicit vector literals.
     - `unknown_trap_vectors`: Allow explicit trap instructions with unknown vector literals.
     - `unused_label_definitions`: Allow label definitions with no references.
+      Labels beginning with `_` are unaffected; see [label types].
 - `style`:
     - `undesirable_integer_forms`: Allow integer syntax which goes against style guide.
     - `missing_operand_commas`: Don't require commas between operands.
@@ -451,6 +452,10 @@ set. These sets are typically used for compatibility with other toolchains.
 - Example: [ELCI integration]
 - See also: [trap aliases]
 - See also: [extension traps]
+
+## Labels Types
+- unused labels (`_` prefix)
+- breakpoint labels (`__` prefix)
 
 ## Runtime Hooks
 - How to define runtime hooks
