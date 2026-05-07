@@ -43,6 +43,7 @@
         - [Categories](#categories)
         - [Predefined policy sets](#predefined-policy-sets)
     - Custom Traps
+    - Labels Types
     - Runtime Hooks
 - ELK Extensions to LC-3
     - Stack Instructions
