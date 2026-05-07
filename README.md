@@ -68,8 +68,8 @@ sudo install <filename> /usr/local/bin/elk
 # Contributors
 
 > Want to contribute? Check out the
-> [open issues](https://codeberg.org/dxrcy/elk/issues), or share your own ideas!
-> 😀
+> [open issues](https://codeberg.org/dxrcy/elk/issues?q=&sort=recentupdate&labels=1354878),
+> or share your own ideas! 😀
 
 <!-- Codeberg has no equivalent -->
 <a href="https://github.com/dxrcy/elk/graphs/contributors">

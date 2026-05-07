@@ -677,6 +677,6 @@ download ELK.
 ---
 
 > Want to contribute? Check out the
-> [open issues](https://codeberg.org/dxrcy/elk/issues), or share your own ideas!
-> 😀
+> [open issues](https://codeberg.org/dxrcy/elk/issues?q=&sort=recentupdate&labels=1354878),
+> or share your own ideas! 😀
 
