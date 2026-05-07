@@ -33,9 +33,15 @@ pub const Label = struct {
 
     pub const Kind = enum {
         normal,
+        unused,
         breakpoint,
+
         pub fn from(string: []const u8) Kind {
-            return if (std.mem.startsWith(u8, string, "__")) .breakpoint else .normal;
+            if (std.mem.startsWith(u8, string, "__"))
+                return .breakpoint;
+            if (std.mem.startsWith(u8, string, "_"))
+                return .unused;
+            return .normal;
         }
     };
 };

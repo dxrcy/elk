@@ -39,11 +39,14 @@ pub fn hasUppercaseAlpha(string: []const u8) bool {
 
 /// Allows single `_` to delimit words.
 /// Allows `[0-9]` in any place uppercase OR lowercase is allowed, but not BEFORE lowercase.
-/// Additionally, allows `__` as a prefix.
+/// Additionally, allows `_` or `__` as a prefix (but NO more underscores).
 pub fn isPascalCase(string: []const u8) bool {
     assert(string.len > 0);
 
-    const body = std.mem.cutPrefix(u8, string, "__") orelse string;
+    const body =
+        std.mem.cutPrefix(u8, string, "__") orelse
+        std.mem.cutPrefix(u8, string, "_") orelse
+        string;
 
     const Char = enum { none, upper, lower, digit, delim };
     var previous: Char = .none;
