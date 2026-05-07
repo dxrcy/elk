@@ -59,12 +59,10 @@
     - [Install from source](#install-from-source)
     - [Install with system package manager](#install-with-system-package-manager)
 - [Editor Integration](#editor-integration)
+    - [VSCode](#vscode)
     - [Neovim](#neovim)
         - [Diagnostics](#diagnostics)
         - [Syntax Highlighting](#syntax-highlighting)
-    - [VSCode](#vscode)
-        - [Diagnostics](#diagnostics-1)
-        - [Syntax Highlighting](#syntax-highlighting-1)
 
 See also: [ELK Style Guide](#STYLE.md).
 
@@ -545,6 +543,24 @@ sudo install zig-out/bin/elk /usr/local/bin/
 
 # Editor Integration
 
+## Vscode
+
+To set up *everything*, install the **LC-3 Extension Pack**, via:
+- **[Open VSX](https://open-vsx.org/vscode/item?itemName=twhlynch.lc3-extension-pack)
+    (recommended)**
+- [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=twhlynch.lc3-extension-pack)
+- [GitHub](https://github.com/twhlynch/lc3-extension-pack)
+
+This pack includes:
+- [x] [Syntax highlighting](https://github.com/twhlynch/lc3-assembly-syntax)
+- [x] [ELK diagnostics](https://github.com/twhlynch/lc3-elk-diagnostics)
+- [x] [Code snippets](https://github.com/twhlynch/lc3-assembly-snippets)
+
+> *ELK diagnostics* will automatically install the
+> [latest version of ELK](https://github.com/dxrcy/elk/releases)
+> from GitHub if no suitable `elk` executable is found.
+> **The other extensions do not depend on ELK.**
+
 ## Neovim
 
 Before setting up [syntax highlighting](#syntax-highlighting) or
@@ -653,26 +669,6 @@ return {
 > `nvim-treesitter`.
 > This option may be preferable for a simpler setup or if you are following a
 > different case convention.
-
-## Vscode
-
-<!-- TODO: Add link to extension pack -->
-
-### Diagnostics
-
-Install the [ELK Diagnostics](https://github.com/twhlynch/lc3-elk-diagnostics)
-VSCode Extension.
-This will automatically install the
-[latest version of ELK](https://github.com/dxrcy/elk/releases) from GitHub if
-a suitable `elk` executable is not found.
-
-### Syntax Highlighting
-
-Install the
-[ELK Syntax Highlighting](https://github.com/twhlynch/lc3-assembly-syntax)
-VSCode Extension.
-This extension does **not** require ELK to be installed, and it will **not**
-download ELK.
 
 ---
 
