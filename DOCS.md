@@ -56,10 +56,9 @@
     - Character integer literals
     - Multiple labels for one address
 - [Installation](#installation)
-    - [Install from official releases](#install-from-official-releases)
-    - [Install from source](#install-from-source)
     - [Install with Homebrew](#install-with-homebrew)
-    - [Install with system package manager](#install-with-system-package-manager)
+    - [Install from official binary release](#install-from-official-binary-release)
+    - [Install from source](#install-from-source)
 - [Editor Integration](#editor-integration)
     - [VSCode](#vscode)
     - [Neovim](#neovim)
@@ -496,7 +495,20 @@ set. These sets are typically used for compatibility with other toolchains.
 > [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) or similar
 > compatibility layer.
 
-## Install from official releases
+> ELK is currently not available via most system package managers (eg. `apt`)
+> (see [#50](https://codeberg.org/dxrcy/elk/issues/50)).
+> Contribution is very welcome!
+
+## Install with Homebrew
+
+ELK is available on [Homebrew](https://brew.sh) through the tap
+[`dxrcy/elk`](https://github.com/dxrcy/elk).
+
+```sh
+brew install dxrcy/elk/elk
+```
+
+## Install from official binary release
 
 **1. Download the latest binary release:**
 [available via GitHub releases](https://github.com/dxrcy/elk/releases).
@@ -536,21 +548,6 @@ zig build install -Doptimize=ReleaseSafe
 ```sh
 sudo install zig-out/bin/elk /usr/local/bin/
 ```
-
-## Install with Homebrew
-
-ELK is available on [Homebrew](https://brew.sh) through the tap
-[`dxrcy/elk`](https://github.com/dxrcy/elk).
-
-```sh
-brew install dxrcy/elk/elk
-```
-
-## Install with system package manager
-
-> ELK is currently not available via package managers such as `apt` or `pacman`
-> (see [#50](https://codeberg.org/dxrcy/elk/issues/50)).
-> Contribution is very welcome!
 
 # Editor Integration
 
