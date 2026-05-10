@@ -506,7 +506,7 @@ Recommended installation method:
 ## Install with Homebrew
 
 ELK is available on [Homebrew](https://brew.sh) through the tap
-[`dxrcy/elk`](https://github.com/dxrcy/elk).
+[`dxrcy/elk`](https://github.com/dxrcy/homebrew-elk).
 
 ```sh
 brew install dxrcy/elk/elk
