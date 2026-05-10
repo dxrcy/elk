@@ -10,7 +10,7 @@
 
     .dependencies = .{
         .mcz = .{
-            .url = "git+https://github.com/dxrcy/mcz#89104409aa94b4b7587a142229cdeaa4fa4f047d",
+            .url = "git+https://codeberg.org/dxrcy/mcz#89104409aa94b4b7587a142229cdeaa4fa4f047d",
             .hash = "mcz-0.1.0-kvwPQhu1AAAXmBTC5OSwCu3ZcTSLq7oD9nVjSjIN8LSk",
         },
     },
