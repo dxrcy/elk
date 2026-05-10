@@ -488,16 +488,20 @@ set. These sets are typically used for compatibility with other toolchains.
 
 # Installation
 
+Recommended installation method:
+- Linux / WSL users: [Install from official binary release](#install-from-official-binary-release)
+- MacOS users: [Install with Homebrew](#install-with-homebrew)
+
+> ELK is currently not available via most system package managers (eg. `apt`)
+> (see [#50](https://codeberg.org/dxrcy/elk/issues/50)).
+> Contribution is very welcome!
+
 > The instructions in this section are for POSIX sytems (Linux, MacOS, BSD,
 > etc).
 > ELK currently does not support Windows (see
 > [#20](https://codeberg.org/dxrcy/elk/issues/20)), but will work on Windows via
 > [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) or similar
 > compatibility layer.
-
-> ELK is currently not available via most system package managers (eg. `apt`)
-> (see [#50](https://codeberg.org/dxrcy/elk/issues/50)).
-> Contribution is very welcome!
 
 ## Install with Homebrew
 
