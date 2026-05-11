@@ -527,7 +527,7 @@ sudo install <filename> /usr/local/bin/elk
 - **b) OR for current user only:**
 ```sh
 mkdir ~/.local/bin/
-sudo install <filename> ~/.local/bin/elk
+install <filename> ~/.local/bin/elk
 ```
 
 ## Install from source
@@ -545,13 +545,10 @@ cd elk
 
 **3. Compile with Zig:**
 ```sh
-zig build install -Doptimize=ReleaseSafe
+zig build install -Doptimize=ReleaseSafe --prefix ~/.local/
 ```
 
-**4. Install compiled binary to system path:**
-```sh
-install zig-out/bin/elk ~/.local/bin/
-```
+> This will install ELK at `$HOME/.local/bin/elk`.
 
 # Editor Integration
 

@@ -49,7 +49,7 @@ elk hello.obj --emulate
 2. Install the downloaded file to your PATH:
 
 ```sh
-sudo install <filename> /usr/local/bin/elk
+install <filename> ~/.local/bin/elk
 ```
 
 # Learn More
