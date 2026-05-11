@@ -20,8 +20,8 @@ jobs:
         run: |
           gh release create "${{ github.ref_name }}" \
             --repo "${{ github.repository }}" \
-            --title "${{ github.ref_name }}" \
-            --notes "Release in progress..." \
+            --title "${{ github.ref_name }} (DRAFT)" \
+            --notes "Release is awaiting validation..." \
             --draft
 
   publish:
