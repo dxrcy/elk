@@ -87,7 +87,6 @@ jobs:
     name: Update homebrew tap
     needs: upload-and-finalize
     runs-on: ubuntu-latest
-    if: ${{ !contains(github.ref, '-mc') }}
     steps:
       - name: Checkout homebrew tap
         uses: actions/checkout@v4
@@ -102,12 +101,15 @@ jobs:
       - name: Write version.json
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          jq -n \
+          BUILD="base"
+          [[ "$GITHUB_REF_NAME" == *-mc ]] && BUILD="mc"
+          jq \
             --arg version "$VERSION" \
+            --arg build "$BUILD" \
             --arg arm64  "$(sha256sum artifacts/${{ github.event.repository.name }}-macos-arm64 | cut -d' ' -f1)" \
             --arg x64mac "$(sha256sum artifacts/${{ github.event.repository.name }}-macos-x64   | cut -d' ' -f1)" \
             --arg x64lin "$(sha256sum artifacts/${{ github.event.repository.name }}-linux-x64   | cut -d' ' -f1)" \
-            '.version = $version | .sha256.base = {"macos-arm64": $arm64, "macos-x64": $x64mac, "linux-x64": $x64lin}' \
+            '.version = $version | .sha256[$build] = {"macos-arm64": $arm64, "macos-x64": $x64mac, "linux-x64": $x64lin}' \
             version.json > version.json.tmp && mv version.json.tmp version.json
       - name: Commit and push
         run: |
