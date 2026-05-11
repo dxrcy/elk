@@ -76,8 +76,12 @@ install <filename> ~/.local/bin/elk
     <img src="https://contrib.rocks/image?repo=dxrcy/elk" />
 </a>
 
-- Thanks to [@twhlynch](https://github.com/twhlynch) for providing editor
-  integration for Neovim and VSCode!
+Additional thanks to:
+- [@twhlynch](https://github.com/twhlynch) for providing
+    [editor integration for Neovim and
+    VSCode](https://codeberg.org/dxrcy/elk/src/branch/master/DOCS.md#editor-integration).
+- [@ida5428](https://github.com/ida5428) for helping with
+    [Homebrew distribution](https://github.com/dxrcy/homebrew-elk).
 
 # Usage Examples
 
