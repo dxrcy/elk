@@ -550,7 +550,7 @@ zig build install -Doptimize=ReleaseSafe
 
 **4. Install compiled binary to system path:**
 ```sh
-sudo install zig-out/bin/elk /usr/local/bin/
+install zig-out/bin/elk ~/.local/bin/
 ```
 
 # Editor Integration
