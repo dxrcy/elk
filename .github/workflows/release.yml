@@ -109,7 +109,10 @@ jobs:
             --arg arm64  "$(sha256sum artifacts/${{ github.event.repository.name }}-macos-arm64 | cut -d' ' -f1)" \
             --arg x64mac "$(sha256sum artifacts/${{ github.event.repository.name }}-macos-x64   | cut -d' ' -f1)" \
             --arg x64lin "$(sha256sum artifacts/${{ github.event.repository.name }}-linux-x64   | cut -d' ' -f1)" \
-            '.version = $version | .sha256[$build] = {"macos-arm64": $arm64, "macos-x64": $x64mac, "linux-x64": $x64lin}' \
+            '.[$build] = {
+                "version": $version,
+                "sha256": {"macos-arm64": $arm64, "macos-x64": $x64mac, "linux-x64": $x64lin}
+            }' \
             version.json > version.json.tmp && mv version.json.tmp version.json
       - name: Commit and push
         run: |
