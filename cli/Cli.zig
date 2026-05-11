@@ -23,6 +23,7 @@ const info = struct {
     const help =
         program ++ " " ++ version ++ " by " ++ zon.author ++ ".\n" ++
         zon.description ++ " " ++ zon.homepage ++
+        "\n== This build includes ELCI integration! ==" ++
         "\n\n" ++ "USAGE:" ++
         "\n    " ++ program ++ " INPUT [OPERATION] [...OPTIONS]" ++
         "\n\n" ++ @embedFile("help.txt"); // Includes trailing newline
