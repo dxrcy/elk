@@ -512,10 +512,15 @@ ELK is available on [Homebrew](https://brew.sh) through the tap
 brew install dxrcy/elk/elk
 ```
 
+> Note: To install the **ELCI** build, use `brew install dxrcy/elk/elk-mc`
+
 ## Install from official binary release
 
 **1. Download the latest binary release:**
 [available via GitHub releases](https://github.com/dxrcy/elk/releases).
+
+> Note: To install the **ELCI** build, download the latest *Minecraft* release
+> (release tag ending in `-mc`).
 
 **2. Install the downloaded file to your PATH**:
 
@@ -526,7 +531,7 @@ sudo install <filename> /usr/local/bin/elk
 
 - **b) OR for current user only:**
 ```sh
-mkdir ~/.local/bin/
+mkdir -p ~/.local/bin/
 install <filename> ~/.local/bin/elk
 ```
 
@@ -542,6 +547,8 @@ install <filename> ~/.local/bin/elk
 git clone https://codeberg.org/dxrcy/elk
 cd elk
 ```
+
+> Note: To install the **ELCI** build, run `git checkout minecraft` after cloning.
 
 **3. Compile with Zig:**
 ```sh
