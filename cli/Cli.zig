@@ -162,10 +162,7 @@ fn parseTrapAliases(dest: *anyopaque, src: []const u8) error{ParseFailed}!void {
     }
 }
 
-pub fn parse(gpa: Allocator, args: []const []const u8) !Cli {
-    var temp_arena = std.heap.ArenaAllocator.init(gpa);
-    defer temp_arena.deinit();
-
+pub fn parse(arena: Allocator, args: []const []const u8) !Cli {
     if (zilc.getMetaArg(args)) |meta| {
         switch (meta) {
             .help => {
@@ -179,8 +176,8 @@ pub fn parse(gpa: Allocator, args: []const []const u8) !Cli {
         }
     }
 
-    var options: zilc.Options(template) = try .parse(temp_arena.allocator(), args);
-    defer options.deinit(temp_arena.allocator());
+    var options: zilc.Options(template) = try .parse(arena, args);
+    defer options.deinit(arena);
 
     const unimplemented_args = [_][]const u8{
         "format",

@@ -119,7 +119,6 @@ fn FlagValues(comptime template: anytype) type {
 pub fn collectArgs(arena: Allocator, args: std.process.Args) !std.ArrayList([]const u8) {
     var list = std.ArrayList([]const u8).empty;
     var iter = try args.iterateAllocator(arena);
-    defer iter.deinit();
 
     _ = iter.next();
     while (iter.next()) |arg| {
