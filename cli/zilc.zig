@@ -33,8 +33,8 @@ pub const types = struct {
     pub const string: Flag.Value = .{
         .type = []const u8,
         .parser = struct {
-            fn parser(dest: *anyopaque, src: *const []const u8) !void {
-                cast([]const u8, dest).* = src.*;
+            fn parser(dest: *anyopaque, src: []const u8) !void {
+                cast([]const u8, dest).* = src;
             }
         }.parser,
     };
@@ -42,9 +42,9 @@ pub const types = struct {
     pub const integer: Flag.Value = .{
         .type = i32,
         .parser = struct {
-            fn parser(dest: *anyopaque, src: *const []const u8) !void {
+            fn parser(dest: *anyopaque, src: []const u8) !void {
                 cast(i32, dest).* =
-                    std.fmt.parseInt(i32, src.*, 10) catch
+                    std.fmt.parseInt(i32, src, 10) catch
                         return error.ParseFailed;
             }
         }.parser,
@@ -53,9 +53,9 @@ pub const types = struct {
     pub const path: Flag.Value = .{
         .type = Path,
         .parser = struct {
-            fn parser(dest: *anyopaque, src: *const []const u8) !void {
+            fn parser(dest: *anyopaque, src: []const u8) !void {
                 cast(Path, dest).* =
-                    if (std.mem.eql(u8, src.*, "-")) .stdio else .{ .regular = src.* };
+                    if (std.mem.eql(u8, src, "-")) .stdio else .{ .regular = src };
             }
         }.parser,
     };
@@ -85,7 +85,7 @@ pub const Flag = struct {
     const Value = struct {
         type: type,
         parser: Parser,
-        const Parser = fn (dest: *anyopaque, src: *const []const u8) error{ParseFailed}!void;
+        const Parser = fn (dest: *anyopaque, src: []const u8) error{ParseFailed}!void;
     };
 };
 
@@ -306,8 +306,7 @@ fn parseFlagValues(
                 continue;
             };
 
-            const value_raw = args[value_index];
-            try parser(field, &value_raw);
+            try parser(field, args[value_index]);
         } else {
             const field_bool: *bool = @ptrCast(field);
             field_bool.* = true;

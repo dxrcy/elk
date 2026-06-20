@@ -99,10 +99,7 @@ const template = .{
     },
     .trap_aliases = zilc.Flag{
         .long = "trap-aliases",
-        // TODO:
-        .value = zilc.types.string,
-        // .value = elk.Traps,
-        // .value_parser = parseTrapAliases,
+        .value = .{ .type = elk.Traps, .parser = parseTrapAliases },
     },
 
     .debug = zilc.Flag{
@@ -137,34 +134,30 @@ const template = .{
     .permit = zilc.Flag{
         .short = 'p',
         .long = "permit",
-        // TODO:
-        .value = zilc.types.string,
-        // .value = elk.Policies,
-        // .value_parser = parsePolicies,
+        .value = .{ .type = elk.Policies, .parser = parsePolicies },
     },
 };
 
-fn parsePolicies(string: []const u8, value: *anyopaque) error{InvalidArgumentValue}!void {
-    const policies: *elk.Policies = @ptrCast(@alignCast(value));
-
-    policies.* = elk.Policies.parseList(string) catch
-        return error.InvalidArgumentValue;
+fn parsePolicies(dest: *anyopaque, src: []const u8) error{ParseFailed}!void {
+    const policies: *elk.Policies = @ptrCast(@alignCast(dest));
+    policies.* = elk.Policies.parseList(src) catch
+        return error.ParseFailed;
 }
 
-fn parseTrapAliases(string: []const u8, value: *anyopaque) error{InvalidArgumentValue}!void {
-    const traps: *elk.Traps = @ptrCast(@alignCast(value));
+fn parseTrapAliases(dest: *anyopaque, src: []const u8) error{ParseFailed}!void {
+    const traps: *elk.Traps = @ptrCast(@alignCast(dest));
     traps.* = .{ .entries = @splat(.unset) };
 
-    var items = std.mem.tokenizeScalar(u8, string, ',');
+    var items = std.mem.tokenizeScalar(u8, src, ',');
     while (items.next()) |item| {
         const alias, const vect_string = std.mem.cut(u8, item, "=x") orelse
-            return error.InvalidArgumentValue;
+            return error.ParseFailed;
         const vect = std.fmt.parseInt(u8, vect_string, 16) catch
-            return error.InvalidArgumentValue;
+            return error.ParseFailed;
 
         const entry: elk.Traps.Entry = .{ .alias = alias, .callback = null };
         if (!traps.canRegister(vect, entry))
-            return error.InvalidArgumentValue;
+            return error.ParseFailed;
         traps.register(vect, entry);
     }
 }
@@ -235,11 +228,11 @@ pub fn parse(gpa: Allocator, args: []const []const u8) !Cli {
     if (zilc.getMetaArg(args)) |meta| {
         switch (meta) {
             .help => {
-                std.debug.print("(help message)\n", .{});
+                std.debug.print(info.help ++ "\n", .{});
                 return error.DisplayMetadata;
             },
             .version => {
-                std.debug.print("(version message)\n", .{});
+                std.debug.print("{s}: {s}\n", .{ info.program, info.version });
                 return error.DisplayMetadata;
             },
         }
@@ -251,8 +244,7 @@ pub fn parse(gpa: Allocator, args: []const []const u8) !Cli {
     const operation = try parseOperation(&options);
     return .{
         .operation = operation,
-        // TODO:
-        .policies = .none,
+        .policies = if (options.flags.permit) |policies| policies else .none,
         .strictness = if (options.flags.strict)
             .strict
         else if (options.flags.relaxed)
