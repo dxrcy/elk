@@ -375,7 +375,7 @@ pub fn checkConflicts(
     }
 }
 
-fn isFlagSet(value: anytype) bool {
+pub fn isFlagSet(value: anytype) bool {
     return switch (@typeInfo(@TypeOf(value))) {
         .bool => value,
         .optional => value != null,

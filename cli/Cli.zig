@@ -162,65 +162,6 @@ fn parseTrapAliases(dest: *anyopaque, src: []const u8) error{ParseFailed}!void {
     }
 }
 
-pub fn parse_old(iter: *std.process.Args.Iterator) error{ ParseFailed, DisplayMetadata, UnimplementedFeature }!Cli {
-    const args = zilc.parse(template, iter) catch |err| switch (err) {
-        error.Empty,
-        error.Help,
-        => {
-            std.debug.print(info.help ++ "\n", .{});
-            return error.DisplayMetadata;
-        },
-        error.Version => {
-            std.debug.print("{s}: {s}\n", .{ info.program, info.version });
-            return error.DisplayMetadata;
-        },
-        else => |err2| return err2,
-    };
-
-    const unimplemented_args = [_][]const u8{
-        "format",
-        "lsp",
-    };
-    for (unimplemented_args) |name| {
-        inline for (@typeInfo(@TypeOf(args.named)).@"struct".fields) |field| {
-            if (std.mem.eql(u8, field.name, name) and
-                zilc.isValueSet(@field(args.named, field.name)))
-            {
-                log.err("unimplemented feature: {s}", .{field.name});
-                return error.UnimplementedFeature;
-            }
-        }
-    }
-
-    if (args.positional.input == .stdio and args.named.clean) {
-        log.err("unsupported stdin input path for operation", .{});
-        return error.ParseFailed;
-    }
-
-    if (args.positional.input == .stdio) {
-        log.err("unimplemented feature: stdin input path", .{});
-        return error.UnimplementedFeature;
-    }
-    if (args.named.output != null and args.named.output.? == .stdio) {
-        log.err("unimplemented feature: stdout output path", .{});
-        return error.UnimplementedFeature;
-    }
-
-    const operation = try parseOperation(&args);
-
-    return .{
-        .operation = operation,
-        .policies = args.named.permit orelse .none,
-        .strictness = if (args.named.strict)
-            .strict
-        else if (args.named.relaxed)
-            .relaxed
-        else
-            .normal,
-        .verbosity = if (args.named.quiet) .quiet else .normal,
-    };
-}
-
 pub fn parse(gpa: Allocator, args: []const []const u8) !Cli {
     var temp_arena = std.heap.ArenaAllocator.init(gpa);
     defer temp_arena.deinit();
@@ -240,6 +181,29 @@ pub fn parse(gpa: Allocator, args: []const []const u8) !Cli {
 
     var options: zilc.Options(template) = try .parse(temp_arena.allocator(), args);
     defer options.deinit(temp_arena.allocator());
+
+    const unimplemented_args = [_][]const u8{
+        "format",
+        "lsp",
+    };
+    for (unimplemented_args) |name| {
+        inline for (@typeInfo(@TypeOf(options.flags)).@"struct".fields) |field| {
+            if (std.mem.eql(u8, field.name, name) and
+                zilc.isFlagSet(@field(options.flags, field.name)))
+            {
+                log.err("unimplemented feature: {s}", .{field.name});
+                return error.UnimplementedFeature;
+            }
+        }
+    }
+
+    // TODO: Check input is not stdio for `clean`
+
+    // TODO: Same check for input
+    if (options.flags.output != null and options.flags.output.? == .stdio) {
+        log.err("unimplemented feature: stdout output path", .{});
+        return error.UnimplementedFeature;
+    }
 
     const operation = try parseOperation(&options);
     return .{
