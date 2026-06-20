@@ -1,3 +1,6 @@
+//! File copied from [dxrcy/zilc](https://codeberg.org/dxrcy/zilc).
+//! May replace with proper package if zilc is updated.
+
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 const Writer = std.Io.Writer;
