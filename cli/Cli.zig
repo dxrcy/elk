@@ -1,19 +1,12 @@
 const Cli = @This();
 
 const std = @import("std");
-const Io = std.Io;
-const assert = std.debug.assert;
-const ArgIterator = std.process.Args.Iterator;
+const Allocator = std.mem.Allocator;
 
 const elk = @import("elk");
-const templating = @import("templating.zig");
+const zilc = @import("zilc.zig");
 
 const log = std.log.scoped(.cli);
-
-operation: Operation,
-policies: elk.Policies,
-strictness: elk.reporting.Options.Strictness,
-verbosity: elk.reporting.Options.Verbosity,
 
 const info = struct {
     const zon = @import("build_zon");
@@ -29,19 +22,27 @@ const info = struct {
         "\n\n" ++ @embedFile("help.txt"); // Includes trailing newline
 };
 
+operation: Operation,
+policies: elk.Policies,
+strictness: elk.reporting.Options.Strictness,
+verbosity: elk.reporting.Options.Verbosity,
+
+// TODO: Use `zilc.types.Path`
+const Path = []const u8;
+
 const Operation = union(enum) {
     assemble_emulate: struct {
-        input: templating.Path,
+        input: Path,
         debug: ?Debug,
     },
     assemble: struct {
-        input: templating.Path,
-        output: ?templating.Path,
+        input: Path,
+        output: ?zilc.types.Path,
         output_mode: enum { none, assembly, symbols, listing },
         trap_aliases: ?elk.Traps,
     },
     emulate: struct {
-        input: templating.Path,
+        input: Path,
         debug: ?Debug,
         import_symbols: ?[]const u8,
     },
@@ -49,8 +50,8 @@ const Operation = union(enum) {
         input: []const u8,
     },
     format: struct {
-        input: templating.Path,
-        output: ?templating.Path,
+        input: Path,
+        output: ?zilc.types.Path,
         trap_aliases: ?elk.Traps,
     },
     lsp: struct {},
@@ -61,91 +62,85 @@ pub const Debug = struct {
     history_file: ?[]const u8,
 };
 
-const Args = templating.Args(template);
-
 const template = .{
-    .positional = .{
-        .input = templating.PositionalListing{
-            .value = templating.Path,
-        },
+    .assemble = zilc.Flag{
+        .short = 'a',
+        .long = "assemble",
+    },
+    .emulate = zilc.Flag{
+        .short = 'e',
+        .long = "emulate",
+    },
+    .check = zilc.Flag{
+        .short = 'c',
+        .long = "check",
+    },
+    .clean = zilc.Flag{
+        .long = "clean",
+    },
+    .format = zilc.Flag{
+        .long = "format",
+    },
+    .lsp = zilc.Flag{
+        .long = "lsp",
     },
 
-    .named = .{
-        .assemble = templating.NamedListing{
-            .short = 'a',
-            .long = "assemble",
-        },
-        .emulate = templating.NamedListing{
-            .short = 'e',
-            .long = "emulate",
-        },
-        .check = templating.NamedListing{
-            .short = 'c',
-            .long = "check",
-        },
-        .clean = templating.NamedListing{
-            .long = "clean",
-        },
-        .format = templating.NamedListing{
-            .long = "format",
-        },
-        .lsp = templating.NamedListing{
-            .long = "lsp",
-        },
+    .output = zilc.Flag{
+        .short = 'o',
+        .long = "output",
+        .value = zilc.types.path,
+    },
 
-        .output = templating.NamedListing{
-            .short = 'o',
-            .long = "output",
-            .value = templating.Path,
-        },
+    .export_symbols = zilc.Flag{
+        .long = "export-symbols",
+    },
+    .export_listing = zilc.Flag{
+        .long = "export-listing",
+    },
+    .trap_aliases = zilc.Flag{
+        .long = "trap-aliases",
+        // TODO:
+        .value = zilc.types.string,
+        // .value = elk.Traps,
+        // .value_parser = parseTrapAliases,
+    },
 
-        .export_symbols = templating.NamedListing{
-            .long = "export-symbols",
-        },
-        .export_listing = templating.NamedListing{
-            .long = "export-listing",
-        },
-        .trap_aliases = templating.NamedListing{
-            .long = "trap-aliases",
-            .value = elk.Traps,
-            .value_parser = parseTrapAliases,
-        },
+    .debug = zilc.Flag{
+        .short = 'd',
+        .long = "debug",
+    },
 
-        .debug = templating.NamedListing{
-            .short = 'd',
-            .long = "debug",
-        },
+    .commands = zilc.Flag{
+        .short = 'C',
+        .long = "commands",
+        .value = zilc.types.string,
+    },
+    .history_file = zilc.Flag{
+        .long = "history-file",
+        .value = zilc.types.string,
+    },
+    .import_symbols = zilc.Flag{
+        .long = "import-symbols",
+        .value = zilc.types.string,
+    },
 
-        .commands = templating.NamedListing{
-            .short = 'C',
-            .long = "commands",
-            .value = []const u8,
-        },
-        .history_file = templating.NamedListing{
-            .long = "history-file",
-            .value = []const u8,
-        },
-        .import_symbols = templating.NamedListing{
-            .long = "import-symbols",
-            .value = []const u8,
-        },
-
-        .strict = templating.NamedListing{
-            .long = "strict",
-        },
-        .relaxed = templating.NamedListing{
-            .long = "relaxed",
-        },
-        .quiet = templating.NamedListing{
-            .short = 'q',
-            .long = "quiet",
-        },
-        .permit = templating.NamedListing{
-            .short = 'p',
-            .long = "permit",
-            .value = elk.Policies,
-            .value_parser = parsePolicies,
-        },
+    .strict = zilc.Flag{
+        .long = "strict",
+    },
+    .relaxed = zilc.Flag{
+        .long = "relaxed",
+    },
+    .quiet = zilc.Flag{
+        .short = 'q',
+        .long = "quiet",
+    },
+    .permit = zilc.Flag{
+        .short = 'p',
+        .long = "permit",
+        // TODO:
+        .value = zilc.types.string,
+        // .value = elk.Policies,
+        // .value_parser = parsePolicies,
     },
 };
 
@@ -174,8 +169,8 @@ fn parseTrapAliases(string: []const u8, value: *anyopaque) error{InvalidArgument
     }
 }
 
-pub fn parse(iter: *ArgIterator) error{ ParseFailed, DisplayMetadata, UnimplementedFeature }!Cli {
-    const args = templating.parse(template, iter) catch |err| switch (err) {
+pub fn parse_old(iter: *std.process.Args.Iterator) error{ ParseFailed, DisplayMetadata, UnimplementedFeature }!Cli {
+    const args = zilc.parse(template, iter) catch |err| switch (err) {
         error.Empty,
         error.Help,
         => {
@@ -196,7 +191,7 @@ pub fn parse(iter: *ArgIterator) error{ ParseFailed, DisplayMetadata, Unimplemen
     for (unimplemented_args) |name| {
         inline for (@typeInfo(@TypeOf(args.named)).@"struct".fields) |field| {
             if (std.mem.eql(u8, field.name, name) and
-                templating.isValueSet(@field(args.named, field.name)))
+                zilc.isValueSet(@field(args.named, field.name)))
             {
                 log.err("unimplemented feature: {s}", .{field.name});
                 return error.UnimplementedFeature;
@@ -233,116 +228,107 @@ pub fn parse(iter: *ArgIterator) error{ ParseFailed, DisplayMetadata, Unimplemen
     };
 }
 
-fn parseOperation(args: *const Args) error{ParseFailed}!Operation {
-    try checkGroup(.operation, enum { assemble, emulate, check, clean, format, lsp }, args);
+pub fn parse(gpa: Allocator, args: []const []const u8) !Cli {
+    var temp_arena = std.heap.ArenaAllocator.init(gpa);
+    defer temp_arena.deinit();
 
-    if (args.named.debug)
-        try checkConflicts(.debug, &.{}, &.{ .assemble, .check, .clean, .format, .lsp }, args);
-
-    if (args.named.assemble) {
-        return .{ .assemble = .{
-            .input = args.positional.input,
-            .output = args.named.output,
-            .output_mode = if (args.named.export_symbols)
-                .symbols
-            else if (args.named.export_listing)
-                .listing
-            else
-                .assembly,
-            .trap_aliases = args.named.trap_aliases,
-        } };
+    if (zilc.getMetaArg(args)) |meta| {
+        switch (meta) {
+            .help => {
+                std.debug.print("(help message)\n", .{});
+                return error.DisplayMetadata;
+            },
+            .version => {
+                std.debug.print("(version message)\n", .{});
+                return error.DisplayMetadata;
+            },
+        }
     }
 
-    if (args.named.emulate) {
+    var options: zilc.Options(template) = try .parse(temp_arena.allocator(), args);
+    defer options.deinit(temp_arena.allocator());
+
+    const operation = try parseOperation(&options);
+    return .{
+        .operation = operation,
+        // TODO:
+        .policies = .none,
+        .strictness = if (options.flags.strict)
+            .strict
+        else if (options.flags.relaxed)
+            .relaxed
+        else
+            .normal,
+        .verbosity = if (options.flags.quiet) .quiet else .normal,
+    };
+}
+
+fn parseOperation(options: *const zilc.Options(template)) !Operation {
+    try zilc.checkGroup(.operation, enum { assemble, emulate, check, clean, format, lsp }, &options.flags);
+
+    if (options.flags.debug)
+        try zilc.checkConflicts(.debug, &.{}, &.{ .assemble, .check, .clean, .format, .lsp }, &options.flags);
+
+    const input = try options.getPos(0, .input);
+
+    if (options.flags.assemble) {
+        return .{
+            .assemble = .{
+                .input = input,
+                .output = options.flags.output,
+                .output_mode = if (options.flags.export_symbols)
+                    .symbols
+                else if (options.flags.export_listing)
+                    .listing
+                else
+                    .assembly,
+                .trap_aliases = .{ .entries = @splat(.unset) },
+                // .trap_aliases = options.flags.trap_aliases,
+            },
+        };
+    }
+
+    if (options.flags.emulate) {
         return .{ .emulate = .{
-            .input = args.positional.input,
-            .debug = if (args.named.debug) .{
-                .commands = args.named.commands,
-                .history_file = args.named.history_file,
+            .input = input,
+            .debug = if (options.flags.debug) .{
+                .commands = options.flags.commands,
+                .history_file = options.flags.history_file,
             } else null,
-            .import_symbols = args.named.import_symbols,
+            .import_symbols = options.flags.import_symbols,
         } };
     }
 
-    if (args.named.check) {
+    if (options.flags.check) {
         return .{ .assemble = .{
-            .input = args.positional.input,
+            .input = input,
             .output = null,
             .output_mode = .none,
-            .trap_aliases = args.named.trap_aliases,
+            .trap_aliases = .{ .entries = @splat(.unset) },
         } };
     }
 
-    if (args.named.clean) {
+    if (options.flags.clean) {
         return .{ .clean = .{
-            .input = args.positional.input.asRegular() catch unreachable,
+            .input = input,
         } };
     }
 
-    if (args.named.format) {
+    if (options.flags.format) {
         return .{ .format = .{
-            .input = args.positional.input,
-            .output = args.named.output,
-            .trap_aliases = args.named.trap_aliases,
+            .input = input,
+            .output = options.flags.output,
+            .trap_aliases = .{ .entries = @splat(.unset) },
         } };
     }
 
-    return .{ .assemble_emulate = .{
-        .input = args.positional.input,
-        .debug = if (args.named.debug) .{
-            .commands = args.named.commands,
-            .history_file = args.named.history_file,
-        } else null,
-    } };
-}
-
-fn checkGroup(
-    comptime name: @EnumLiteral(),
-    comptime Group: type,
-    args: *const Args,
-) error{ParseFailed}!void {
-    const GroupFmt = struct {
-        pub fn format(_: @This(), writer: *Io.Writer) Io.Writer.Error!void {
-            for (std.meta.tags(Group), 0..) |tag, i| {
-                if (i > 0)
-                    try writer.print(", ", .{});
-                try writer.print("{t}", .{tag});
-            }
-        }
+    return .{
+        .assemble_emulate = .{
+            .input = input,
+            .debug = if (options.flags.debug) .{
+                .commands = options.flags.commands,
+                .history_file = options.flags.history_file,
+            } else null,
+        },
     };
-
-    var existing = false;
-    inline for (comptime std.meta.tags(Group)) |flag| {
-        if (templating.isValueSet(@field(args.named, @tagName(flag)))) {
-            if (existing) {
-                log.err(
-                    "multiple flags given for `{t}`: must be one of [{f}]",
-                    .{ name, GroupFmt{} },
-                );
-                return error.ParseFailed;
-            } else {
-                existing = true;
-            }
-        }
-    }
-}
-
-fn checkConflicts(
-    comptime name: @EnumLiteral(),
-    comptime requires: []const @EnumLiteral(),
-    comptime conflicts: []const @EnumLiteral(),
-    args: *const Args,
-) error{ParseFailed}!void {
-    inline for (requires) |require| {
-        if (templating.isValueSet(@field(args.named, @tagName(require)))) {
-            log.err("flag `{t}` cannot be used without required flag `{t}`", .{ name, require });
-            return error.ParseFailed;
-        }
-    }
-    inline for (conflicts) |conflict| {
-        if (templating.isValueSet(@field(args.named, @tagName(conflict)))) {
-            log.err("flag `{t}` cannot be used with conflicting flag `{t}`", .{ name, conflict });
-            return error.ParseFailed;
-        }
-    }
 }

@@ -6,6 +6,7 @@ const EnvironMap = std.process.Environ.Map;
 const elk = @import("elk");
 
 const Cli = @import("Cli.zig");
+const zilc = @import("zilc.zig");
 
 pub fn main(init: std.process.Init) !u8 {
     const io, const gpa = .{ init.io, init.gpa };
@@ -15,12 +16,12 @@ pub fn main(init: std.process.Init) !u8 {
     var sink = elk.reporting.Sink.Fancy.new(&reporter_writer.interface);
     var reporter = elk.reporting.Primary.new(sink.interface());
 
-    var args = try init.minimal.args.iterateAllocator(gpa);
-    defer args.deinit();
+    var args = try zilc.collectArgs(init.arena.allocator(), init.minimal.args);
+    defer args.deinit(init.arena.allocator());
 
-    const cli = Cli.parse(&args) catch |err| switch (err) {
+    const cli = Cli.parse(gpa, args.items) catch |err| switch (err) {
+        else => return err,
         error.DisplayMetadata => return 0,
-        error.ParseFailed, error.UnimplementedFeature => return 1,
     };
 
     reporter.options.strictness = cli.strictness;
@@ -37,7 +38,7 @@ pub fn main(init: std.process.Init) !u8 {
             var input_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
             const length = try Io.Dir.cwd().realPathFile(
                 io,
-                operation.input.asRegular() catch unreachable,
+                operation.input,
                 &input_path_buffer,
             );
             const input_path = input_path_buffer[0..length];
@@ -90,7 +91,7 @@ pub fn main(init: std.process.Init) !u8 {
         },
 
         .emulate => |operation| {
-            const input_path = operation.input.asRegular() catch unreachable;
+            const input_path = operation.input;
 
             var symbols: std.ArrayList(elk.Runtime.SymbolEntry) = .empty;
             defer symbols.deinit(gpa);
@@ -122,7 +123,7 @@ pub fn main(init: std.process.Init) !u8 {
             var input_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
             const length = try Io.Dir.cwd().realPathFile(
                 io,
-                operation.input.asRegular() catch unreachable,
+                operation.input,
                 &input_path_buffer,
             );
             const input_path = input_path_buffer[0..length];
