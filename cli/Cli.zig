@@ -149,8 +149,10 @@ fn parseTrapAliases(dest: *anyopaque, src: []const u8) error{ParseFailed}!void {
 
     var items = std.mem.tokenizeScalar(u8, src, ',');
     while (items.next()) |item| {
-        const alias, const vect_string = std.mem.cut(u8, item, "=") orelse
+        const alias_full, const vect_string_full = std.mem.cut(u8, item, "=") orelse
             return error.ParseFailed;
+        const alias = std.mem.trim(u8, alias_full, &std.ascii.whitespace);
+        const vect_string = std.mem.trim(u8, vect_string_full, &std.ascii.whitespace);
         const vect_integer = (elk.Parser.parseInteger(vect_string) catch
             return error.ParseFailed) orelse
             return error.ParseFailed;
