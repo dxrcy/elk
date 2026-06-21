@@ -19,12 +19,14 @@ pub fn main(init: std.process.Init) !u8 {
     var args = try zilc.collectArgs(init.arena.allocator(), init.minimal.args);
     defer args.deinit(init.arena.allocator());
 
-    var temp_arena = std.heap.ArenaAllocator.init(gpa);
-    const cli = Cli.parse(temp_arena.allocator(), args.items) catch |err| switch (err) {
-        else => return err,
-        error.DisplayMetadata => return 0,
+    const cli = blk: {
+        var temp_arena = std.heap.ArenaAllocator.init(gpa);
+        defer temp_arena.deinit();
+        break :blk Cli.parse(temp_arena.allocator(), args.items) catch |err| switch (err) {
+            else => return err,
+            error.DisplayMetadata => return 0,
+        };
     };
-    temp_arena.deinit();
 
     reporter.options.strictness = cli.strictness;
     reporter.options.verbosity = cli.verbosity;
