@@ -149,21 +149,28 @@ fn parseTrapAliases(dest: *anyopaque, src: []const u8) error{ParseFailed}!void {
 
     var items = std.mem.tokenizeScalar(u8, src, ',');
     while (items.next()) |item| {
-        const alias_full, const vect_string_full = std.mem.cut(u8, item, "=") orelse
+        const alias, const vect = parseTrapAliasEntry(item) orelse
             return error.ParseFailed;
-        const alias = std.mem.trim(u8, alias_full, &std.ascii.whitespace);
-        const vect_string = std.mem.trim(u8, vect_string_full, &std.ascii.whitespace);
-        const vect_integer = (elk.Parser.parseInteger(vect_string) catch
-            return error.ParseFailed) orelse
-            return error.ParseFailed;
-        const vect = vect_integer.castToSmaller(u8) catch
-            return error.ParseFailed;
-
         const entry: elk.Traps.Entry = .{ .alias = alias, .callback = null };
         if (!traps.canRegister(vect, entry))
             return error.ParseFailed;
         traps.register(vect, entry);
     }
+}
+
+fn parseTrapAliasEntry(item: []const u8) ?struct { []const u8, u8 } {
+    const parts = std.mem.cutScalar(u8, item, '=') orelse
+        return null;
+
+    const alias = std.mem.trim(u8, parts[0], &std.ascii.whitespace);
+    const vect_string = std.mem.trim(u8, parts[1], &std.ascii.whitespace);
+
+    const vect_integer = (elk.Parser.parseInteger(vect_string) catch
+        return null) orelse return null;
+    const vect = vect_integer.castToSmaller(u8) catch
+        return null;
+
+    return .{ alias, vect };
 }
 
 pub fn parse(arena: Allocator, args: []const []const u8) !Cli {
