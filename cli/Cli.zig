@@ -204,11 +204,6 @@ pub fn parse(arena: Allocator, args: []const []const u8) !Cli {
         }
     }
 
-    if (options.flags.output != null and options.flags.output.? == .stdio) {
-        log.err("unimplemented feature: stdout output path", .{});
-        return error.UnimplementedFeature;
-    }
-
     const operation = try parseOperation(&options);
     return .{
         .operation = operation,
