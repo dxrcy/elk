@@ -43,6 +43,7 @@
         - [Categories](#categories)
         - [Predefined policy sets](#predefined-policy-sets)
     - Custom Traps
+    - Labels Types
     - Runtime Hooks
 - ELK Extensions to LC-3
     - Stack Instructions
@@ -55,16 +56,14 @@
     - Character integer literals
     - Multiple labels for one address
 - [Installation](#installation)
-    - [Install from official releases](#install-from-official-releases)
+    - [Install with Homebrew](#install-with-homebrew)
+    - [Install from official binary release](#install-from-official-binary-release)
     - [Install from source](#install-from-source)
-    - [Install with system package manager](#install-with-system-package-manager)
 - [Editor Integration](#editor-integration)
+    - [VSCode](#vscode)
     - [Neovim](#neovim)
         - [Diagnostics](#diagnostics)
         - [Syntax Highlighting](#syntax-highlighting)
-    - [VSCode](#vscode)
-        - [Diagnostics](#diagnostics-1)
-        - [Syntax Highlighting](#syntax-highlighting-1)
 
 See also: [ELK Style Guide](#STYLE.md).
 
@@ -102,6 +101,9 @@ Turing-complete system capable of complex behaviour.
 > Note: This document is not an LC-3 tutorial.
 > This section will be written primarily implementation-nonspecific, however
 > the terminology used may be specific to ELK.
+
+ELK implements LC-3 according to
+*Patt & Patel, 2003 — Introduction to Computing Systems, ISBN 0-07-246750-9*.
 
 ## Assembly Overview
 
@@ -414,6 +416,7 @@ The policies in each category are as follows:
     - `explicit_trap_instructions`: Allow `trap` instruction with explicit vector literals.
     - `unknown_trap_vectors`: Allow explicit trap instructions with unknown vector literals.
     - `unused_label_definitions`: Allow label definitions with no references.
+      Labels beginning with `_` are unaffected; see [label types].
 - `style`:
     - `undesirable_integer_forms`: Allow integer syntax which goes against style guide.
     - `missing_operand_commas`: Don't require commas between operands.
@@ -449,6 +452,10 @@ set. These sets are typically used for compatibility with other toolchains.
 - See also: [trap aliases]
 - See also: [extension traps]
 
+## Labels Types
+- unused labels (`_` prefix)
+- breakpoint labels (`__` prefix)
+
 ## Runtime Hooks
 - How to define runtime hooks
 
@@ -481,6 +488,14 @@ set. These sets are typically used for compatibility with other toolchains.
 
 # Installation
 
+Recommended installation method:
+- Linux / WSL users: [Install from official binary release](#install-from-official-binary-release)
+- MacOS users: [Install with Homebrew](#install-with-homebrew)
+
+> ELK is currently not available via most system package managers (eg. `apt`)
+> (see [#50](https://codeberg.org/dxrcy/elk/issues/50)).
+> Contribution is very welcome!
+
 > The instructions in this section are for POSIX sytems (Linux, MacOS, BSD,
 > etc).
 > ELK currently does not support Windows (see
@@ -488,10 +503,24 @@ set. These sets are typically used for compatibility with other toolchains.
 > [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) or similar
 > compatibility layer.
 
-## Install from official releases
+## Install with Homebrew
+
+ELK is available on [Homebrew](https://brew.sh) through the tap
+[`dxrcy/elk`](https://github.com/dxrcy/homebrew-elk).
+
+```sh
+brew install dxrcy/elk/elk
+```
+
+> Note: To install the **ELCI** build, use `brew install dxrcy/elk/elk-mc`
+
+## Install from official binary release
 
 **1. Download the latest binary release:**
 [available via GitHub releases](https://github.com/dxrcy/elk/releases).
+
+> Note: To install the **ELCI** build, download the latest *Minecraft* release
+> (release tag ending in `-mc`).
 
 **2. Install the downloaded file to your PATH**:
 
@@ -502,8 +531,8 @@ sudo install <filename> /usr/local/bin/elk
 
 - **b) OR for current user only:**
 ```sh
-mkdir ~/.local/bin/
-sudo install <filename> ~/.local/bin/elk
+mkdir -p ~/.local/bin/
+install <filename> ~/.local/bin/elk
 ```
 
 ## Install from source
@@ -519,23 +548,34 @@ git clone https://codeberg.org/dxrcy/elk
 cd elk
 ```
 
+> Note: To install the **ELCI** build, run `git checkout minecraft` after cloning.
+
 **3. Compile with Zig:**
 ```sh
-zig build install -Doptimize=ReleaseSafe
+zig build install -Doptimize=ReleaseSafe --prefix ~/.local/
 ```
 
-**4. Install compiled binary to system path:**
-```sh
-sudo install zig-out/bin/elk /usr/local/bin/
-```
-
-## Install with system package manager
-
-> ELK is currently not available via package managers such as `brew` or `apt`
-> (see [#50](https://codeberg.org/dxrcy/elk/issues/50)).
-> Contribution is very welcome!
+> This will install ELK at `$HOME/.local/bin/elk`.
 
 # Editor Integration
+
+## Vscode
+
+To set up *everything*, install the **LC-3 Extension Pack**, via:
+- **[Open VSX](https://open-vsx.org/vscode/item?itemName=twhlynch.lc3-extension-pack)
+    (recommended)**
+- [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=twhlynch.lc3-extension-pack)
+- [GitHub](https://github.com/twhlynch/lc3-extension-pack)
+
+This pack includes:
+- [x] [Syntax highlighting](https://github.com/twhlynch/lc3-assembly-syntax)
+- [x] [ELK diagnostics](https://github.com/twhlynch/lc3-elk-diagnostics)
+- [x] [Code snippets](https://github.com/twhlynch/lc3-assembly-snippets)
+
+> *ELK diagnostics* will automatically install the
+> [latest version of ELK](https://github.com/dxrcy/elk/releases)
+> from GitHub if no suitable `elk` executable is found.
+> **The other extensions do not depend on ELK.**
 
 ## Neovim
 
@@ -646,29 +686,9 @@ return {
 > This option may be preferable for a simpler setup or if you are following a
 > different case convention.
 
-## Vscode
-
-<!-- TODO: Add link to extension pack -->
-
-### Diagnostics
-
-Install the [ELK Diagnostics](https://github.com/twhlynch/lc3-elk-diagnostics)
-VSCode Extension.
-This will automatically install the
-[latest version of ELK](https://github.com/dxrcy/elk/releases) from GitHub if
-a suitable `elk` executable is not found.
-
-### Syntax Highlighting
-
-Install the
-[ELK Syntax Highlighting](https://github.com/twhlynch/lc3-assembly-syntax)
-VSCode Extension.
-This extension does **not** require ELK to be installed, and it will **not**
-download ELK.
-
 ---
 
 > Want to contribute? Check out the
-> [open issues](https://codeberg.org/dxrcy/elk/issues), or share your own ideas!
-> 😀
+> [open issues](https://codeberg.org/dxrcy/elk/issues?q=&sort=recentupdate&labels=1354878),
+> or share your own ideas! 😀
 

@@ -49,7 +49,7 @@ elk hello.obj --emulate
 2. Install the downloaded file to your PATH:
 
 ```sh
-sudo install <filename> /usr/local/bin/elk
+install <filename> ~/.local/bin/elk
 ```
 
 # Learn More
@@ -68,16 +68,20 @@ sudo install <filename> /usr/local/bin/elk
 # Contributors
 
 > Want to contribute? Check out the
-> [open issues](https://codeberg.org/dxrcy/elk/issues), or share your own ideas!
-> 😀
+> [open issues](https://codeberg.org/dxrcy/elk/issues?q=&sort=recentupdate&labels=1354878),
+> or share your own ideas! 😀
 
 <!-- Codeberg has no equivalent -->
 <a href="https://github.com/dxrcy/elk/graphs/contributors">
     <img src="https://contrib.rocks/image?repo=dxrcy/elk" />
 </a>
 
-- Thanks to [@twhlynch](https://github.com/twhlynch) for providing editor
-  integration for Neovim and VSCode!
+Additional thanks to:
+- [@twhlynch](https://github.com/twhlynch) for providing
+    [editor integration for Neovim and
+    VSCode](https://codeberg.org/dxrcy/elk/src/branch/master/DOCS.md#editor-integration).
+- [@ida5428](https://github.com/ida5428) for helping with
+    [Homebrew distribution](https://github.com/dxrcy/homebrew-elk).
 
 # Usage Examples
 

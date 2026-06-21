@@ -156,7 +156,7 @@ pub fn patchLabelValue(
     symbols: []const SymbolEntry,
 ) error{ SymbolNotFound, UnpermittedMemoryAccess }!void {
     const address = try getSymbolAddress(name, symbols);
-    runtime.state.setMemory(address, raw_word);
+    try runtime.setMemory(address, raw_word);
 }
 
 pub fn getSymbolAddress(name: []const u8, symbols: []const SymbolEntry) error{SymbolNotFound}!u16 {
