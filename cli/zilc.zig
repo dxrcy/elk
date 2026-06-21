@@ -393,25 +393,24 @@ pub fn checkGroup(
     }
 }
 
-// TODO: Use enum types for lists ?
 pub fn checkDependencies(
     comptime name: @EnumLiteral(),
-    comptime requires: []const @EnumLiteral(),
-    comptime conflicts: []const @EnumLiteral(),
+    comptime Requires: type,
+    comptime Conflicts: type,
     flags: anytype,
 ) error{ParseFailed}!void {
-    try checkRequirements(name, requires, flags);
-    try checkConflicts(name, conflicts, flags);
+    try checkRequirements(name, Requires, flags);
+    try checkConflicts(name, Conflicts, flags);
 }
 
 pub fn checkRequirements(
     comptime name: @EnumLiteral(),
-    comptime requires: []const @EnumLiteral(),
+    comptime Requires: type,
     flags: anytype,
 ) error{ParseFailed}!void {
     const GroupFmt = struct {
         pub fn format(_: @This(), writer: *Writer) !void {
-            inline for (requires, 0..) |tag, i| {
+            for (std.meta.tags(Requires), 0..) |tag, i| {
                 if (i > 0)
                     try writer.print(", ", .{});
                 try writer.print("{t}", .{tag});
@@ -421,9 +420,9 @@ pub fn checkRequirements(
 
     if (!isFlagSet(@field(flags, @tagName(name))))
         return;
-    if (requires.len == 0)
+    if (comptime std.meta.tags(Requires).len == 0)
         return;
-    inline for (requires) |require| {
+    inline for (comptime std.meta.tags(Requires)) |require| {
         if (isFlagSet(@field(flags, @tagName(require))))
             return;
     }
@@ -433,12 +432,12 @@ pub fn checkRequirements(
 
 pub fn checkConflicts(
     comptime name: @EnumLiteral(),
-    comptime conflicts: []const @EnumLiteral(),
+    comptime Conflicts: type,
     flags: anytype,
 ) error{ParseFailed}!void {
     if (!isFlagSet(@field(flags, @tagName(name))))
         return;
-    inline for (conflicts) |conflict| {
+    inline for (comptime std.meta.tags(Conflicts)) |conflict| {
         if (isFlagSet(@field(flags, @tagName(conflict)))) {
             log.err("flag '{t}' cannot be used with conflicting flag '{t}'", .{ name, conflict });
             return error.ParseFailed;
