@@ -21,19 +21,44 @@ pub fn Options(comptime template: anytype) type {
             options.pos.deinit(arena);
         }
 
-        // TODO: Replace with a `nextPos` method ?
         pub fn getPos(
             options: *const @This(),
             comptime value: Flag.Value,
             comptime name: @EnumLiteral(),
             index: usize,
         ) !value.type {
-            if (options.pos.items.len <= index) {
-                log.err("missing positional argument '{t}'", .{name});
+            return options.getPosInner(value, name, index) catch |err| {
+                switch (err) {
+                    error.MissingArgument => {
+                        log.err("missing positional argument '{t}'", .{name});
+                    },
+                    error.ParseFailed => {},
+                }
                 return error.ParseFailed;
-            }
+            };
+        }
 
+        pub fn getPosOptional(
+            options: *const @This(),
+            comptime value: Flag.Value,
+            comptime name: @EnumLiteral(),
+            index: usize,
+        ) ?value.type {
+            return options.getPosInner(value, name, index) catch
+                return null;
+        }
+
+        pub fn getPosInner(
+            options: *const @This(),
+            comptime value: Flag.Value,
+            comptime name: @EnumLiteral(),
+            index: usize,
+        ) error{ MissingArgument, ParseFailed }!value.type {
+            _ = name;
+            if (options.pos.items.len <= index)
+                return error.MissingArgument;
             const raw = options.pos.items[index];
+
             var dest: ?value.type = null;
             try value.parser(&dest, raw);
             return dest orelse unreachable;

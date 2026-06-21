@@ -191,7 +191,7 @@ pub fn parse(arena: Allocator, args: []const []const u8) !Cli {
         }
     }
 
-    if (options.getPos(zilc.types.path, .input, 0)) |input| {
+    if (options.getPosOptional(zilc.types.path, .input, 0)) |input| {
         if (options.flags.clean) {
             log.err("unsupported stdin input path for operation", .{});
             return error.ParseFailed;
@@ -200,8 +200,6 @@ pub fn parse(arena: Allocator, args: []const []const u8) !Cli {
             log.err("unimplemented feature: stdin input path", .{});
             return error.UnimplementedFeature;
         }
-    } else |_| {
-        // Handle later, or ignore
     }
 
     if (options.flags.output != null and options.flags.output.? == .stdio) {
