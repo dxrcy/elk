@@ -127,7 +127,9 @@ pub const Policies = packed struct {
         var policies: Policies = .none;
 
         var words = std.mem.tokenizeScalar(u8, string, ',');
-        while (words.next()) |word| {
+        while (words.next()) |word_full| {
+            const word = std.mem.trim(u8, word_full, &std.ascii.whitespace);
+
             if (std.mem.cutPrefix(u8, word, "+")) |predef_name| {
                 const predef = resolvePredef(predef_name) orelse
                     return error.InvalidPredefName;
