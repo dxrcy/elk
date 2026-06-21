@@ -228,13 +228,13 @@ fn parseOperation(options: *const zilc.Options(template)) !Operation {
     try zilc.checkGroup(.verbosity, enum { strict, relaxed }, &options.flags);
 
     try zilc.checkDependencies(.output, enum {}, enum { assemble, format }, &options.flags);
-    try zilc.checkDependencies(.export_symbols, enum { assemble}, enum {}, &options.flags);
-    try zilc.checkDependencies(.export_listing, enum { assemble}, enum {}, &options.flags);
+    try zilc.checkDependencies(.export_symbols, enum { assemble }, enum {}, &options.flags);
+    try zilc.checkDependencies(.export_listing, enum { assemble }, enum {}, &options.flags);
     try zilc.checkDependencies(.trap_aliases, enum { assemble, check, format }, enum {}, &options.flags);
     try zilc.checkDependencies(.debug, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
-    try zilc.checkDependencies(.commands, enum { debug}, enum {}, &options.flags);
-    try zilc.checkDependencies(.history_file, enum { debug}, enum {}, &options.flags);
-    try zilc.checkDependencies(.import_symbols, enum { emulate}, enum {}, &options.flags);
+    try zilc.checkDependencies(.commands, enum { debug }, enum {}, &options.flags);
+    try zilc.checkDependencies(.history_file, enum { debug }, enum {}, &options.flags);
+    try zilc.checkDependencies(.import_symbols, enum { emulate }, enum {}, &options.flags);
 
     const input = try options.getPos(zilc.types.path, .input, 0);
 
