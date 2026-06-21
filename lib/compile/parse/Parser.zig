@@ -21,6 +21,8 @@ pub const max_line_width = 80;
 tokenizer: Tokenizer,
 origin: ?Span,
 
+pub const parseInteger = @import("integers.zig").tryInteger;
+
 pub fn new(
     traps: *const Traps,
     source_: Source,
