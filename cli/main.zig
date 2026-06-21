@@ -123,6 +123,22 @@ pub fn main(init: std.process.Init) !u8 {
             );
         },
 
+        .debug_empty => |debug| {
+            var air: elk.Air = .init();
+            defer air.deinit(gpa);
+
+            try emulate(
+                io,
+                gpa,
+                init.environ_map,
+                .{ .assembly = .{ .air = &air, .source = .empty } },
+                debug,
+                &default_traps,
+                cli.policies,
+                &reporter,
+            );
+        },
+
         .assemble_emulate => |operation| {
             var input_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
             const length = try Io.Dir.cwd().realPathFile(

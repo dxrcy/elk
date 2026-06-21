@@ -43,6 +43,7 @@ const Operation = union(enum) {
         debug: ?Debug,
         import_symbols: ?[]const u8,
     },
+    debug_empty: Debug,
     clean: struct {
         input: []const u8,
     },
@@ -235,6 +236,15 @@ fn parseOperation(options: *const zilc.Options(template)) !Operation {
     try zilc.checkDependencies(.commands, enum { debug }, enum {}, &options.flags);
     try zilc.checkDependencies(.history_file, enum { debug }, enum {}, &options.flags);
     try zilc.checkDependencies(.import_symbols, enum { emulate }, enum {}, &options.flags);
+
+    if (options.flags.debug and
+        options.pos.items.len == 0) // TODO: There should be a better way to do this this check
+    {
+        return .{ .debug_empty = .{
+            .commands = options.flags.commands,
+            .history_file = options.flags.history_file,
+        } };
+    }
 
     const input = try options.getPos(zilc.types.path, .input, 0);
 
