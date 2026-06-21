@@ -240,8 +240,7 @@ fn parseOperation(options: *const zilc.Options(template)) !Operation {
                     .listing
                 else
                     .assembly,
-                .trap_aliases = .{ .entries = @splat(.unset) },
-                // .trap_aliases = options.flags.trap_aliases,
+                .trap_aliases = options.flags.trap_aliases,
             },
         };
     }
@@ -262,7 +261,7 @@ fn parseOperation(options: *const zilc.Options(template)) !Operation {
             .input = input,
             .output = null,
             .output_mode = .none,
-            .trap_aliases = .{ .entries = @splat(.unset) },
+            .trap_aliases = options.flags.trap_aliases,
         } };
     }
 
@@ -276,7 +275,7 @@ fn parseOperation(options: *const zilc.Options(template)) !Operation {
         return .{ .format = .{
             .input = input,
             .output = options.flags.output,
-            .trap_aliases = .{ .entries = @splat(.unset) },
+            .trap_aliases = options.flags.trap_aliases,
         } };
     }
 
