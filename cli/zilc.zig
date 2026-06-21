@@ -22,12 +22,21 @@ pub fn Options(comptime template: anytype) type {
         }
 
         // TODO: Replace with a `nextPos` method ?
-        pub fn getPos(options: *const @This(), index: usize, name: @EnumLiteral()) ![]const u8 {
+        pub fn getPos(
+            options: *const @This(),
+            comptime value: Flag.Value,
+            comptime name: @EnumLiteral(),
+            index: usize,
+        ) !value.type {
             if (options.pos.items.len <= index) {
                 log.err("missing positional argument '{t}'", .{name});
                 return error.ParseFailed;
             }
-            return options.pos.items[index];
+
+            const raw = options.pos.items[index];
+            var dest: ?value.type = null;
+            try value.parser(&dest, raw);
+            return dest orelse unreachable;
         }
     };
 }
@@ -85,6 +94,8 @@ pub const Flag = struct {
     long: []const u8,
     value: ?Value = null,
 
+    // TODO: Move out of `Flag` (used for positional as well)
+    // TODO: Rename
     const Value = struct {
         type: type,
         parser: Parser,

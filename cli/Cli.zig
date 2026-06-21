@@ -27,22 +27,19 @@ policies: elk.Policies,
 strictness: elk.reporting.Options.Strictness,
 verbosity: elk.reporting.Options.Verbosity,
 
-// TODO: Use `zilc.types.Path`
-const Path = []const u8;
-
 const Operation = union(enum) {
     assemble_emulate: struct {
-        input: Path,
+        input: zilc.types.Path,
         debug: ?Debug,
     },
     assemble: struct {
-        input: Path,
+        input: zilc.types.Path,
         output: ?zilc.types.Path,
         output_mode: enum { none, assembly, symbols, listing },
         trap_aliases: ?elk.Traps,
     },
     emulate: struct {
-        input: Path,
+        input: zilc.types.Path,
         debug: ?Debug,
         import_symbols: ?[]const u8,
     },
@@ -50,7 +47,7 @@ const Operation = union(enum) {
         input: []const u8,
     },
     format: struct {
-        input: Path,
+        input: zilc.types.Path,
         output: ?zilc.types.Path,
         trap_aliases: ?elk.Traps,
     },
@@ -194,9 +191,19 @@ pub fn parse(arena: Allocator, args: []const []const u8) !Cli {
         }
     }
 
-    // TODO: Check input is not stdio for `clean`
+    if (options.getPos(zilc.types.path, .input, 0)) |input| {
+        if (options.flags.clean) {
+            log.err("unsupported stdin input path for operation", .{});
+            return error.ParseFailed;
+        }
+        if (input == .stdio) {
+            log.err("unimplemented feature: stdin input path", .{});
+            return error.UnimplementedFeature;
+        }
+    } else |_| {
+        // Handle later, or ignore
+    }
 
-    // TODO: Same check for input
     if (options.flags.output != null and options.flags.output.? == .stdio) {
         log.err("unimplemented feature: stdout output path", .{});
         return error.UnimplementedFeature;
@@ -222,7 +229,7 @@ fn parseOperation(options: *const zilc.Options(template)) !Operation {
     if (options.flags.debug)
         try zilc.checkConflicts(.debug, &.{}, &.{ .assemble, .check, .clean, .format, .lsp }, &options.flags);
 
-    const input = try options.getPos(0, .input);
+    const input = try options.getPos(zilc.types.path, .input, 0);
 
     if (options.flags.assemble) {
         return .{
@@ -263,7 +270,7 @@ fn parseOperation(options: *const zilc.Options(template)) !Operation {
 
     if (options.flags.clean) {
         return .{ .clean = .{
-            .input = input,
+            .input = try input.asRegular(),
         } };
     }
 

@@ -40,7 +40,7 @@ pub fn main(init: std.process.Init) !u8 {
             var input_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
             const length = try Io.Dir.cwd().realPathFile(
                 io,
-                operation.input,
+                operation.input.asRegular() catch unreachable,
                 &input_path_buffer,
             );
             const input_path = input_path_buffer[0..length];
@@ -93,7 +93,7 @@ pub fn main(init: std.process.Init) !u8 {
         },
 
         .emulate => |operation| {
-            const input_path = operation.input;
+            const input_path = operation.input.asRegular() catch unreachable;
 
             var symbols: std.ArrayList(elk.Runtime.SymbolEntry) = .empty;
             defer symbols.deinit(gpa);
@@ -125,7 +125,7 @@ pub fn main(init: std.process.Init) !u8 {
             var input_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
             const length = try Io.Dir.cwd().realPathFile(
                 io,
-                operation.input,
+                operation.input.asRegular() catch unreachable,
                 &input_path_buffer,
             );
             const input_path = input_path_buffer[0..length];
