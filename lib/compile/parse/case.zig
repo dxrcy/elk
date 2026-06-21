@@ -99,6 +99,7 @@ test isPascalCase {
     try expect(isPascalCase("Abc12Def"));
     try expect(isPascalCase("12")); // whatever
     try expect(isPascalCase("12_12"));
+    try expect(isPascalCase("_Abc"));
     try expect(isPascalCase("__Abc"));
     try expect(isPascalCase("__Abc_Def"));
 
@@ -112,7 +113,6 @@ test isPascalCase {
     try expect(!isPascalCase("__A__B"));
     try expect(!isPascalCase("Abc_"));
     try expect(!isPascalCase("Abc__"));
-    try expect(!isPascalCase("_Abc"));
     try expect(!isPascalCase("Abc__Def"));
     try expect(!isPascalCase("Abc___Def"));
     try expect(!isPascalCase("Abc12def"));
