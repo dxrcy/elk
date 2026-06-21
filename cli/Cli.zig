@@ -227,7 +227,7 @@ fn parseOperation(options: *const zilc.Options(template)) !Operation {
     try zilc.checkGroup(.export_mode, enum { export_symbols, export_listing }, &options.flags);
     try zilc.checkGroup(.verbosity, enum { strict, relaxed }, &options.flags);
 
-    try zilc.checkDependencies(.output, enum {}, enum { assemble, format }, &options.flags);
+    try zilc.checkDependencies(.output, enum { assemble, format }, enum {}, &options.flags);
     try zilc.checkDependencies(.export_symbols, enum { assemble }, enum {}, &options.flags);
     try zilc.checkDependencies(.export_listing, enum { assemble }, enum {}, &options.flags);
     try zilc.checkDependencies(.trap_aliases, enum { assemble, check, format }, enum {}, &options.flags);
