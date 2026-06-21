@@ -23,7 +23,7 @@ pub fn Options(comptime template: anytype) type {
 
         pub fn getPos(
             options: *const @This(),
-            comptime value: Flag.Value,
+            comptime value: ArgValue,
             comptime name: @EnumLiteral(),
             index: usize,
         ) !value.type {
@@ -40,7 +40,7 @@ pub fn Options(comptime template: anytype) type {
 
         pub fn getPosOptional(
             options: *const @This(),
-            comptime value: Flag.Value,
+            comptime value: ArgValue,
             comptime name: @EnumLiteral(),
             index: usize,
         ) ?value.type {
@@ -50,7 +50,7 @@ pub fn Options(comptime template: anytype) type {
 
         pub fn getPosInner(
             options: *const @This(),
-            comptime value: Flag.Value,
+            comptime value: ArgValue,
             comptime name: @EnumLiteral(),
             index: usize,
         ) error{ MissingArgument, ParseFailed }!value.type {
@@ -67,7 +67,7 @@ pub fn Options(comptime template: anytype) type {
 }
 
 pub const types = struct {
-    pub const string: Flag.Value = .{
+    pub const string: ArgValue = .{
         .type = []const u8,
         .parser = struct {
             fn parser(dest: *anyopaque, src: []const u8) !void {
@@ -76,7 +76,7 @@ pub const types = struct {
         }.parser,
     };
 
-    pub const integer: Flag.Value = .{
+    pub const integer: ArgValue = .{
         .type = i32,
         .parser = struct {
             fn parser(dest: *anyopaque, src: []const u8) !void {
@@ -87,7 +87,7 @@ pub const types = struct {
         }.parser,
     };
 
-    pub const path: Flag.Value = .{
+    pub const path: ArgValue = .{
         .type = Path,
         .parser = struct {
             fn parser(dest: *anyopaque, src: []const u8) !void {
@@ -117,15 +117,14 @@ pub const types = struct {
 pub const Flag = struct {
     short: ?u8 = null,
     long: []const u8,
-    value: ?Value = null,
+    value: ?ArgValue = null,
+};
 
-    // TODO: Move out of `Flag` (used for positional as well)
-    // TODO: Rename
-    const Value = struct {
-        type: type,
-        parser: Parser,
-        const Parser = fn (dest: *anyopaque, src: []const u8) error{ParseFailed}!void;
-    };
+// TODO: Rename
+const ArgValue = struct {
+    type: type,
+    parser: Parser,
+    const Parser = fn (dest: *anyopaque, src: []const u8) error{ParseFailed}!void;
 };
 
 fn FlagValues(comptime template: anytype) type {
@@ -194,7 +193,7 @@ const FlagItem = struct {
     key: []const u8,
     short: ?u8,
     long: []const u8,
-    parser: ?*const Flag.Value.Parser,
+    parser: ?*const ArgValue.Parser,
 };
 
 fn getFlagItems(
