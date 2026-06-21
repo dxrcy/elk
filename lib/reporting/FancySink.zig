@@ -357,9 +357,9 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
             try ctx.deepen().writeNote("Consider using trap alias `{s}`", .{info.alias});
         },
         .undeclared_trap_vect => |info| {
-            try ctx.writeTitle("Use of unknown trap vector x{x:02}", .{info.value});
+            try ctx.writeTitle("Use of unknown trap vector x{X:02}", .{info.value});
             try ctx.deepen().writeSourceNote("Trap vector", .{}, info.vect);
-            try ctx.deepen().writeNote("Traps vector x{x:02} is not recognized", .{info.value});
+            try ctx.deepen().writeNote("Traps vector x{X:02} is not recognized", .{info.value});
         },
 
         .emulate_exception => |info| {
@@ -384,13 +384,13 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
             try ctx.deepen().writeNote("Debugger does not have access to initial emulator state", .{});
         },
         .debugger_address_not_in_assembly => |info| {
-            try ctx.writeTitle("Address x{x:04} is not contained in assembly source", .{info.value});
-            try ctx.deepen().writeNote("Largest address in assembly is x{x:04}", .{info.max});
+            try ctx.writeTitle("Address x{X:04} is not contained in assembly source", .{info.value});
+            try ctx.deepen().writeNote("Largest address in assembly is x{X:04}", .{info.max});
         },
         .debugger_address_not_user_memory => |info| {
-            try ctx.writeTitle("Address x{x:04} is not in user memory", .{info.value});
+            try ctx.writeTitle("Address x{X:04} is not in user memory", .{info.value});
             try ctx.deepen().writeSourceNote("Address", .{}, info.address);
-            try ctx.deepen().writeNote("Largest address in user memory is x{x:04}", .{info.max});
+            try ctx.deepen().writeNote("Largest address in user memory is x{X:04}", .{info.max});
         },
         .debugger_label_partial_match => |info| {
             try ctx.writeTitle("Label reference does not use correct case", .{});

@@ -145,7 +145,7 @@ pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !voi
     const words = metadata.size / 2 - 1;
     while (i < words) : (i += 1) {
         const raw = try reader.interface.takeInt(u16, .big);
-        runtime.state.memory[origin + i] = raw;
+        try runtime.setMemory(@intCast(origin + i), raw);
     }
 }
 
@@ -156,7 +156,7 @@ pub fn patchLabelValue(
     symbols: []const SymbolEntry,
 ) error{ SymbolNotFound, UnpermittedMemoryAccess }!void {
     const address = try getSymbolAddress(name, symbols);
-    runtime.state.setMemory(address, raw_word);
+    try runtime.setMemory(address, raw_word);
 }
 
 pub fn getSymbolAddress(name: []const u8, symbols: []const SymbolEntry) error{SymbolNotFound}!u16 {
@@ -343,12 +343,12 @@ fn setRegister(runtime: *Runtime, register: u3, value: u16) void {
             .positive;
 }
 
-fn getMemory(runtime: *Runtime, address: u16) error{UnpermittedMemoryAccess}!u16 {
+pub fn getMemory(runtime: *Runtime, address: u16) error{UnpermittedMemoryAccess}!u16 {
     try checkMemoryAccess(address);
     return runtime.state.memory[address];
 }
 
-fn setMemory(runtime: *Runtime, address: u16, value: u16) error{UnpermittedMemoryAccess}!void {
+pub fn setMemory(runtime: *Runtime, address: u16, value: u16) error{UnpermittedMemoryAccess}!void {
     try checkMemoryAccess(address);
     runtime.state.memory[address] = value;
 }
@@ -407,7 +407,7 @@ pub fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
 
     try runtime.writer.print("+----------------+-----------------+\n", .{});
     try runtime.writer.print(
-        "|    PC x{x:04}    |   CC {s}   |\n",
+        "|    PC x{X:04}    |   CC {s}   |\n",
         .{ runtime.state.pc, switch (runtime.state.condition) {
             .negative => "NEGATIVE",
             .zero => "  ZERO  ",
@@ -431,7 +431,7 @@ pub fn printInteger(runtime: *Runtime, integer: u16) error{WriteFailed}!void {
 
 fn printIntegerForms(runtime: *Runtime, word: u16) error{WriteFailed}!void {
     try runtime.writer.print(
-        "x{x:04}  {:7}  {:6}   ",
+        "x{X:04}  {:7}  {:6}   ",
         .{ word, @as(i16, @bitCast(word)), word },
     );
     try runtime.printDisplayChar(word);

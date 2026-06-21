@@ -1,11 +1,11 @@
-.ORIG 0x3000
+.ORIG x3000
 
     lea r1, Words       ; base = &Words
     and r2, r2, #0      ; i = 0
 
 Loop_Start              ; while (true) {
     add r6, r1, r2      ;     if (*(base + i) == NUL)
-    ldr r6, r6, 0x0     ;
+    ldr r6, r6, x0     ;
     brz Loop_End        ;         break
 
     add r6, r2, #0      ;     if (i > 0)
@@ -42,6 +42,6 @@ Words  ; Each [word + null block] takes up Size WORDS
     .BLKW #1
     .STRINGZ "Sunday"
     .BLKW #3
-    .FILL 0x0000 ; Equivalent to an empty null-terminated string
+    .FILL x0000 ; Equivalent to an empty null-terminated string
 
 .END

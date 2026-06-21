@@ -1,4 +1,4 @@
-.ORIG 0x3000
+.ORIG x3000
 
     ; for (r1 = R; r1+R > 0; --r1)
     ld r1, Radius
@@ -38,10 +38,10 @@ PickChar_End
 ; @input  r1 y
 ; @input  r2 x
 ; @output r0 non-zero iff (x,y) is in circle
-InCircle_R1 .FILL 0x0
-InCircle_R2 .FILL 0x0
-InCircle_R3 .FILL 0x0
-InCircle_R7 .FILL 0x0
+InCircle_R1 .FILL x0
+InCircle_R2 .FILL x0
+InCircle_R3 .FILL x0
+InCircle_R7 .FILL x0
 InCircle
     st r1, InCircle_R1
     st r2, InCircle_R2
@@ -71,9 +71,9 @@ InCircle
 
 ; @input  r0 x
 ; @output r0 x^2
-Square_R1 .FILL 0x0
-Square_R2 .FILL 0x0
-Square_R7 .FILL 0x0
+Square_R1 .FILL x0
+Square_R2 .FILL x0
+Square_R7 .FILL x0
 Square
     st r1, Square_R1
     st r2, Square_R2
@@ -101,8 +101,8 @@ Square_Loop                 ; while (r2 > 0)
     ret
 
 Radius      .FILL #20
-CharLf      .FILL 0x0A      ; '\n'
-CharSet     .FILL 0x23      ; '#'
-CharUnset   .FILL 0x2E      ; '.'
+CharLf      .FILL x0A       ; '\n'
+CharSet     .FILL x23       ; '#'
+CharUnset   .FILL x2E       ; '.'
 
 .END

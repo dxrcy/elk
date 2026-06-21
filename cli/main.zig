@@ -7,6 +7,7 @@ const elk = @import("elk");
 const mcz = @import("mcz");
 
 const Cli = @import("Cli.zig");
+const zilc = @import("zilc.zig");
 
 pub fn main(init: std.process.Init) !u8 {
     const io, const gpa = .{ init.io, init.gpa };
@@ -16,12 +17,16 @@ pub fn main(init: std.process.Init) !u8 {
     var sink = elk.reporting.Sink.Fancy.new(&reporter_writer.interface);
     var reporter = elk.reporting.Primary.new(sink.interface());
 
-    var args = try init.minimal.args.iterateAllocator(gpa);
-    defer args.deinit();
+    var args = try zilc.collectArgs(init.arena.allocator(), init.minimal.args);
+    defer args.deinit(init.arena.allocator());
 
-    const cli = Cli.parse(&args) catch |err| switch (err) {
-        error.DisplayMetadata => return 0,
-        error.ParseFailed, error.UnimplementedFeature => return 1,
+    const cli = blk: {
+        var temp_arena = std.heap.ArenaAllocator.init(gpa);
+        defer temp_arena.deinit();
+        break :blk Cli.parse(temp_arena.allocator(), args.items) catch |err| switch (err) {
+            else => return err,
+            error.DisplayMetadata => return 0,
+        };
     };
 
     reporter.options.strictness = cli.strictness;
@@ -123,6 +128,22 @@ pub fn main(init: std.process.Init) !u8 {
                     .symbols = if (operation.import_symbols != null) symbols.items else null,
                 } },
                 operation.debug,
+                &default_traps,
+                cli.policies,
+                &reporter,
+            );
+        },
+
+        .debug_empty => |debug| {
+            var air: elk.Air = .init();
+            defer air.deinit(gpa);
+
+            try emulate(
+                io,
+                gpa,
+                init.environ_map,
+                .{ .assembly = .{ .air = &air, .source = .empty } },
+                debug,
                 &default_traps,
                 cli.policies,
                 &reporter,

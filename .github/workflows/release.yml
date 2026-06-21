@@ -1,14 +1,32 @@
 name: Build and publish release
-
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+*'
-      - 'v[0-9]+.[0-9]+.[0-9]+*-mc'
+      - "v[0-9]+.[0-9]+.[0-9]+*"
+      - "v[0-9]+.[0-9]+.[0-9]+*-mc"
 
 jobs:
+  create-release:
+    name: Create release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ github.ref_name }}
+    steps:
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --repo "${{ github.repository }}" \
+            --title "${{ github.ref_name }} (DRAFT)" \
+            --notes "Release is awaiting validation..." \
+            --draft
+
   publish:
     name: Build and publish
+    needs: create-release
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -16,31 +34,90 @@ jobs:
           - os: ubuntu-latest
             artifact_name: ${{ github.event.repository.name }}
             asset_name: ${{ github.event.repository.name }}-linux-x64
+            artifact_id: linux-x64
           - os: macos-14
             artifact_name: ${{ github.event.repository.name }}
             asset_name: ${{ github.event.repository.name }}-macos-x64
+            artifact_id: macos-x64
           - os: macos-latest
             artifact_name: ${{ github.event.repository.name }}
             asset_name: ${{ github.event.repository.name }}-macos-arm64
-
+            artifact_id: macos-arm64
     steps:
       - uses: actions/checkout@v3
-
       - uses: mlugg/setup-zig@v2
         with:
           version: 0.16.0-dev.3091+557caecaa
-
       - name: Build binary
         run: zig build install -Doptimize=ReleaseSafe
-
-      - name: Upload binaries to release
-        uses: svenstaro/upload-release-action@v2
+      - name: Prepare artifact
+        run: cp "zig-out/bin/${{ matrix.artifact_name }}" "${{ matrix.asset_name }}"
+      - name: Upload artifact (for later jobs)
+        uses: actions/upload-artifact@v4
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: zig-out/bin/${{ matrix.artifact_name }}
-          asset_name: ${{ matrix.asset_name }}
-          tag: ${{ github.ref }}
-          release_name: Draft
-          body: Release in progresss...
-          make_latest: false
+          name: elk-${{ matrix.artifact_id }}
+          path: ${{ matrix.asset_name }}
 
+  upload-and-finalize:
+    name: Upload Assets and Publish
+    needs: [create-release, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Upload all binaries to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.ref_name }}" artifacts/* --repo "${{ github.repository }}" --clobber
+
+      - name: Publish Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release edit "${{ github.ref_name }}" --draft=false --repo "${{ github.repository }}"
+
+  update-homebrew-tap:
+    name: Update homebrew tap
+    needs: upload-and-finalize
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: dxrcy/homebrew-elk
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Write version.json
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          BUILD="base"
+          [[ "$GITHUB_REF_NAME" == *-mc ]] && BUILD="mc"
+          jq \
+            --arg version "$VERSION" \
+            --arg build "$BUILD" \
+            --arg arm64  "$(sha256sum artifacts/${{ github.event.repository.name }}-macos-arm64 | cut -d' ' -f1)" \
+            --arg x64mac "$(sha256sum artifacts/${{ github.event.repository.name }}-macos-x64   | cut -d' ' -f1)" \
+            --arg x64lin "$(sha256sum artifacts/${{ github.event.repository.name }}-linux-x64   | cut -d' ' -f1)" \
+            '.[$build] = {
+                "version": $version,
+                "sha256": {"macos-arm64": $arm64, "macos-x64": $x64mac, "linux-x64": $x64lin}
+            }' \
+            version.json > version.json.tmp && mv version.json.tmp version.json
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add version.json
+          git commit -m "chore: bump elk to ${GITHUB_REF_NAME}"
+          git push

@@ -33,9 +33,15 @@ pub const Label = struct {
 
     pub const Kind = enum {
         normal,
+        unused,
         breakpoint,
+
         pub fn from(string: []const u8) Kind {
-            return if (std.mem.startsWith(u8, string, "__")) .breakpoint else .normal;
+            if (std.mem.startsWith(u8, string, "__"))
+                return .breakpoint;
+            if (std.mem.startsWith(u8, string, "_"))
+                return .unused;
+            return .normal;
         }
     };
 };
@@ -76,7 +82,7 @@ pub fn copyToRuntime(air: *const Air, runtime: *Runtime) !void {
     runtime.state.pc = air.origin;
     for (air.lines.items, 0..) |line, i| {
         const raw = line.statement.encode();
-        runtime.state.memory[air.origin + i] = raw;
+        try runtime.setMemory(@intCast(air.origin + i), raw);
     }
 }
 
@@ -92,7 +98,7 @@ pub fn writeAssembly(air: *const Air, writer: *Io.Writer) !void {
 
 pub fn writeSymbols(air: *const Air, writer: *Io.Writer, source: Source) !void {
     for (air.labels.items) |label| {
-        try writer.print("{s:<74} x{x:04}\n", .{
+        try writer.print("{s:<74} x{X:04}\n", .{
             label.span.view(source),
             air.origin + label.index,
         });

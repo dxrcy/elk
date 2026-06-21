@@ -1,18 +1,12 @@
 const Cli = @This();
 
 const std = @import("std");
-const assert = std.debug.assert;
-const ArgIterator = std.process.Args.Iterator;
+const Allocator = std.mem.Allocator;
 
 const elk = @import("elk");
-const cli_template = @import("cli_template.zig");
+const zilc = @import("zilc.zig");
 
 const log = std.log.scoped(.cli);
-
-operation: Operation,
-policies: elk.Policies,
-strictness: elk.reporting.Options.Strictness,
-verbosity: elk.reporting.Options.Verbosity,
 
 const info = struct {
     const zon = @import("build_zon");
@@ -29,28 +23,34 @@ const info = struct {
         "\n\n" ++ @embedFile("help.txt"); // Includes trailing newline
 };
 
+operation: Operation,
+policies: elk.Policies,
+strictness: elk.reporting.Options.Strictness,
+verbosity: elk.reporting.Options.Verbosity,
+
 const Operation = union(enum) {
     assemble_emulate: struct {
-        input: cli_template.Path,
+        input: zilc.types.Path,
         debug: ?Debug,
     },
     assemble: struct {
-        input: cli_template.Path,
-        output: ?cli_template.Path,
+        input: zilc.types.Path,
+        output: ?zilc.types.Path,
         output_mode: enum { none, assembly, symbols, listing },
         trap_aliases: ?elk.Traps,
     },
     emulate: struct {
-        input: cli_template.Path,
+        input: zilc.types.Path,
         debug: ?Debug,
         import_symbols: ?[]const u8,
     },
+    debug_empty: Debug,
     clean: struct {
         input: []const u8,
     },
     format: struct {
-        input: cli_template.Path,
-        output: ?cli_template.Path,
+        input: zilc.types.Path,
+        output: ?zilc.types.Path,
         trap_aliases: ?elk.Traps,
     },
     lsp: struct {},
@@ -62,157 +62,131 @@ pub const Debug = struct {
 };
 
 const template = .{
-    .positional = .{
-        .input = cli_template.PositionalListing{
-            .value = cli_template.Path,
-        },
+    .assemble = zilc.Flag{
+        .short = 'a',
+        .long = "assemble",
+    },
+    .emulate = zilc.Flag{
+        .short = 'e',
+        .long = "emulate",
+    },
+    .check = zilc.Flag{
+        .short = 'c',
+        .long = "check",
+    },
+    .clean = zilc.Flag{
+        .long = "clean",
+    },
+    .format = zilc.Flag{
+        .long = "format",
+    },
+    .lsp = zilc.Flag{
+        .long = "lsp",
     },
 
-    .named = .{
-        .assemble = cli_template.NamedListing{
-            .short = 'a',
-            .long = "assemble",
-            .conflicts = &.{ .emulate, .check, .clean, .format, .lsp },
-        },
-        .emulate = cli_template.NamedListing{
-            .short = 'e',
-            .long = "emulate",
-            .conflicts = &.{ .assemble, .check, .clean, .format, .lsp },
-        },
-        .check = cli_template.NamedListing{
-            .short = 'c',
-            .long = "check",
-            .conflicts = &.{ .assemble, .emulate, .clean, .format, .lsp },
-        },
-        .clean = cli_template.NamedListing{
-            .long = "clean",
-            .conflicts = &.{ .assemble, .emulate, .check, .format, .lsp },
-        },
-        .format = cli_template.NamedListing{
-            .long = "format",
-            .conflicts = &.{ .assemble, .emulate, .check, .clean, .lsp },
-        },
-        .lsp = cli_template.NamedListing{
-            .long = "lsp",
-            .conflicts = &.{ .assemble, .emulate, .check, .clean, .format },
-        },
+    .output = zilc.Flag{
+        .short = 'o',
+        .long = "output",
+        .value = zilc.types.path,
+    },
 
-        .output = cli_template.NamedListing{
-            .short = 'o',
-            .long = "output",
-            .value = cli_template.Path,
-            .requires = &.{ &.{.assemble}, &.{.format} },
-        },
+    .export_symbols = zilc.Flag{
+        .long = "export-symbols",
+    },
+    .export_listing = zilc.Flag{
+        .long = "export-listing",
+    },
+    .trap_aliases = zilc.Flag{
+        .long = "trap-aliases",
+        .value = .{ .type = elk.Traps, .parser = parseTrapAliases },
+    },
 
-        .export_symbols = cli_template.NamedListing{
-            .long = "export-symbols",
-            .requires = &.{&.{.assemble}},
-            .conflicts = &.{.export_listing},
-        },
-        .export_listing = cli_template.NamedListing{
-            .long = "export-listing",
-            .requires = &.{&.{.assemble}},
-            .conflicts = &.{.export_symbols},
-        },
-        .trap_aliases = cli_template.NamedListing{
-            .long = "trap-aliases",
-            .value = elk.Traps,
-            .value_parser = parseTrapAliases,
-            .requires = &.{ &.{.assemble}, &.{.check}, &.{.format} },
-        },
+    .debug = zilc.Flag{
+        .short = 'd',
+        .long = "debug",
+    },
 
-        .debug = cli_template.NamedListing{
-            .short = 'd',
-            .long = "debug",
-            .conflicts = &.{ .assemble, .check, .clean, .format, .lsp },
-        },
+    .commands = zilc.Flag{
+        .short = 'C',
+        .long = "commands",
+        .value = zilc.types.string,
+    },
+    .history_file = zilc.Flag{
+        .long = "history-file",
+        .value = zilc.types.string,
+    },
+    .import_symbols = zilc.Flag{
+        .long = "import-symbols",
+        .value = zilc.types.string,
+    },
 
-        .commands = cli_template.NamedListing{
-            .short = 'C',
-            .long = "commands",
-            .value = []const u8,
-            .requires = &.{&.{.debug}},
-        },
-        .history_file = cli_template.NamedListing{
-            .long = "history-file",
-            .value = []const u8,
-            .requires = &.{&.{.debug}},
-        },
-        .import_symbols = cli_template.NamedListing{
-            .long = "import-symbols",
-            .value = []const u8,
-            .requires = &.{&.{.emulate}},
-        },
-
-        .strict = cli_template.NamedListing{
-            .long = "strict",
-            .conflicts = &.{.relaxed},
-        },
-        .relaxed = cli_template.NamedListing{
-            .long = "relaxed",
-            .conflicts = &.{.strict},
-        },
-        .quiet = cli_template.NamedListing{
-            .short = 'q',
-            .long = "quiet",
-        },
-        .permit = cli_template.NamedListing{
-            .short = 'p',
-            .long = "permit",
-            .value = elk.Policies,
-            .value_parser = parsePolicies,
-        },
+    .strict = zilc.Flag{
+        .long = "strict",
+    },
+    .relaxed = zilc.Flag{
+        .long = "relaxed",
+    },
+    .quiet = zilc.Flag{
+        .short = 'q',
+        .long = "quiet",
+    },
+    .permit = zilc.Flag{
+        .short = 'p',
+        .long = "permit",
+        .value = .{ .type = elk.Policies, .parser = parsePolicies },
     },
 };
 
-fn parsePolicies(string: []const u8, value: *anyopaque) error{InvalidArgumentValue}!void {
-    const policies: *elk.Policies = @ptrCast(@alignCast(value));
-
-    policies.* = elk.Policies.parseList(string) catch
-        return error.InvalidArgumentValue;
+fn parsePolicies(dest: *anyopaque, src: []const u8) error{ParseFailed}!void {
+    const policies: *?elk.Policies = @ptrCast(@alignCast(dest));
+    policies.* = elk.Policies.parseList(src) catch
+        return error.ParseFailed;
 }
 
-fn parseTrapAliases(string: []const u8, value: *anyopaque) error{InvalidArgumentValue}!void {
-    const traps: *elk.Traps = @ptrCast(@alignCast(value));
-    traps.* = .{ .entries = @splat(.unset) };
+fn parseTrapAliases(dest: *anyopaque, src: []const u8) error{ParseFailed}!void {
+    const traps_opt: *?elk.Traps = @ptrCast(@alignCast(dest));
+    traps_opt.* = .{ .entries = @splat(.unset) };
+    const traps: *elk.Traps = &traps_opt.*.?;
 
-    var items = std.mem.tokenizeScalar(u8, string, ',');
+    var items = std.mem.tokenizeScalar(u8, src, ',');
     while (items.next()) |item| {
         const alias, const vect_string = std.mem.cut(u8, item, "=x") orelse
-            return error.InvalidArgumentValue;
+            return error.ParseFailed;
         const vect = std.fmt.parseInt(u8, vect_string, 16) catch
-            return error.InvalidArgumentValue;
+            return error.ParseFailed;
 
         const entry: elk.Traps.Entry = .{ .alias = alias, .callback = null };
         if (!traps.canRegister(vect, entry))
-            return error.InvalidArgumentValue;
+            return error.ParseFailed;
         traps.register(vect, entry);
     }
 }
 
-pub fn parse(iter: *ArgIterator) error{ ParseFailed, DisplayMetadata, UnimplementedFeature }!Cli {
-    const args = cli_template.parse(template, iter) catch |err| switch (err) {
-        error.Empty,
-        error.Help,
-        => {
-            std.debug.print(info.help ++ "\n", .{});
-            return error.DisplayMetadata;
-        },
-        error.Version => {
-            std.debug.print("{s}: {s}\n", .{ info.program, info.version });
-            return error.DisplayMetadata;
-        },
-        else => |err2| return err2,
-    };
+pub fn parse(arena: Allocator, args: []const []const u8) !Cli {
+    if (zilc.getMetaArg(args)) |meta| {
+        switch (meta) {
+            .help => {
+                std.debug.print(info.help ++ "\n", .{});
+                return error.DisplayMetadata;
+            },
+            .version => {
+                std.debug.print("{s}: {s}\n", .{ info.program, info.version });
+                return error.DisplayMetadata;
+            },
+        }
+    }
+
+    var options: zilc.Options(template) = try .parse(arena, args);
+    defer options.deinit(arena);
 
     const unimplemented_args = [_][]const u8{
         "format",
         "lsp",
     };
     for (unimplemented_args) |name| {
-        inline for (@typeInfo(@TypeOf(args.named)).@"struct".fields) |field| {
+        inline for (@typeInfo(@TypeOf(options.flags)).@"struct".fields) |field| {
             if (std.mem.eql(u8, field.name, name) and
-                cli_template.isValueSet(@field(args.named, field.name)))
+                zilc.isFlagSet(@field(options.flags, field.name)))
             {
                 log.err("unimplemented feature: {s}", .{field.name});
                 return error.UnimplementedFeature;
@@ -220,87 +194,118 @@ pub fn parse(iter: *ArgIterator) error{ ParseFailed, DisplayMetadata, Unimplemen
         }
     }
 
-    if (args.positional.input == .stdio and args.named.clean) {
-        log.err("unsupported stdin input path for operation", .{});
-        return error.ParseFailed;
+    if (options.getPosOptional(zilc.types.path, .input, 0)) |input| {
+        if (options.flags.clean) {
+            log.err("unsupported stdin input path for operation", .{});
+            return error.ParseFailed;
+        }
+        if (input == .stdio) {
+            log.err("unimplemented feature: stdin input path", .{});
+            return error.UnimplementedFeature;
+        }
     }
 
-    if (args.positional.input == .stdio) {
-        log.err("unimplemented feature: stdin input path", .{});
-        return error.UnimplementedFeature;
-    }
-    if (args.named.output != null and args.named.output.? == .stdio) {
+    if (options.flags.output != null and options.flags.output.? == .stdio) {
         log.err("unimplemented feature: stdout output path", .{});
         return error.UnimplementedFeature;
     }
 
+    const operation = try parseOperation(&options);
     return .{
-        .operation = parseOperation(&args),
-        .policies = args.named.permit orelse .none,
-        .strictness = if (args.named.strict)
+        .operation = operation,
+        .policies = if (options.flags.permit) |policies| policies else .none,
+        .strictness = if (options.flags.strict)
             .strict
-        else if (args.named.relaxed)
+        else if (options.flags.relaxed)
             .relaxed
         else
             .normal,
-        .verbosity = if (args.named.quiet) .quiet else .normal,
+        .verbosity = if (options.flags.quiet) .quiet else .normal,
     };
 }
 
-fn parseOperation(args: *const cli_template.Args(template)) Operation {
-    if (args.named.assemble) {
-        return .{ .assemble = .{
-            .input = args.positional.input,
-            .output = args.named.output,
-            .output_mode = if (args.named.export_symbols)
-                .symbols
-            else if (args.named.export_listing)
-                .listing
-            else
-                .assembly,
-            .trap_aliases = args.named.trap_aliases,
+fn parseOperation(options: *const zilc.Options(template)) !Operation {
+    try zilc.checkGroup(.operation, enum { assemble, emulate, check, clean, format, lsp }, &options.flags);
+    try zilc.checkGroup(.export_mode, enum { export_symbols, export_listing }, &options.flags);
+    try zilc.checkGroup(.verbosity, enum { strict, relaxed }, &options.flags);
+
+    try zilc.checkDependencies(.output, enum { assemble, format }, enum {}, &options.flags);
+    try zilc.checkDependencies(.export_symbols, enum { assemble }, enum {}, &options.flags);
+    try zilc.checkDependencies(.export_listing, enum { assemble }, enum {}, &options.flags);
+    try zilc.checkDependencies(.trap_aliases, enum { assemble, check, format }, enum {}, &options.flags);
+    try zilc.checkDependencies(.debug, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
+    try zilc.checkDependencies(.commands, enum { debug }, enum {}, &options.flags);
+    try zilc.checkDependencies(.history_file, enum { debug }, enum {}, &options.flags);
+    try zilc.checkDependencies(.import_symbols, enum { emulate }, enum {}, &options.flags);
+
+    if (options.flags.debug and
+        options.pos.items.len == 0) // TODO: There should be a better way to do this this check
+    {
+        return .{ .debug_empty = .{
+            .commands = options.flags.commands,
+            .history_file = options.flags.history_file,
         } };
     }
 
-    if (args.named.emulate) {
+    const input = try options.getPos(zilc.types.path, .input, 0);
+
+    if (options.flags.assemble) {
+        return .{
+            .assemble = .{
+                .input = input,
+                .output = options.flags.output,
+                .output_mode = if (options.flags.export_symbols)
+                    .symbols
+                else if (options.flags.export_listing)
+                    .listing
+                else
+                    .assembly,
+                .trap_aliases = options.flags.trap_aliases,
+            },
+        };
+    }
+
+    if (options.flags.emulate) {
         return .{ .emulate = .{
-            .input = args.positional.input,
-            .debug = if (args.named.debug) .{
-                .commands = args.named.commands,
-                .history_file = args.named.history_file,
+            .input = input,
+            .debug = if (options.flags.debug) .{
+                .commands = options.flags.commands,
+                .history_file = options.flags.history_file,
             } else null,
-            .import_symbols = args.named.import_symbols,
+            .import_symbols = options.flags.import_symbols,
         } };
     }
 
-    if (args.named.check) {
+    if (options.flags.check) {
         return .{ .assemble = .{
-            .input = args.positional.input,
+            .input = input,
             .output = null,
             .output_mode = .none,
-            .trap_aliases = args.named.trap_aliases,
+            .trap_aliases = options.flags.trap_aliases,
         } };
     }
 
-    if (args.named.format) {
-        return .{ .format = .{
-            .input = args.positional.input,
-            .output = args.named.output,
-            .trap_aliases = args.named.trap_aliases,
-        } };
-    }
-
-    if (args.named.clean) {
+    if (options.flags.clean) {
         return .{ .clean = .{
-            .input = args.positional.input.asRegular() catch unreachable,
+            .input = try input.asRegular(),
         } };
     }
 
-    return .{ .assemble_emulate = .{
-        .input = args.positional.input,
-        .debug = if (args.named.debug) .{
-            .commands = args.named.commands,
-            .history_file = args.named.history_file,
-        } else null,
-    } };
+    if (options.flags.format) {
+        return .{ .format = .{
+            .input = input,
+            .output = options.flags.output,
+            .trap_aliases = options.flags.trap_aliases,
+        } };
+    }
+
+    return .{
+        .assemble_emulate = .{
+            .input = input,
+            .debug = if (options.flags.debug) .{
+                .commands = options.flags.commands,
+                .history_file = options.flags.history_file,
+            } else null,
+        },
+    };
 }
