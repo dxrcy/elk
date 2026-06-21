@@ -362,21 +362,22 @@ fn checkErrors(error_count: usize) error{ParseFailed}!void {
     }
 }
 
+const TagListFmt = struct {
+    type: type,
+    pub fn format(self: @This(), writer: *Writer) !void {
+        for (std.meta.tags(self.type), 0..) |tag, i| {
+            if (i > 0)
+                try writer.print(", ", .{});
+            try writer.print("{t}", .{tag});
+        }
+    }
+};
+
 pub fn checkGroup(
     comptime name: @EnumLiteral(),
     comptime Group: type,
     flags: anytype,
 ) error{ParseFailed}!void {
-    const GroupFmt = struct {
-        pub fn format(_: @This(), writer: *Writer) !void {
-            for (std.meta.tags(Group), 0..) |tag, i| {
-                if (i > 0)
-                    try writer.print(", ", .{});
-                try writer.print("{t}", .{tag});
-            }
-        }
-    };
-
     var existing = false;
     inline for (comptime std.meta.tags(Group)) |flag| {
         if (isFlagSet(@field(flags, @tagName(flag)))) {
@@ -385,7 +386,7 @@ pub fn checkGroup(
             } else {
                 log.err(
                     "multiple flags given for '{t}': must be one of [{f}]",
-                    .{ name, GroupFmt{} },
+                    .{ name, TagListFmt{ .type = Group } },
                 );
                 return error.ParseFailed;
             }
@@ -408,16 +409,6 @@ pub fn checkRequirements(
     comptime Requires: type,
     flags: anytype,
 ) error{ParseFailed}!void {
-    const GroupFmt = struct {
-        pub fn format(_: @This(), writer: *Writer) !void {
-            for (std.meta.tags(Requires), 0..) |tag, i| {
-                if (i > 0)
-                    try writer.print(", ", .{});
-                try writer.print("{t}", .{tag});
-            }
-        }
-    };
-
     if (!isFlagSet(@field(flags, @tagName(name))))
         return;
     if (comptime std.meta.tags(Requires).len == 0)
@@ -426,7 +417,10 @@ pub fn checkRequirements(
         if (isFlagSet(@field(flags, @tagName(require))))
             return;
     }
-    log.err("flag '{t}' cannot be used without one of required flags [{f}]", .{ name, GroupFmt{} });
+    log.err(
+        "flag '{t}' cannot be used without one of required flags [{f}]",
+        .{ name, TagListFmt{ .type = Requires } },
+    );
     return error.ParseFailed;
 }
 
