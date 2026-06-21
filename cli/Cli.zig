@@ -199,6 +199,8 @@ pub fn parse(arena: Allocator, args: []const []const u8) !Cli {
             return error.ParseFailed;
         }
         if (input == .stdio) {
+            // TODO: Once this is implemented, we need to check that `--output` is explicit...
+            // We have to filepath to replace .asm with .obj !!
             log.err("unimplemented feature: stdin input path", .{});
             return error.UnimplementedFeature;
         }
@@ -242,6 +244,10 @@ fn parseOperation(options: *const zilc.Options(template)) !Operation {
     }
 
     const input = try options.getPos(zilc.types.path, .input, 0);
+    if (options.pos.items.len > 1) {
+        log.err("unexpected positional argument '{s}'", .{options.pos.items[1]});
+        return error.ParseFailed;
+    }
 
     if (options.flags.assemble) {
         return .{
