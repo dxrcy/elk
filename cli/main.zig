@@ -72,17 +72,28 @@ pub fn main(init: std.process.Init) !u8 {
                 .listing => "lst",
             };
 
-            var file = // This is disgusting...
-                if (operation.output != null and operation.output.? == .stdio)
-                    Io.File.stdout()
-                else file: {
-                    var out_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-                    const out_path = if (operation.output) |output|
-                        output.asRegular() catch unreachable
-                    else
-                        replacePathExtension(&out_path_buffer, input_path, out_extension);
-                    break :file try Io.Dir.cwd().createFile(io, out_path, .{});
-                };
+            const output: union(enum) { stdio, regular: []const u8, auto } =
+                if (operation.output) |output| switch (output) {
+                    .stdio => .stdio,
+                    .regular => |regular| .{ .regular = regular },
+                } else .auto;
+
+            var out_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
+            var file = file: switch (output) {
+                .stdio => {
+                    break :file Io.File.stdout();
+                },
+                .regular => |regular| {
+                    break :file try Io.Dir.cwd().createFile(io, regular, .{});
+                },
+                .auto => {
+                    break :file try Io.Dir.cwd().createFile(
+                        io,
+                        replacePathExtension(&out_path_buffer, input_path, out_extension),
+                        .{},
+                    );
+                },
+            };
             defer file.close(io);
 
             var buffer: [512]u8 = undefined;
