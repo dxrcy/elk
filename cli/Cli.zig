@@ -136,14 +136,15 @@ const template = .{
 };
 
 fn parsePolicies(dest: *anyopaque, src: []const u8) error{ParseFailed}!void {
-    const policies: *elk.Policies = @ptrCast(@alignCast(dest));
+    const policies: *?elk.Policies = @ptrCast(@alignCast(dest));
     policies.* = elk.Policies.parseList(src) catch
         return error.ParseFailed;
 }
 
 fn parseTrapAliases(dest: *anyopaque, src: []const u8) error{ParseFailed}!void {
-    const traps: *elk.Traps = @ptrCast(@alignCast(dest));
-    traps.* = .{ .entries = @splat(.unset) };
+    const traps_opt: *?elk.Traps = @ptrCast(@alignCast(dest));
+    traps_opt.* = .{ .entries = @splat(.unset) };
+    const traps: *elk.Traps = &traps_opt.*.?;
 
     var items = std.mem.tokenizeScalar(u8, src, ',');
     while (items.next()) |item| {
@@ -223,9 +224,17 @@ pub fn parse(arena: Allocator, args: []const []const u8) !Cli {
 
 fn parseOperation(options: *const zilc.Options(template)) !Operation {
     try zilc.checkGroup(.operation, enum { assemble, emulate, check, clean, format, lsp }, &options.flags);
+    try zilc.checkGroup(.export_mode, enum { export_symbols, export_listing }, &options.flags);
+    try zilc.checkGroup(.verbosity, enum { strict, relaxed }, &options.flags);
 
-    if (options.flags.debug)
-        try zilc.checkConflicts(.debug, &.{}, &.{ .assemble, .check, .clean, .format, .lsp }, &options.flags);
+    try zilc.checkDependencies(.output, &.{}, &.{ .assemble, .format }, &options.flags);
+    try zilc.checkDependencies(.export_symbols, &.{.assemble}, &.{}, &options.flags);
+    try zilc.checkDependencies(.export_listing, &.{.assemble}, &.{}, &options.flags);
+    try zilc.checkDependencies(.trap_aliases, &.{ .assemble, .check, .format }, &.{}, &options.flags);
+    try zilc.checkDependencies(.debug, &.{}, &.{ .assemble, .check, .clean, .format, .lsp }, &options.flags);
+    try zilc.checkDependencies(.commands, &.{.debug}, &.{}, &options.flags);
+    try zilc.checkDependencies(.history_file, &.{.debug}, &.{}, &options.flags);
+    try zilc.checkDependencies(.import_symbols, &.{.emulate}, &.{}, &options.flags);
 
     const input = try options.getPos(zilc.types.path, .input, 0);
 

@@ -393,21 +393,54 @@ pub fn checkGroup(
     }
 }
 
-pub fn checkConflicts(
+// TODO: Use enum types for lists ?
+pub fn checkDependencies(
     comptime name: @EnumLiteral(),
     comptime requires: []const @EnumLiteral(),
     comptime conflicts: []const @EnumLiteral(),
     flags: anytype,
 ) error{ParseFailed}!void {
-    inline for (requires) |require| {
-        if (isFlagSet(@field(flags, @tagName(require)))) {
-            log.err("flag `{t}` cannot be used without required flag `{t}`", .{ name, require });
-            return error.ParseFailed;
+    try checkRequirements(name, requires, flags);
+    try checkConflicts(name, conflicts, flags);
+}
+
+pub fn checkRequirements(
+    comptime name: @EnumLiteral(),
+    comptime requires: []const @EnumLiteral(),
+    flags: anytype,
+) error{ParseFailed}!void {
+    const GroupFmt = struct {
+        pub fn format(_: @This(), writer: *Writer) !void {
+            inline for (requires, 0..) |tag, i| {
+                if (i > 0)
+                    try writer.print(", ", .{});
+                try writer.print("{t}", .{tag});
+            }
         }
+    };
+
+    if (!isFlagSet(@field(flags, @tagName(name))))
+        return;
+    if (requires.len == 0)
+        return;
+    inline for (requires) |require| {
+        if (isFlagSet(@field(flags, @tagName(require))))
+            return;
     }
+    log.err("flag '{t}' cannot be used without one of required flags [{f}]", .{ name, GroupFmt{} });
+    return error.ParseFailed;
+}
+
+pub fn checkConflicts(
+    comptime name: @EnumLiteral(),
+    comptime conflicts: []const @EnumLiteral(),
+    flags: anytype,
+) error{ParseFailed}!void {
+    if (!isFlagSet(@field(flags, @tagName(name))))
+        return;
     inline for (conflicts) |conflict| {
         if (isFlagSet(@field(flags, @tagName(conflict)))) {
-            log.err("flag `{t}` cannot be used with conflicting flag `{t}`", .{ name, conflict });
+            log.err("flag '{t}' cannot be used with conflicting flag '{t}'", .{ name, conflict });
             return error.ParseFailed;
         }
     }
