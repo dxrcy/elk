@@ -40,14 +40,21 @@ pub fn main(init: std.process.Init) !u8 {
     switch (cli.operation) {
         .assemble => |operation| {
             var input_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-            const length = try Io.Dir.cwd().realPathFile(
-                io,
-                operation.input.asRegular() catch unreachable,
-                &input_path_buffer,
-            );
-            const input_path = input_path_buffer[0..length];
+            var input_path: ?[]const u8 = null;
 
-            const text = try Io.Dir.cwd().readFileAlloc(io, input_path, gpa, .unlimited);
+            const in_file = file: switch (operation.input) {
+                .stdio => {
+                    break :file Io.File.stdout();
+                },
+                .regular => |regular| {
+                    const length = try Io.Dir.cwd().realPathFile(io, regular, &input_path_buffer);
+                    input_path = input_path_buffer[0..length];
+                    break :file try Io.Dir.cwd().openFile(io, input_path.?, .{});
+                },
+            };
+
+            var reader = in_file.reader(io, &.{});
+            const text = try reader.interface.allocRemaining(gpa, .unlimited);
             defer gpa.free(text);
 
             const source: elk.Source = .{
@@ -79,7 +86,7 @@ pub fn main(init: std.process.Init) !u8 {
                 } else .auto;
 
             var out_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-            var file = file: switch (output) {
+            var out_file = file: switch (output) {
                 .stdio => {
                     break :file Io.File.stdout();
                 },
@@ -87,17 +94,18 @@ pub fn main(init: std.process.Init) !u8 {
                     break :file try Io.Dir.cwd().createFile(io, regular, .{});
                 },
                 .auto => {
-                    break :file try Io.Dir.cwd().createFile(
-                        io,
-                        replacePathExtension(&out_path_buffer, input_path, out_extension),
-                        .{},
+                    const out_path = replacePathExtension(
+                        &out_path_buffer,
+                        input_path orelse unreachable,
+                        out_extension,
                     );
+                    break :file try Io.Dir.cwd().createFile(io, out_path, .{});
                 },
             };
-            defer file.close(io);
+            defer out_file.close(io);
 
             var buffer: [512]u8 = undefined;
-            var writer = file.writer(io, &buffer);
+            var writer = out_file.writer(io, &buffer);
 
             switch (operation.output_mode) {
                 .none => unreachable,

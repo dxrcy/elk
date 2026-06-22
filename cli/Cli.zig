@@ -210,11 +210,9 @@ pub fn parse(arena: Allocator, args: []const []const u8) !Cli {
             log.err("unsupported stdin input path for operation", .{});
             return error.ParseFailed;
         }
-        if (input == .stdio) {
-            // TODO: Once this is implemented, we need to check that `--output` is explicit...
-            // We have to filepath to replace .asm with .obj !!
-            log.err("unimplemented feature: stdin input path", .{});
-            return error.UnimplementedFeature;
+        if (input == .stdio and options.flags.output == null) {
+            log.err("--output is required for stdin input", .{});
+            return error.ParseFailed;
         }
     }
 
