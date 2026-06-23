@@ -173,8 +173,14 @@ fn parseTrapAliasEntry(item: []const u8) ?struct { []const u8, u8 } {
     return .{ alias, vect };
 }
 
+fn getMetaArg(args: []const []const u8) ?zilc.MetaArg {
+    if (args.len == 0)
+        return .help;
+    return zilc.getMetaArg(args);
+}
+
 pub fn parse(arena: Allocator, args: []const []const u8) !Cli {
-    if (zilc.getMetaArg(args)) |meta| {
+    if (getMetaArg(args)) |meta| {
         switch (meta) {
             .help => {
                 std.debug.print(info.help ++ "\n", .{});
