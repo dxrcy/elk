@@ -497,6 +497,21 @@ fn runCommand(
             try writeSpanContext(debugger.writer.inner, line.span, .{
                 .max_context = arguments.context.value,
             }, assembly.source);
+
+            if (debugger.initial_state) |initial_state| {
+                if (isMemoryModifiedInContext(
+                    runtime,
+                    &initial_state,
+                    assembly,
+                    line.span,
+                    arguments.context.value,
+                )) {
+                    try debugger.writer.printLine(
+                        "WARNING: Assembly may no longer correspond to modified memory",
+                        .{},
+                    );
+                }
+            }
         },
 
         .eval => |arguments| {
@@ -902,6 +917,23 @@ fn ensureUserAddress(debugger: *Debugger, address: u16, span: Span) error{Report
             }).abort();
         },
     }
+}
+
+fn isMemoryModifiedInContext(
+    runtime: *const Runtime,
+    initial_state: *const Runtime.State,
+    assembly: Assembly,
+    span: Span,
+    max_context: usize,
+) bool {
+    const lines = span.getSurroundingLines(max_context, assembly.source.text);
+
+    for (assembly.air.lines.items, assembly.air.origin..) |line, address| {
+        if (line.span.overlaps(lines) and
+            runtime.state.memory[address] != initial_state.memory[address])
+            return true;
+    }
+    return false;
 }
 
 fn readCommand(debugger: *Debugger, runtime: *Runtime) ![]const u8 {
