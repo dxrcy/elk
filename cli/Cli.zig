@@ -210,7 +210,10 @@ pub fn parse(arena: Allocator, args: []const []const u8) !Cli {
             log.err("unsupported stdin input path for operation", .{});
             return error.ParseFailed;
         }
-        if (input == .stdio and options.flags.output == null) {
+        if (input == .stdio and
+            options.flags.output == null and
+            options.flags.assemble)
+        {
             log.err("--output is required for stdin input", .{});
             return error.ParseFailed;
         }

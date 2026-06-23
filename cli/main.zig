@@ -118,7 +118,14 @@ pub fn main(init: std.process.Init) !u8 {
         },
 
         .emulate => |operation| {
-            const input_path = operation.input.asRegular() catch unreachable;
+            const in_file = file: switch (operation.input) {
+                .stdio => {
+                    break :file Io.File.stdin();
+                },
+                .regular => |regular| {
+                    break :file try Io.Dir.cwd().openFile(io, regular, .{});
+                },
+            };
 
             var symbols: std.ArrayList(elk.Runtime.SymbolEntry) = .empty;
             defer symbols.deinit(gpa);
@@ -130,13 +137,12 @@ pub fn main(init: std.process.Init) !u8 {
                 try readSymbolTable(io, gpa, symbol_names.allocator(), sym_path, &symbols);
             }
 
-            const file = try Io.Dir.cwd().openFile(io, input_path, .{});
             try emulate(
                 io,
                 gpa,
                 init.environ_map,
                 .{ .object = .{
-                    .file = file,
+                    .file = in_file,
                     .symbols = if (operation.import_symbols != null) symbols.items else null,
                 } },
                 operation.debug,
