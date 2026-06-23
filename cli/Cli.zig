@@ -300,7 +300,10 @@ fn parseOperation(options: *const zilc.Options(template)) !Operation {
 
     if (options.flags.clean) {
         return .{ .clean = .{
-            .input = try input.asRegular(),
+            .input = switch (input) {
+                .regular => |regular| regular,
+                .stdio => unreachable,
+            },
         } };
     }
 

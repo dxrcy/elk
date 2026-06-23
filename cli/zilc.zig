@@ -104,13 +104,6 @@ pub const types = struct {
     pub const Path = union(enum) {
         stdio,
         regular: []const u8,
-
-        pub fn asRegular(self: Path) ![]const u8 {
-            return switch (self) {
-                .stdio => error.UnsupportedStdio,
-                .regular => |regular| regular,
-            };
-        }
     };
 };
 
