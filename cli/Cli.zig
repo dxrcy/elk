@@ -42,6 +42,7 @@ const Operation = union(enum) {
         input: zilc.types.Path,
         debug: ?Debug,
         import_symbols: ?[]const u8,
+        patch_symbols: ?[]const struct { []const u8, u16 },
     },
     debug_empty: Debug,
     clean: struct {
@@ -104,6 +105,10 @@ const template = .{
         .short = 'd',
         .long = "debug",
     },
+    .patch_symbols = zilc.Flag{
+        .long = "patch",
+        .value = .{ .type = []const struct { []const u8, u16 }, .parser = parsePatches },
+    },
 
     .commands = zilc.Flag{
         .short = 'C',
@@ -149,7 +154,7 @@ fn parseTrapAliases(dest: *anyopaque, src: []const u8, _: Allocator) error{Parse
 
     var items = std.mem.tokenizeScalar(u8, src, ',');
     while (items.next()) |item| {
-        const alias, const vect = parseTrapAliasEntry(item) orelse
+        const alias, const vect = parseStringWordPair(item) orelse
             return error.ParseFailed;
         const entry: elk.Traps.Entry = .{ .alias = alias, .callback = null };
         if (!traps.canRegister(vect, entry))
@@ -158,7 +163,25 @@ fn parseTrapAliases(dest: *anyopaque, src: []const u8, _: Allocator) error{Parse
     }
 }
 
-fn parseTrapAliasEntry(item: []const u8) ?struct { []const u8, u8 } {
+fn parsePatches(dest: *anyopaque, src: []const u8, gpa: Allocator) error{ParseFailed}!void {
+    const patches_opt: *?[]const struct { []const u8, u16 } = @ptrCast(@alignCast(dest));
+
+    var patches: std.ArrayList(struct { []const u8, u16 }) = .empty;
+
+    var items = std.mem.tokenizeScalar(u8, src, ',');
+    while (items.next()) |item| {
+        const symbol, const word = parseStringWordPair(item) orelse
+            return error.ParseFailed;
+        // TODO: Check if already patched
+        patches.append(gpa, .{ symbol, word }) catch
+            // TODO: Return OOM
+            return error.ParseFailed;
+    }
+
+    patches_opt.* = patches.items;
+}
+
+fn parseStringWordPair(item: []const u8) ?struct { []const u8, u8 } {
     const parts = std.mem.cutScalar(u8, item, '=') orelse
         return null;
 
@@ -249,6 +272,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
     try zilc.checkDependencies(.export_listing, enum { assemble }, enum {}, &options.flags);
     try zilc.checkDependencies(.trap_aliases, enum { assemble, check, format }, enum {}, &options.flags);
     try zilc.checkDependencies(.debug, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
+    try zilc.checkDependencies(.patch_symbols, enum { emulate, import_symbols }, enum {}, &options.flags);
     try zilc.checkDependencies(.commands, enum { debug }, enum {}, &options.flags);
     try zilc.checkDependencies(.history_file, enum { debug }, enum {}, &options.flags);
     try zilc.checkDependencies(.import_symbols, enum { emulate }, enum {}, &options.flags);
@@ -292,6 +316,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
                 .history_file = options.flags.history_file,
             } else null,
             .import_symbols = options.flags.import_symbols,
+            .patch_symbols = options.flags.patch_symbols,
         } };
     }
 
