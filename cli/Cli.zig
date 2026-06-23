@@ -154,7 +154,7 @@ fn parseTrapAliases(dest: *anyopaque, src: []const u8, _: Allocator) !void {
 
     var items = std.mem.tokenizeScalar(u8, src, ',');
     while (items.next()) |item| {
-        const alias, const vect = parseStringWordPair(item) orelse
+        const alias, const vect = parseStringIntPair(u8, item) orelse
             return error.InvalidValue;
         const entry: elk.Traps.Entry = .{ .alias = alias, .callback = null };
         if (!traps.canRegister(vect, entry))
@@ -169,7 +169,7 @@ fn parsePatches(dest: *anyopaque, src: []const u8, gpa: Allocator) !void {
 
     var items = std.mem.tokenizeScalar(u8, src, ',');
     while (items.next()) |item| {
-        const symbol, const word = parseStringWordPair(item) orelse
+        const symbol, const word = parseStringIntPair(u16, item) orelse
             return error.InvalidValue;
         for (patches.items) |patch| {
             if (std.mem.eql(u8, patch[0], symbol))
@@ -181,7 +181,7 @@ fn parsePatches(dest: *anyopaque, src: []const u8, gpa: Allocator) !void {
     patches_opt.* = patches.items;
 }
 
-fn parseStringWordPair(item: []const u8) ?struct { []const u8, u8 } {
+fn parseStringIntPair(comptime Int: type, item: []const u8) ?struct { []const u8, Int } {
     const parts = std.mem.cutScalar(u8, item, '=') orelse
         return null;
 
@@ -190,7 +190,7 @@ fn parseStringWordPair(item: []const u8) ?struct { []const u8, u8 } {
 
     const vect_integer = (elk.Parser.parseInteger(vect_string) catch
         return null) orelse return null;
-    const vect = vect_integer.castToSmaller(u8) catch
+    const vect = vect_integer.castToSmaller(Int) catch
         return null;
 
     return .{ alias, vect };
