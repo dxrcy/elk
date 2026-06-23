@@ -165,14 +165,16 @@ fn parseTrapAliases(dest: *anyopaque, src: []const u8, _: Allocator) !void {
 
 fn parsePatches(dest: *anyopaque, src: []const u8, gpa: Allocator) !void {
     const patches_opt: *?[]const struct { []const u8, u16 } = @ptrCast(@alignCast(dest));
-
     var patches: std.ArrayList(struct { []const u8, u16 }) = .empty;
 
     var items = std.mem.tokenizeScalar(u8, src, ',');
     while (items.next()) |item| {
         const symbol, const word = parseStringWordPair(item) orelse
             return error.InvalidValue;
-        // TODO: Check if already patched
+        for (patches.items) |patch| {
+            if (std.mem.eql(u8, patch[0], symbol))
+                return error.InvalidValue;
+        }
         try patches.append(gpa, .{ symbol, word });
     }
 
