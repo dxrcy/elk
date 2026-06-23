@@ -31,12 +31,14 @@ const Operation = union(enum) {
     assemble_emulate: struct {
         input: zilc.types.Path,
         debug: ?Debug,
+        patch_symbols: ?[]const struct { []const u8, u16 },
     },
     assemble: struct {
         input: zilc.types.Path,
         output: ?zilc.types.Path,
         output_mode: enum { none, assembly, symbols, listing },
         trap_aliases: ?elk.Traps,
+        patch_symbols: ?[]const struct { []const u8, u16 },
     },
     emulate: struct {
         input: zilc.types.Path,
@@ -281,18 +283,9 @@ fn checkDependencies(options: *const zilc.Options(template)) !void {
     if (options.flags.emulate) {
         try zilc.checkDependencies(.patch_symbols, enum { import_symbols }, enum {}, &options.flags);
     } else if (options.flags.assemble) {
-        // TODO:
-        if (options.flags.patch_symbols != null) {
-            log.err("unimplemented: --assemble --patch", .{});
-            return error.Unimplemented;
-        }
+        //
     } else {
         try zilc.checkDependencies(.patch_symbols, enum {}, enum { check, clean, format, lsp }, &options.flags);
-        // TODO:
-        if (options.flags.patch_symbols != null) {
-            log.err("unimplemented: assemble-emulate --patch", .{});
-            return error.Unimplemented;
-        }
     }
 }
 
@@ -324,6 +317,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
                 else
                     .assembly,
                 .trap_aliases = options.flags.trap_aliases,
+                .patch_symbols = options.flags.patch_symbols,
             },
         };
     }
@@ -346,6 +340,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
             .output = null,
             .output_mode = .none,
             .trap_aliases = options.flags.trap_aliases,
+            .patch_symbols = options.flags.patch_symbols,
         } };
     }
 
@@ -373,6 +368,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
                 .commands = options.flags.commands,
                 .history_file = options.flags.history_file,
             } else null,
+            .patch_symbols = options.flags.patch_symbols,
         },
     };
 }

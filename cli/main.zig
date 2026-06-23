@@ -71,7 +71,13 @@ pub fn main(init: std.process.Init) !u8 {
 
             const traps = operation.trap_aliases orelse default_traps;
 
-            var air = assemble(gpa, source, &traps, &reporter) catch |err| switch (err) {
+            var air = assemble(
+                gpa,
+                source,
+                operation.patch_symbols,
+                &traps,
+                &reporter,
+            ) catch |err| switch (err) {
                 error.ProgramError => return 1,
                 else => |err2| return err2,
             };
@@ -201,7 +207,13 @@ pub fn main(init: std.process.Init) !u8 {
 
             reporter.source = source;
 
-            var air = assemble(gpa, source, &default_traps, &reporter) catch |err| switch (err) {
+            var air = assemble(
+                gpa,
+                source,
+                operation.patch_symbols,
+                &default_traps,
+                &reporter,
+            ) catch |err| switch (err) {
                 error.ProgramError => return 1,
                 else => |err2| return err2,
             };
@@ -295,6 +307,7 @@ fn replacePathExtension(buffer: []u8, path: []const u8, extension: []const u8) [
 fn assemble(
     gpa: Allocator,
     source: elk.Source,
+    patch_symbols_opt: ?[]const struct { []const u8, u16 },
     traps: *const elk.Traps,
     reporter: *elk.reporting.Primary,
 ) !elk.Air {
@@ -317,6 +330,13 @@ fn assemble(
     }
 
     reporter.summarize();
+
+    if (patch_symbols_opt) |patch_symbols| {
+        for (patch_symbols) |item| {
+            const symbol, const word = item;
+            try air.patchLabelValue(symbol, word, source);
+        }
+    }
 
     return air;
 }
