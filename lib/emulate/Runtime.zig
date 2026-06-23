@@ -131,21 +131,25 @@ pub fn deinit(runtime: Runtime, gpa: Allocator) void {
 
 pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !void {
     var reader = file.reader(io, buffer);
-    const metadata = try file.stat(io);
 
-    if (metadata.size < 2)
-        return error.FileTooSmall;
-    if (metadata.size % 2 != 0)
-        return error.FileNotAligned;
-
-    const origin = try reader.interface.takeInt(u16, .big);
+    const origin = reader.interface.takeInt(u16, .big) catch |err| switch (err) {
+        else => |e| return e,
+        error.EndOfStream => return error.FileTooSmall,
+    };
     runtime.state.pc = origin;
 
     var i: usize = 0;
-    const words = metadata.size / 2 - 1;
-    while (i < words) : (i += 1) {
-        const raw = try reader.interface.takeInt(u16, .big);
-        try runtime.setMemory(@intCast(origin + i), raw);
+    while (true) : (i += 1) {
+        const high = reader.interface.takeByte() catch |err| switch (err) {
+            else => |e| return e,
+            error.EndOfStream => break,
+        };
+        const low = reader.interface.takeByte() catch |err| switch (err) {
+            else => |e| return e,
+            error.EndOfStream => return error.FileNotAligned,
+        };
+        const word = (@as(u16, high) << 8) | low;
+        try runtime.setMemory(@intCast(origin + i), word);
     }
 }
 
