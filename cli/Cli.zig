@@ -248,7 +248,9 @@ pub fn parse(gpa: Allocator, arena: Allocator, args: []const []const u8) !Cli {
         }
     }
 
+    try checkDependencies(&options);
     const operation = try parseOperation(gpa, &options);
+
     return .{
         .operation = operation,
         .policies = if (options.flags.permit) |policies| policies else .none,
@@ -262,7 +264,7 @@ pub fn parse(gpa: Allocator, arena: Allocator, args: []const []const u8) !Cli {
     };
 }
 
-fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Operation {
+fn checkDependencies(options: *const zilc.Options(template)) !void {
     try zilc.checkGroup(.operation, enum { assemble, emulate, check, clean, format, lsp }, &options.flags);
     try zilc.checkGroup(.export_mode, enum { export_symbols, export_listing }, &options.flags);
     try zilc.checkGroup(.verbosity, enum { strict, relaxed }, &options.flags);
@@ -276,7 +278,9 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
     try zilc.checkDependencies(.commands, enum { debug }, enum {}, &options.flags);
     try zilc.checkDependencies(.history_file, enum { debug }, enum {}, &options.flags);
     try zilc.checkDependencies(.import_symbols, enum { emulate }, enum {}, &options.flags);
+}
 
+fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Operation {
     if (options.flags.debug and
         options.pos.items.len == 0) // TODO: There should be a better way to do this this check
     {
