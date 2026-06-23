@@ -274,11 +274,26 @@ fn checkDependencies(options: *const zilc.Options(template)) !void {
     try zilc.checkDependencies(.export_listing, enum { assemble }, enum {}, &options.flags);
     try zilc.checkDependencies(.trap_aliases, enum { assemble, check, format }, enum {}, &options.flags);
     try zilc.checkDependencies(.debug, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
-    try zilc.checkDependencies(.patch_symbols, enum { emulate }, enum {}, &options.flags);
-    try zilc.checkDependencies(.patch_symbols, enum { import_symbols }, enum {}, &options.flags);
     try zilc.checkDependencies(.commands, enum { debug }, enum {}, &options.flags);
     try zilc.checkDependencies(.history_file, enum { debug }, enum {}, &options.flags);
     try zilc.checkDependencies(.import_symbols, enum { emulate }, enum {}, &options.flags);
+
+    if (options.flags.emulate) {
+        try zilc.checkDependencies(.patch_symbols, enum { import_symbols }, enum {}, &options.flags);
+    } else if (options.flags.assemble) {
+        // TODO:
+        if (options.flags.patch_symbols != null) {
+            log.err("unimplemented: --assemble --patch", .{});
+            return error.Unimplemented;
+        }
+    } else {
+        try zilc.checkDependencies(.patch_symbols, enum {}, enum { check, clean, format, lsp }, &options.flags);
+        // TODO:
+        if (options.flags.patch_symbols != null) {
+            log.err("unimplemented: assemble-emulate --patch", .{});
+            return error.Unimplemented;
+        }
+    }
 }
 
 fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Operation {
