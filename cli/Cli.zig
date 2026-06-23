@@ -274,7 +274,8 @@ fn checkDependencies(options: *const zilc.Options(template)) !void {
     try zilc.checkDependencies(.export_listing, enum { assemble }, enum {}, &options.flags);
     try zilc.checkDependencies(.trap_aliases, enum { assemble, check, format }, enum {}, &options.flags);
     try zilc.checkDependencies(.debug, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
-    try zilc.checkDependencies(.patch_symbols, enum { emulate, import_symbols }, enum {}, &options.flags);
+    try zilc.checkDependencies(.patch_symbols, enum { emulate }, enum {}, &options.flags);
+    try zilc.checkDependencies(.patch_symbols, enum { import_symbols }, enum {}, &options.flags);
     try zilc.checkDependencies(.commands, enum { debug }, enum {}, &options.flags);
     try zilc.checkDependencies(.history_file, enum { debug }, enum {}, &options.flags);
     try zilc.checkDependencies(.import_symbols, enum { emulate }, enum {}, &options.flags);
