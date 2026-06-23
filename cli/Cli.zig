@@ -136,13 +136,13 @@ const template = .{
     },
 };
 
-fn parsePolicies(dest: *anyopaque, src: []const u8) error{ParseFailed}!void {
+fn parsePolicies(dest: *anyopaque, src: []const u8, _: Allocator) error{ParseFailed}!void {
     const policies: *?elk.Policies = @ptrCast(@alignCast(dest));
     policies.* = elk.Policies.parseList(src) catch
         return error.ParseFailed;
 }
 
-fn parseTrapAliases(dest: *anyopaque, src: []const u8) error{ParseFailed}!void {
+fn parseTrapAliases(dest: *anyopaque, src: []const u8, _: Allocator) error{ParseFailed}!void {
     const traps_opt: *?elk.Traps = @ptrCast(@alignCast(dest));
     traps_opt.* = .{ .entries = @splat(.unset) };
     const traps: *elk.Traps = &traps_opt.*.?;
@@ -179,7 +179,7 @@ fn getMetaArg(args: []const []const u8) ?zilc.MetaArg {
     return zilc.getMetaArg(args);
 }
 
-pub fn parse(arena: Allocator, args: []const []const u8) !Cli {
+pub fn parse(gpa: Allocator, arena: Allocator, args: []const []const u8) !Cli {
     if (getMetaArg(args)) |meta| {
         switch (meta) {
             .help => {
@@ -193,7 +193,7 @@ pub fn parse(arena: Allocator, args: []const []const u8) !Cli {
         }
     }
 
-    var options: zilc.Options(template) = try .parse(arena, args);
+    var options: zilc.Options(template) = try .parse(gpa, arena, args);
     defer options.deinit(arena);
 
     const unimplemented_args = [_][]const u8{
@@ -211,7 +211,7 @@ pub fn parse(arena: Allocator, args: []const []const u8) !Cli {
         }
     }
 
-    if (options.getPosOptional(zilc.types.path, .input, 0)) |input| {
+    if (options.getPosOptional(gpa, zilc.types.path, .input, 0)) |input| {
         if (options.flags.clean) {
             log.err("unsupported stdin input path for operation", .{});
             return error.ParseFailed;
@@ -225,7 +225,7 @@ pub fn parse(arena: Allocator, args: []const []const u8) !Cli {
         }
     }
 
-    const operation = try parseOperation(&options);
+    const operation = try parseOperation(gpa, &options);
     return .{
         .operation = operation,
         .policies = if (options.flags.permit) |policies| policies else .none,
@@ -239,7 +239,7 @@ pub fn parse(arena: Allocator, args: []const []const u8) !Cli {
     };
 }
 
-fn parseOperation(options: *const zilc.Options(template)) !Operation {
+fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Operation {
     try zilc.checkGroup(.operation, enum { assemble, emulate, check, clean, format, lsp }, &options.flags);
     try zilc.checkGroup(.export_mode, enum { export_symbols, export_listing }, &options.flags);
     try zilc.checkGroup(.verbosity, enum { strict, relaxed }, &options.flags);
@@ -262,7 +262,7 @@ fn parseOperation(options: *const zilc.Options(template)) !Operation {
         } };
     }
 
-    const input = try options.getPos(zilc.types.path, .input, 0);
+    const input = try options.getPos(gpa, zilc.types.path, .input, 0);
     if (options.pos.items.len > 1) {
         log.err("unexpected positional argument '{s}'", .{options.pos.items[1]});
         return error.ParseFailed;

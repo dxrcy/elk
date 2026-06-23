@@ -16,13 +16,18 @@ pub fn main(init: std.process.Init) !u8 {
     var sink = elk.reporting.Sink.Fancy.new(&reporter_writer.interface);
     var reporter = elk.reporting.Primary.new(sink.interface());
 
-    var args = try zilc.collectArgs(init.arena.allocator(), init.minimal.args);
+    const args_allocator = init.arena.allocator();
+    var args = try zilc.collectArgs(args_allocator, init.minimal.args);
     defer args.deinit(init.arena.allocator());
 
     const cli = blk: {
         var temp_arena = std.heap.ArenaAllocator.init(gpa);
         defer temp_arena.deinit();
-        break :blk Cli.parse(temp_arena.allocator(), args.items) catch |err| switch (err) {
+        break :blk Cli.parse(
+            args_allocator,
+            temp_arena.allocator(),
+            args.items,
+        ) catch |err| switch (err) {
             else => return err,
             error.DisplayMetadata => return 0,
         };
