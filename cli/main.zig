@@ -170,14 +170,21 @@ pub fn main(init: std.process.Init) !u8 {
 
         .assemble_emulate => |operation| {
             var input_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-            const length = try Io.Dir.cwd().realPathFile(
-                io,
-                operation.input.asRegular() catch unreachable,
-                &input_path_buffer,
-            );
-            const input_path = input_path_buffer[0..length];
+            var input_path: ?[]const u8 = null;
 
-            const text = try Io.Dir.cwd().readFileAlloc(io, input_path, gpa, .unlimited);
+            const in_file = file: switch (operation.input) {
+                .stdio => {
+                    break :file Io.File.stdin();
+                },
+                .regular => |regular| {
+                    const length = try Io.Dir.cwd().realPathFile(io, regular, &input_path_buffer);
+                    input_path = input_path_buffer[0..length];
+                    break :file try Io.Dir.cwd().openFile(io, input_path.?, .{});
+                },
+            };
+
+            var reader = in_file.reader(io, &.{});
+            const text = try reader.interface.allocRemaining(gpa, .unlimited);
             defer gpa.free(text);
 
             const source: elk.Source = .{
