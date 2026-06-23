@@ -31,17 +31,20 @@ const Operation = union(enum) {
     assemble_emulate: struct {
         input: zilc.types.Path,
         debug: ?Debug,
+        patch_symbols: ?[]const struct { []const u8, u16 },
     },
     assemble: struct {
         input: zilc.types.Path,
         output: ?zilc.types.Path,
         output_mode: enum { none, assembly, symbols, listing },
         trap_aliases: ?elk.Traps,
+        patch_symbols: ?[]const struct { []const u8, u16 },
     },
     emulate: struct {
         input: zilc.types.Path,
         debug: ?Debug,
         import_symbols: ?[]const u8,
+        patch_symbols: ?[]const struct { []const u8, u16 },
     },
     debug_empty: Debug,
     clean: struct {
@@ -104,6 +107,10 @@ const template = .{
         .short = 'd',
         .long = "debug",
     },
+    .patch_symbols = zilc.Flag{
+        .long = "patch",
+        .value = .{ .type = []const struct { []const u8, u16 }, .parser = parsePatches },
+    },
 
     .commands = zilc.Flag{
         .short = 'C',
@@ -136,29 +143,47 @@ const template = .{
     },
 };
 
-fn parsePolicies(dest: *anyopaque, src: []const u8) error{ParseFailed}!void {
+fn parsePolicies(dest: *anyopaque, src: []const u8, _: Allocator) !void {
     const policies: *?elk.Policies = @ptrCast(@alignCast(dest));
     policies.* = elk.Policies.parseList(src) catch
-        return error.ParseFailed;
+        return error.InvalidValue;
 }
 
-fn parseTrapAliases(dest: *anyopaque, src: []const u8) error{ParseFailed}!void {
+fn parseTrapAliases(dest: *anyopaque, src: []const u8, _: Allocator) !void {
     const traps_opt: *?elk.Traps = @ptrCast(@alignCast(dest));
     traps_opt.* = .{ .entries = @splat(.unset) };
     const traps: *elk.Traps = &traps_opt.*.?;
 
     var items = std.mem.tokenizeScalar(u8, src, ',');
     while (items.next()) |item| {
-        const alias, const vect = parseTrapAliasEntry(item) orelse
-            return error.ParseFailed;
+        const alias, const vect = parseStringIntPair(u8, item) orelse
+            return error.InvalidValue;
         const entry: elk.Traps.Entry = .{ .alias = alias, .callback = null };
         if (!traps.canRegister(vect, entry))
-            return error.ParseFailed;
+            return error.InvalidValue;
         traps.register(vect, entry);
     }
 }
 
-fn parseTrapAliasEntry(item: []const u8) ?struct { []const u8, u8 } {
+fn parsePatches(dest: *anyopaque, src: []const u8, gpa: Allocator) !void {
+    const patches_opt: *?[]const struct { []const u8, u16 } = @ptrCast(@alignCast(dest));
+    var patches: std.ArrayList(struct { []const u8, u16 }) = .empty;
+
+    var items = std.mem.tokenizeScalar(u8, src, ',');
+    while (items.next()) |item| {
+        const symbol, const word = parseStringIntPair(u16, item) orelse
+            return error.InvalidValue;
+        for (patches.items) |patch| {
+            if (std.mem.eql(u8, patch[0], symbol))
+                return error.InvalidValue;
+        }
+        try patches.append(gpa, .{ symbol, word });
+    }
+
+    patches_opt.* = patches.items;
+}
+
+fn parseStringIntPair(comptime Int: type, item: []const u8) ?struct { []const u8, Int } {
     const parts = std.mem.cutScalar(u8, item, '=') orelse
         return null;
 
@@ -167,7 +192,7 @@ fn parseTrapAliasEntry(item: []const u8) ?struct { []const u8, u8 } {
 
     const vect_integer = (elk.Parser.parseInteger(vect_string) catch
         return null) orelse return null;
-    const vect = vect_integer.castToSmaller(u8) catch
+    const vect = vect_integer.castToSmaller(Int) catch
         return null;
 
     return .{ alias, vect };
@@ -179,7 +204,7 @@ fn getMetaArg(args: []const []const u8) ?zilc.MetaArg {
     return zilc.getMetaArg(args);
 }
 
-pub fn parse(arena: Allocator, args: []const []const u8) !Cli {
+pub fn parse(gpa: Allocator, arena: Allocator, args: []const []const u8) !Cli {
     if (getMetaArg(args)) |meta| {
         switch (meta) {
             .help => {
@@ -193,7 +218,7 @@ pub fn parse(arena: Allocator, args: []const []const u8) !Cli {
         }
     }
 
-    var options: zilc.Options(template) = try .parse(arena, args);
+    var options: zilc.Options(template) = try .parse(gpa, arena, args);
     defer options.deinit(arena);
 
     const unimplemented_args = [_][]const u8{
@@ -211,7 +236,7 @@ pub fn parse(arena: Allocator, args: []const []const u8) !Cli {
         }
     }
 
-    if (options.getPosOptional(zilc.types.path, .input, 0)) |input| {
+    if (options.getPosOptional(gpa, zilc.types.path, .input, 0)) |input| {
         if (options.flags.clean) {
             log.err("unsupported stdin input path for operation", .{});
             return error.ParseFailed;
@@ -225,7 +250,9 @@ pub fn parse(arena: Allocator, args: []const []const u8) !Cli {
         }
     }
 
-    const operation = try parseOperation(&options);
+    try checkDependencies(&options);
+    const operation = try parseOperation(gpa, &options);
+
     return .{
         .operation = operation,
         .policies = if (options.flags.permit) |policies| policies else .none,
@@ -239,7 +266,7 @@ pub fn parse(arena: Allocator, args: []const []const u8) !Cli {
     };
 }
 
-fn parseOperation(options: *const zilc.Options(template)) !Operation {
+fn checkDependencies(options: *const zilc.Options(template)) !void {
     try zilc.checkGroup(.operation, enum { assemble, emulate, check, clean, format, lsp }, &options.flags);
     try zilc.checkGroup(.export_mode, enum { export_symbols, export_listing }, &options.flags);
     try zilc.checkGroup(.verbosity, enum { strict, relaxed }, &options.flags);
@@ -253,6 +280,16 @@ fn parseOperation(options: *const zilc.Options(template)) !Operation {
     try zilc.checkDependencies(.history_file, enum { debug }, enum {}, &options.flags);
     try zilc.checkDependencies(.import_symbols, enum { emulate }, enum {}, &options.flags);
 
+    if (options.flags.emulate) {
+        try zilc.checkDependencies(.patch_symbols, enum { import_symbols }, enum {}, &options.flags);
+    } else if (options.flags.assemble) {
+        //
+    } else {
+        try zilc.checkDependencies(.patch_symbols, enum {}, enum { check, clean, format, lsp }, &options.flags);
+    }
+}
+
+fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Operation {
     if (options.flags.debug and
         options.pos.items.len == 0) // TODO: There should be a better way to do this this check
     {
@@ -262,7 +299,7 @@ fn parseOperation(options: *const zilc.Options(template)) !Operation {
         } };
     }
 
-    const input = try options.getPos(zilc.types.path, .input, 0);
+    const input = try options.getPos(gpa, zilc.types.path, .input, 0);
     if (options.pos.items.len > 1) {
         log.err("unexpected positional argument '{s}'", .{options.pos.items[1]});
         return error.ParseFailed;
@@ -280,6 +317,7 @@ fn parseOperation(options: *const zilc.Options(template)) !Operation {
                 else
                     .assembly,
                 .trap_aliases = options.flags.trap_aliases,
+                .patch_symbols = options.flags.patch_symbols,
             },
         };
     }
@@ -292,6 +330,7 @@ fn parseOperation(options: *const zilc.Options(template)) !Operation {
                 .history_file = options.flags.history_file,
             } else null,
             .import_symbols = options.flags.import_symbols,
+            .patch_symbols = options.flags.patch_symbols,
         } };
     }
 
@@ -301,6 +340,7 @@ fn parseOperation(options: *const zilc.Options(template)) !Operation {
             .output = null,
             .output_mode = .none,
             .trap_aliases = options.flags.trap_aliases,
+            .patch_symbols = options.flags.patch_symbols,
         } };
     }
 
@@ -328,6 +368,7 @@ fn parseOperation(options: *const zilc.Options(template)) !Operation {
                 .commands = options.flags.commands,
                 .history_file = options.flags.history_file,
             } else null,
+            .patch_symbols = options.flags.patch_symbols,
         },
     };
 }

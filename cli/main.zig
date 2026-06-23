@@ -16,13 +16,18 @@ pub fn main(init: std.process.Init) !u8 {
     var sink = elk.reporting.Sink.Fancy.new(&reporter_writer.interface);
     var reporter = elk.reporting.Primary.new(sink.interface());
 
-    var args = try zilc.collectArgs(init.arena.allocator(), init.minimal.args);
+    const args_allocator = init.arena.allocator();
+    var args = try zilc.collectArgs(args_allocator, init.minimal.args);
     defer args.deinit(init.arena.allocator());
 
     const cli = blk: {
         var temp_arena = std.heap.ArenaAllocator.init(gpa);
         defer temp_arena.deinit();
-        break :blk Cli.parse(temp_arena.allocator(), args.items) catch |err| switch (err) {
+        break :blk Cli.parse(
+            args_allocator,
+            temp_arena.allocator(),
+            args.items,
+        ) catch |err| switch (err) {
             else => return err,
             error.DisplayMetadata => return 0,
         };
@@ -66,7 +71,13 @@ pub fn main(init: std.process.Init) !u8 {
 
             const traps = operation.trap_aliases orelse default_traps;
 
-            var air = assemble(gpa, source, &traps, &reporter) catch |err| switch (err) {
+            var air = assemble(
+                gpa,
+                source,
+                operation.patch_symbols,
+                &traps,
+                &reporter,
+            ) catch |err| switch (err) {
                 error.ProgramError => return 1,
                 else => |err2| return err2,
             };
@@ -145,6 +156,7 @@ pub fn main(init: std.process.Init) !u8 {
                     .file = in_file,
                     .symbols = if (operation.import_symbols != null) symbols.items else null,
                 } },
+                operation.patch_symbols,
                 operation.debug,
                 &default_traps,
                 cli.policies,
@@ -161,6 +173,7 @@ pub fn main(init: std.process.Init) !u8 {
                 gpa,
                 init.environ_map,
                 .{ .assembly = .{ .air = &air, .source = .empty } },
+                null,
                 debug,
                 &default_traps,
                 cli.policies,
@@ -194,7 +207,13 @@ pub fn main(init: std.process.Init) !u8 {
 
             reporter.source = source;
 
-            var air = assemble(gpa, source, &default_traps, &reporter) catch |err| switch (err) {
+            var air = assemble(
+                gpa,
+                source,
+                operation.patch_symbols,
+                &default_traps,
+                &reporter,
+            ) catch |err| switch (err) {
                 error.ProgramError => return 1,
                 else => |err2| return err2,
             };
@@ -205,6 +224,7 @@ pub fn main(init: std.process.Init) !u8 {
                 gpa,
                 init.environ_map,
                 .{ .assembly = .{ .air = &air, .source = source } },
+                null,
                 operation.debug,
                 &default_traps,
                 cli.policies,
@@ -287,6 +307,7 @@ fn replacePathExtension(buffer: []u8, path: []const u8, extension: []const u8) [
 fn assemble(
     gpa: Allocator,
     source: elk.Source,
+    patch_symbols_opt: ?[]const struct { []const u8, u16 },
     traps: *const elk.Traps,
     reporter: *elk.reporting.Primary,
 ) !elk.Air {
@@ -310,6 +331,13 @@ fn assemble(
 
     reporter.summarize();
 
+    if (patch_symbols_opt) |patch_symbols| {
+        for (patch_symbols) |item| {
+            const symbol, const word = item;
+            try air.patchLabelValue(symbol, word, source);
+        }
+    }
+
     return air;
 }
 
@@ -324,6 +352,7 @@ fn emulate(
         },
         assembly: elk.Debugger.Assembly,
     },
+    patch_symbols_opt: ?[]const struct { []const u8, u16 },
     debug_opt: ?Cli.Debug,
     traps: *const elk.Traps,
     policies: elk.Policies,
@@ -383,6 +412,17 @@ fn emulate(
         .assembly => |assembly| {
             try assembly.air.copyToRuntime(&runtime);
         },
+    }
+
+    if (patch_symbols_opt) |patch_symbols| {
+        const symbols = switch (runtime_source) {
+            .object => |object| object.symbols orelse unreachable,
+            .assembly => unreachable,
+        };
+        for (patch_symbols) |item| {
+            const symbol, const word = item;
+            try runtime.patchLabelValue(symbol, word, symbols);
+        }
     }
 
     if (debugger_opt) |*debugger|
