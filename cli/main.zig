@@ -44,7 +44,7 @@ pub fn main(init: std.process.Init) !u8 {
 
             const in_file = file: switch (operation.input) {
                 .stdio => {
-                    break :file Io.File.stdout();
+                    break :file Io.File.stdin();
                 },
                 .regular => |regular| {
                     const length = try Io.Dir.cwd().realPathFile(io, regular, &input_path_buffer);
