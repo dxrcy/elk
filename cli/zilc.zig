@@ -37,7 +37,8 @@ pub fn Options(comptime template: anytype) type {
                     error.MissingArgument => {
                         log.err("missing positional argument '{t}'", .{name});
                     },
-                    error.ParseFailed => {},
+                    error.InvalidValue => {},
+                    error.OutOfMemory => |e| return e,
                 }
                 return error.ParseFailed;
             };
@@ -60,7 +61,7 @@ pub fn Options(comptime template: anytype) type {
             comptime value: ArgValue,
             comptime name: @EnumLiteral(),
             index: usize,
-        ) error{ MissingArgument, ParseFailed }!value.type {
+        ) (error{MissingArgument} || ArgValue.ParseError)!value.type {
             _ = name;
             if (options.pos.items.len <= index)
                 return error.MissingArgument;
@@ -124,7 +125,9 @@ pub const Flag = struct {
 const ArgValue = struct {
     type: type,
     parser: Parser,
-    const Parser = fn (dest: *anyopaque, src: []const u8, gpa: Allocator) error{ParseFailed}!void;
+
+    const Parser = fn (dest: *anyopaque, src: []const u8, gpa: Allocator) ParseError!void;
+    const ParseError = error{ InvalidValue, OutOfMemory };
 };
 
 fn FlagValues(comptime template: anytype) type {

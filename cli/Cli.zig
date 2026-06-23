@@ -141,13 +141,13 @@ const template = .{
     },
 };
 
-fn parsePolicies(dest: *anyopaque, src: []const u8, _: Allocator) error{ParseFailed}!void {
+fn parsePolicies(dest: *anyopaque, src: []const u8, _: Allocator) !void {
     const policies: *?elk.Policies = @ptrCast(@alignCast(dest));
     policies.* = elk.Policies.parseList(src) catch
-        return error.ParseFailed;
+        return error.InvalidValue;
 }
 
-fn parseTrapAliases(dest: *anyopaque, src: []const u8, _: Allocator) error{ParseFailed}!void {
+fn parseTrapAliases(dest: *anyopaque, src: []const u8, _: Allocator) !void {
     const traps_opt: *?elk.Traps = @ptrCast(@alignCast(dest));
     traps_opt.* = .{ .entries = @splat(.unset) };
     const traps: *elk.Traps = &traps_opt.*.?;
@@ -155,15 +155,15 @@ fn parseTrapAliases(dest: *anyopaque, src: []const u8, _: Allocator) error{Parse
     var items = std.mem.tokenizeScalar(u8, src, ',');
     while (items.next()) |item| {
         const alias, const vect = parseStringWordPair(item) orelse
-            return error.ParseFailed;
+            return error.InvalidValue;
         const entry: elk.Traps.Entry = .{ .alias = alias, .callback = null };
         if (!traps.canRegister(vect, entry))
-            return error.ParseFailed;
+            return error.InvalidValue;
         traps.register(vect, entry);
     }
 }
 
-fn parsePatches(dest: *anyopaque, src: []const u8, gpa: Allocator) error{ParseFailed}!void {
+fn parsePatches(dest: *anyopaque, src: []const u8, gpa: Allocator) !void {
     const patches_opt: *?[]const struct { []const u8, u16 } = @ptrCast(@alignCast(dest));
 
     var patches: std.ArrayList(struct { []const u8, u16 }) = .empty;
@@ -171,11 +171,9 @@ fn parsePatches(dest: *anyopaque, src: []const u8, gpa: Allocator) error{ParseFa
     var items = std.mem.tokenizeScalar(u8, src, ',');
     while (items.next()) |item| {
         const symbol, const word = parseStringWordPair(item) orelse
-            return error.ParseFailed;
+            return error.InvalidValue;
         // TODO: Check if already patched
-        patches.append(gpa, .{ symbol, word }) catch
-            // TODO: Return OOM
-            return error.ParseFailed;
+        try patches.append(gpa, .{ symbol, word });
     }
 
     patches_opt.* = patches.items;
