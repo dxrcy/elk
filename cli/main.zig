@@ -395,9 +395,13 @@ fn emulate(
     }
 
     if (patch_symbols_opt) |patch_symbols| {
+        const symbols = switch (runtime_source) {
+            .object => |object| object.symbols orelse unreachable,
+            .assembly => unreachable,
+        };
         for (patch_symbols) |item| {
             const symbol, const word = item;
-            std.debug.print("TODO: patch [{s}] 0x{x:04}\n", .{ symbol, word });
+            try runtime.patchLabelValue(symbol, word, symbols);
         }
     }
 
