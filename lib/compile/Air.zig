@@ -11,6 +11,8 @@ const Span = @import("Span.zig");
 const Source = @import("Source.zig");
 pub const Instruction = @import("instruction.zig").Instruction;
 
+const max_edit_distance = 3;
+
 origin: u16,
 lines: ArrayList(Line),
 labels: ArrayList(Label),
@@ -202,6 +204,7 @@ pub fn findLabel(
     source: Source,
 ) ?*Label {
     assertLabelOrder(air);
+
     for (air.labels.items) |*label| {
         const string = label.span.view(source);
         const matches = switch (case_mode) {
@@ -211,6 +214,24 @@ pub fn findLabel(
         if (matches)
             return label;
     }
+
+    if (case_mode == .insensitive) {
+        var best_opt: ?struct { label: *Label, distance: usize } = null;
+        for (air.labels.items) |*label| {
+            const string = label.span.view(source);
+            const distance = editDistance(string, reference);
+            if (best_opt) |best| {
+                if (best.distance < distance)
+                    continue;
+            }
+            best_opt = .{ .label = label, .distance = distance };
+        }
+        if (best_opt) |best| {
+            if (best.distance <= max_edit_distance)
+                return best.label;
+        }
+    }
+
     return null;
 }
 
@@ -221,4 +242,18 @@ pub fn assertLabelOrder(air: *const Air) void {
         const second = air.labels.items[i + 1];
         assert(first.index <= second.index);
     }
+}
+
+fn editDistance(a: []const u8, b: []const u8) usize {
+    if (a.len == 0)
+        return b.len;
+    if (b.len == 0)
+        return a.len;
+    if (std.ascii.toLower(a[0]) == std.ascii.toLower(b[0]))
+        return editDistance(a[1..], b[1..]);
+    return 1 + @min(
+        editDistance(a, b[1..]),
+        editDistance(a[1..], b),
+        editDistance(a[1..], b[1..]),
+    );
 }
