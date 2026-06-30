@@ -77,10 +77,14 @@ const Parser = struct {
             .print => .{ .print = .{
                 .location = try parser.nextOptionalLocation(),
             } },
-            .list => .{ .list = .{
-                .start = try parser.nextOptionalMemoryLocation(),
-                .length = try parser.nextPositiveIntOrDefault(10),
-            } },
+            .list => blk: {
+                const start = try parser.nextOptionalMemoryLocation();
+                const length = try parser.nextPositiveIntOrDefault(10);
+                break :blk .{ .list = .{
+                    .start = start,
+                    .end = try parser.addMemoryLength(start, length),
+                } };
+            },
             .move => .{ .move = .{
                 .location = try parser.nextLocation(),
                 .value = try parser.nextInteger(),
@@ -401,6 +405,22 @@ const Parser = struct {
         };
 
         return .{ .name = label, .offset = offset };
+    }
+
+    fn addMemoryLength(
+        parser: *Parser,
+        start: Spanned(Command.Location.Memory),
+        length: Spanned(u16),
+    ) error{Reported}!Spanned(Command.Location.Memory) {
+        return .{
+            .span = length.span,
+            .value = start.value.add(length.value) catch {
+                try parser.reporter.report(.integer_too_large, .{
+                    .integer = start.span.join(length.span),
+                    .type_info = @typeInfo(i16).int,
+                }).abort();
+            },
+        };
     }
 
     fn parseCommandTag(parser: *Parser) error{Reported}!?Spanned(Command.Tag) {

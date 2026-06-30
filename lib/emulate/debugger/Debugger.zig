@@ -441,8 +441,8 @@ fn runCommand(
             );
             const end = try debugger.resolveMemoryLocation(
                 runtime,
-                arguments.start.value.add(arguments.length.value - 1),
-                arguments.length.span,
+                arguments.end.value,
+                arguments.end.span,
                 source,
             );
             try debugger.printListing(runtime, start, end);
