@@ -218,7 +218,11 @@ const Parser = struct {
             },
         };
 
-        // TODO: Report, if is register
+        if (parsing.tryRegister(argument.view(parser.source))) |_| {
+            try parser.reporter.report(.debugger_invalid_argument_kind, .{
+                .found = argument,
+            }).abort();
+        }
 
         if (try parser.parseMemoryLocation(argument)) |memory|
             return .{ .span = argument, .value = memory };
@@ -233,7 +237,11 @@ const Parser = struct {
             error.Eof => try parser.reporter.report(.debugger_unexpected_eol, .{ .eol = .endOf(parser.source) }).abort(),
         };
 
-        // TODO: Report, if is register
+        if (parsing.tryRegister(argument.view(parser.source))) |_| {
+            try parser.reporter.report(.debugger_invalid_argument_kind, .{
+                .found = argument,
+            }).abort();
+        }
 
         if (try parser.parseMemoryLocation(argument)) |memory|
             return .{ .span = argument, .value = memory };
