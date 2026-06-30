@@ -1,5 +1,6 @@
 const std = @import("std");
 const assert = std.debug.assert;
+const Writer = std.Io.Writer;
 
 const Bitmask = @import("Bitmask.zig");
 
@@ -318,13 +319,12 @@ pub const Instruction = union(enum) {
     }
 
     pub fn format(instruction: Instruction, writer: *std.Io.Writer) error{WriteFailed}!void {
-        // TODO: Print negative PC offsets as -x1 not x-1
         switch (instruction) {
             .add => |operands| {
                 try writer.print(" add r{} r{}", .{ operands.dest, operands.src_a });
                 switch (operands.src_b) {
                     .register => |register| try writer.print(" r{}", .{register}),
-                    .immediate => |immediate| try writer.print(" x{X}", .{immediate}),
+                    .immediate => |immediate| try writer.print(" {f}", .{Operand(immediate)}),
                 }
             },
 
@@ -332,7 +332,7 @@ pub const Instruction = union(enum) {
                 try writer.print(" and r{} r{}", .{ operands.dest, operands.src_a });
                 switch (operands.src_b) {
                     .register => |register| try writer.print(" r{}", .{register}),
-                    .immediate => |immediate| try writer.print(" x{X}", .{immediate}),
+                    .immediate => |immediate| try writer.print(" {f}", .{Operand(immediate)}),
                 }
             },
 
@@ -350,7 +350,7 @@ pub const Instruction = union(enum) {
                     0b011 => "brzp",
                     0b101 => "brnp",
                 };
-                try writer.print("{s:4} x{X}", .{ mnemonic, operands.pc_offset });
+                try writer.print("{s:4} {f}", .{ mnemonic, Operand(operands.pc_offset) });
             },
 
             .jmp_ret => |operands| {
@@ -362,7 +362,7 @@ pub const Instruction = union(enum) {
 
             .jsr_jsrr => |variant| switch (variant) {
                 .jsr => |operands| {
-                    try writer.print(" jsr x{X}", .{operands.pc_offset});
+                    try writer.print(" jsr {f}", .{Operand(operands.pc_offset)});
                 },
                 .jsrr => |operands| {
                     try writer.print("jsrr r{}", .{operands.base});
@@ -370,23 +370,23 @@ pub const Instruction = union(enum) {
             },
 
             .lea, .ld, .ldi => |operands, opcode| {
-                try writer.print("{t:4} r{} x{X}", .{ opcode, operands.dest, operands.pc_offset });
+                try writer.print("{t:4} r{} {f}", .{ opcode, operands.dest, Operand(operands.pc_offset) });
             },
 
             .ldr => |operands| {
-                try writer.print(" ldr r{} r{} x{X}", .{ operands.dest, operands.base, operands.offset });
+                try writer.print(" ldr r{} r{} {f}", .{ operands.dest, operands.base, Operand(operands.offset) });
             },
 
             .st, .sti => |operands, opcode| {
-                try writer.print("{t:4} r{} x{X}", .{ opcode, operands.src, operands.pc_offset });
+                try writer.print("{t:4} r{} {f}", .{ opcode, operands.src, Operand(operands.pc_offset) });
             },
 
             .str => |operands| {
-                try writer.print(" str r{} r{} x{X}", .{ operands.src, operands.base, operands.offset });
+                try writer.print(" str r{} r{} {f}", .{ operands.src, operands.base, Operand(operands.offset) });
             },
 
             .trap => |operands| {
-                try writer.print("trap x{X:02}", .{operands.vect});
+                try writer.print("trap {f}", .{Operand(operands.vect)});
             },
 
             .rti => {
@@ -404,9 +404,20 @@ pub const Instruction = union(enum) {
                     try writer.print("rets", .{});
                 },
                 .call => |operands| {
-                    try writer.print("call x{X}", .{operands.pc_offset});
+                    try writer.print("call {f}", .{Operand(operands.pc_offset)});
                 },
             },
         }
     }
 };
+
+pub fn Operand(value: anytype) struct {
+    value: @TypeOf(value),
+    pub fn format(self: @This(), writer: *Writer) Writer.Error!void {
+        if (self.value < 0)
+            try writer.print("-", .{});
+        try writer.print("x{X}", .{@abs(self.value)});
+    }
+} {
+    return .{ .value = value };
+}
