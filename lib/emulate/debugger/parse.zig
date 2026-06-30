@@ -498,7 +498,6 @@ const Parser = struct {
                     }
                     best_opt = .{ .tag = tag, .distance = distance };
                 }
-
                 if (best_opt) |best| {
                     if (best.distance <= max_edit_distance)
                         return .{ .span = span, .value = best.tag };
@@ -523,7 +522,7 @@ fn editDistance(a: []const u8, b: []const u8) usize {
         return b.len;
     if (b.len == 0)
         return a.len;
-    if (a[0] == b[0])
+    if (std.ascii.toLower(a[0]) == std.ascii.toLower(b[0]))
         return editDistance(a[1..], b[1..]);
     return 1 + @min(
         editDistance(a, b[1..]),
