@@ -10,6 +10,7 @@ const Runtime = @import("../emulate/Runtime.zig");
 const Span = @import("Span.zig");
 const Source = @import("Source.zig");
 pub const Instruction = @import("instruction.zig").Instruction;
+const parsing = @import("parse/parsing.zig");
 
 const max_edit_distance = 3;
 
@@ -219,7 +220,7 @@ pub fn findLabel(
         var best_opt: ?struct { label: *Label, distance: usize } = null;
         for (air.labels.items) |*label| {
             const string = label.span.view(source);
-            const distance = editDistance(string, reference);
+            const distance = parsing.editDistance(string, reference, max_edit_distance);
             if (best_opt) |best| {
                 if (best.distance < distance)
                     continue;
@@ -242,18 +243,4 @@ pub fn assertLabelOrder(air: *const Air) void {
         const second = air.labels.items[i + 1];
         assert(first.index <= second.index);
     }
-}
-
-fn editDistance(a: []const u8, b: []const u8) usize {
-    if (a.len == 0)
-        return b.len;
-    if (b.len == 0)
-        return a.len;
-    if (std.ascii.toLower(a[0]) == std.ascii.toLower(b[0]))
-        return editDistance(a[1..], b[1..]);
-    return 1 + @min(
-        editDistance(a, b[1..]),
-        editDistance(a[1..], b),
-        editDistance(a[1..], b[1..]),
-    );
 }

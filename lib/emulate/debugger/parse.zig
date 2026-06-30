@@ -510,7 +510,10 @@ const Parser = struct {
                 for (std.meta.tags(Command.Tag)) |tag| {
                     var distance: usize = std.math.maxInt(usize);
                     for (singles.get(tag).aliases) |candidate| {
-                        distance = @min(distance, editDistance(string, candidate));
+                        distance = @min(
+                            distance,
+                            parsing.editDistance(string, candidate, max_edit_distance),
+                        );
                     }
                     if (best_opt) |best| {
                         if (best.distance < distance)
@@ -536,17 +539,3 @@ const Parser = struct {
         return false;
     }
 };
-
-fn editDistance(a: []const u8, b: []const u8) usize {
-    if (a.len == 0)
-        return b.len;
-    if (b.len == 0)
-        return a.len;
-    if (std.ascii.toLower(a[0]) == std.ascii.toLower(b[0]))
-        return editDistance(a[1..], b[1..]);
-    return 1 + @min(
-        editDistance(a, b[1..]),
-        editDistance(a[1..], b),
-        editDistance(a[1..], b[1..]),
-    );
-}
