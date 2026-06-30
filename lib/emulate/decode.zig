@@ -413,11 +413,84 @@ pub const Instruction = union(enum) {
 
 pub fn Operand(value: anytype) struct {
     value: @TypeOf(value),
+
     pub fn format(self: @This(), writer: *Writer) Writer.Error!void {
-        if (self.value < 0)
-            try writer.print("-", .{});
-        try writer.print("x{X}", .{@abs(self.value)});
+        const int = @typeInfo(@TypeOf(value)).int;
+        const magnitude_bits = int.bits - if (int.signedness == .signed) 1 else 0;
+        const fill = comptime fillString(magnitude_bits);
+
+        if (int.signedness == .signed)
+            try writer.print("{s}", .{if (self.value < 0) "-" else "+"});
+        try writer.print("x{X:0" ++ fill ++ "}", .{@abs(self.value)});
+    }
+
+    fn fillString(comptime bits: comptime_int) []const u8 {
+        comptime {
+            const width = std.math.divCeil(comptime_int, bits, std.math.log2(16)) catch
+                unreachable;
+            var buffer: [1]u8 = undefined;
+            return std.fmt.bufPrint(&buffer, "{}", .{width}) catch
+                unreachable;
+        }
     }
 } {
     return .{ .value = value };
+}
+
+test "Operand(_).format" {
+    const expect = std.testing.expect;
+
+    const cases = .{
+        .{ u1, 0x0, "x0" },
+        .{ u4, 0x0, "x0" },
+        .{ u16, 0x0, "x0000" },
+        .{ i1, 0x0, "+x0" },
+        .{ i4, 0x0, "+x0" },
+        .{ i16, 0x0, "+x0000" },
+        .{ u1, 0x1, "x1" },
+        .{ u3, 0x3, "x3" },
+        .{ u4, 0x4, "x4" },
+        .{ u5, 0x4, "x04" },
+        .{ u8, 0x4, "x04" },
+        .{ u9, 0x4, "x004" },
+        .{ u9, 0x34, "x034" },
+        .{ u12, 0x34, "x034" },
+        .{ u13, 0x34, "x0034" },
+        .{ u16, 0x1234, "x1234" },
+        .{ u16, 0xffff, "xFFFF" },
+        .{ i2, 0x1, "+x1" },
+        .{ i3, 0x3, "+x3" },
+        .{ i4, 0x4, "+x4" },
+        .{ i5, 0x4, "+x4" },
+        .{ i8, 0x4, "+x04" },
+        .{ i9, 0x4, "+x04" },
+        .{ i9, 0x34, "+x34" },
+        .{ i10, 0x4, "+x004" },
+        .{ i10, 0x34, "+x034" },
+        .{ i13, 0x34, "+x034" },
+        .{ i14, 0x34, "+x0034" },
+        .{ i16, 0x1234, "+x1234" },
+        .{ i16, 0x7fff, "+x7FFF" },
+        .{ i2, -0x1, "-x1" },
+        .{ i3, -0x3, "-x3" },
+        .{ i4, -0x4, "-x4" },
+        .{ i5, -0x4, "-x4" },
+        .{ i8, -0x4, "-x04" },
+        .{ i9, -0x4, "-x04" },
+        .{ i9, -0x34, "-x34" },
+        .{ i10, -0x4, "-x004" },
+        .{ i10, -0x34, "-x034" },
+        .{ i13, -0x34, "-x034" },
+        .{ i14, -0x34, "-x0034" },
+        .{ i16, -0x1234, "-x1234" },
+        .{ i16, -0x7fff, "-x7FFF" },
+    };
+
+    inline for (cases) |case| {
+        const T, const value, const expected = case;
+        var buffer: [10]u8 = undefined;
+        const actual = try std.fmt.bufPrint(&buffer, "{f}", .{Operand(@as(T, value))});
+        std.log.info("[{s}] [{s}]", .{ actual, expected });
+        try expect(std.mem.eql(u8, actual, expected));
+    }
 }
