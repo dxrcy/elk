@@ -872,10 +872,10 @@ fn resolveLabelIndex(
 ) error{Reported}!u16 {
     const string = label.view(source);
 
-    if (assembly.air.findLabel(string, .sensitive, assembly.source)) |result|
+    if (assembly.air.findLabel(.exact, string, assembly.source)) |result|
         return result.index;
 
-    if (assembly.air.findLabel(string, .insensitive, assembly.source)) |result| {
+    if (assembly.air.findLabel(.nearest, string, assembly.source)) |result| {
         debugger.reporter.report(.debugger_label_partial_match, .{
             .reference = label,
             .nearest = result.span,

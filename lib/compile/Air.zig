@@ -199,23 +199,23 @@ pub fn patchLabelValue(
 
 pub fn findLabel(
     air: *const Air,
+    comptime mode: enum { exact, nearest },
     reference: []const u8,
-    case_mode: enum { sensitive, insensitive },
     source: Source,
 ) ?*Label {
     assertLabelOrder(air);
 
     for (air.labels.items) |*label| {
         const string = label.span.view(source);
-        const matches = switch (case_mode) {
-            .sensitive => std.mem.eql(u8, string, reference),
-            .insensitive => std.ascii.eqlIgnoreCase(string, reference),
+        const matches = switch (mode) {
+            .exact => std.mem.eql(u8, string, reference),
+            .nearest => std.ascii.eqlIgnoreCase(string, reference),
         };
         if (matches)
             return label;
     }
 
-    if (case_mode == .insensitive) {
+    if (mode == .nearest) {
         var best_opt: ?struct { label: *Label, distance: usize } = null;
         for (air.labels.items) |*label| {
             const string = label.span.view(source);

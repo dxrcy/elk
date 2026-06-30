@@ -580,8 +580,8 @@ fn resolveFieldLabel(
     const string = operand.span.view(parser.source());
 
     const definition =
-        air.findLabel(string, .sensitive, air_source) orelse {
-            const near_match = air.findLabel(string, .insensitive, air_source);
+        air.findLabel(.exact, string, air_source) orelse {
+            const near_match = air.findLabel(.nearest, string, air_source);
             try parser.reporter().report(.undefined_label, .{
                 .reference = operand.span,
                 .nearest = if (near_match) |label| label.span else null,
