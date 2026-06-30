@@ -285,6 +285,10 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
             try ctx.writeTitle("Integer uses non-standard base specifier '{t}'", .{info.radix});
             try ctx.deepen().writeSourceNote("Integer", .{}, info.integer);
         },
+        .implicit_integer_radix => |info| {
+            try ctx.writeTitle("Integer uses implicit decimal base", .{});
+            try ctx.deepen().writeSourceNote("Integer", .{}, info.integer);
+        },
         .nonstandard_integer_form => |info| {
             try ctx.writeTitle("Integer uses non-standard syntax", .{});
             try ctx.deepen().writeSourceNote("Integer", .{}, info.integer);

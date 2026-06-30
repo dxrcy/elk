@@ -523,9 +523,8 @@ fn ensureSupported(
                 else => assert(!integer.form.zero),
             };
             if (integer.form.radix == null) {
-                tokenizer.reporter.report(.undesirable_integer_form, .{
+                tokenizer.reporter.report(.implicit_integer_radix, .{
                     .integer = token.span,
-                    .reason = .implicit_radix,
                 }).collect(&result);
             }
         },
