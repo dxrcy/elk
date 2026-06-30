@@ -481,7 +481,7 @@ fn ensureSupported(
                 else => {},
             };
             if (integer.form.radix) |radix| switch (radix) {
-                .octal => {
+                .binary, .octal => {
                     tokenizer.reporter.report(.nonstandard_integer_radix, .{
                         .integer = token.span,
                         .radix = radix,
