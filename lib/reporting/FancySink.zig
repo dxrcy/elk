@@ -288,6 +288,7 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
         .implicit_integer_radix => |info| {
             try ctx.writeTitle("Integer uses implicit decimal base", .{});
             try ctx.deepen().writeSourceNote("Integer", .{}, info.integer);
+            try ctx.deepen().writeNote("{s}", .{"Decimal integer literal should begin with `#`"});
         },
         .nonstandard_integer_form => |info| {
             try ctx.writeTitle("Integer uses non-standard syntax", .{});
@@ -303,7 +304,6 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
                 .leading_zero => "Leading zero should not appear before base specifier",
                 .pre_radix_sign => "Sign character should appear after decimal base specifier",
                 .post_radix_sign => "Sign character should appear before non-decimal base specifier",
-                .implicit_radix => "Decimal integer literal should begin with `#`",
             }});
         },
         .character_integer => |info| {
