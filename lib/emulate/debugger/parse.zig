@@ -11,6 +11,8 @@ const integers = @import("../../compile/parse/integers.zig");
 const Command = @import("Command.zig");
 const tags = @import("tags.zig");
 
+const max_edit_distance = 3;
+
 pub fn splitCommandLine(line: []const u8) struct { []const u8, []const u8 } {
     var lexer: Lexer = .new(line, false);
     const token_len = while (lexer.next()) |token| {
@@ -483,7 +485,24 @@ const Parser = struct {
                     if (anyCandidateMatches(singles.get(tag).suggestions, string))
                         return .{ .span = span, .value = tag };
                 }
-                // TODO: Find suggestion with low edit distance
+
+                var best_opt: ?struct { tag: Command.Tag, distance: usize } = null;
+                for (std.meta.tags(Command.Tag)) |tag| {
+                    var distance: usize = std.math.maxInt(usize);
+                    for (singles.get(tag).aliases) |candidate| {
+                        distance = @min(distance, editDistance(string, candidate));
+                    }
+                    if (best_opt) |best| {
+                        if (best.distance < distance)
+                            continue;
+                    }
+                    best_opt = .{ .tag = tag, .distance = distance };
+                }
+
+                if (best_opt) |best| {
+                    if (best.distance <= max_edit_distance)
+                        return .{ .span = span, .value = best.tag };
+                }
             },
         }
 
@@ -498,3 +517,17 @@ const Parser = struct {
         return false;
     }
 };
+
+fn editDistance(a: []const u8, b: []const u8) usize {
+    if (a.len == 0)
+        return b.len;
+    if (b.len == 0)
+        return a.len;
+    if (a[0] == b[0])
+        return editDistance(a[1..], b[1..]);
+    return 1 + @min(
+        editDistance(a, b[1..]),
+        editDistance(a[1..], b),
+        editDistance(a[1..], b[1..]),
+    );
+}
