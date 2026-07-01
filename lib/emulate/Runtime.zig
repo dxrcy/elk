@@ -71,7 +71,6 @@ const Error = Exception || HostError;
 /// The user's program or configuration (traps, policies) is erroneous.
 pub const Exception = error{
     IncorrectPadding,
-    InvalidOperand,
     UnhandledTrap,
     UnsupportedRti,
     UnpermittedOpcode,
