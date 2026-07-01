@@ -37,17 +37,22 @@ pub fn isIdent(string: []const u8) bool {
     return true;
 }
 
-/// Asserts that buffer can hold `b.len + 1` items.
 /// Time: `O(a.len*b.len)`, space: `O(b.len)`.
-pub fn editDistance(a: []const u8, b: []const u8, buffer: []usize) usize {
+/// Uses `u8` instead of `usize` to save memory... a larger integer type is not necessary.
+/// Asserts that buffer can hold `b.len + 1` items.
+/// Asserts that calculated distances can fit in `u8`.
+pub fn editDistance(a: []const u8, b: []const u8, buffer: []u8) u8 {
     assert(buffer.len >= b.len + 1);
-    for (0..b.len + 1) |j|
-        buffer[j] = j;
+    assert(@max(a.len, b.len) <= std.math.maxInt(u8));
 
-    var previous: usize = 0;
+    for (0..b.len + 1) |j|
+        buffer[j] = @intCast(j);
+
+    var previous: u8 = 0;
     for (1..a.len + 1) |i| {
         previous = buffer[0];
-        buffer[0] = i;
+        buffer[0] = @intCast(i);
+
         for (1..b.len + 1) |j| {
             const temp = buffer[j];
             if (a[i - 1] == b[j - 1]) {
@@ -78,7 +83,7 @@ test {
         .{ "xxxsperrxxx", "conspiracy", 8 },
     };
 
-    var buffer: [20]usize = undefined;
+    var buffer: [20]u8 = undefined;
 
     for (cases) |case| {
         const a, const b, const expected = case;

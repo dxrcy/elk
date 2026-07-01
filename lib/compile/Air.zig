@@ -218,7 +218,7 @@ pub fn findLabel(
 
     if (mode == .nearest) {
         const max_candidate_length = 20;
-        var buffer: [max_candidate_length]usize = undefined;
+        var buffer: [max_candidate_length]u8 = undefined;
 
         var best_opt: ?struct { label: *Label, distance: usize } = null;
         for (air.labels.items) |*label| {

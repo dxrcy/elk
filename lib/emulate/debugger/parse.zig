@@ -507,7 +507,7 @@ const Parser = struct {
                 }
 
                 const max_candidate_length = 20;
-                var buffer: [max_candidate_length]usize = undefined;
+                var buffer: [max_candidate_length]u8 = undefined;
 
                 var best_opt: ?struct { tag: Command.Tag, distance: usize } = null;
                 for (std.meta.tags(Command.Tag)) |tag| {
