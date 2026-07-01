@@ -64,3 +64,24 @@ fn editDistanceInner(a: []const u8, b: []const u8) usize {
 fn diff(a: usize, b: usize) usize {
     return @max(a, b) - @min(a, b);
 }
+
+test {
+    const expect = std.testing.expect;
+
+    const cases = [_]struct { []const u8, []const u8, usize }{
+        .{ "kitten", "sitting", 3 },
+        .{ "kitten", "kitten", 0 },
+        .{ "", "", 0 },
+        .{ "meilenstein", "levenshtein", 4 },
+        .{ "levenshtein", "frankenstein", 6 },
+        .{ "confide", "deceit", 6 },
+        .{ "xxxsperrxxx", "conspiracy", 8 },
+    };
+
+    for (cases) |case| {
+        const a, const b, const expected = case;
+        const actual = editDistance(a, b, std.math.maxInt(usize));
+        std.log.info("[{s}]\t[{s}]\t{}\t{}", .{ a, b, expected, actual });
+        try expect(actual == expected);
+    }
+}
