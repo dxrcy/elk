@@ -58,7 +58,7 @@ const InnerError = error{
     OutOfMemory,
 };
 
-pub fn parseAir(parser: *Parser, gpa: Allocator, air: *Air) error{OutOfMemory}!void {
+pub fn parseAir(parser: *Parser, gpa: Allocator, air: *Air) Allocator.Error!void {
     var missing_end = false;
 
     while (true) {

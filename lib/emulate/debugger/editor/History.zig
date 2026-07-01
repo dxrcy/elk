@@ -30,7 +30,7 @@ pub fn length(history: *const History) usize {
     return std.mem.countScalar(u8, history.store.items, '\n');
 }
 
-pub fn push(history: *History, line: []const u8) error{OutOfMemory}!void {
+pub fn push(history: *History, line: []const u8) Allocator.Error!void {
     const trimmed = std.mem.trim(u8, line, &std.ascii.whitespace);
     assert(trimmed.len == line.len);
     assert(trimmed.len > 0);
@@ -50,7 +50,7 @@ pub fn push(history: *History, line: []const u8) error{OutOfMemory}!void {
     history.store.appendAssumeCapacity('\n');
 }
 
-fn shiftToEnsureUnusedCapacity(history: *History, additional_count: usize) error{OutOfMemory}!void {
+fn shiftToEnsureUnusedCapacity(history: *History, additional_count: usize) Allocator.Error!void {
     assert(history.store.items.len + additional_count > history.store.capacity);
 
     const new_start = history.findShiftIndex(additional_count) orelse

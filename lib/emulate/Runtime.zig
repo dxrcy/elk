@@ -36,7 +36,7 @@ pub const State = struct {
     pc: u16,
     condition: Condition,
 
-    pub fn init(gpa: Allocator) error{OutOfMemory}!State {
+    pub fn init(gpa: Allocator) Allocator.Error!State {
         const memory = try gpa.alloc(u16, memory_size);
 
         @memset(memory[0..user_memory_start], memory_init_privileged);

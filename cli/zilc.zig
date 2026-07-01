@@ -127,7 +127,7 @@ const ArgValue = struct {
     parser: Parser,
 
     const Parser = fn (dest: *anyopaque, src: []const u8, gpa: Allocator) ParseError!void;
-    const ParseError = error{ InvalidValue, OutOfMemory };
+    const ParseError = error{InvalidValue} || Allocator.Error;
 };
 
 fn FlagValues(comptime template: anytype) type {

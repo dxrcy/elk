@@ -131,7 +131,7 @@ pub fn init(params: struct {
     provider: Provider,
     history_file: ?Io.File = null,
     initial_command_line: []const u8 = "",
-}) error{OutOfMemory}!Debugger {
+}) Allocator.Error!Debugger {
     const breakpoints: Breakpoints = switch (params.provider) {
         .assembly => |assembly| try .initFrom(params.gpa, assembly.air),
         .none, .symbols => .init(params.gpa),
@@ -168,7 +168,7 @@ pub fn initState(
     debugger: *Debugger,
     gpa: Allocator,
     runtime: *const Runtime,
-) error{OutOfMemory}!void {
+) Allocator.Error!void {
     debugger.initial_state = try .init(gpa);
     debugger.initial_state.?.copyFrom(runtime.state);
 }
