@@ -117,7 +117,6 @@ fn writeHistory(input: *Input, line: []const u8) !void {
     const file = &(input.history_file orelse
         return);
 
-    // PERF: This can be done with less Io calls
     var size = try file.length(input.io);
     if (size > 0) {
         try file.writePositionalAll(input.io, "\n", size);
