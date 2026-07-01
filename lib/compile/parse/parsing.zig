@@ -37,32 +37,32 @@ pub fn isIdent(string: []const u8) bool {
     return true;
 }
 
-// Naive implementation.
-// Time: `O(2^(n+m))`, space: `O(nm)`.
-// PERF: Can use a far more efficient algorithm
-pub fn editDistance(a: []const u8, b: []const u8, max: usize) usize {
-    // Skip unnecessary (expensive!) calculation
-    if (diff(a.len, b.len) > max)
-        return std.math.maxInt(usize);
-    return editDistanceInner(a, b);
-}
+/// Asserts that buffer can hold `b.len + 1` items.
+/// Time: `O(a.len*b.len)`, space: `O(b.len)`.
+pub fn editDistance(a: []const u8, b: []const u8, buffer: []usize) usize {
+    assert(buffer.len >= b.len + 1);
+    for (0..b.len + 1) |j|
+        buffer[j] = j;
 
-fn editDistanceInner(a: []const u8, b: []const u8) usize {
-    if (a.len == 0)
-        return b.len;
-    if (b.len == 0)
-        return a.len;
-    if (std.ascii.toLower(a[0]) == std.ascii.toLower(b[0]))
-        return editDistanceInner(a[1..], b[1..]);
-    return 1 + @min(
-        editDistanceInner(a, b[1..]),
-        editDistanceInner(a[1..], b),
-        editDistanceInner(a[1..], b[1..]),
-    );
-}
-
-fn diff(a: usize, b: usize) usize {
-    return @max(a, b) - @min(a, b);
+    var previous: usize = 0;
+    for (1..a.len + 1) |i| {
+        previous = buffer[0];
+        buffer[0] = i;
+        for (1..b.len + 1) |j| {
+            const temp = buffer[j];
+            if (a[i - 1] == b[j - 1]) {
+                buffer[j] = previous;
+            } else {
+                buffer[j] = 1 + @min(
+                    buffer[j - 1],
+                    previous,
+                    buffer[j],
+                );
+            }
+            previous = temp;
+        }
+    }
+    return buffer[b.len];
 }
 
 test {
@@ -78,9 +78,11 @@ test {
         .{ "xxxsperrxxx", "conspiracy", 8 },
     };
 
+    var buffer: [20]usize = undefined;
+
     for (cases) |case| {
         const a, const b, const expected = case;
-        const actual = editDistance(a, b, std.math.maxInt(usize));
+        const actual = editDistance(a, b, &buffer);
         std.log.info("[{s}]\t[{s}]\t{}\t{}", .{ a, b, expected, actual });
         try expect(actual == expected);
     }

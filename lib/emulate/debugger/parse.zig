@@ -506,13 +506,18 @@ const Parser = struct {
                         return .{ .span = span, .value = tag };
                 }
 
+                const max_candidate_length = 20;
+                var buffer: [max_candidate_length]usize = undefined;
+
                 var best_opt: ?struct { tag: Command.Tag, distance: usize } = null;
                 for (std.meta.tags(Command.Tag)) |tag| {
                     var distance: usize = std.math.maxInt(usize);
                     for (singles.get(tag).aliases) |candidate| {
+                        if (candidate.len + 1 > buffer.len)
+                            continue;
                         distance = @min(
                             distance,
-                            parsing.editDistance(string, candidate, max_edit_distance),
+                            parsing.editDistance(string, candidate, &buffer),
                         );
                     }
                     if (best_opt) |best| {

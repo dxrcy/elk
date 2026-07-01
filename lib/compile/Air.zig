@@ -217,10 +217,13 @@ pub fn findLabel(
     }
 
     if (mode == .nearest) {
+        const max_candidate_length = 20;
+        var buffer: [max_candidate_length]usize = undefined;
+
         var best_opt: ?struct { label: *Label, distance: usize } = null;
         for (air.labels.items) |*label| {
             const string = label.span.view(source);
-            const distance = parsing.editDistance(string, reference, max_edit_distance);
+            const distance = parsing.editDistance(string, reference, &buffer);
             if (best_opt) |best| {
                 if (best.distance < distance)
                     continue;
