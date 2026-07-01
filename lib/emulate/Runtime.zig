@@ -80,12 +80,11 @@ pub const Exception = error{
 };
 
 /// Stdio or terminal failure.
-pub const HostError = error{
-    WriteFailed,
-    ReadFailed,
-    EndOfStream,
-    TermiosFailed,
-};
+pub const HostError =
+    Allocator.Error ||
+    Io.Writer.Error ||
+    Io.Reader.Error ||
+    error{ EndOfStream, TermiosFailed };
 
 const Condition = enum(u3) {
     negative = 0b100,
@@ -184,6 +183,7 @@ pub fn run(runtime: *Runtime) Error!void {
         }
 
         runtime.runNextInstruction() catch |err| switch (err) {
+            error.OutOfMemory,
             error.WriteFailed,
             error.ReadFailed,
             error.EndOfStream,

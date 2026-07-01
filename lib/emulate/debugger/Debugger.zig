@@ -718,6 +718,7 @@ fn evalCommand(
         unreachable;
 
     runtime.runInstruction(runtime_instr) catch |err| switch (err) {
+        error.OutOfMemory,
         error.WriteFailed,
         error.ReadFailed,
         error.EndOfStream,

@@ -55,7 +55,10 @@ pub fn new(
     };
 }
 
-pub fn readLine(input: *Input, writer: *Writer) ![]const u8 {
+pub fn readLine(
+    input: *Input,
+    writer: *Writer,
+) (Io.Writer.Error || Io.Reader.Error || Allocator.Error)![]const u8 {
     input.editor.clear();
     var eof = false;
 
@@ -97,10 +100,7 @@ pub fn readLine(input: *Input, writer: *Writer) ![]const u8 {
 
     const trimmed = std.mem.trim(u8, line, &std.ascii.whitespace);
     if (trimmed.len > 0) {
-        input.editor.history.push(trimmed) catch {
-            // FIXME: Handle properly
-            std.debug.panic("out of memory", .{});
-        };
+        try input.editor.history.push(trimmed);
         input.writeHistory(trimmed) catch |err| {
             std.log.err("history write failed: {t}", .{err});
         };
