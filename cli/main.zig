@@ -429,12 +429,18 @@ fn emulate(
         try debugger.initState(gpa, &runtime);
 
     runtime.run() catch |err| switch (err) {
+        error.OutOfMemory,
         error.WriteFailed,
         error.ReadFailed,
+        error.EndOfStream,
         error.TermiosFailed,
         => |err2| return err2,
-        else => |err2| {
-            std.log.err("runtime threw exception: {t}", .{err2});
+
+        else => |exception| {
+            reporter.report(.emulate_exception, .{
+                .code = exception,
+            }).abort() catch
+                {};
         },
     };
 
