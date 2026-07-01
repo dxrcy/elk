@@ -260,30 +260,29 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
             try ctx.deepen().writeSourceNote("Label declared here", .{}, info.label);
         },
 
-        // TODO: Change "operand" to "argument", and elsewhere
         .malformed_integer => |info| {
-            try ctx.writeTitle("Malformed integer operand", .{});
-            try ctx.deepen().writeSourceNote("Operand", .{}, info.integer);
+            try ctx.writeTitle("Malformed integer argument", .{});
+            try ctx.deepen().writeSourceNote("Argument", .{}, info.integer);
             try ctx.deepen().writeNote("Integer token is not in an valid form", .{});
         },
         .malformed_character => |info| {
-            try ctx.writeTitle("Malformed character literal operand", .{});
-            try ctx.deepen().writeSourceNote("Operand", .{}, info.integer);
+            try ctx.writeTitle("Malformed character literal argument", .{});
+            try ctx.deepen().writeSourceNote("Argument", .{}, info.integer);
             try ctx.deepen().writeNote("Character literal token is invalid", .{});
         },
         .expected_digit => |info| {
-            try ctx.writeTitle("Expected digit in integer operand", .{});
-            try ctx.deepen().writeSourceNote("Operand", .{}, info.integer);
+            try ctx.writeTitle("Expected digit in integer argument", .{});
+            try ctx.deepen().writeSourceNote("Argument", .{}, info.integer);
             try ctx.deepen().writeNote("Integer token ended unexpectedly", .{});
         },
         .invalid_digit => |info| {
-            try ctx.writeTitle("Invalid digit in integer operand", .{});
-            try ctx.deepen().writeSourceNote("Operand", .{}, info.integer);
+            try ctx.writeTitle("Invalid digit in integer argument", .{});
+            try ctx.deepen().writeSourceNote("Argument", .{}, info.integer);
             try ctx.deepen().writeNote("Integer token contains a character which is not valid in the base", .{});
         },
         .unexpected_delimiter => |info| {
-            try ctx.writeTitle("Unexpected digit delimiter in integer operand", .{});
-            try ctx.deepen().writeSourceNote("Operand", .{}, info.integer);
+            try ctx.writeTitle("Unexpected digit delimiter in integer argument", .{});
+            try ctx.deepen().writeSourceNote("Argument", .{}, info.integer);
             try ctx.deepen().writeNote("Delimiter character `_` must appear between digits", .{});
         },
         .nonstandard_integer_radix => |info| {
@@ -317,11 +316,11 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
         },
 
         .integer_too_large => |info| {
-            try ctx.writeTitle("Integer operand is too large", .{});
-            try ctx.deepen().writeSourceNote("Operand", .{}, info.integer);
+            try ctx.writeTitle("Integer argument is too large", .{});
+            try ctx.deepen().writeSourceNote("Argument", .{}, info.integer);
             try ctx.deepen().writeNote("Value cannot be represented in {} bits", .{info.type_info.bits});
             if (info.type_info.signedness == .signed) {
-                try ctx.deepen().writeNote("Since the operand is a signed integer, the highest bit is reserved as the sign bit", .{});
+                try ctx.deepen().writeNote("Since the argument is a signed integer, the highest bit is reserved as the sign bit", .{});
             }
         },
         .offset_too_large => |info| {
@@ -332,8 +331,8 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
             try ctx.deepen().writeNote("Address offset of {} words cannot be represented in {} bits", .{ info.offset, info.bits });
         },
         .unexpected_negative_integer => |info| {
-            try ctx.writeTitle("Integer operand cannot be negative", .{});
-            try ctx.deepen().writeSourceNote("Operand", .{}, info.integer);
+            try ctx.writeTitle("Integer argument cannot be negative", .{});
+            try ctx.deepen().writeSourceNote("Argument", .{}, info.integer);
         },
 
         .unmatched_quote => |info| {
