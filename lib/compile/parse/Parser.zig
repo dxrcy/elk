@@ -91,7 +91,7 @@ pub fn parseAir(parser: *Parser, gpa: Allocator, air: *Air) Allocator.Error!void
             }).proceed(); // Can't return `error.Reported`
         }
 
-        parser.discardCurrentLabel(air, null) catch
+        parser.ensureNoCurrentLabel(air, null) catch
             {}; // Can't return `error.Reported`
 
         if (missing_end) {
@@ -230,8 +230,7 @@ pub fn parseInstruction(parser: *Parser) error{Reported}!Instruction {
     }
 }
 
-// TODO: Rename, too close to `removeCurrentLabel`
-fn discardCurrentLabel(parser: *Parser, air: *Air, target: ?Span) error{Reported}!void {
+fn ensureNoCurrentLabel(parser: *Parser, air: *Air, target: ?Span) error{Reported}!void {
     if (parser.removeCurrentLabel(air)) |label| {
         try parser.reporter().report(.invalid_label_target, .{
             .label = label,
@@ -325,12 +324,12 @@ fn parseDirective(
 ) InnerError!Control {
     switch (directive) {
         .end => {
-            try parser.discardCurrentLabel(air, span);
+            try parser.ensureNoCurrentLabel(air, span);
             return .@"break";
         },
 
         .orig => {
-            try parser.discardCurrentLabel(air, span);
+            try parser.ensureNoCurrentLabel(air, span);
 
             const origin = try parser.tokenizer.expectArgument(.word);
             if (parser.origin) |existing| {
