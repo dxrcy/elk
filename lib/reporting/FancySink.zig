@@ -372,7 +372,14 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
 
         .emulate_exception => |info| {
             try ctx.writeTitle("Runtime exception: {t}", .{info.code});
-            // TODO: Add additional information
+            try ctx.deepen().writeNote("{s}", .{switch (info.code) {
+                error.IncorrectPadding => "The instruction format contains invalid values for padding bits",
+                error.UnhandledTrap => "No trap routine is defined for the trap vector",
+                error.UnsupportedRti => "The RTI instruction is not supported by this implementation",
+                error.UnpermittedOpcode => "The executed instruction is not supported in this mode",
+                error.UnpermittedMemoryAccess => "The emulator tried to access supervisor-only memory while in user mode",
+                error.TrapFailed => "The trap routine failed due to an internal problem",
+            }});
         },
 
         .debugger_requires_assembly => |info| {
