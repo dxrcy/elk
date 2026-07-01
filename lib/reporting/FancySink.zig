@@ -247,7 +247,12 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
             if (info.nearest) |close_match| {
                 try ctx.deepen().withSource(info.definition_source)
                     .writeSourceNote("This label declaration is similar", .{}, close_match);
-                try ctx.deepen().writeNote("Label names are case-sensitive", .{});
+                if (std.ascii.eqlIgnoreCase(
+                    info.reference.view(source),
+                    close_match.view(info.definition_source),
+                )) {
+                    try ctx.deepen().writeNote("Label names are case-sensitive", .{});
+                }
             }
         },
         .unused_label => |info| {
