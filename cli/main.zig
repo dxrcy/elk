@@ -20,6 +20,8 @@ pub fn main(init: std.process.Init) !u8 {
     var args = try zilc.collectArgs(args_allocator, init.minimal.args);
     defer args.deinit(init.arena.allocator());
 
+    const is_tty = try Io.File.stdout().isTty(io);
+
     const cli = blk: {
         var temp_arena = std.heap.ArenaAllocator.init(gpa);
         defer temp_arena.deinit();
@@ -27,6 +29,7 @@ pub fn main(init: std.process.Init) !u8 {
             args_allocator,
             temp_arena.allocator(),
             args.items,
+            is_tty,
         ) catch |err| switch (err) {
             else => return err,
             error.DisplayMetadata => return 0,

@@ -44,6 +44,9 @@ OPTIONS:
     -p, --permit <POLICIES>
             Specify permitted policies or predefined policy sets.
             Eg. --permit +laser,extension.stack_instructions
+        --color [auto | always | never]
+            Enable or disable color in stdout/stderr.
+            'auto' will enable color only if stdout is a TTY (default).
 
  EXAMPLES:
      elk hello.asm

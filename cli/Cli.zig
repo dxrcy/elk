@@ -26,6 +26,7 @@ operation: Operation,
 policies: elk.Policies,
 strictness: elk.reporting.Options.Strictness,
 verbosity: elk.reporting.Options.Verbosity,
+tty_color: bool,
 
 const Operation = union(enum) {
     assemble_emulate: struct {
@@ -141,7 +142,30 @@ const template = .{
         .long = "permit",
         .value = .{ .type = elk.Policies, .parser = parsePolicies },
     },
+    .color_mode = zilc.Flag{
+        .long = "color",
+        .value = .{ .type = ColorMode, .parser = parseColorMode },
+    },
 };
+
+const ColorMode = enum { auto, always, never };
+
+fn parseColorMode(dest: *anyopaque, src: []const u8, _: Allocator) !void {
+    const color_mode: *?ColorMode = @ptrCast(@alignCast(dest));
+    if (std.mem.eql(u8, src, "auto")) {
+        color_mode.* = .auto;
+        return;
+    }
+    if (std.mem.eql(u8, src, "always")) {
+        color_mode.* = .always;
+        return;
+    }
+    if (std.mem.eql(u8, src, "never")) {
+        color_mode.* = .never;
+        return;
+    }
+    return error.InvalidValue;
+}
 
 fn parsePolicies(dest: *anyopaque, src: []const u8, _: Allocator) !void {
     const policies: *?elk.Policies = @ptrCast(@alignCast(dest));
@@ -204,7 +228,7 @@ fn getMetaArg(args: []const []const u8) ?zilc.MetaArg {
     return zilc.getMetaArg(args);
 }
 
-pub fn parse(gpa: Allocator, arena: Allocator, args: []const []const u8) !Cli {
+pub fn parse(gpa: Allocator, arena: Allocator, args: []const []const u8, is_tty: bool) !Cli {
     if (getMetaArg(args)) |meta| {
         switch (meta) {
             .help => {
@@ -263,6 +287,11 @@ pub fn parse(gpa: Allocator, arena: Allocator, args: []const []const u8) !Cli {
         else
             .normal,
         .verbosity = if (options.flags.quiet) .quiet else .normal,
+        .tty_color = switch (options.flags.color_mode orelse .auto) {
+            .auto => is_tty,
+            .always => true,
+            .never => false,
+        },
     };
 }
 
