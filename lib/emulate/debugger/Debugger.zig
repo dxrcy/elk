@@ -69,6 +69,7 @@ pub const Writer = struct {
     const prompt = "> ";
 
     inner: *Io.Writer,
+    use_color: bool,
 
     pub fn print(writer: *Writer, comptime fmt: []const u8, args: anytype) error{WriteFailed}!void {
         try writer.inner.print(fmt, args);
@@ -85,10 +86,14 @@ pub const Writer = struct {
     }
 
     pub fn enableColor(writer: *Writer) !void {
+        if (!writer.use_color)
+            return;
         try writer.print("\x1b[{}m", .{color});
     }
 
     pub fn disableColor(writer: *Writer) !void {
+        if (!writer.use_color)
+            return;
         try writer.print("\x1b[0m", .{});
     }
 
@@ -110,9 +115,11 @@ pub const Writer = struct {
 
         try writer.print("{s}", .{first});
         if (rest.len > 0) {
-            try writer.print("\x1b[2m", .{});
+            if (writer.use_color)
+                try writer.print("\x1b[2m", .{});
             try writer.print("{s}", .{rest});
-            try writer.print("\x1b[0m", .{});
+            if (writer.use_color)
+                try writer.print("\x1b[0m", .{});
         }
 
         if (cursor_opt) |cursor|
@@ -131,6 +138,7 @@ pub fn init(params: struct {
     provider: Provider,
     history_file: ?Io.File = null,
     initial_command_line: []const u8 = "",
+    use_color: bool,
 }) Allocator.Error!Debugger {
     const breakpoints: Breakpoints = switch (params.provider) {
         .assembly => |assembly| try .initFrom(params.gpa, assembly.air),
@@ -151,7 +159,7 @@ pub fn init(params: struct {
         .provider = params.provider,
         .current_line = params.initial_command_line,
         .input = input,
-        .writer = .{ .inner = params.writer },
+        .writer = .{ .inner = params.writer, .use_color = params.use_color },
         .traps = params.traps,
         .reporter = params.reporter,
     };

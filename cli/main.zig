@@ -164,6 +164,7 @@ pub fn main(init: std.process.Init) !u8 {
                 &default_traps,
                 cli.policies,
                 &reporter,
+                cli.tty_color,
             );
         },
 
@@ -181,6 +182,7 @@ pub fn main(init: std.process.Init) !u8 {
                 &default_traps,
                 cli.policies,
                 &reporter,
+                cli.tty_color,
             );
         },
 
@@ -232,6 +234,7 @@ pub fn main(init: std.process.Init) !u8 {
                 &default_traps,
                 cli.policies,
                 &reporter,
+                cli.tty_color,
             );
         },
 
@@ -360,6 +363,7 @@ fn emulate(
     traps: *const elk.Traps,
     policies: elk.Policies,
     reporter: *elk.reporting.Primary,
+    use_color: bool,
 ) !void {
     var write_buffer: [64]u8 = undefined;
     var debugger_buffer: [256]u8 = undefined;
@@ -393,6 +397,7 @@ fn emulate(
             .provider = provider,
             .history_file = history_file,
             .initial_command_line = debug.commands orelse "",
+            .use_color = use_color,
         });
     } else null;
     defer if (debugger_opt) |*debugger| debugger.deinit(gpa);
