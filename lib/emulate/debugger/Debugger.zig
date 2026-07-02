@@ -504,6 +504,7 @@ fn runCommand(
             try debugger.writer.printLine("Next instruction, at x{X:04}:", .{address});
             try writeSpanContext(debugger.writer.inner, line.span, .{
                 .max_context = arguments.context.value,
+                .use_color = debugger.writer.use_color, // Not from reporter sink
             }, assembly.source);
 
             if (debugger.initial_state) |initial_state| {
@@ -683,7 +684,9 @@ fn printBreakpoints(debugger: *Debugger) !void {
             try debugger.writer.disableColor();
             try debugger.writer.print("\n", .{});
 
-            try writeSpanContext(debugger.writer.inner, line.span, .{}, assembly.source);
+            try writeSpanContext(debugger.writer.inner, line.span, .{
+                .use_color = debugger.writer.use_color, // Not from reporter sink
+            }, assembly.source);
             continue;
         }
 

@@ -11,16 +11,16 @@ const zilc = @import("zilc.zig");
 pub fn main(init: std.process.Init) !u8 {
     const io, const gpa = .{ init.io, init.gpa };
 
+    const is_tty = try Io.File.stdout().isTty(io);
+
     var reporter_buffer: [1024]u8 = undefined;
     var reporter_writer = Io.File.stderr().writer(io, &reporter_buffer);
-    var sink = elk.reporting.Sink.Fancy.new(&reporter_writer.interface);
+    var sink = elk.reporting.Sink.Fancy.new(&reporter_writer.interface, is_tty);
     var reporter = elk.reporting.Primary.new(sink.interface());
 
     const args_allocator = init.arena.allocator();
     var args = try zilc.collectArgs(args_allocator, init.minimal.args);
     defer args.deinit(init.arena.allocator());
-
-    const is_tty = try Io.File.stdout().isTty(io);
 
     const cli = blk: {
         var temp_arena = std.heap.ArenaAllocator.init(gpa);
@@ -39,6 +39,7 @@ pub fn main(init: std.process.Init) !u8 {
     reporter.options.strictness = cli.strictness;
     reporter.options.verbosity = cli.verbosity;
     reporter.options.policies = cli.policies;
+    sink.use_color = cli.tty_color;
 
     const default_traps: elk.Traps = comptime .registerSets(&.{
         elk.Traps.Standard,

@@ -13,6 +13,7 @@ const Level = reporting.Level;
 writer: *Io.Writer,
 verbosity: Verbosity,
 level: ?Level,
+use_color: bool,
 depth: usize,
 item_count: ?*usize,
 source: ?Source,
@@ -23,6 +24,7 @@ pub fn new(
     writer: *Io.Writer,
     verbosity: Verbosity,
     level: ?Level,
+    use_color: bool,
     item_count: ?*usize,
     source: ?Source,
 ) Ctx {
@@ -30,6 +32,7 @@ pub fn new(
         .writer = writer,
         .verbosity = verbosity,
         .level = level,
+        .use_color = use_color,
         .depth = 0,
         .item_count = item_count,
         .source = source,
@@ -70,22 +73,31 @@ pub fn writeTitle(
     try ctx.writeDepth();
     switch (level) {
         .err => {
-            try ctx.writer.print("\x1b[31m", .{});
-            try ctx.writer.print("\x1b[1m", .{});
+            if (ctx.use_color) {
+                try ctx.writer.print("\x1b[31m", .{});
+                try ctx.writer.print("\x1b[1m", .{});
+            }
             try ctx.writer.print("Error: ", .{});
-            try ctx.writer.print("\x1b[0m", .{});
+            if (ctx.use_color)
+                try ctx.writer.print("\x1b[0m", .{});
         },
         .warn => {
-            try ctx.writer.print("\x1b[33m", .{});
-            try ctx.writer.print("\x1b[1m", .{});
+            if (ctx.use_color) {
+                try ctx.writer.print("\x1b[33m", .{});
+                try ctx.writer.print("\x1b[1m", .{});
+            }
             try ctx.writer.print("Warning: ", .{});
-            try ctx.writer.print("\x1b[0m", .{});
+            if (ctx.use_color)
+                try ctx.writer.print("\x1b[0m", .{});
         },
         .info => {
-            try ctx.writer.print("\x1b[34m", .{});
-            try ctx.writer.print("\x1b[1m", .{});
+            if (ctx.use_color) {
+                try ctx.writer.print("\x1b[34m", .{});
+                try ctx.writer.print("\x1b[1m", .{});
+            }
             try ctx.writer.print("Info: ", .{});
-            try ctx.writer.print("\x1b[0m", .{});
+            if (ctx.use_color)
+                try ctx.writer.print("\x1b[0m", .{});
         },
     }
 
@@ -108,9 +120,11 @@ pub fn writeNote(ctx: Ctx, comptime fmt: []const u8, args: anytype) error{WriteF
     }
 
     try ctx.writeDepth();
-    try ctx.writer.print("\x1b[36m", .{});
+    if (ctx.use_color)
+        try ctx.writer.print("\x1b[36m", .{});
     try ctx.writer.print("Note: ", .{});
-    try ctx.writer.print("\x1b[0m", .{});
+    if (ctx.use_color)
+        try ctx.writer.print("\x1b[0m", .{});
     try ctx.writer.print(fmt, args);
     try ctx.writer.print("\n", .{});
 }
@@ -152,6 +166,7 @@ fn writeSource(ctx: Ctx, span: Span) error{WriteFailed}!void {
     try writeSpanContext(ctx.writer, span, .{
         .indent = ctx.depth * indent_width,
         .max_line_width = 90,
+        .use_color = ctx.use_color,
     }, source);
 }
 
@@ -162,6 +177,7 @@ pub fn writeSpanContext(
         indent: usize = 0,
         max_context: usize = 1,
         max_line_width: usize = 80,
+        use_color: bool,
     },
     source: Source,
 ) error{WriteFailed}!void {
@@ -177,12 +193,15 @@ pub fn writeSpanContext(
         for (0..config.indent) |_|
             try writer.print(" ", .{});
 
-        try writer.print("\x1b[2m", .{});
+        if (config.use_color)
+            try writer.print("\x1b[2m", .{});
         try writer.print("{:3} ", .{line_number});
         try writer.print("| ", .{});
-        try writer.print("\x1b[0m", .{});
-        try writer.print("\x1b[3m", .{});
-        try writer.print("\x1b[2m", .{});
+        if (config.use_color) {
+            try writer.print("\x1b[0m", .{});
+            try writer.print("\x1b[3m", .{});
+            try writer.print("\x1b[2m", .{});
+        }
 
         {
             var was_in_span = false;
@@ -192,16 +211,18 @@ pub fn writeSpanContext(
                 const index = line.offset + i;
 
                 const in_span = span.containsIndex(index);
-                if (in_span and !was_in_span)
-                    try writer.print("\x1b[22m", .{})
-                else if (!in_span and was_in_span)
-                    try writer.print("\x1b[2m", .{});
+                if (config.use_color)
+                    if (in_span and !was_in_span)
+                        try writer.print("\x1b[22m", .{})
+                    else if (!in_span and was_in_span)
+                        try writer.print("\x1b[2m", .{});
 
                 const non_valid = Token.isValidChar(char);
-                if (!non_valid and was_non_valid)
-                    try writer.print("\x1b[31m", .{})
-                else if (non_valid and !was_non_valid)
-                    try writer.print("\x1b[39m", .{});
+                if (config.use_color)
+                    if (!non_valid and was_non_valid)
+                        try writer.print("\x1b[31m", .{})
+                    else if (non_valid and !was_non_valid)
+                        try writer.print("\x1b[39m", .{});
 
                 if (non_valid)
                     try writer.print("{c}", .{char})
@@ -214,12 +235,15 @@ pub fn writeSpanContext(
         }
 
         if (is_truncated) {
-            try writer.print("\x1b[0m", .{});
-            try writer.print("\x1b[36;2m", .{});
+            if (config.use_color) {
+                try writer.print("\x1b[0m", .{});
+                try writer.print("\x1b[36;2m", .{});
+            }
             try writer.print("...", .{});
         }
 
-        try writer.print("\x1b[0m", .{});
+        if (config.use_color)
+            try writer.print("\x1b[0m", .{});
         try writer.print("\n", .{});
 
         if (!line.overlaps(span) or
@@ -231,10 +255,13 @@ pub fn writeSpanContext(
         for (0..config.indent) |_|
             try writer.print(" ", .{});
 
-        try writer.print("\x1b[2m", .{});
+        if (config.use_color)
+            try writer.print("\x1b[2m", .{});
         try writer.print("    | ", .{});
-        try writer.print("\x1b[22m", .{});
-        try writer.print("\x1b[36m", .{});
+        if (config.use_color) {
+            try writer.print("\x1b[22m", .{});
+            try writer.print("\x1b[36m", .{});
+        }
         for (0..line_string.len + 1) |i| {
             const index = line.offset + i;
             if (span.containsIndex(index) or
@@ -244,7 +271,8 @@ pub fn writeSpanContext(
             else
                 try writer.print(" ", .{});
         }
-        try writer.print("\x1b[0m", .{});
+        if (config.use_color)
+            try writer.print("\x1b[0m", .{});
         try writer.print("\n", .{});
     }
 }
