@@ -8,6 +8,89 @@ pub const Provider = @import("provider.zig").Provider;
 pub const Policies = @import("policies.zig").Policies;
 pub const reporting = @import("reporting/reporting.zig");
 
+pub const Assembler = struct {
+    const std = @import("std");
+    const Io = std.Io;
+    const Allocator = std.mem.Allocator;
+    const elk = @import("root.zig");
+
+    filepath: []const u8,
+    file: Io.File,
+
+    air: elk.Air,
+    traps: *const elk.Traps,
+    source: elk.Source,
+    reporter: *elk.reporting.Primary,
+
+    gpa: Allocator,
+    io: Io,
+
+    pub fn deinit(assembler: *Assembler) void {
+        assembler.gpa.free(assembler.source.text);
+        assembler.air.deinit(assembler.gpa);
+        assembler.file.close(assembler.io);
+    }
+
+    pub fn assembleFromFile(assembler: *Assembler) !void {
+        var reader = assembler.file.reader(assembler.io, &.{});
+        const text = try reader.interface.allocRemaining(assembler.gpa, .unlimited);
+
+        assembler.source = .{
+            .text = text,
+            .path = assembler.filepath,
+        };
+        assembler.reporter.source = assembler.source;
+
+        assembler.air = try assemble(
+            assembler.gpa,
+            assembler.source,
+            // TODO:
+            // operation.patch_symbols,
+            null,
+            assembler.traps,
+            assembler.reporter,
+        );
+    }
+
+    // TODO: Move to `Assembler`
+    fn assemble(
+        gpa: Allocator,
+        source: elk.Source,
+        patch_symbols_opt: ?[]const struct { []const u8, u16 },
+        traps: *const elk.Traps,
+        reporter: *elk.reporting.Primary,
+    ) !elk.Air {
+        var air: elk.Air = .init();
+        errdefer air.deinit(gpa);
+
+        var parser = elk.Parser.new(traps, source, reporter) catch
+            return error.ProgramError;
+
+        try parser.parseAir(gpa, &air);
+        if (reporter.getLevel() == .err) {
+            reporter.summarize();
+            return error.ProgramError;
+        }
+
+        parser.resolveLabelReferences(&air);
+        if (reporter.getLevel() == .err) {
+            reporter.summarize();
+            return error.ProgramError;
+        }
+
+        reporter.summarize();
+
+        if (patch_symbols_opt) |patch_symbols| {
+            for (patch_symbols) |item| {
+                const symbol, const word = item;
+                try air.patchLabelValue(symbol, word, source);
+            }
+        }
+
+        return air;
+    }
+};
+
 test {
     const refAllDecls = @import("std").testing.refAllDecls;
     refAllDecls(@import("reporting/Sink.zig"));

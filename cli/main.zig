@@ -169,6 +169,7 @@ pub fn main(init: std.process.Init) !u8 {
                 cli.policies,
                 &reporter,
                 cli.tty_color,
+                null,
             );
         },
 
@@ -187,6 +188,7 @@ pub fn main(init: std.process.Init) !u8 {
                 cli.policies,
                 &reporter,
                 cli.tty_color,
+                null,
             );
         },
 
@@ -205,7 +207,7 @@ pub fn main(init: std.process.Init) !u8 {
                 },
             };
 
-            var assembler: Assembler = .{
+            var assembler: elk.Assembler = .{
                 .filepath = input_path orelse
                     // TODO:
                     unreachable,
@@ -235,6 +237,7 @@ pub fn main(init: std.process.Init) !u8 {
                 cli.policies,
                 &reporter,
                 cli.tty_color,
+                &assembler,
             );
         },
 
@@ -269,46 +272,6 @@ pub fn main(init: std.process.Init) !u8 {
 
     return 0;
 }
-
-const Assembler = struct {
-    filepath: []const u8,
-    file: Io.File,
-
-    air: elk.Air,
-    traps: *const elk.Traps,
-    source: elk.Source,
-    reporter: *elk.reporting.Primary,
-
-    gpa: Allocator,
-    io: Io,
-
-    pub fn deinit(assembler: *Assembler) void {
-        assembler.gpa.free(assembler.source.text);
-        assembler.air.deinit(assembler.gpa);
-        assembler.file.close(assembler.io);
-    }
-
-    pub fn assembleFromFile(assembler: *Assembler) !void {
-        var reader = assembler.file.reader(assembler.io, &.{});
-        const text = try reader.interface.allocRemaining(assembler.gpa, .unlimited);
-
-        assembler.source = .{
-            .text = text,
-            .path = assembler.filepath,
-        };
-        assembler.reporter.source = assembler.source;
-
-        assembler.air = try assemble(
-            assembler.gpa,
-            assembler.source,
-            // TODO:
-            // operation.patch_symbols,
-            null,
-            assembler.traps,
-            assembler.reporter,
-        );
-    }
-};
 
 fn readSymbolTable(
     io: Io,
@@ -405,6 +368,7 @@ fn emulate(
     policies: elk.Policies,
     reporter: *elk.reporting.Primary,
     use_color: bool,
+    assembler: ?*elk.Assembler,
 ) !void {
     var write_buffer: [64]u8 = undefined;
     var debugger_buffer: [256]u8 = undefined;
@@ -436,6 +400,7 @@ fn emulate(
             .reporter = reporter,
             .command_buffer = &debugger_buffer,
             .provider = provider,
+            .assembler = assembler,
             .history_file = history_file,
             .initial_command_line = debug.commands orelse "",
             .use_color = use_color,

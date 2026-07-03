@@ -21,6 +21,8 @@ const Breakpoints = @import("Breakpoints.zig");
 const Input = @import("Input.zig");
 const parse = @import("parse.zig");
 
+const Assembler = @import("../../root.zig").Assembler;
+
 state: struct {
     status: Status = .get_action,
     instruction_count: usize = 0,
@@ -32,6 +34,7 @@ state: struct {
 breakpoints: Breakpoints,
 initial_state: ?Runtime.State,
 provider: Provider,
+assembler: ?*Assembler,
 
 current_line: []const u8,
 input: Input,
@@ -126,6 +129,7 @@ pub fn init(params: struct {
     reporter: *Reporter,
     command_buffer: []u8,
     provider: Provider,
+    assembler: ?*Assembler,
     history_file: ?Io.File = null,
     initial_command_line: []const u8 = "",
     use_color: bool,
@@ -147,6 +151,7 @@ pub fn init(params: struct {
         .breakpoints = breakpoints,
         .initial_state = null,
         .provider = params.provider,
+        .assembler = params.assembler,
         .current_line = params.initial_command_line,
         .input = input,
         .writer = .{ .inner = params.writer, .use_color = params.use_color },
