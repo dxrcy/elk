@@ -494,7 +494,7 @@ const Parser = struct {
         switch (mode) {
             .exact => {
                 for (std.meta.tags(Command.Tag)) |tag| {
-                    if (anyCandidateMatches(singles.get(tag).aliases, string) == null)
+                    if (anyCandidateMatches(singles.get(tag).aliases, string)) |_|
                         return .{ .span = span, .value = tag };
                 }
             },
@@ -502,7 +502,7 @@ const Parser = struct {
             .nearest => {
                 assert(parser.findSingleTagMatch(.exact, singles, span) == null);
                 for (std.meta.tags(Command.Tag)) |tag| {
-                    if (anyCandidateMatches(singles.get(tag).suggestions, string) == null)
+                    if (anyCandidateMatches(singles.get(tag).suggestions, string)) |_|
                         return .{ .span = span, .value = tag };
                 }
 
