@@ -523,8 +523,7 @@ pub fn resolveLabelReferences(parser: *Parser, air: *Air) void {
             .instruction => |*instruction| instruction,
         };
         parser.resolveLabelOperand(
-            air,
-            parser.source(),
+            .{ .air = air, .source = parser.source() },
             instruction,
             index + 1, // PC is at N+1 when instruction N is interpreted
         ) catch |err| switch (err) {
@@ -541,13 +540,19 @@ pub fn resolveLabelReferences(parser: *Parser, air: *Air) void {
     }
 }
 
+// TODO: Inline this function ?
 pub fn resolveLabelOperand(
     parser: *Parser,
-    air: *const Air,
-    air_source: Source,
+    assembly: Provider.Assembly,
     instruction: *Instruction,
+    // TODO: Change to `address u16` ?
     index: usize,
 ) error{Reported}!void {
-    const provider: Provider = .{ .assembly = .{ .air = air, .source = air_source } };
-    return provider.resolveLabelOperand(instruction, index, parser.source(), parser.reporter());
+    return Provider.resolveLabelOperand(
+        .{ .assembly = assembly },
+        instruction,
+        index + assembly.air.origin,
+        parser.source(),
+        parser.reporter(),
+    );
 }

@@ -39,19 +39,19 @@ pub const Provider = union(enum) {
     pub fn resolveLabelOperand(
         provider: Provider,
         instruction: *Air.Instruction,
-        index: usize,
+        address: usize,
         source: Source,
         reporter: *Reporter,
     ) error{Reported}!void {
         return switch (instruction.*) {
-            .br => |*operands| provider.resolveFieldLabel(&operands.dest, index, source, reporter),
-            .jsr => |*operands| provider.resolveFieldLabel(&operands.dest, index, source, reporter),
-            .ld => |*operands| provider.resolveFieldLabel(&operands.src, index, source, reporter),
-            .ldi => |*operands| provider.resolveFieldLabel(&operands.src, index, source, reporter),
-            .lea => |*operands| provider.resolveFieldLabel(&operands.src, index, source, reporter),
-            .st => |*operands| provider.resolveFieldLabel(&operands.dest, index, source, reporter),
-            .sti => |*operands| provider.resolveFieldLabel(&operands.dest, index, source, reporter),
-            .call => |*operands| provider.resolveFieldLabel(&operands.dest, index, source, reporter),
+            .br => |*operands| provider.resolveFieldLabel(&operands.dest, address, source, reporter),
+            .jsr => |*operands| provider.resolveFieldLabel(&operands.dest, address, source, reporter),
+            .ld => |*operands| provider.resolveFieldLabel(&operands.src, address, source, reporter),
+            .ldi => |*operands| provider.resolveFieldLabel(&operands.src, address, source, reporter),
+            .lea => |*operands| provider.resolveFieldLabel(&operands.src, address, source, reporter),
+            .st => |*operands| provider.resolveFieldLabel(&operands.dest, address, source, reporter),
+            .sti => |*operands| provider.resolveFieldLabel(&operands.dest, address, source, reporter),
+            .call => |*operands| provider.resolveFieldLabel(&operands.dest, address, source, reporter),
             else => {},
         };
     }
@@ -59,7 +59,7 @@ pub const Provider = union(enum) {
     fn resolveFieldLabel(
         provider: Provider,
         operand: anytype,
-        index: usize,
+        address: usize,
         source: Source,
         reporter: *Reporter,
     ) error{Reported}!void {
@@ -74,45 +74,65 @@ pub const Provider = union(enum) {
             .resolved => return,
         }
 
-        const assembly = switch (provider) {
-            .assembly => |assembly| assembly,
-            // TODO:
-            .symbols => unreachable,
-            .none => unreachable,
-        };
-
         const string = operand.span.view(source);
 
-        const definition =
-            assembly.air.findLabel(.exact, string, assembly.source) orelse {
-                const nearest: Reporter.Diagnostic.NearestSpan =
-                    if (assembly.air.findLabel(.nearest, string, assembly.source)) |label|
-                        if (std.ascii.eqlIgnoreCase(string, label.span.view(assembly.source)))
-                            .{ .case_insensitive = label.span }
-                        else
-                            .{ .edit_distance = label.span }
-                    else
-                        .none;
-                try reporter.report(.undefined_label, .{
-                    .reference = operand.span,
-                    .nearest = nearest,
-                    .definition_source = assembly.source,
-                }).abort();
-            };
+        switch (provider) {
+            // FIXME:
+            .none => unreachable,
 
-        const offset = calculateOffset(Int, definition.index, index) orelse {
-            try reporter.report(.offset_too_large, .{
-                .reference = operand.span,
-                .definition = definition.span,
-                .offset = calculateOffset(i17, definition.index, index) orelse
-                    unreachable,
-                .bits = @typeInfo(Int).int.bits,
-                .definition_source = assembly.source,
-            }).abort();
-        };
+            .assembly => |assembly| {
+                const definition =
+                    assembly.air.findLabel(.exact, string, assembly.source) orelse {
+                        const nearest: Reporter.Diagnostic.NearestSpan =
+                            if (assembly.air.findLabel(.nearest, string, assembly.source)) |label|
+                                if (std.ascii.eqlIgnoreCase(string, label.span.view(assembly.source)))
+                                    .{ .case_insensitive = label.span }
+                                else
+                                    .{ .edit_distance = label.span }
+                            else
+                                .none;
+                        try reporter.report(.undefined_label, .{
+                            .reference = operand.span,
+                            .nearest = nearest,
+                            .definition_source = assembly.source,
+                        }).abort();
+                    };
+                const definition_address = definition.index + assembly.air.origin;
 
-        definition.references += 1;
-        operand.value = .{ .resolved = .{ .integer = offset, .form = null } };
+                const offset = calculateOffset(Int, definition_address, address) orelse {
+                    try reporter.report(.offset_too_large, .{
+                        .reference = operand.span,
+                        .definition = definition.span,
+                        .offset = calculateOffset(i17, definition_address, address) orelse
+                            unreachable,
+                        .bits = @typeInfo(Int).int.bits,
+                        .definition_source = assembly.source,
+                    }).abort();
+                };
+
+                definition.references += 1;
+                operand.value = .{ .resolved = .{ .integer = offset, .form = null } };
+            },
+
+            .symbols => |symbols| {
+                // TODO: Provide suggestion for nearest match
+                const definition = (getSymbolAddress(string, symbols) orelse {
+                    try reporter.report(.undefined_label, .{
+                        .reference = operand.span,
+                        .nearest = .none,
+                        .definition_source = .empty,
+                    }).abort();
+                });
+
+                const offset = calculateOffset(Int, definition, address) orelse {
+                    // TODO: Report properly
+                    std.log.err("offset too large", .{});
+                    return error.Reported;
+                };
+
+                operand.value = .{ .resolved = .{ .integer = offset, .form = null } };
+            },
+        }
     }
 };
 
