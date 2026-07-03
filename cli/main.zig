@@ -49,43 +49,33 @@ pub fn main(init: std.process.Init) !u8 {
     switch (cli.operation) {
         .assemble => |operation| {
             var input_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-            var input_path: ?[]const u8 = null;
-
-            const in_file = file: switch (operation.input) {
-                .stdio => {
-                    break :file Io.File.stdin();
-                },
+            const input_path = blk: switch (operation.input) {
+                .stdio => null,
                 .regular => |regular| {
                     const length = try Io.Dir.cwd().realPathFile(io, regular, &input_path_buffer);
-                    input_path = input_path_buffer[0..length];
-                    break :file try Io.Dir.cwd().openFile(io, input_path.?, .{});
+                    break :blk input_path_buffer[0..length];
                 },
             };
-
-            var reader = in_file.reader(io, &.{});
-            const text = try reader.interface.allocRemaining(gpa, .unlimited);
-            defer gpa.free(text);
-
-            const source: elk.Source = .{
-                .text = text,
-                .path = input_path,
-            };
-
-            reporter.source = source;
 
             const traps = operation.trap_aliases orelse default_traps;
 
-            var air = assemble(
-                gpa,
-                source,
-                operation.patch_symbols,
-                &traps,
-                &reporter,
-            ) catch |err| switch (err) {
-                error.ProgramError => return 1,
+            var assembler: elk.Assembler = .{
+                .air = .init(),
+                .source = .{
+                    .text = "",
+                    .path = input_path,
+                },
+                .traps = &traps,
+                .reporter = &reporter,
+                .gpa = gpa,
+                .io = io,
+            };
+            defer assembler.deinit();
+
+            assembler.assembleFromFile() catch |err| switch (err) {
+                error.AssembleFailed => return 1,
                 else => |err2| return err2,
             };
-            defer air.deinit(gpa);
 
             const out_extension = switch (operation.output_mode) {
                 .none => return 0,
@@ -124,9 +114,9 @@ pub fn main(init: std.process.Init) !u8 {
 
             switch (operation.output_mode) {
                 .none => unreachable,
-                .assembly => try air.writeAssembly(&writer.interface),
-                .symbols => try air.writeSymbols(&writer.interface, source),
-                .listing => try air.writeListing(&writer.interface, source),
+                .assembly => try assembler.air.writeAssembly(&writer.interface),
+                .symbols => try assembler.air.writeSymbols(&writer.interface, assembler.source),
+                .listing => try assembler.air.writeListing(&writer.interface, assembler.source),
             }
 
             try writer.flush();
@@ -305,44 +295,6 @@ fn replacePathExtension(buffer: []u8, path: []const u8, extension: []const u8) [
     buffer[index] = '.';
     @memcpy(buffer[index + 1 ..][0..extension.len], extension);
     return buffer[0 .. index + 1 + extension.len];
-}
-
-// TODO: Move to `Assembler`
-fn assemble(
-    gpa: Allocator,
-    source: elk.Source,
-    patch_symbols_opt: ?[]const struct { []const u8, u16 },
-    traps: *const elk.Traps,
-    reporter: *elk.reporting.Primary,
-) !elk.Air {
-    var air: elk.Air = .init();
-    errdefer air.deinit(gpa);
-
-    var parser = elk.Parser.new(traps, source, reporter) catch
-        return error.ProgramError;
-
-    try parser.parseAir(gpa, &air);
-    if (reporter.getLevel() == .err) {
-        reporter.summarize();
-        return error.ProgramError;
-    }
-
-    parser.resolveLabelReferences(&air);
-    if (reporter.getLevel() == .err) {
-        reporter.summarize();
-        return error.ProgramError;
-    }
-
-    reporter.summarize();
-
-    if (patch_symbols_opt) |patch_symbols| {
-        for (patch_symbols) |item| {
-            const symbol, const word = item;
-            try air.patchLabelValue(symbol, word, source);
-        }
-    }
-
-    return air;
 }
 
 fn emulate(
