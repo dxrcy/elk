@@ -43,55 +43,34 @@ pub const Assembler = struct {
             assembler.source.text = try reader.interface.allocRemaining(assembler.gpa, .unlimited);
         }
 
+        assembler.air = .init();
+        errdefer assembler.air.deinit(assembler.gpa);
+
         assembler.reporter.source = assembler.source;
+        assembler.reporter.clear();
+        {
+            var parser = try elk.Parser.new(assembler.traps, assembler.source, assembler.reporter);
 
-        try assemble(
-            assembler.gpa,
-            &assembler.air,
-            assembler.source,
-            // TODO:
-            // operation.patch_symbols,
-            null,
-            assembler.traps,
-            assembler.reporter,
-        );
-    }
+            try parser.parseAir(assembler.gpa, &assembler.air);
+            if (assembler.reporter.getLevel() == .err) {
+                assembler.reporter.summarize();
+                return error.AssembleFailed;
+            }
 
-    fn assemble(
-        gpa: Allocator,
-        air: *Air,
-        source: elk.Source,
-        patch_symbols_opt: ?[]const struct { []const u8, u16 },
-        traps: *const elk.Traps,
-        reporter: *elk.reporting.Primary,
-    ) !void {
-        reporter.clear();
-
-        air.* = .init();
-        errdefer air.deinit(gpa);
-
-        var parser = try elk.Parser.new(traps, source, reporter);
-
-        try parser.parseAir(gpa, air);
-        if (reporter.getLevel() == .err) {
-            reporter.summarize();
-            return error.AssembleFailed;
-        }
-
-        parser.resolveLabelReferences(air);
-        if (reporter.getLevel() == .err) {
-            reporter.summarize();
-            return error.AssembleFailed;
-        }
-
-        reporter.summarize();
-
-        if (patch_symbols_opt) |patch_symbols| {
-            for (patch_symbols) |item| {
-                const symbol, const word = item;
-                try air.patchLabelValue(symbol, word, source);
+            parser.resolveLabelReferences(&assembler.air);
+            if (assembler.reporter.getLevel() == .err) {
+                assembler.reporter.summarize();
+                return error.AssembleFailed;
             }
         }
+        assembler.reporter.summarize();
+
+        // if (patch_symbols_opt) |patch_symbols| {
+        //     for (patch_symbols) |item| {
+        //         const symbol, const word = item;
+        //         try air.patchLabelValue(symbol, word, source);
+        //     }
+        // }
     }
 };
 
