@@ -42,16 +42,19 @@ pub const Provider = union(enum) {
         address: usize,
         source: Source,
         reporter: *Reporter,
+        comptime increment_references: bool,
     ) error{Reported}!void {
+        if (increment_references)
+            assert(provider == .assembly);
         return switch (instruction.*) {
-            .br => |*operands| provider.resolveFieldLabel(&operands.dest, address, source, reporter),
-            .jsr => |*operands| provider.resolveFieldLabel(&operands.dest, address, source, reporter),
-            .ld => |*operands| provider.resolveFieldLabel(&operands.src, address, source, reporter),
-            .ldi => |*operands| provider.resolveFieldLabel(&operands.src, address, source, reporter),
-            .lea => |*operands| provider.resolveFieldLabel(&operands.src, address, source, reporter),
-            .st => |*operands| provider.resolveFieldLabel(&operands.dest, address, source, reporter),
-            .sti => |*operands| provider.resolveFieldLabel(&operands.dest, address, source, reporter),
-            .call => |*operands| provider.resolveFieldLabel(&operands.dest, address, source, reporter),
+            .br => |*operands| provider.resolveFieldLabel(&operands.dest, address, source, reporter, increment_references),
+            .jsr => |*operands| provider.resolveFieldLabel(&operands.dest, address, source, reporter, increment_references),
+            .ld => |*operands| provider.resolveFieldLabel(&operands.src, address, source, reporter, increment_references),
+            .ldi => |*operands| provider.resolveFieldLabel(&operands.src, address, source, reporter, increment_references),
+            .lea => |*operands| provider.resolveFieldLabel(&operands.src, address, source, reporter, increment_references),
+            .st => |*operands| provider.resolveFieldLabel(&operands.dest, address, source, reporter, increment_references),
+            .sti => |*operands| provider.resolveFieldLabel(&operands.dest, address, source, reporter, increment_references),
+            .call => |*operands| provider.resolveFieldLabel(&operands.dest, address, source, reporter, increment_references),
             else => {},
         };
     }
@@ -62,6 +65,7 @@ pub const Provider = union(enum) {
         address: usize,
         source: Source,
         reporter: *Reporter,
+        comptime increment_references: bool,
     ) error{Reported}!void {
         // Extract integer type from operand argument type
         const Spanned = @typeInfo(@TypeOf(operand)).pointer.child;
@@ -76,7 +80,7 @@ pub const Provider = union(enum) {
 
         const string = operand.span.view(source);
 
-        switch (provider) {
+        const offset = blk: switch (provider) {
             .none => {
                 // TODO: Report properly
                 std.log.err("label operand cannot be resolved", .{});
@@ -113,8 +117,10 @@ pub const Provider = union(enum) {
                     }).abort();
                 };
 
-                definition.references += 1;
-                operand.value = .{ .resolved = .{ .integer = offset, .form = null } };
+                if (increment_references)
+                    definition.references += 1;
+
+                break :blk offset;
             },
 
             .symbols => |symbols| {
@@ -132,10 +138,11 @@ pub const Provider = union(enum) {
                     std.log.err("offset too large", .{});
                     return error.Reported;
                 };
-
-                operand.value = .{ .resolved = .{ .integer = offset, .form = null } };
+                break :blk offset;
             },
-        }
+        };
+
+        operand.value = .{ .resolved = .{ .integer = offset, .form = null } };
     }
 };
 

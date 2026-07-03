@@ -529,6 +529,7 @@ pub fn resolveLabelReferences(parser: *Parser, air: *Air) void {
             index + air.origin + 1, // PC is at N+1 when instruction N is interpreted
             parser.source(),
             parser.reporter(),
+            true,
         ) catch |err| switch (err) {
             error.Reported => continue,
         };
