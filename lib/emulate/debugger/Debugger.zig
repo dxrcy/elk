@@ -764,12 +764,6 @@ fn parseInstructionLine(
     var instruction = try parser.parseInstruction();
     try debugger.provider.resolveLabelOperand(&instruction, index, source, &reporter);
 
-    if (instruction.isLabelResolved() == false) {
-        // TODO: Report properly
-        std.log.err("label operand cannot be resolved", .{});
-        return error.Reported;
-    }
-
     return instruction;
 }
 

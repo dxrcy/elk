@@ -77,8 +77,11 @@ pub const Provider = union(enum) {
         const string = operand.span.view(source);
 
         switch (provider) {
-            // FIXME:
-            .none => unreachable,
+            .none => {
+                // TODO: Report properly
+                std.log.err("label operand cannot be resolved", .{});
+                return error.Reported;
+            },
 
             .assembly => |assembly| {
                 const definition =

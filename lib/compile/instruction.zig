@@ -197,6 +197,7 @@ pub const Instruction = union(enum) {
     }
 
     /// Returns `null` if no operand can be a label (ie. no operand is any PC-offset).
+    // TODO: Remove? (unused)
     pub fn isLabelResolved(instruction: Instruction) ?bool {
         return switch (instruction) {
             .add,
