@@ -1,10 +1,11 @@
 const std = @import("std");
 const assert = std.debug.assert;
 
-const Reporter = @import("../../reporting/reporting.zig").Primary;
-const Span = @import("../../compile/Span.zig");
+const elk = @import("../../root.zig");
+const Span = elk.Span;
 const Spanned = Span.Spanned;
-const Source = @import("../../compile/Source.zig");
+const Source = elk.Source;
+const Reporter = elk.reporting.Primary;
 const Lexer = @import("../../compile/parse/Lexer.zig");
 const parsing = @import("../../compile/parse/parsing.zig");
 const integers = @import("../../compile/parse/integers.zig");

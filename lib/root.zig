@@ -1,13 +1,15 @@
-pub const Air = @import("compile/Air.zig");
+pub const Span = @import("compile/Span.zig");
 pub const Source = @import("compile/Source.zig");
+pub const reporting = @import("reporting/reporting.zig");
+pub const Policies = @import("policies.zig").Policies;
+pub const Provider = @import("provider.zig").Provider;
+pub const Traps = @import("Traps.zig");
+pub const Air = @import("compile/Air.zig");
 pub const Parser = @import("compile/parse/Parser.zig");
 pub const Runtime = @import("emulate/Runtime.zig");
 pub const Debugger = @import("emulate/debugger/Debugger.zig");
-pub const Traps = @import("Traps.zig");
-pub const Provider = @import("provider.zig").Provider;
-pub const Policies = @import("policies.zig").Policies;
-pub const reporting = @import("reporting/reporting.zig");
 
+// TODO: Update
 test {
     const refAllDecls = @import("std").testing.refAllDecls;
     refAllDecls(@import("reporting/Sink.zig"));

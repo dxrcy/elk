@@ -2,9 +2,10 @@ const std = @import("std");
 const Io = std.Io;
 const assert = std.debug.assert;
 
-const Policies = @import("../policies.zig").Policies;
-const Span = @import("../compile/Span.zig");
-const Source = @import("../compile/Source.zig");
+const elk = @import("../root.zig");
+const Span = elk.Span;
+const Source = elk.Source;
+const Policies = elk.Policies;
 const Token = @import("../compile/parse/Token.zig");
 
 pub const Sink = @import("Sink.zig");

@@ -6,9 +6,9 @@ const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 const control_code = std.ascii.control_code;
 
-const Runtime = @import("../Runtime.zig");
-const Debugger = @import("Debugger.zig");
-const Writer = Debugger.Writer;
+const elk = @import("../../root.zig");
+const Runtime = elk.Runtime;
+const Debugger = elk.Debugger;
 
 pub const Editor = @import("editor/Editor.zig");
 
@@ -57,7 +57,7 @@ pub fn new(
 
 pub fn readLine(
     input: *Input,
-    writer: *Writer,
+    writer: *Debugger.Writer,
 ) (Io.Writer.Error || Io.Reader.Error || Allocator.Error)![]const u8 {
     input.editor.clear();
     var eof = false;

@@ -1,7 +1,8 @@
 const std = @import("std");
 const assert = std.debug.assert;
 
-const Span = @import("Span.zig");
+const elk = @import("../root.zig");
+const Span = elk.Span;
 const Spanned = Span.Spanned;
 const Form = @import("parse/integers.zig").Form;
 

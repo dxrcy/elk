@@ -3,9 +3,10 @@ const Printer = @This();
 const std = @import("std");
 const Io = std.Io;
 
-const Source = @import("../compile/Source.zig");
+const elk = @import("../root.zig");
+const Source = elk.Source;
+const reporting = elk.reporting;
 const Ctx = @import("Ctx.zig");
-const reporting = @import("reporting.zig");
 const Diagnostic = @import("diagnostic.zig").Diagnostic;
 
 pub const Fancy = @import("FancySink.zig");

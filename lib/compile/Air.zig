@@ -6,11 +6,12 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const assert = std.debug.assert;
 
-const Runtime = @import("../emulate/Runtime.zig");
-const Span = @import("Span.zig");
-const Source = @import("Source.zig");
-pub const Instruction = @import("instruction.zig").Instruction;
+const elk = @import("../root.zig");
+const Span = elk.Span;
+const Source = elk.Source;
 const parsing = @import("parse/parsing.zig");
+
+pub const Instruction = @import("instruction.zig").Instruction;
 
 const max_edit_distance = 3;
 
@@ -79,7 +80,7 @@ pub fn deinit(air: *Air, gpa: Allocator) void {
     air.labels.deinit(gpa);
 }
 
-pub fn copyToRuntime(air: *const Air, runtime: *Runtime) !void {
+pub fn copyToRuntime(air: *const Air, runtime: *elk.Runtime) !void {
     assert(air.lines.items.len <= 0xffff);
 
     runtime.state.pc = air.origin;
