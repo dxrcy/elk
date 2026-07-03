@@ -12,7 +12,7 @@ const Level = reporting.Level;
 
 writer: *Io.Writer,
 verbosity: Verbosity,
-level: ?Level,
+level: Level,
 use_color: bool,
 depth: usize,
 item_count: ?*usize,
@@ -23,7 +23,7 @@ const indent_width = 4;
 pub fn new(
     writer: *Io.Writer,
     verbosity: Verbosity,
-    level: ?Level,
+    level: Level,
     use_color: bool,
     item_count: ?*usize,
     source: ?Source,
@@ -68,10 +68,8 @@ pub fn writeTitle(
 ) error{WriteFailed}!void {
     defer ctx.incrementItemCount();
 
-    const level = ctx.level orelse
-        unreachable;
     try ctx.writeDepth();
-    switch (level) {
+    switch (ctx.level) {
         .err => {
             if (ctx.use_color) {
                 try ctx.writer.print("\x1b[31m", .{});
