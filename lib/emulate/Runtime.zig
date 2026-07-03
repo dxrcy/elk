@@ -169,14 +169,6 @@ pub fn getSymbolAddress(name: []const u8, symbols: []const SymbolEntry) error{Sy
     return error.SymbolNotFound;
 }
 
-pub fn getSymbolName(address: u16, symbols: []const SymbolEntry) ?[]const u8 {
-    for (symbols) |entry| {
-        if (entry.address == address)
-            return entry.name;
-    }
-    return null;
-}
-
 pub fn run(runtime: *Runtime) Error!void {
     if (runtime.debugger) |debugger|
         try debugger.startMessage();

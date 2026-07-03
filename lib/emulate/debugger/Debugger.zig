@@ -696,7 +696,7 @@ fn printBreakpoints(debugger: *Debugger) !void {
                 try debugger.writer.print(" (not in assembly)", .{});
             },
             .symbols => |symbols| {
-                if (Runtime.getSymbolName(entry.address, symbols)) |label| {
+                if (getSymbolName(entry.address, symbols)) |label| {
                     try debugger.writer.print(" (labelled '{s}')", .{label});
                 }
             },
@@ -715,6 +715,14 @@ fn getLineLabel(air: *const Air, index: usize) ?*const Air.Label {
     for (air.labels.items) |*label| {
         if (label.index == index)
             return label;
+    }
+    return null;
+}
+
+pub fn getSymbolName(address: u16, symbols: []const Runtime.SymbolEntry) ?[]const u8 {
+    for (symbols) |entry| {
+        if (entry.address == address)
+            return entry.name;
     }
     return null;
 }
