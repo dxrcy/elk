@@ -637,18 +637,12 @@ fn printListing(debugger: *Debugger, runtime: *Runtime, start: u16, end: u16) !v
             const width = 12;
             var buffer: [width]u8 = undefined;
             var string: []const u8 = buffer[0..0];
-            // TODO: This should also work via imported symbol table! #53
-            if (debugger.getAssemblyOpt()) |assembly| {
-                if (getAssemblyLineIndexOptional(assembly.air, address)) |index| {
-                    if (getLineLabel(assembly.air, index)) |label| {
-                        const name = label.span.view(assembly.source);
-                        const length = @min(name.len, width);
-                        @memcpy(buffer[0..length], name[0..length]);
-                        if (name.len > width)
-                            buffer[width - 1] = '-';
-                        string = buffer[0..length];
-                    }
-                }
+            if (debugger.getAddressInfo(address).label) |name| {
+                const length = @min(name.len, width);
+                @memcpy(buffer[0..length], name[0..length]);
+                if (name.len > width)
+                    buffer[width - 1] = '-';
+                string = buffer[0..length];
             }
             try debugger.writer.print("  {s:<[1]}", .{ string, width });
         }
