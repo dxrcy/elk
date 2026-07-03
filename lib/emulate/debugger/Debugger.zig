@@ -172,6 +172,8 @@ pub fn initState(
     gpa: Allocator,
     runtime: *const Runtime,
 ) Allocator.Error!void {
+    if (debugger.initial_state) |initial_state|
+        initial_state.deinit(gpa);
     debugger.initial_state = try .init(gpa);
     debugger.initial_state.?.copyFrom(runtime.state);
 }
