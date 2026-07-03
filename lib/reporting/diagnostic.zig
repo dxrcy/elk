@@ -143,7 +143,7 @@ pub const Diagnostic = union(enum) {
     // TODO: Add `expected` field (different type than `TokenKinds`), AND ELSEWHERE
     debugger_invalid_argument_kind: struct { found: Span },
     debugger_invalid_command: struct { command: Span, nearest: ?DebuggerCommand.Tag },
-    debugger_missing_subcommand: struct { first: Span, eol: Span },
+    debugger_missing_subcommand: struct { first: []const u8, eol: Span },
     // TODO: Rename ? not eol but end of command
     debugger_unexpected_eol: struct { eol: Span },
     debugger_expected_eol: struct { found: Span },

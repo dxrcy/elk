@@ -442,9 +442,7 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
                 try ctx.deepen().writeNote("Did you mean `{s}`?", .{DebuggerCommand.tagString(nearest)});
         },
         .debugger_missing_subcommand => |info| {
-            // TODO: Use command tag instead of span
-            if (ctx.source) |source|
-                try ctx.writeTitle("Missing subcommand for `{s}`", .{info.first.view(source)});
+            try ctx.writeTitle("Missing subcommand for `{s}`", .{info.first});
             try ctx.deepen().writeSourceNote("Command requires subcommand", .{}, info.eol);
         },
         .debugger_unexpected_eol => |info| {
