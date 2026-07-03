@@ -195,4 +195,32 @@ pub const Instruction = union(enum) {
             },
         }
     }
+
+    /// Returns `null` if no operand can be a label (ie. no operand is any PC-offset).
+    pub fn isLabelResolved(instruction: Instruction) ?bool {
+        return switch (instruction) {
+            .add,
+            .@"and",
+            .not,
+            .jmp,
+            .ret,
+            .jsrr,
+            .ldr,
+            .str,
+            .trap,
+            .push,
+            .pop,
+            .rets,
+            .rti,
+            => null,
+            .br => |operands| operands.dest.value == .resolved,
+            .jsr => |operands| operands.dest.value == .resolved,
+            .lea => |operands| operands.src.value == .resolved,
+            .ld => |operands| operands.src.value == .resolved,
+            .ldi => |operands| operands.src.value == .resolved,
+            .st => |operands| operands.dest.value == .resolved,
+            .sti => |operands| operands.dest.value == .resolved,
+            .call => |operands| operands.dest.value == .resolved,
+        };
+    }
 };

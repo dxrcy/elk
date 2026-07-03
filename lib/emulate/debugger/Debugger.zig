@@ -524,9 +524,7 @@ fn runCommand(
         },
 
         .eval => |arguments| {
-            // TODO: Eval should also work with symbol table instead of assembly! #53
-            const assembly = try debugger.getAssembly(command.tag);
-            try debugger.evalCommand(runtime, assembly, arguments.instruction, source);
+            try debugger.evalCommand(runtime, arguments.instruction, source);
         },
 
         .echo => |arguments| {
@@ -732,17 +730,22 @@ pub fn getSymbolName(address: u16, symbols: []const Runtime.SymbolEntry) ?[]cons
 fn evalCommand(
     debugger: *Debugger,
     runtime: *Runtime,
-    assembly: Assembly,
     span: Span,
     source: Source,
 ) (Runtime.HostError || error{Reported})!void {
     const line = span.view(source);
 
-    const asm_instr = try debugger.parseInstructionLine(
-        assembly,
-        line,
-        runtime.state.pc - assembly.air.origin,
-    );
+    const origin = switch (debugger.provider) {
+        .assembly => |assembly| assembly.air.origin,
+        else => if (debugger.initial_state) |state|
+            state.pc
+        else {
+            // TODO: Report properly
+            std.log.err("cannot derive memory origin", .{});
+            return error.Reported;
+        },
+    };
+    const asm_instr = try debugger.parseInstructionLine(line, runtime.state.pc - origin);
 
     const runtime_instr = Instruction.decode(asm_instr.encode()) catch
         // Any encoded instruction must be valid to decode
@@ -768,7 +771,6 @@ fn evalCommand(
 
 fn parseInstructionLine(
     debugger: *const Debugger,
-    assembly: Assembly,
     line: []const u8,
     index: usize,
 ) error{Reported}!Air.Instruction {
@@ -778,7 +780,25 @@ fn parseInstructionLine(
     var parser = try Parser.new(debugger.traps, source, &reporter);
 
     var instruction = try parser.parseInstruction();
-    try parser.resolveLabelOperand(assembly.air, assembly.source, &instruction, index);
+
+    switch (debugger.provider) {
+        .none => {},
+        .assembly => |assembly| {
+            try parser.resolveLabelOperand(assembly.air, assembly.source, &instruction, index);
+        },
+        .symbols => |symbols| {
+            // TODO: Resolve label from symbol table (#53)
+            _ = symbols;
+            std.log.warn("unimplemented: resolve label from symbol table", .{});
+        },
+    }
+
+    if (instruction.isLabelResolved() == false) {
+        // TODO: Report properly
+        std.log.err("label operand cannot be resolved", .{});
+        return error.Reported;
+    }
+
     return instruction;
 }
 
