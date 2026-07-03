@@ -131,14 +131,14 @@ pub fn writeSourceNote(
     ctx: Ctx,
     comptime fmt: []const u8,
     args: anytype,
-    span: Span,
+    span: ?Span,
 ) error{WriteFailed}!void {
-    if (ctx.source) |source| {
+    if (ctx.source) |source| if (span) |s| {
         try ctx.writeNote(fmt ++ ": ", args);
-        try ctx.writeSource(span, source);
-    } else {
-        try ctx.writeNote(fmt, args);
-    }
+        try ctx.writeSource(s, source);
+        return;
+    };
+    try ctx.writeNote(fmt, args);
 }
 
 fn writeSource(ctx: Ctx, span: Span, source: Source) error{WriteFailed}!void {

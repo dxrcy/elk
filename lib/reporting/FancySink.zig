@@ -194,33 +194,36 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
         .late_origin => |info| {
             try ctx.writeTitle("Origin declared after statements", .{});
             try ctx.deepen().writeSourceNote("Origin declared here", .{}, info.origin);
-            // TODO: Write non-source note if no source
-            if (ctx.source) |source|
-                try ctx.deepen().writeSourceNote(
-                    "Origin must be declared at start of file",
-                    .{},
-                    info.first_token orelse .firstCharOf(source.text),
-                );
+            try ctx.deepen().writeSourceNote(
+                "Origin must be declared at start of file",
+                .{},
+                if (ctx.source) |source|
+                    info.first_token orelse .firstCharOf(source.text)
+                else
+                    null,
+            );
         },
         .missing_origin => |info| {
             try ctx.writeTitle("Missing .ORIG directive", .{});
-            // TODO: Write non-source note if no source
-            if (ctx.source) |source|
-                try ctx.deepen().writeSourceNote(
-                    "Origin should be declared before any instructions",
-                    .{},
-                    info.first_token orelse .firstCharOf(source.text),
-                );
+            try ctx.deepen().writeSourceNote(
+                "Origin should be declared before any instructions",
+                .{},
+                if (ctx.source) |source|
+                    info.first_token orelse .firstCharOf(source.text)
+                else
+                    null,
+            );
         },
         .missing_end => |info| {
             try ctx.writeTitle("Missing .END directive", .{});
-            // TODO: Write non-source note if no source
-            if (ctx.source) |source|
-                try ctx.deepen().writeSourceNote(
-                    "End should be declared after included all instructions",
-                    .{},
-                    info.last_token orelse .lastCharOf(source.text),
-                );
+            try ctx.deepen().writeSourceNote(
+                "End should be declared after included all instructions",
+                .{},
+                if (ctx.source) |source|
+                    info.last_token orelse .lastCharOf(source.text)
+                else
+                    null,
+            );
         },
 
         .existing_label_left => |info| {
@@ -238,9 +241,15 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
             try ctx.deepen().writeSourceNote("Label declared here", .{}, info.label);
             if (info.target) |target|
                 try ctx.deepen().writeSourceNote("Token cannot be annotated with label", .{}, target)
-            else if (ctx.source) |source|
-                // TODO: Write non-source note if no source
-                try ctx.deepen().writeSourceNote("Label is not followed by any token", .{}, .lastCharOf(source.text));
+            else
+                try ctx.deepen().writeSourceNote(
+                    "Label is not followed by any token",
+                    .{},
+                    if (ctx.source) |source|
+                        .lastCharOf(source.text)
+                    else
+                        null,
+                );
         },
         .label_colon => |info| {
             try ctx.writeTitle("Label followed by colon `:`", .{});
