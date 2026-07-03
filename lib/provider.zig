@@ -1,11 +1,12 @@
 const std = @import("std");
 const assert = std.debug.assert;
 
-const Reporter = @import("reporting/reporting.zig").Primary;
-const Air = @import("compile/Air.zig");
-const Span = @import("compile/Span.zig");
-const Operand = @import("compile/Operand.zig");
-const Source = @import("compile/Source.zig");
+const elk = @import("root.zig");
+const Span = elk.Span;
+const Source = elk.Source;
+const Reporter = elk.reporting.Primary;
+const Air = elk.Air;
+const Operand = elk.Air.Instruction.Operand;
 
 pub const Provider = union(enum) {
     none,

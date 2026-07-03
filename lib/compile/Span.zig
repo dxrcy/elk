@@ -3,7 +3,8 @@ const Span = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 
-const Source = @import("Source.zig");
+const elk = @import("../root.zig");
+const Source = elk.Source;
 
 pub fn Spanned(comptime K: type) type {
     return struct { span: Span, value: K };

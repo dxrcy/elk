@@ -4,10 +4,11 @@ const std = @import("std");
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
 
+const elk = @import("../root.zig");
+const Policies = elk.Policies;
+const Traps = elk.Traps;
+const Provider = elk.Provider;
 const Debugger = @import("debugger/Debugger.zig");
-const Policies = @import("../policies.zig").Policies;
-const Traps = @import("../Traps.zig");
-const Provider = @import("../provider.zig").Provider;
 const Tty = @import("Tty.zig");
 
 pub const Callback = @import("../callback.zig").Callback;

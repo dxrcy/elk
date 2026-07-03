@@ -4,20 +4,17 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
-const Traps = @import("../../Traps.zig");
-const Provider = @import("../../provider.zig").Provider;
-const Reporter = @import("../../reporting/reporting.zig").Primary;
-const Air = @import("../Air.zig");
-const Instruction = @import("../instruction.zig").Instruction;
-const Span = @import("../Span.zig");
-const Source = @import("../Source.zig");
-const Operand = @import("../Operand.zig");
+const elk = @import("../../root.zig");
+const Span = elk.Span;
+const Source = elk.Source;
+const Reporter = elk.reporting.Primary;
+const Air = elk.Air;
+const Instruction = Air.Instruction;
+const Operand = Instruction.Operand;
 const Tokenizer = @import("Tokenizer.zig");
 const Lexer = @import("Lexer.zig");
 const Token = @import("Token.zig");
 const case = @import("case.zig");
-
-const Diagnostic = @import("../../reporting/diagnostic.zig").Diagnostic;
 
 pub const max_line_width = 80;
 
@@ -27,7 +24,7 @@ origin: ?Span,
 pub const parseInteger = @import("integers.zig").tryInteger;
 
 pub fn new(
-    traps: *const Traps,
+    traps: *const elk.Traps,
     source_: Source,
     reporter_: *Reporter,
 ) error{Reported}!Parser {
@@ -523,7 +520,7 @@ pub fn resolveLabelReferences(parser: *Parser, air: *Air) void {
             .instruction => |*instruction| instruction,
         };
 
-        Provider.resolveOperand(
+        elk.Provider.resolveOperand(
             .{ .assembly = .{ .air = air, .source = parser.source() } },
             instruction,
             index + air.origin + 1, // PC is at N+1 when instruction N is interpreted

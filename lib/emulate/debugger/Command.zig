@@ -2,7 +2,8 @@ const Command = @This();
 
 const std = @import("std");
 
-const Span = @import("../../compile/Span.zig");
+const elk = @import("../../root.zig");
+const Span = elk.Span;
 const Spanned = Span.Spanned;
 
 line: Span,

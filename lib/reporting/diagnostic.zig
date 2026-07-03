@@ -1,16 +1,17 @@
 const std = @import("std");
 
-const Policies = @import("../policies.zig").Policies;
-const Span = @import("../compile/Span.zig");
-const Source = @import("../compile/Source.zig");
-const Token = @import("../compile/parse/Token.zig");
-const Radix = @import("../compile/parse/integers.zig").Form.Radix;
-const Exception = @import("../emulate/Runtime.zig").Exception;
-const DebuggerCommand = @import("../emulate/debugger/Command.zig");
-const reporting = @import("reporting.zig");
+const elk = @import("../root.zig");
+const Span = elk.Span;
+const Source = elk.Source;
+const reporting = elk.reporting;
 const Options = reporting.Options;
 const Level = reporting.Level;
 const Response = reporting.Response;
+const Policies = elk.Policies;
+const Exception = elk.Runtime.Exception;
+const Token = @import("../compile/parse/Token.zig");
+const Radix = @import("../compile/parse/integers.zig").Form.Radix;
+const DebuggerCommand = @import("../emulate/debugger/Command.zig");
 
 pub const TokenKinds = struct {
     kinds: []const Kind,
@@ -58,7 +59,7 @@ fn policyResponse(
     options: Options,
     comptime category: std.meta.FieldEnum(Policies),
     comptime name: std.meta.FieldEnum(@FieldType(Policies, @tagName(category))),
-) reporting.Response {
+) Response {
     const policy = @field(@field(options.policies, @tagName(category)), @tagName(name));
     if (policy == .permit)
         return .pass;

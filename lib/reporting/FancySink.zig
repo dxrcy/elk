@@ -3,11 +3,12 @@ const FancySink = @This();
 const std = @import("std");
 const Io = std.Io;
 
-const Source = @import("../compile/Source.zig");
-const Parser = @import("../compile/parse/Parser.zig");
+const elk = @import("../root.zig");
+const Source = elk.Source;
+const Parser = elk.Parser;
+const reporting = elk.reporting;
 const DebuggerCommand = @import("../emulate/debugger/Command.zig");
 const Ctx = @import("Ctx.zig");
-const reporting = @import("reporting.zig");
 const Sink = @import("Sink.zig");
 const diagnostic = @import("diagnostic.zig");
 const Diagnostic = diagnostic.Diagnostic;

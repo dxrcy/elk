@@ -1,7 +1,7 @@
 /// Note that some instructions share the same 4-bit opcode, eg. `jsr` and `jsrr`, which are
 /// distinguished by a flag bit.
 pub const Instruction = union(enum) {
-    const Operand = @import("Operand.zig");
+    pub const Operand = @import("Operand.zig");
 
     add: struct {
         dest: Operand.Register,

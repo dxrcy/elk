@@ -3,11 +3,10 @@ const Tokenizer = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 
-const Traps = @import("../../Traps.zig");
-const Reporter = @import("../../reporting/reporting.zig").Primary;
-const Operand = @import("../Operand.zig");
-const Span = @import("../Span.zig");
-const Source = @import("../Source.zig");
+const elk = @import("../../root.zig");
+const Span = elk.Span;
+const Reporter = elk.reporting.Primary;
+const Operand = elk.Air.Instruction.Operand;
 const Lexer = @import("Lexer.zig");
 const Token = @import("Token.zig");
 const SourceInt = @import("integers.zig").SourceInt;
@@ -20,15 +19,15 @@ peeked: ?Span,
 /// Updated by `parseToken`.
 latest: ?Span,
 
-traps: *const Traps,
-source: Source,
+traps: *const elk.Traps,
+source: elk.Source,
 reporter: *Reporter,
 
 const TokenKind = std.meta.Tag(Token.Value);
 
 pub fn new(
-    traps: *const Traps,
-    source: Source,
+    traps: *const elk.Traps,
+    source: elk.Source,
     reporter: *Reporter,
 ) Tokenizer {
     for (traps.entries) |entry| {

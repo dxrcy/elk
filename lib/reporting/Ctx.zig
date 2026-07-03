@@ -3,12 +3,12 @@ const Ctx = @This();
 const std = @import("std");
 const Io = std.Io;
 
-const Span = @import("../compile/Span.zig");
-const Source = @import("../compile/Source.zig");
+const elk = @import("../root.zig");
+const Span = elk.Span;
+const Source = elk.Source;
+const Verbosity = elk.reporting.Options.Verbosity;
+const Level = elk.reporting.Level;
 const Token = @import("../compile/parse/Token.zig");
-const reporting = @import("reporting.zig");
-const Verbosity = reporting.Options.Verbosity;
-const Level = reporting.Level;
 
 writer: *Io.Writer,
 verbosity: Verbosity,

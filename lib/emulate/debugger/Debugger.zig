@@ -5,17 +5,14 @@ const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
-const reporting = @import("../../reporting/reporting.zig");
-const Reporter = reporting.Primary;
-const writeSpanContext = reporting.Sink.Fancy.writeSpanContext;
-const Traps = @import("../../Traps.zig");
-const Provider = @import("../../provider.zig").Provider;
-const Air = @import("../../compile/Air.zig");
-const Span = @import("../../compile/Span.zig");
-const Source = @import("../../compile/Source.zig");
-const Parser = @import("../../compile/parse/Parser.zig");
-const Runtime = @import("../Runtime.zig");
-const Instruction = @import("../decode.zig").Instruction;
+const elk = @import("../../root.zig");
+const Span = elk.Span;
+const Source = elk.Source;
+const Reporter = elk.reporting.Primary;
+const writeSpanContext = elk.reporting.Sink.Fancy.writeSpanContext;
+const Provider = elk.Provider;
+const Air = elk.Air;
+const Runtime = elk.Runtime;
 const Command = @import("Command.zig");
 const Breakpoints = @import("Breakpoints.zig");
 const Input = @import("Input.zig");
@@ -39,7 +36,7 @@ assembler: ?*Assembler,
 current_line: []const u8,
 input: Input,
 writer: Writer,
-traps: *const Traps,
+traps: *const elk.Traps,
 reporter: *Reporter,
 
 const Status = union(enum) {
@@ -125,7 +122,7 @@ pub fn init(params: struct {
     gpa: Allocator,
     reader: *Io.Reader,
     writer: *Io.Writer,
-    traps: *const Traps,
+    traps: *const elk.Traps,
     reporter: *Reporter,
     command_buffer: []u8,
     provider: Provider,
@@ -319,7 +316,7 @@ fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
 
 fn getNextInstruction(runtime: *const Runtime) ?enum { ret_rets } {
     const word = runtime.state.memory[runtime.state.pc];
-    const instruction = Instruction.decode(word) catch
+    const instruction = Runtime.Instruction.decode(word) catch
         return null;
     switch (instruction) {
         .jmp_ret => |operands| if (operands.base == 7)
@@ -637,7 +634,7 @@ fn printListing(debugger: *Debugger, runtime: *Runtime, start: u16, end: u16) !v
         {
             const width = 16;
             var buffer: [width]u8 = undefined;
-            const string = if (Instruction.decode(word)) |instruction|
+            const string = if (Runtime.Instruction.decode(word)) |instruction|
                 std.fmt.bufPrint(&buffer, "{f}", .{instruction}) catch unreachable
             else |_|
                 "";
@@ -739,7 +736,7 @@ fn evalCommand(
     source: Source,
 ) (Runtime.HostError || error{Reported})!void {
     const asm_instr = try debugger.parseInstructionLine(line.view(source), runtime.state.pc);
-    const runtime_instr = Instruction.decode(asm_instr.encode()) catch
+    const runtime_instr = Runtime.Instruction.decode(asm_instr.encode()) catch
         // Any encoded instruction must be valid to decode
         unreachable;
 
@@ -768,7 +765,7 @@ fn parseInstructionLine(
 ) error{Reported}!Air.Instruction {
     const source: Source = .{ .text = line, .path = null };
     var reporter = debugger.copyReporter(source);
-    var parser = try Parser.new(debugger.traps, source, &reporter);
+    var parser = try elk.Parser.new(debugger.traps, source, &reporter);
 
     var instruction = try parser.parseInstruction();
     try debugger.provider.resolveOperand(&instruction, index, source, &reporter);

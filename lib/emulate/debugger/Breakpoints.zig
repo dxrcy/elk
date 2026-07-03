@@ -4,8 +4,9 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
-const Air = @import("../../compile/Air.zig");
-const Debugger = @import("Debugger.zig");
+const elk = @import("../../root.zig");
+const Air = elk.Air;
+const Debugger = elk.Debugger;
 
 entries: std.ArrayList(Entry),
 gpa: Allocator,
