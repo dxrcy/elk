@@ -712,12 +712,10 @@ fn getLineLabel(air: *const Air, index: usize) ?*const Air.Label {
 fn evalCommand(
     debugger: *Debugger,
     runtime: *Runtime,
-    span: Span,
+    line: Span,
     source: Source,
 ) (Runtime.HostError || error{Reported})!void {
-    const line = span.view(source);
-
-    const asm_instr = try debugger.parseInstructionLine(line, runtime.state.pc);
+    const asm_instr = try debugger.parseInstructionLine(line.view(source), runtime.state.pc);
     const runtime_instr = Instruction.decode(asm_instr.encode()) catch
         // Any encoded instruction must be valid to decode
         unreachable;
@@ -746,13 +744,11 @@ fn parseInstructionLine(
     index: usize,
 ) error{Reported}!Air.Instruction {
     const source: Source = .{ .text = line, .path = null };
-
     var reporter = debugger.copyReporter(source);
     var parser = try Parser.new(debugger.traps, source, &reporter);
 
     var instruction = try parser.parseInstruction();
     try debugger.provider.resolveLabelOperand(&instruction, index, source, &reporter);
-
     return instruction;
 }
 
