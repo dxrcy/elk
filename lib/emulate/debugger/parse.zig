@@ -453,14 +453,14 @@ const Parser = struct {
         double: tags.DoubleEntry,
         first: Span,
     ) error{Reported}!?Spanned(Command.Tag) {
-        if (!anyCandidateMatches(double.first, first.view(parser.source)))
+        const first_string = anyCandidateMatches(double.first, first.view(parser.source)) orelse
             return null;
 
         const second = parser.next() catch |err| switch (err) {
             error.Eof => {
                 const tag = double.default orelse {
                     try parser.reporter.report(.debugger_missing_subcommand, .{
-                        .first = first,
+                        .first = first_string,
                         .eol = .endOf(parser.source),
                     }).abort();
                 };
@@ -494,7 +494,7 @@ const Parser = struct {
         switch (mode) {
             .exact => {
                 for (std.meta.tags(Command.Tag)) |tag| {
-                    if (anyCandidateMatches(singles.get(tag).aliases, string))
+                    if (anyCandidateMatches(singles.get(tag).aliases, string) == null)
                         return .{ .span = span, .value = tag };
                 }
             },
@@ -502,7 +502,7 @@ const Parser = struct {
             .nearest => {
                 assert(parser.findSingleTagMatch(.exact, singles, span) == null);
                 for (std.meta.tags(Command.Tag)) |tag| {
-                    if (anyCandidateMatches(singles.get(tag).suggestions, string))
+                    if (anyCandidateMatches(singles.get(tag).suggestions, string) == null)
                         return .{ .span = span, .value = tag };
                 }
 
@@ -536,11 +536,11 @@ const Parser = struct {
         return null;
     }
 
-    fn anyCandidateMatches(candidates: []const []const u8, string: []const u8) bool {
+    fn anyCandidateMatches(candidates: []const []const u8, string: []const u8) ?[]const u8 {
         for (candidates) |candidate| {
             if (std.ascii.eqlIgnoreCase(string, candidate))
-                return true;
+                return candidates[0];
         }
-        return false;
+        return null;
     }
 };

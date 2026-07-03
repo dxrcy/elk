@@ -2,6 +2,7 @@ const std = @import("std");
 
 const Command = @import("Command.zig");
 
+/// First item is 'canonical' name, eg. `"step"` is canonical name of "s".
 pub const Candidates = []const []const u8;
 
 pub const SingleEntry = struct {
@@ -19,52 +20,52 @@ pub const DoubleEntry = struct {
 
 pub const single: SingleMap = .init(.{
     .help = .{
-        .aliases = &.{ "h", "help", "--help", "-h", ":h", "man", "info", "wtf" },
+        .aliases = &.{ "help", "h", "--help", "-h", ":h", "man", "info", "wtf" },
     },
     .quit = .{
-        .aliases = &.{ "q", "quit" },
+        .aliases = &.{ "quit", "q" },
     },
     .exit = .{
-        .aliases = &.{ "x", "exit", ":q", ":wq", "^C" },
+        .aliases = &.{ "exit", "x", ":q", ":wq", "^C" },
         .suggestions = &.{ "halt", "end", "stop" },
     },
     .clear = .{
         .aliases = &.{"clear"},
     },
     .reset = .{
-        .aliases = &.{ "z", "reset" },
+        .aliases = &.{ "reset", "z" },
         .suggestions = &.{ "restart", "refresh", "reboot" },
     },
     .registers = .{
-        .aliases = &.{ "r", "registers", "reg" },
+        .aliases = &.{ "registers", "r", "reg" },
         .suggestions = &.{ "dump", "register", "regs" },
     },
     .@"continue" = .{
-        .aliases = &.{ "c", "continue", "cont" },
+        .aliases = &.{ "continue", "c", "cont" },
         .suggestions = &.{ "con", "proceed" },
     },
     .print = .{
-        .aliases = &.{ "p", "print" },
+        .aliases = &.{ "print", "p" },
         .suggestions = &.{ "get", "show", "display", "put", "puts", "out" },
     },
     .list = .{
-        .aliases = &.{ "l", "list" },
+        .aliases = &.{ "list", "l" },
         .suggestions = &.{ "ls", "listing", "dump", "memory" },
     },
     .move = .{
-        .aliases = &.{ "m", "move" },
+        .aliases = &.{ "move", "m" },
         .suggestions = &.{ "set", "mov", "mv", "assign" },
     },
     .goto = .{
-        .aliases = &.{ "g", "goto" },
+        .aliases = &.{ "goto", "g" },
         .suggestions = &.{ "jump", "call", "go", "go-to", "jsr", "jsrr", "br", "brn", "brz", "brp", "brnz", "brnp", "brzp", "brnzp" },
     },
     .assembly = .{
-        .aliases = &.{ "a", "assembly", "asm" },
+        .aliases = &.{ "assembly", "a", "asm" },
         .suggestions = &.{ "source", "src", "ass", "inspect" },
     },
     .eval = .{
-        .aliases = &.{ "e", "eval", "evil", "evaluate" },
+        .aliases = &.{ "eval", "e", "evil", "evaluate" },
         .suggestions = &.{ "run", "exec", "execute", "sim", "simulate", "instruction", "instr" },
     },
     .echo = .{
@@ -75,30 +76,30 @@ pub const single: SingleMap = .init(.{
         .suggestions = &.{ "next", "step-over", "stepover" },
     },
     .step_into = .{
-        .aliases = &.{ "si", "stepinto" },
+        .aliases = &.{ "stepinto", "si" },
         .suggestions = &.{ "into", "in", "stepin", "step-into", "step-in", "stepi", "step-i", "sin" },
     },
     .step_out = .{
-        .aliases = &.{ "so", "stepout" },
+        .aliases = &.{ "stepout", "so" },
         .suggestions = &.{ "finish", "fin", "out", "step-out", "stepo", "step-o", "sout" },
     },
     .break_list = .{
-        .aliases = &.{ "bl", "breaklist" },
+        .aliases = &.{ "breaklist", "bl" },
         .suggestions = &.{ "break-list", "break-ls", "blist", "bls", "bp", "breakpoint", "breakpointlist", "breakpoint-list" },
     },
     .break_add = .{
-        .aliases = &.{ "ba", "breakadd" },
+        .aliases = &.{ "breakadd", "ba" },
         .suggestions = &.{ "break-add", "badd", "breakpointadd", "breakpoint-add" },
     },
     .break_remove = .{
-        .aliases = &.{ "br", "breakremove" },
+        .aliases = &.{ "breakremove", "br" },
         .suggestions = &.{ "break-remove", "break-rm", "bremove", "brm", "breakpointremove", "breakpoint-remove" },
     },
 });
 
 pub const double = [_]DoubleEntry{
     .{
-        .first = &.{ "s", "step" },
+        .first = &.{ "step", "s" },
         .second = .initDefault(.{}, .{
             .step_over = .{
                 .suggestions = &.{"next"},
@@ -115,7 +116,7 @@ pub const double = [_]DoubleEntry{
         .default = .step_over,
     },
     .{
-        .first = &.{ "b", "break" },
+        .first = &.{ "break", "b" },
         .second = .initDefault(.{}, .{
             .break_list = .{
                 .aliases = &.{ "l", "list" },
