@@ -394,7 +394,7 @@ fn runCommand(
             };
         },
 
-        .reset => {
+        .reload => {
             const assembler = debugger.assembler orelse {
                 std.log.err("no assembler provided", .{});
                 return error.Reported;
