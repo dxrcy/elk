@@ -133,14 +133,15 @@ pub fn writeSourceNote(
     args: anytype,
     span: Span,
 ) error{WriteFailed}!void {
-    try ctx.writeNote(fmt ++ ": ", args);
-    try ctx.writeSource(span);
+    if (ctx.source) |source| {
+        try ctx.writeNote(fmt ++ ": ", args);
+        try ctx.writeSource(span, source);
+    } else {
+        try ctx.writeNote(fmt, args);
+    }
 }
 
-fn writeSource(ctx: Ctx, span: Span) error{WriteFailed}!void {
-    const source = ctx.source orelse
-        unreachable;
-
+fn writeSource(ctx: Ctx, span: Span, source: Source) error{WriteFailed}!void {
     switch (ctx.verbosity) {
         .normal => {},
         .quiet => {
