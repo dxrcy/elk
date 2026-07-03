@@ -38,25 +38,23 @@ pub const Provider = union(enum) {
         return null;
     }
 
+    /// Also increments reference count of definition, when using `Assembly` provider.
     pub fn resolveOperand(
         provider: Provider,
         instruction: *Air.Instruction,
         address: usize,
         source: Source,
         reporter: *Reporter,
-        comptime increment_references: bool,
     ) error{Reported}!void {
-        if (increment_references)
-            assert(provider == .assembly);
         return switch (instruction.*) {
-            .br => |*operands| provider.resolveField(&operands.dest, address, source, reporter, increment_references),
-            .jsr => |*operands| provider.resolveField(&operands.dest, address, source, reporter, increment_references),
-            .ld => |*operands| provider.resolveField(&operands.src, address, source, reporter, increment_references),
-            .ldi => |*operands| provider.resolveField(&operands.src, address, source, reporter, increment_references),
-            .lea => |*operands| provider.resolveField(&operands.src, address, source, reporter, increment_references),
-            .st => |*operands| provider.resolveField(&operands.dest, address, source, reporter, increment_references),
-            .sti => |*operands| provider.resolveField(&operands.dest, address, source, reporter, increment_references),
-            .call => |*operands| provider.resolveField(&operands.dest, address, source, reporter, increment_references),
+            .br => |*operands| provider.resolveField(&operands.dest, address, source, reporter),
+            .jsr => |*operands| provider.resolveField(&operands.dest, address, source, reporter),
+            .ld => |*operands| provider.resolveField(&operands.src, address, source, reporter),
+            .ldi => |*operands| provider.resolveField(&operands.src, address, source, reporter),
+            .lea => |*operands| provider.resolveField(&operands.src, address, source, reporter),
+            .st => |*operands| provider.resolveField(&operands.dest, address, source, reporter),
+            .sti => |*operands| provider.resolveField(&operands.dest, address, source, reporter),
+            .call => |*operands| provider.resolveField(&operands.dest, address, source, reporter),
             else => {},
         };
     }
@@ -67,7 +65,6 @@ pub const Provider = union(enum) {
         address: usize,
         source: Source,
         reporter: *Reporter,
-        comptime increment_references: bool,
     ) error{Reported}!void {
         // Extract integer type from operand argument type
         const Spanned = @typeInfo(@TypeOf(operand)).pointer.child;
@@ -86,16 +83,7 @@ pub const Provider = union(enum) {
                 std.log.err("label operand cannot be resolved", .{});
                 return error.Reported;
             },
-
-            .assembly => |assembly| try resolveFieldAssembly(
-                Int,
-                operand.span,
-                address,
-                assembly,
-                source,
-                reporter,
-                increment_references,
-            ),
+            .assembly => |assembly| try resolveFieldAssembly(Int, operand.span, address, assembly, source, reporter),
             .symbols => |symbols| try resolveFieldSymbols(Int, operand.span, address, symbols, source, reporter),
         };
 
@@ -110,7 +98,6 @@ fn resolveFieldAssembly(
     assembly: Provider.Assembly,
     source: Source,
     reporter: *Reporter,
-    comptime increment_references: bool,
 ) error{Reported}!Int {
     const string = operand.view(source);
 
@@ -143,9 +130,7 @@ fn resolveFieldAssembly(
         }).abort();
     };
 
-    if (increment_references)
-        definition.references += 1;
-
+    definition.references += 1;
     return offset;
 }
 
