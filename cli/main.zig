@@ -357,6 +357,7 @@ fn assemble(
 
 fn emulate(
     io: Io,
+    // NOTE: Currently must be same allocated used by `Assembler`
     gpa: Allocator,
     environ_map: *const EnvironMap,
     runtime_source: union(enum) {

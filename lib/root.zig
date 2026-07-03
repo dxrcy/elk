@@ -49,7 +49,6 @@ pub const Assembler = struct {
         );
     }
 
-    // TODO: Move to `Assembler`
     fn assemble(
         gpa: Allocator,
         source: elk.Source,
