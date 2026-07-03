@@ -417,7 +417,6 @@ fn runCommand(
             debugger.provider.assembly.source.text = assembler.source.text;
 
             try assembler.air.copyToRuntime(runtime);
-            // TODO: Re-patch symbols
             try debugger.initState(assembler.gpa, runtime);
 
             try debugger.writer.printLine("Reassembled program from input file.", .{});

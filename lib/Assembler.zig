@@ -9,6 +9,7 @@ const elk = @import("root.zig");
 air: elk.Air,
 source: elk.Source,
 traps: *const elk.Traps,
+patch_symbols: ?[]const struct { []const u8, u16 },
 reporter: *elk.reporting.Primary,
 gpa: Allocator,
 io: Io,
@@ -56,10 +57,10 @@ pub fn assembleFromFile(assembler: *Assembler) !void {
     }
     assembler.reporter.summarize();
 
-    // if (patch_symbols_opt) |patch_symbols| {
-    //     for (patch_symbols) |item| {
-    //         const symbol, const word = item;
-    //         try air.patchLabelValue(symbol, word, source);
-    //     }
-    // }
+    if (assembler.patch_symbols) |patch_symbols| {
+        for (patch_symbols) |item| {
+            const symbol, const word = item;
+            try assembler.air.patchLabelValue(symbol, word, assembler.source);
+        }
+    }
 }
