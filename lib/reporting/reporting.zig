@@ -130,7 +130,7 @@ pub fn Reporter(comptime Diag: type) type {
                 diag,
                 level,
                 reporter.options.verbosity,
-                reporter.source orelse unreachable,
+                reporter.source,
             );
 
             assert(response != .pass);

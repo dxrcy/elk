@@ -37,7 +37,7 @@ pub fn sendDiagnostic(
     diag: Diagnostic,
     level: reporting.Level,
     verbosity: reporting.Options.Verbosity,
-    source: Source,
+    source: ?Source,
 ) error{WriteFailed}!void {
     const sink: *FancySink = @ptrCast(@alignCast(ptr));
 
@@ -50,7 +50,7 @@ pub fn sendDiagnostic(
         &ctx_items,
         source,
     );
-    try writeDiagnostic(ctx, diag, source);
+    try writeDiagnostic(ctx, diag);
     try sink.writer.flush();
 }
 
@@ -99,7 +99,7 @@ pub fn sendSummary(
     try sink.writer.flush();
 }
 
-fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed}!void {
+fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
     switch (diag) {
         .invalid_source_byte => |info| {
             try ctx.writeTitle("Assembly file contains invalid bytes", .{});
@@ -194,27 +194,33 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
         .late_origin => |info| {
             try ctx.writeTitle("Origin declared after statements", .{});
             try ctx.deepen().writeSourceNote("Origin declared here", .{}, info.origin);
-            try ctx.deepen().writeSourceNote(
-                "Origin must be declared at start of file",
-                .{},
-                info.first_token orelse .firstCharOf(source.text),
-            );
+            // TODO: Write non-source note if no source
+            if (ctx.source) |source|
+                try ctx.deepen().writeSourceNote(
+                    "Origin must be declared at start of file",
+                    .{},
+                    info.first_token orelse .firstCharOf(source.text),
+                );
         },
         .missing_origin => |info| {
             try ctx.writeTitle("Missing .ORIG directive", .{});
-            try ctx.deepen().writeSourceNote(
-                "Origin should be declared before any instructions",
-                .{},
-                info.first_token orelse .firstCharOf(source.text),
-            );
+            // TODO: Write non-source note if no source
+            if (ctx.source) |source|
+                try ctx.deepen().writeSourceNote(
+                    "Origin should be declared before any instructions",
+                    .{},
+                    info.first_token orelse .firstCharOf(source.text),
+                );
         },
         .missing_end => |info| {
             try ctx.writeTitle("Missing .END directive", .{});
-            try ctx.deepen().writeSourceNote(
-                "End should be declared after included all instructions",
-                .{},
-                info.last_token orelse .lastCharOf(source.text),
-            );
+            // TODO: Write non-source note if no source
+            if (ctx.source) |source|
+                try ctx.deepen().writeSourceNote(
+                    "End should be declared after included all instructions",
+                    .{},
+                    info.last_token orelse .lastCharOf(source.text),
+                );
         },
 
         .existing_label_left => |info| {
@@ -232,7 +238,8 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
             try ctx.deepen().writeSourceNote("Label declared here", .{}, info.label);
             if (info.target) |target|
                 try ctx.deepen().writeSourceNote("Token cannot be annotated with label", .{}, target)
-            else
+            else if (ctx.source) |source|
+                // TODO: Write non-source note if no source
                 try ctx.deepen().writeSourceNote("Label is not followed by any token", .{}, .lastCharOf(source.text));
         },
         .label_colon => |info| {
@@ -252,12 +259,14 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
             if (info.nearest) |close_match| {
                 try ctx.deepen().withSource(info.definition_source)
                     .writeSourceNote("This label declaration is similar", .{}, close_match);
-                if (std.ascii.eqlIgnoreCase(
-                    info.reference.view(source),
-                    close_match.view(info.definition_source),
-                )) {
-                    try ctx.deepen().writeNote("Label names are case-sensitive", .{});
-                }
+                // TODO: Don't perform this check here (avoid viewing span)
+                if (ctx.source) |source|
+                    if (std.ascii.eqlIgnoreCase(
+                        info.reference.view(source),
+                        close_match.view(info.definition_source),
+                    )) {
+                        try ctx.deepen().writeNote("Label names are case-sensitive", .{});
+                    };
             }
         },
         .unused_label => |info| {
@@ -433,7 +442,9 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
                 try ctx.deepen().writeNote("Did you mean `{s}`?", .{DebuggerCommand.tagString(nearest)});
         },
         .debugger_missing_subcommand => |info| {
-            try ctx.writeTitle("Missing subcommand for `{s}`", .{info.first.view(source)});
+            // TODO: Use command tag instead of span
+            if (ctx.source) |source|
+                try ctx.writeTitle("Missing subcommand for `{s}`", .{info.first.view(source)});
             try ctx.deepen().writeSourceNote("Command requires subcommand", .{}, info.eol);
         },
         .debugger_unexpected_eol => |info| {
