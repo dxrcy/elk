@@ -7,10 +7,10 @@ const Allocator = std.mem.Allocator;
 const Debugger = @import("debugger/Debugger.zig");
 const Policies = @import("../policies.zig").Policies;
 const Traps = @import("../Traps.zig");
+const Provider = @import("../provider.zig").Provider;
 const Tty = @import("Tty.zig");
 
 pub const Callback = @import("../callback.zig").Callback;
-pub const Provider = @import("provider.zig").Provider;
 pub const Instruction = @import("decode.zig").Instruction;
 
 pub const memory_size = 0x1_0000;

@@ -1,9 +1,9 @@
 const std = @import("std");
 const assert = std.debug.assert;
 
-const Reporter = @import("../reporting/reporting.zig").Primary;
-const Air = @import("../compile/Air.zig");
-const Source = @import("../compile/Source.zig");
+const Reporter = @import("reporting/reporting.zig").Primary;
+const Air = @import("compile/Air.zig");
+const Source = @import("compile/Source.zig");
 
 pub const Provider = union(enum) {
     none,
