@@ -395,13 +395,18 @@ fn runCommand(
         },
 
         .reset => {
-            const state = debugger.initial_state orelse {
-                try debugger.reporter.report(.debugger_requires_state, .{
-                    .command = command.tag,
-                }).abort();
+            const assembler = debugger.assembler orelse {
+                std.log.err("no assembler provided", .{});
+                return error.Reported;
             };
-            runtime.state.copyFrom(state);
-            try debugger.writer.printLine("Reset registers and memory to initial state.", .{});
+
+            assembler.assembleFromFile() catch |err| {
+                std.log.err("failed to reassemble: {t}", .{err});
+                return error.Reported;
+            };
+            debugger.provider.assembly.source.text = assembler.source.text;
+
+            try debugger.writer.printLine("Reassembled program from input file.", .{});
             debugger.state.should_print_pc = true;
         },
 
