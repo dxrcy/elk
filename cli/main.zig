@@ -226,7 +226,7 @@ pub fn main(init: std.process.Init) !u8 {
             defer assembler.deinit();
 
             assembler.assembleFromFile() catch |err| switch (err) {
-                error.ProgramError => return 1,
+                error.AssembleFailed => return 1,
                 else => |err2| return err2,
             };
 

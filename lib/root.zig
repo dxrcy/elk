@@ -8,6 +8,7 @@ pub const Provider = @import("provider.zig").Provider;
 pub const Policies = @import("policies.zig").Policies;
 pub const reporting = @import("reporting/reporting.zig");
 
+// TODO: Move to another file
 pub const Assembler = struct {
     const std = @import("std");
     const Io = std.Io;
@@ -38,8 +39,9 @@ pub const Assembler = struct {
 
         assembler.reporter.source = assembler.source;
 
-        assembler.air = try assemble(
+        try assemble(
             assembler.gpa,
+            &assembler.air,
             assembler.source,
             // TODO:
             // operation.patch_symbols,
@@ -51,27 +53,27 @@ pub const Assembler = struct {
 
     fn assemble(
         gpa: Allocator,
+        air: *Air,
         source: elk.Source,
         patch_symbols_opt: ?[]const struct { []const u8, u16 },
         traps: *const elk.Traps,
         reporter: *elk.reporting.Primary,
-    ) !elk.Air {
-        var air: elk.Air = .init();
+    ) !void {
+        air.* = .init();
         errdefer air.deinit(gpa);
 
-        var parser = elk.Parser.new(traps, source, reporter) catch
-            return error.ProgramError;
+        var parser = try elk.Parser.new(traps, source, reporter);
 
-        try parser.parseAir(gpa, &air);
+        try parser.parseAir(gpa, air);
         if (reporter.getLevel() == .err) {
             reporter.summarize();
-            return error.ProgramError;
+            return error.AssembleFailed;
         }
 
-        parser.resolveLabelReferences(&air);
+        parser.resolveLabelReferences(air);
         if (reporter.getLevel() == .err) {
             reporter.summarize();
-            return error.ProgramError;
+            return error.AssembleFailed;
         }
 
         reporter.summarize();
@@ -82,8 +84,6 @@ pub const Assembler = struct {
                 try air.patchLabelValue(symbol, word, source);
             }
         }
-
-        return air;
     }
 };
 
