@@ -142,7 +142,7 @@ pub fn main(init: std.process.Init) !u8 {
                 },
             };
 
-            var symbols: std.ArrayList(elk.Runtime.SymbolEntry) = .empty;
+            var symbols: std.ArrayList(elk.Runtime.Provider.SymbolEntry) = .empty;
             defer symbols.deinit(gpa);
 
             var symbol_names = std.heap.ArenaAllocator.init(gpa);
@@ -276,7 +276,7 @@ fn readSymbolTable(
     gpa: Allocator,
     arena: Allocator,
     filepath: []const u8,
-    symbols: *std.ArrayList(elk.Runtime.SymbolEntry),
+    symbols: *std.ArrayList(elk.Runtime.Provider.SymbolEntry),
 ) !void {
     var file = try Io.Dir.cwd().openFile(io, filepath, .{});
     defer file.close(io);
@@ -355,9 +355,9 @@ fn emulate(
     runtime_source: union(enum) {
         object: struct {
             file: Io.File,
-            symbols: ?[]const elk.Runtime.SymbolEntry,
+            symbols: ?[]const elk.Runtime.Provider.SymbolEntry,
         },
-        assembly: elk.Debugger.Assembly,
+        assembly: elk.Runtime.Provider.Assembly,
     },
     patch_symbols_opt: ?[]const struct { []const u8, u16 },
     debug_opt: ?Cli.Debug,
@@ -382,7 +382,7 @@ fn emulate(
             break :file null;
         };
 
-        const provider: elk.Debugger.Provider = switch (runtime_source) {
+        const provider: elk.Runtime.Provider = switch (runtime_source) {
             .object => |object| if (object.symbols) |symbols| .{ .symbols = symbols } else .none,
             .assembly => |assembly| .{ .assembly = assembly },
         };

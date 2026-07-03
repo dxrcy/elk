@@ -10,6 +10,7 @@ const Traps = @import("../Traps.zig");
 const Tty = @import("Tty.zig");
 
 pub const Callback = @import("../callback.zig").Callback;
+pub const Provider = @import("provider.zig").Provider;
 pub const Instruction = @import("decode.zig").Instruction;
 
 pub const memory_size = 0x1_0000;
@@ -96,11 +97,6 @@ pub const Hooks = struct {
     pre_execute: ?Callback(&.{ *Runtime, Instruction }, HostError!void) = null,
 };
 
-pub const SymbolEntry = struct {
-    address: u16,
-    name: []const u8,
-};
-
 pub fn init(params: struct {
     gpa: Allocator,
     reader: *Io.Reader,
@@ -155,18 +151,11 @@ pub fn patchLabelValue(
     runtime: *Runtime,
     name: []const u8,
     raw_word: u16,
-    symbols: []const SymbolEntry,
+    symbols: []const Provider.SymbolEntry,
 ) error{ SymbolNotFound, UnpermittedMemoryAccess }!void {
-    const address = try getSymbolAddress(name, symbols);
+    const address = Provider.getSymbolAddress(name, symbols) orelse
+        return error.SymbolNotFound;
     try runtime.setMemory(address, raw_word);
-}
-
-pub fn getSymbolAddress(name: []const u8, symbols: []const SymbolEntry) error{SymbolNotFound}!u16 {
-    for (symbols) |entry| {
-        if (std.mem.eql(u8, entry.name, name))
-            return entry.address;
-    }
-    return error.SymbolNotFound;
 }
 
 pub fn run(runtime: *Runtime) Error!void {

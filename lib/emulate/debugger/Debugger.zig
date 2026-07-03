@@ -14,6 +14,7 @@ const Span = @import("../../compile/Span.zig");
 const Source = @import("../../compile/Source.zig");
 const Parser = @import("../../compile/parse/Parser.zig");
 const Runtime = @import("../Runtime.zig");
+const Provider = @import("../provider.zig").Provider;
 const Instruction = @import("../decode.zig").Instruction;
 const Command = @import("Command.zig");
 const Breakpoints = @import("Breakpoints.zig");
@@ -37,17 +38,6 @@ input: Input,
 writer: Writer,
 traps: *const Traps,
 reporter: *Reporter,
-
-pub const Provider = union(enum) {
-    none,
-    assembly: Assembly,
-    symbols: []const Runtime.SymbolEntry,
-};
-
-pub const Assembly = struct {
-    air: *const Air,
-    source: Source,
-};
 
 const Status = union(enum) {
     inactive,
@@ -684,7 +674,7 @@ struct { label: ?[]const u8, assembly: ?AssemblyLine } {
 
     const label = switch (debugger.provider) {
         else => null,
-        .symbols => |symbols| if (getSymbolName(address, symbols)) |label| label else null,
+        .symbols => |symbols| if (Provider.getSymbolName(address, symbols)) |label| label else null,
     };
     return .{ .label = label, .assembly = null };
 }
@@ -715,14 +705,6 @@ fn getLineLabel(air: *const Air, index: usize) ?*const Air.Label {
     for (air.labels.items) |*label| {
         if (label.index == index)
             return label;
-    }
-    return null;
-}
-
-pub fn getSymbolName(address: u16, symbols: []const Runtime.SymbolEntry) ?[]const u8 {
-    for (symbols) |entry| {
-        if (entry.address == address)
-            return entry.name;
     }
     return null;
 }
@@ -903,7 +885,7 @@ fn resolveLabelAddress(debugger: *const Debugger, label: Span, source: Source) e
         },
 
         .symbols => |symbols| {
-            return Runtime.getSymbolAddress(label.view(source), symbols) catch {
+            return Provider.getSymbolAddress(label.view(source), symbols) orelse {
                 try debugger.reporter.report(.symbol_not_found, .{
                     .symbol = label,
                 }).abort();
@@ -918,7 +900,7 @@ fn resolveLabelAddress(debugger: *const Debugger, label: Span, source: Source) e
 
 fn resolveLabelIndex(
     debugger: *const Debugger,
-    assembly: Assembly,
+    assembly: Provider.Assembly,
     label: Span,
     source: Source,
 ) error{Reported}!u16 {
@@ -943,7 +925,7 @@ fn resolveLabelIndex(
     }).abort();
 }
 
-fn getAssembly(debugger: *const Debugger, span: Span) error{Reported}!Assembly {
+fn getAssembly(debugger: *const Debugger, span: Span) error{Reported}!Provider.Assembly {
     return debugger.getAssemblyOpt() orelse {
         try debugger.reporter.report(.debugger_requires_assembly, .{
             .command = span,
@@ -951,7 +933,7 @@ fn getAssembly(debugger: *const Debugger, span: Span) error{Reported}!Assembly {
     };
 }
 
-fn getAssemblyOpt(debugger: *const Debugger) ?Assembly {
+fn getAssemblyOpt(debugger: *const Debugger) ?Provider.Assembly {
     switch (debugger.provider) {
         .assembly => |assembly| return assembly,
         .none, .symbols => return null,
@@ -974,7 +956,7 @@ fn ensureUserAddress(debugger: *Debugger, address: u16, span: Span) error{Report
 fn isMemoryModifiedInContext(
     runtime: *const Runtime,
     initial_state: *const Runtime.State,
-    assembly: Assembly,
+    assembly: Provider.Assembly,
     span: Span,
     max_context: usize,
 ) bool {
