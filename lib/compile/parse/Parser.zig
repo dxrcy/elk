@@ -523,7 +523,7 @@ pub fn resolveLabelReferences(parser: *Parser, air: *Air) void {
             .instruction => |*instruction| instruction,
         };
 
-        Provider.resolveLabelOperand(
+        Provider.resolveOperand(
             .{ .assembly = .{ .air = air, .source = parser.source() } },
             instruction,
             index + air.origin + 1, // PC is at N+1 when instruction N is interpreted

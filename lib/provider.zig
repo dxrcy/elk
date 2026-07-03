@@ -38,7 +38,7 @@ pub const Provider = union(enum) {
         return null;
     }
 
-    pub fn resolveLabelOperand(
+    pub fn resolveOperand(
         provider: Provider,
         instruction: *Air.Instruction,
         address: usize,
@@ -49,19 +49,19 @@ pub const Provider = union(enum) {
         if (increment_references)
             assert(provider == .assembly);
         return switch (instruction.*) {
-            .br => |*operands| provider.resolveFieldLabel(&operands.dest, address, source, reporter, increment_references),
-            .jsr => |*operands| provider.resolveFieldLabel(&operands.dest, address, source, reporter, increment_references),
-            .ld => |*operands| provider.resolveFieldLabel(&operands.src, address, source, reporter, increment_references),
-            .ldi => |*operands| provider.resolveFieldLabel(&operands.src, address, source, reporter, increment_references),
-            .lea => |*operands| provider.resolveFieldLabel(&operands.src, address, source, reporter, increment_references),
-            .st => |*operands| provider.resolveFieldLabel(&operands.dest, address, source, reporter, increment_references),
-            .sti => |*operands| provider.resolveFieldLabel(&operands.dest, address, source, reporter, increment_references),
-            .call => |*operands| provider.resolveFieldLabel(&operands.dest, address, source, reporter, increment_references),
+            .br => |*operands| provider.resolveField(&operands.dest, address, source, reporter, increment_references),
+            .jsr => |*operands| provider.resolveField(&operands.dest, address, source, reporter, increment_references),
+            .ld => |*operands| provider.resolveField(&operands.src, address, source, reporter, increment_references),
+            .ldi => |*operands| provider.resolveField(&operands.src, address, source, reporter, increment_references),
+            .lea => |*operands| provider.resolveField(&operands.src, address, source, reporter, increment_references),
+            .st => |*operands| provider.resolveField(&operands.dest, address, source, reporter, increment_references),
+            .sti => |*operands| provider.resolveField(&operands.dest, address, source, reporter, increment_references),
+            .call => |*operands| provider.resolveField(&operands.dest, address, source, reporter, increment_references),
             else => {},
         };
     }
 
-    fn resolveFieldLabel(
+    fn resolveField(
         provider: Provider,
         operand: anytype,
         address: usize,

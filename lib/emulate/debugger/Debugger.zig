@@ -748,7 +748,7 @@ fn parseInstructionLine(
     var parser = try Parser.new(debugger.traps, source, &reporter);
 
     var instruction = try parser.parseInstruction();
-    try debugger.provider.resolveLabelOperand(&instruction, index, source, &reporter, false);
+    try debugger.provider.resolveOperand(&instruction, index, source, &reporter, false);
     return instruction;
 }
 
