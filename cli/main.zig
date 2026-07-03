@@ -142,7 +142,7 @@ pub fn main(init: std.process.Init) !u8 {
                 },
             };
 
-            var symbols: std.ArrayList(elk.Provider.SymbolEntry) = .empty;
+            var symbols: std.ArrayList(elk.Provider.Symbols.Entry) = .empty;
             defer symbols.deinit(gpa);
 
             var symbol_names = std.heap.ArenaAllocator.init(gpa);
@@ -158,7 +158,10 @@ pub fn main(init: std.process.Init) !u8 {
                 init.environ_map,
                 .{ .object = .{
                     .file = in_file,
-                    .symbols = if (operation.import_symbols != null) symbols.items else null,
+                    .symbols = if (operation.import_symbols != null)
+                        .{ .items = symbols.items }
+                    else
+                        null,
                 } },
                 operation.patch_symbols,
                 operation.debug,
@@ -276,7 +279,7 @@ fn readSymbolTable(
     gpa: Allocator,
     arena: Allocator,
     filepath: []const u8,
-    symbols: *std.ArrayList(elk.Provider.SymbolEntry),
+    symbols: *std.ArrayList(elk.Provider.Symbols.Entry),
 ) !void {
     var file = try Io.Dir.cwd().openFile(io, filepath, .{});
     defer file.close(io);
@@ -355,7 +358,7 @@ fn emulate(
     runtime_source: union(enum) {
         object: struct {
             file: Io.File,
-            symbols: ?[]const elk.Provider.SymbolEntry,
+            symbols: ?elk.Provider.Symbols,
         },
         assembly: elk.Provider.Assembly,
     },

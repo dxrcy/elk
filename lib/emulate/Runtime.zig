@@ -151,7 +151,7 @@ pub fn patchLabelValue(
     runtime: *Runtime,
     name: []const u8,
     raw_word: u16,
-    symbols: []const Provider.SymbolEntry,
+    symbols: Provider.Symbols,
 ) error{ SymbolNotFound, UnpermittedMemoryAccess }!void {
     const address = Provider.getSymbolAddress(name, symbols) orelse
         return error.SymbolNotFound;

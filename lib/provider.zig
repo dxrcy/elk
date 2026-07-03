@@ -10,28 +10,31 @@ const Source = @import("compile/Source.zig");
 pub const Provider = union(enum) {
     none,
     assembly: Assembly,
-    symbols: []const SymbolEntry,
+    symbols: Symbols,
 
     pub const Assembly = struct {
         air: *const Air,
         source: Source,
     };
 
-    pub const SymbolEntry = struct {
-        address: u16,
-        name: []const u8,
+    pub const Symbols = struct {
+        items: []const Entry,
+        pub const Entry = struct {
+            address: u16,
+            name: []const u8,
+        };
     };
 
-    pub fn getSymbolAddress(name: []const u8, symbols: []const SymbolEntry) ?u16 {
-        for (symbols) |entry| {
+    pub fn getSymbolAddress(name: []const u8, symbols: Symbols) ?u16 {
+        for (symbols.items) |entry| {
             if (std.mem.eql(u8, entry.name, name))
                 return entry.address;
         }
         return null;
     }
 
-    pub fn getSymbolName(address: u16, symbols: []const SymbolEntry) ?[]const u8 {
-        for (symbols) |entry| {
+    pub fn getSymbolName(address: u16, symbols: Symbols) ?[]const u8 {
+        for (symbols.items) |entry| {
             if (entry.address == address)
                 return entry.name;
         }
@@ -138,7 +141,7 @@ fn resolveFieldSymbols(
     comptime Int: type,
     operand: Span,
     address: usize,
-    symbols: []const Provider.SymbolEntry,
+    symbols: Provider.Symbols,
     source: Source,
     reporter: *Reporter,
 ) error{Reported}!Int {
