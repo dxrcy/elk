@@ -717,18 +717,7 @@ fn evalCommand(
 ) (Runtime.HostError || error{Reported})!void {
     const line = span.view(source);
 
-    // const origin = switch (debugger.provider) {
-    //     .assembly => |assembly| assembly.air.origin,
-    //     else => if (debugger.initial_state) |state|
-    //         state.pc
-    //     else {
-    //         // TODO: Report properly
-    //         std.log.err("cannot derive memory origin", .{});
-    //         return error.Reported;
-    //     },
-    // };
     const asm_instr = try debugger.parseInstructionLine(line, runtime.state.pc);
-
     const runtime_instr = Instruction.decode(asm_instr.encode()) catch
         // Any encoded instruction must be valid to decode
         unreachable;
