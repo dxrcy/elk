@@ -522,10 +522,13 @@ pub fn resolveLabelReferences(parser: *Parser, air: *Air) void {
             .raw_word => continue,
             .instruction => |*instruction| instruction,
         };
-        parser.resolveLabelOperand(
-            .{ .air = air, .source = parser.source() },
+
+        Provider.resolveLabelOperand(
+            .{ .assembly = .{ .air = air, .source = parser.source() } },
             instruction,
-            index + 1, // PC is at N+1 when instruction N is interpreted
+            index + air.origin + 1, // PC is at N+1 when instruction N is interpreted
+            parser.source(),
+            parser.reporter(),
         ) catch |err| switch (err) {
             error.Reported => continue,
         };
@@ -538,21 +541,4 @@ pub fn resolveLabelReferences(parser: *Parser, air: *Air) void {
             }).proceed();
         }
     }
-}
-
-// TODO: Inline this function ?
-pub fn resolveLabelOperand(
-    parser: *Parser,
-    assembly: Provider.Assembly,
-    instruction: *Instruction,
-    // TODO: Change to `address u16` ?
-    index: usize,
-) error{Reported}!void {
-    return Provider.resolveLabelOperand(
-        .{ .assembly = assembly },
-        instruction,
-        index + assembly.air.origin,
-        parser.source(),
-        parser.reporter(),
-    );
 }
