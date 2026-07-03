@@ -665,45 +665,53 @@ fn printBreakpoints(debugger: *Debugger) !void {
         try debugger.writer.enableColor();
         try debugger.writer.print("    | Breakpoint at 0x{X:04}", .{entry.address});
 
-        // TODO: Clean this all up. This is disgusing!
-
-        blk: {
-            const assembly = debugger.getAssemblyOpt() orelse
-                break :blk;
-
-            const index = getAssemblyLineIndexOptional(assembly.air, entry.address) orelse
-                break :blk;
-            const line = &assembly.air.lines.items[index];
-
-            if (getLineLabel(assembly.air, index)) |label| {
-                try debugger.writer.print(" (labelled '{s}')", .{
-                    label.span.view(assembly.source),
-                });
-            }
-
+        const info = debugger.getAddressInfo(entry.address);
+        if (info.label) |label| {
+            try debugger.writer.print(" (labelled '{s}')", .{label});
+        }
+        if (info.assembly) |assembly| {
             try debugger.writer.print(":", .{});
             try debugger.writer.disableColor();
             try debugger.writer.print("\n", .{});
-
-            try writeSpanContext(debugger.writer.inner, line.span, .{
+            try writeSpanContext(debugger.writer.inner, assembly.line, .{
                 .use_color = debugger.writer.use_color, // Not from reporter sink
             }, assembly.source);
-            continue;
+        } else {
+            try debugger.writer.disableColor();
+            try debugger.writer.print("\n", .{});
         }
-
-        switch (debugger.provider) {
-            else => {
-                try debugger.writer.print(" (not in assembly)", .{});
-            },
-            .symbols => |symbols| {
-                if (getSymbolName(entry.address, symbols)) |label| {
-                    try debugger.writer.print(" (labelled '{s}')", .{label});
-                }
-            },
-        }
-        try debugger.writer.disableColor();
-        try debugger.writer.print("\n", .{});
     }
+}
+
+const AssemblyLine = struct { line: Span, source: Source };
+
+fn getAddressInfo(debugger: *const Debugger, address: u16) //
+struct { label: ?[]const u8, assembly: ?AssemblyLine } {
+    if (debugger.getAddressInfoAssembly(address)) |info|
+        return .{ .label = info.label, .assembly = info.assembly };
+
+    const label = switch (debugger.provider) {
+        else => null,
+        .symbols => |symbols| if (getSymbolName(address, symbols)) |label| label else null,
+    };
+    return .{ .label = label, .assembly = null };
+}
+
+fn getAddressInfoAssembly(debugger: *const Debugger, address: u16) //
+?struct { label: ?[]const u8, assembly: AssemblyLine } {
+    const assembly = debugger.getAssemblyOpt() orelse
+        return null;
+    const index = getAssemblyLineIndexOptional(assembly.air, address) orelse
+        return null;
+    const line = &assembly.air.lines.items[index];
+
+    const label =
+        if (getLineLabel(assembly.air, index)) |label| label.span.view(assembly.source) else null;
+
+    return .{
+        .label = label,
+        .assembly = .{ .line = line.span, .source = assembly.source },
+    };
 }
 
 fn getLineLabel(air: *const Air, index: usize) ?*const Air.Label {
