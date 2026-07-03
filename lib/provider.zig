@@ -23,23 +23,23 @@ pub const Provider = union(enum) {
             address: u16,
             name: []const u8,
         };
+
+        pub fn getAddress(symbols: Symbols, name: []const u8) ?u16 {
+            for (symbols.items) |entry| {
+                if (std.mem.eql(u8, entry.name, name))
+                    return entry.address;
+            }
+            return null;
+        }
+
+        pub fn getName(symbols: Symbols, address: u16) ?[]const u8 {
+            for (symbols.items) |entry| {
+                if (entry.address == address)
+                    return entry.name;
+            }
+            return null;
+        }
     };
-
-    pub fn getSymbolAddress(name: []const u8, symbols: Symbols) ?u16 {
-        for (symbols.items) |entry| {
-            if (std.mem.eql(u8, entry.name, name))
-                return entry.address;
-        }
-        return null;
-    }
-
-    pub fn getSymbolName(address: u16, symbols: Symbols) ?[]const u8 {
-        for (symbols.items) |entry| {
-            if (entry.address == address)
-                return entry.name;
-        }
-        return null;
-    }
 
     /// Also increments reference count of definition, when using `Assembly` provider.
     pub fn resolveOperand(
@@ -148,7 +148,7 @@ fn resolveFieldSymbols(
     const string = operand.view(source);
 
     // TODO: Provide suggestion for nearest match
-    const definition = (Provider.getSymbolAddress(string, symbols) orelse {
+    const definition = (symbols.getAddress(string) orelse {
         try reporter.report(.undefined_label, .{
             .reference = operand,
             .nearest = .none,

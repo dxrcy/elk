@@ -674,7 +674,7 @@ struct { label: ?[]const u8, assembly: ?AssemblyLine } {
 
     const label = switch (debugger.provider) {
         else => null,
-        .symbols => |symbols| if (Provider.getSymbolName(address, symbols)) |label| label else null,
+        .symbols => |symbols| if (symbols.getName(address)) |label| label else null,
     };
     return .{ .label = label, .assembly = null };
 }
@@ -853,7 +853,7 @@ fn resolveLabelAddress(debugger: *const Debugger, label: Span, source: Source) e
         },
 
         .symbols => |symbols| {
-            return Provider.getSymbolAddress(label.view(source), symbols) orelse {
+            return symbols.getAddress(label.view(source)) orelse {
                 try debugger.reporter.report(.symbol_not_found, .{
                     .symbol = label,
                 }).abort();
