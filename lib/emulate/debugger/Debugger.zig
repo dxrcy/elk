@@ -898,7 +898,7 @@ fn resolveLabelIndex(
 
     try debugger.reporter.report(.undefined_label, .{
         .reference = label,
-        .nearest = null,
+        .nearest = .none,
         .definition_source = assembly.source,
     }).abort();
 }

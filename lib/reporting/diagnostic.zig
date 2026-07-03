@@ -66,6 +66,12 @@ fn policyResponse(
 }
 
 pub const Diagnostic = union(enum) {
+    pub const NearestSpan = union(enum) {
+        none,
+        case_insensitive: Span,
+        edit_distance: Span,
+    };
+
     // TODO: Prefix all fields with `compile_`, `debugger_`, etc ?????
 
     // Assembly file
@@ -96,7 +102,7 @@ pub const Diagnostic = union(enum) {
     invalid_label_target: struct { label: Span, target: ?Span },
     label_colon: struct { colon: Span },
     redefined_label: struct { existing: Span, new: Span },
-    undefined_label: struct { reference: Span, nearest: ?Span, definition_source: Source },
+    undefined_label: struct { reference: Span, nearest: NearestSpan, definition_source: Source },
     unused_label: struct { label: Span },
 
     // Integer syntax

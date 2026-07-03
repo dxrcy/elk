@@ -6,6 +6,7 @@ const assert = std.debug.assert;
 
 const Traps = @import("../../Traps.zig");
 const Reporter = @import("../../reporting/reporting.zig").Primary;
+const Diagnostic = @import("../../reporting/diagnostic.zig").Diagnostic;
 const Air = @import("../Air.zig");
 const Instruction = @import("../instruction.zig").Instruction;
 const Span = @import("../Span.zig");
@@ -580,10 +581,17 @@ fn resolveFieldLabel(
 
     const definition =
         air.findLabel(.exact, string, air_source) orelse {
-            const near_match = air.findLabel(.nearest, string, air_source);
+            const nearest: Diagnostic.NearestSpan =
+                if (air.findLabel(.nearest, string, air_source)) |label|
+                    if (std.ascii.eqlIgnoreCase(string, label.span.view(air_source)))
+                        .{ .case_insensitive = label.span }
+                    else
+                        .{ .edit_distance = label.span }
+                else
+                    .none;
             try parser.reporter().report(.undefined_label, .{
                 .reference = operand.span,
-                .nearest = if (near_match) |label| label.span else null,
+                .nearest = nearest,
                 .definition_source = air_source,
             }).abort();
         };

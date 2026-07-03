@@ -265,17 +265,14 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
         .undefined_label => |info| {
             try ctx.writeTitle("Label is not declared", .{});
             try ctx.deepen().writeSourceNote("Label used here", .{}, info.reference);
-            if (info.nearest) |close_match| {
-                try ctx.deepen().withSource(info.definition_source)
-                    .writeSourceNote("This label declaration is similar", .{}, close_match);
-                // TODO: Don't perform this check here (avoid viewing span)
-                if (ctx.source) |source|
-                    if (std.ascii.eqlIgnoreCase(
-                        info.reference.view(source),
-                        close_match.view(info.definition_source),
-                    )) {
+            switch (info.nearest) {
+                .none => {},
+                .case_insensitive, .edit_distance => |nearest| {
+                    try ctx.deepen().withSource(info.definition_source)
+                        .writeSourceNote("This label declaration is similar", .{}, nearest);
+                    if (info.nearest == .case_insensitive)
                         try ctx.deepen().writeNote("Label names are case-sensitive", .{});
-                    };
+                },
             }
         },
         .unused_label => |info| {
