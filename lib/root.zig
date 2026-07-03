@@ -31,11 +31,17 @@ pub const Assembler = struct {
         assembler.gpa.free(assembler.source.text);
         assembler.air.deinit(assembler.gpa);
 
-        const file = try Io.Dir.cwd().openFile(assembler.io, assembler.source.path orelse
-            unreachable, .{});
-        var reader = file.reader(assembler.io, &.{});
-        assembler.source.text = try reader.interface.allocRemaining(assembler.gpa, .unlimited);
-        file.close(assembler.io);
+        {
+            const file = if (assembler.source.path) |path|
+                try Io.Dir.cwd().openFile(assembler.io, path, .{})
+            else
+                Io.File.stdin();
+            defer if (assembler.source.path) |_|
+                file.close(assembler.io);
+
+            var reader = file.reader(assembler.io, &.{});
+            assembler.source.text = try reader.interface.allocRemaining(assembler.gpa, .unlimited);
+        }
 
         assembler.reporter.source = assembler.source;
 

@@ -396,11 +396,19 @@ fn runCommand(
 
         .reload => {
             const assembler = debugger.assembler orelse {
+                // TODO: Report properly
                 std.log.err("no assembler provided", .{});
                 return error.Reported;
             };
 
+            if (assembler.source.path == null) {
+                // TODO: Report properly
+                std.log.err("`reload` cannot be used with stdin input", .{});
+                return error.Reported;
+            }
+
             assembler.assembleFromFile() catch |err| {
+                // TODO: Report properly
                 std.log.err("failed to reassemble: {t}", .{err});
                 return error.Reported;
             };

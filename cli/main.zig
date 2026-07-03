@@ -194,29 +194,19 @@ pub fn main(init: std.process.Init) !u8 {
 
         .assemble_emulate => |operation| {
             var input_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-            var input_path: ?[]const u8 = null;
-
-            const in_file = file: switch (operation.input) {
-                .stdio => {
-                    break :file Io.File.stdin();
-                },
+            const input_path = blk: switch (operation.input) {
+                .stdio => null,
                 .regular => |regular| {
                     const length = try Io.Dir.cwd().realPathFile(io, regular, &input_path_buffer);
-                    input_path = input_path_buffer[0..length];
-                    break :file try Io.Dir.cwd().openFile(io, input_path.?, .{});
+                    break :blk input_path_buffer[0..length];
                 },
             };
-
-            // TODO:
-            _ = in_file;
 
             var assembler: elk.Assembler = .{
                 .air = .init(),
                 .source = .{
                     .text = "",
-                    .path = input_path orelse
-                        // TODO:
-                        unreachable,
+                    .path = input_path,
                 },
                 .traps = &default_traps,
                 .reporter = &reporter,
