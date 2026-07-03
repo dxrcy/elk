@@ -59,6 +59,8 @@ pub const Assembler = struct {
         traps: *const elk.Traps,
         reporter: *elk.reporting.Primary,
     ) !void {
+        reporter.clear();
+
         air.* = .init();
         errdefer air.deinit(gpa);
 
