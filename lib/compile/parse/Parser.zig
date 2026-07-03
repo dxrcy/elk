@@ -6,9 +6,9 @@ const assert = std.debug.assert;
 
 const Traps = @import("../../Traps.zig");
 const Reporter = @import("../../reporting/reporting.zig").Primary;
-const Diagnostic = @import("../../reporting/diagnostic.zig").Diagnostic;
 const Air = @import("../Air.zig");
 const Instruction = @import("../instruction.zig").Instruction;
+const Provider = @import("../../emulate/provider.zig").Provider;
 const Span = @import("../Span.zig");
 const Source = @import("../Source.zig");
 const Operand = @import("../Operand.zig");
@@ -16,6 +16,8 @@ const Tokenizer = @import("Tokenizer.zig");
 const Lexer = @import("Lexer.zig");
 const Token = @import("Token.zig");
 const case = @import("case.zig");
+
+const Diagnostic = @import("../../reporting/diagnostic.zig").Diagnostic;
 
 pub const max_line_width = 80;
 
@@ -546,80 +548,6 @@ pub fn resolveLabelOperand(
     instruction: *Instruction,
     index: usize,
 ) error{Reported}!void {
-    return switch (instruction.*) {
-        .br => |*operands| parser.resolveFieldLabel(air, air_source, &operands.dest, index),
-        .jsr => |*operands| parser.resolveFieldLabel(air, air_source, &operands.dest, index),
-        .ld => |*operands| parser.resolveFieldLabel(air, air_source, &operands.src, index),
-        .ldi => |*operands| parser.resolveFieldLabel(air, air_source, &operands.src, index),
-        .lea => |*operands| parser.resolveFieldLabel(air, air_source, &operands.src, index),
-        .st => |*operands| parser.resolveFieldLabel(air, air_source, &operands.dest, index),
-        .sti => |*operands| parser.resolveFieldLabel(air, air_source, &operands.dest, index),
-        .call => |*operands| parser.resolveFieldLabel(air, air_source, &operands.dest, index),
-        else => {},
-    };
-}
-
-fn resolveFieldLabel(
-    parser: *Parser,
-    air: *const Air,
-    air_source: Source,
-    operand: anytype,
-    index: usize,
-) error{Reported}!void {
-    // Extract integer type from operand argument type
-    const Spanned = @typeInfo(@TypeOf(operand)).pointer.child;
-    const Value = @FieldType(Spanned, "value");
-    const Formed = @FieldType(Value, "resolved");
-    const Int = @FieldType(Formed, "integer");
-
-    switch (operand.value) {
-        .unresolved => {},
-        .resolved => return,
-    }
-
-    const string = operand.span.view(parser.source());
-
-    const definition =
-        air.findLabel(.exact, string, air_source) orelse {
-            const nearest: Diagnostic.NearestSpan =
-                if (air.findLabel(.nearest, string, air_source)) |label|
-                    if (std.ascii.eqlIgnoreCase(string, label.span.view(air_source)))
-                        .{ .case_insensitive = label.span }
-                    else
-                        .{ .edit_distance = label.span }
-                else
-                    .none;
-            try parser.reporter().report(.undefined_label, .{
-                .reference = operand.span,
-                .nearest = nearest,
-                .definition_source = air_source,
-            }).abort();
-        };
-
-    const offset = calculateOffset(Int, definition.index, index) orelse {
-        try parser.reporter().report(.offset_too_large, .{
-            .reference = operand.span,
-            .definition = definition.span,
-            .offset = calculateOffset(i17, definition.index, index) orelse
-                unreachable,
-            .bits = @typeInfo(Int).int.bits,
-            .definition_source = air_source,
-        }).abort();
-    };
-
-    definition.references += 1;
-    operand.value = .{ .resolved = .{ .integer = offset, .form = null } };
-}
-
-fn calculateOffset(comptime T: type, definition: usize, reference: usize) ?T {
-    comptime assert(@typeInfo(T).int.signedness == .signed);
-    return std.math.cast(
-        T,
-        std.math.sub(
-            isize,
-            @intCast(definition),
-            @intCast(reference),
-        ) catch
-            return null,
-    );
+    const provider: Provider = .{ .assembly = .{ .air = air, .source = air_source } };
+    return provider.resolveLabelOperand(instruction, index, parser.source(), parser.reporter());
 }
