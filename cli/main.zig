@@ -207,14 +207,18 @@ pub fn main(init: std.process.Init) !u8 {
                 },
             };
 
+            // TODO:
+            _ = in_file;
+
             var assembler: elk.Assembler = .{
-                .filepath = input_path orelse
-                    // TODO:
-                    unreachable,
-                .file = in_file,
                 .air = .init(),
+                .source = .{
+                    .text = "",
+                    .path = input_path orelse
+                        // TODO:
+                        unreachable,
+                },
                 .traps = &default_traps,
-                .source = .empty,
                 .reporter = &reporter,
                 .gpa = gpa,
                 .io = io,

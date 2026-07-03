@@ -14,31 +14,28 @@ pub const Assembler = struct {
     const Allocator = std.mem.Allocator;
     const elk = @import("root.zig");
 
-    filepath: []const u8,
-    file: Io.File,
-
     air: elk.Air,
-    traps: *const elk.Traps,
     source: elk.Source,
+    traps: *const elk.Traps,
     reporter: *elk.reporting.Primary,
-
     gpa: Allocator,
     io: Io,
 
     pub fn deinit(assembler: *Assembler) void {
         assembler.gpa.free(assembler.source.text);
         assembler.air.deinit(assembler.gpa);
-        assembler.file.close(assembler.io);
     }
 
     pub fn assembleFromFile(assembler: *Assembler) !void {
-        var reader = assembler.file.reader(assembler.io, &.{});
-        const text = try reader.interface.allocRemaining(assembler.gpa, .unlimited);
+        assembler.gpa.free(assembler.source.text);
+        assembler.air.deinit(assembler.gpa);
 
-        assembler.source = .{
-            .text = text,
-            .path = assembler.filepath,
-        };
+        const file = try Io.Dir.cwd().openFile(assembler.io, assembler.source.path orelse
+            unreachable, .{});
+        var reader = file.reader(assembler.io, &.{});
+        assembler.source.text = try reader.interface.allocRemaining(assembler.gpa, .unlimited);
+        file.close(assembler.io);
+
         assembler.reporter.source = assembler.source;
 
         assembler.air = try assemble(
