@@ -665,8 +665,9 @@ fn printBreakpoints(debugger: *Debugger) !void {
         try debugger.writer.enableColor();
         try debugger.writer.print("    | Breakpoint at 0x{X:04}", .{entry.address});
 
+        // TODO: Clean this all up. This is disgusing!
+
         blk: {
-            // TODO: This should also work via imported symbol table! #53
             const assembly = debugger.getAssemblyOpt() orelse
                 break :blk;
 
@@ -690,7 +691,16 @@ fn printBreakpoints(debugger: *Debugger) !void {
             continue;
         }
 
-        try debugger.writer.print(" (not in assembly)", .{});
+        switch (debugger.provider) {
+            else => {
+                try debugger.writer.print(" (not in assembly)", .{});
+            },
+            .symbols => |symbols| {
+                if (Runtime.getSymbolName(entry.address, symbols)) |label| {
+                    try debugger.writer.print(" (labelled '{s}')", .{label});
+                }
+            },
+        }
         try debugger.writer.disableColor();
         try debugger.writer.print("\n", .{});
     }
