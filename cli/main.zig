@@ -205,34 +205,30 @@ pub fn main(init: std.process.Init) !u8 {
                 },
             };
 
-            var reader = in_file.reader(io, &.{});
-            const text = try reader.interface.allocRemaining(gpa, .unlimited);
-            defer gpa.free(text);
-
-            const source: elk.Source = .{
-                .text = text,
-                .path = input_path,
+            var assembler: Assembler = .{
+                .filepath = input_path orelse
+                    // TODO:
+                    unreachable,
+                .file = in_file,
+                .air = .init(),
+                .traps = &default_traps,
+                .source = .empty,
+                .reporter = &reporter,
+                .gpa = gpa,
+                .io = io,
             };
+            defer assembler.deinit();
 
-            reporter.source = source;
-
-            var air = assemble(
-                gpa,
-                source,
-                operation.patch_symbols,
-                &default_traps,
-                &reporter,
-            ) catch |err| switch (err) {
+            assembler.assembleFromFile() catch |err| switch (err) {
                 error.ProgramError => return 1,
                 else => |err2| return err2,
             };
-            defer air.deinit(gpa);
 
             try emulate(
                 io,
                 gpa,
                 init.environ_map,
-                .{ .assembly = .{ .air = &air, .source = source } },
+                .{ .assembly = .{ .air = &assembler.air, .source = assembler.source } },
                 null,
                 operation.debug,
                 &default_traps,
@@ -274,6 +270,46 @@ pub fn main(init: std.process.Init) !u8 {
     return 0;
 }
 
+const Assembler = struct {
+    filepath: []const u8,
+    file: Io.File,
+
+    air: elk.Air,
+    traps: *const elk.Traps,
+    source: elk.Source,
+    reporter: *elk.reporting.Primary,
+
+    gpa: Allocator,
+    io: Io,
+
+    pub fn deinit(assembler: *Assembler) void {
+        assembler.gpa.free(assembler.source.text);
+        assembler.air.deinit(assembler.gpa);
+        assembler.file.close(assembler.io);
+    }
+
+    pub fn assembleFromFile(assembler: *Assembler) !void {
+        var reader = assembler.file.reader(assembler.io, &.{});
+        const text = try reader.interface.allocRemaining(assembler.gpa, .unlimited);
+
+        assembler.source = .{
+            .text = text,
+            .path = assembler.filepath,
+        };
+        assembler.reporter.source = assembler.source;
+
+        assembler.air = try assemble(
+            assembler.gpa,
+            assembler.source,
+            // TODO:
+            // operation.patch_symbols,
+            null,
+            assembler.traps,
+            assembler.reporter,
+        );
+    }
+};
+
 fn readSymbolTable(
     io: Io,
     gpa: Allocator,
@@ -314,6 +350,7 @@ fn replacePathExtension(buffer: []u8, path: []const u8, extension: []const u8) [
     return buffer[0 .. index + 1 + extension.len];
 }
 
+// TODO: Move to `Assembler`
 fn assemble(
     gpa: Allocator,
     source: elk.Source,
