@@ -144,6 +144,7 @@ pub const Diagnostic = union(enum) {
     debugger_requires_state: struct { command: Span },
     debugger_address_not_in_assembly: struct { value: u16, max: u16 },
     debugger_address_not_user_memory: struct { address: Span, value: u16, max: u16 },
+    // This is simply case-insensitive match, not for edit distance
     debugger_label_partial_match: struct { reference: Span, nearest: Span, definition_source: Source },
     debugger_no_space: struct {},
     // TODO: Add `expected` field (different type than `TokenKinds`), AND ELSEWHERE
