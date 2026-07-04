@@ -967,7 +967,13 @@ fn readCommand(debugger: *Debugger, runtime: *Runtime) ![]const u8 {
     try debugger.writer.print("\n", .{});
     try debugger.writer.flush();
 
-    const first, const rest = parse.splitCommandLine(line);
+    var rest = line;
+    const first = while (rest.len > 0) {
+        const first, rest = parse.splitCommandLine(rest);
+        if (first.len > 0)
+            break first;
+    } else ""; // Line was empty, not including delimiters
+
     debugger.current_line = rest;
     return first;
 }
