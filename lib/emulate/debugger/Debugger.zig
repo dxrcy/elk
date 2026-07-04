@@ -99,15 +99,27 @@ pub const Writer = struct {
         else
             string;
 
-        const semicolon = std.mem.findScalar(u8, trimmed, ';') orelse trimmed.len;
-        const first = trimmed[0..semicolon];
-        const rest = trimmed[semicolon..];
+        const start = std.mem.findNone(u8, trimmed, " ;") orelse 0;
+        const end = std.mem.findScalarPos(u8, trimmed, start, ';') orelse trimmed.len;
 
-        try writer.print("{s}", .{first});
-        if (rest.len > 0) {
+        const before = trimmed[0..start];
+        const command = trimmed[start..end];
+        const after = trimmed[end..];
+
+        if (before.len > 0) {
             if (writer.use_color)
                 try writer.print("\x1b[2m", .{});
-            try writer.print("{s}", .{rest});
+            try writer.print("{s}", .{before});
+            if (writer.use_color)
+                try writer.print("\x1b[0m", .{});
+        }
+
+        try writer.print("{s}", .{command});
+
+        if (after.len > 0) {
+            if (writer.use_color)
+                try writer.print("\x1b[2m", .{});
+            try writer.print("{s}", .{after});
             if (writer.use_color)
                 try writer.print("\x1b[0m", .{});
         }
