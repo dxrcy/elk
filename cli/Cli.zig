@@ -60,8 +60,14 @@ const Operation = union(enum) {
 };
 
 pub const Debug = struct {
-    input: ?[]const u8,
+    input: Input,
     history_file: ?[]const u8,
+
+    pub const Input = union(enum) {
+        none,
+        partial: []const u8,
+        full: []const u8,
+    };
 };
 
 const template = .{
@@ -113,9 +119,14 @@ const template = .{
         .value = .{ .type = []const struct { []const u8, u16 }, .parser = parsePatches },
     },
 
-    .input = zilc.Flag{
+    .input_partial = zilc.Flag{
         .short = 'i',
         .long = "input",
+        .value = zilc.types.string,
+    },
+    .input_full = zilc.Flag{
+        .short = 'I',
+        .long = "input-full",
         .value = zilc.types.string,
     },
     .history_file = zilc.Flag{
@@ -305,7 +316,8 @@ fn checkDependencies(options: *const zilc.Options(template)) !void {
     try zilc.checkDependencies(.export_listing, enum { assemble }, enum {}, &options.flags);
     try zilc.checkDependencies(.trap_aliases, enum { assemble, check, format }, enum {}, &options.flags);
     try zilc.checkDependencies(.debug, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
-    try zilc.checkDependencies(.input, enum { debug }, enum {}, &options.flags);
+    try zilc.checkDependencies(.input_partial, enum { debug }, enum { input_full }, &options.flags);
+    try zilc.checkDependencies(.input_full, enum { debug }, enum { input_partial }, &options.flags);
     try zilc.checkDependencies(.history_file, enum { debug }, enum {}, &options.flags);
     try zilc.checkDependencies(.import_symbols, enum { emulate }, enum {}, &options.flags);
 
@@ -319,11 +331,19 @@ fn checkDependencies(options: *const zilc.Options(template)) !void {
 }
 
 fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Operation {
+    const debug_input: Debug.Input =
+        if (options.flags.input_full) |input|
+            .{ .full = input }
+        else if (options.flags.input_partial) |input|
+            .{ .partial = input }
+        else
+            .none;
+
     if (options.flags.debug and
         options.pos.items.len == 0) // TODO: There should be a better way to do this this check
     {
         return .{ .debug_empty = .{
-            .input = options.flags.input,
+            .input = debug_input,
             .history_file = options.flags.history_file,
         } };
     }
@@ -355,7 +375,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
         return .{ .emulate = .{
             .input = input,
             .debug = if (options.flags.debug) .{
-                .input = options.flags.input,
+                .input = debug_input,
                 .history_file = options.flags.history_file,
             } else null,
             .import_symbols = options.flags.import_symbols,
@@ -394,7 +414,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
         .assemble_emulate = .{
             .input = input,
             .debug = if (options.flags.debug) .{
-                .input = options.flags.input,
+                .input = debug_input,
                 .history_file = options.flags.history_file,
             } else null,
             .patch_symbols = options.flags.patch_symbols,

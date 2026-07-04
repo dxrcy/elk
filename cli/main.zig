@@ -334,10 +334,19 @@ fn emulate(
             .assembly => |assembly| .{ .assembly = assembly },
         };
 
+        const debug_input = switch (debug.input) {
+            .none => "",
+            .partial, .full => |input| input,
+        };
+        const debug_reader = switch (debug.input) {
+            .none, .partial => &reader.interface,
+            .full => Io.Reader.ending,
+        };
+
         break :debugger try .init(.{
             .io = io,
             .gpa = gpa,
-            .reader = &reader.interface,
+            .reader = debug_reader,
             .writer = &writer.interface,
             .traps = traps,
             .reporter = reporter,
@@ -345,7 +354,7 @@ fn emulate(
             .provider = provider,
             .assembler = assembler,
             .history_file = history_file,
-            .initial_command_line = debug.input orelse "",
+            .initial_command_line = debug_input,
             .use_color = use_color,
         });
     } else null;

@@ -21,9 +21,12 @@ OPTIONS:
             Run debugger while emulating. Requires --emulate or (default) operation.
             Omit input filename to debug an empty runtime.
             Run `--debug` and enter the command `help` for more information.
-    -i, --input <COMMANDS>
-            Specify initial commands, separated with semicolons, that debugger shall run.
-                Requires --debug.
+    -i, --input <COMMANDS> OR
+    -I, --input-full <COMMANDS>
+            Specify commands that debugger shall run, delimited by semicolons.
+            -i: Once exhausted, debugger commands will be read from stdin.
+            -I: Once exhausted, debugger will quit, as if `quit` was entered.
+                Requires --debug. -i and -I may not be used together.
         --history-file <FILE>
             Specify path for debugger history file. Requires --debug.
 
