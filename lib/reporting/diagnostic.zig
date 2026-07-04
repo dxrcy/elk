@@ -140,9 +140,10 @@ pub const Diagnostic = union(enum) {
     // Emulator debugger
     // TODO: Reorder
     // TODO: Distinguish command vs label
+    debugger_requires_assembler: struct { command: Span },
+    debugger_requires_file: struct { command: Span },
     debugger_requires_assembly: struct { command: Span },
     debugger_requires_symbols: struct { command: Span },
-    debugger_requires_state: struct { command: Span },
     debugger_address_not_in_assembly: struct { value: u16, max: u16 },
     debugger_address_not_user_memory: struct { address: Span, value: u16, max: u16 },
     // This is simply case-insensitive match, not for edit distance
@@ -224,9 +225,10 @@ pub const Diagnostic = union(enum) {
             .emulate_exception => .fatal,
 
             // TODO: Merge appropriate branches
+            .debugger_requires_assembler => .fatal,
+            .debugger_requires_file => .fatal,
             .debugger_requires_assembly => .fatal,
             .debugger_requires_symbols => .fatal,
-            .debugger_requires_state => .fatal,
             .debugger_address_not_in_assembly => .fatal,
             .debugger_address_not_user_memory => .fatal,
             .debugger_label_partial_match => .minor,

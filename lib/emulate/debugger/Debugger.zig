@@ -395,24 +395,26 @@ fn runCommand(
 
         .reload => {
             const assembler = debugger.assembler orelse {
-                // TODO: Report properly
-                std.log.err("no assembler provided", .{});
-                return error.Reported;
+                try debugger.reporter.report(.debugger_requires_assembler, .{
+                    .command = command.tag,
+                }).abort();
             };
 
             if (assembler.source.path == null) {
-                // TODO: Report properly
-                std.log.err("`reload` cannot be used with stdin input", .{});
-                return error.Reported;
+                try debugger.reporter.report(.debugger_requires_file, .{
+                    .command = command.tag,
+                }).abort();
             }
 
-            assembler.assembleFromFile() catch |err| {
-                // TODO: Report properly
-                std.log.err("failed to reassemble: {t}", .{err});
-                return error.Reported;
+            assembler.assembleFromFile() catch |err| switch (err) {
+                error.Reported => return error.Reported,
+                else => |e| {
+                    std.log.err("failed to reassemble: {t}", .{e});
+                    return error.Reported;
+                },
             };
-            debugger.provider.assembly.source.text = assembler.source.text;
 
+            debugger.provider.assembly.source.text = assembler.source.text;
             try assembler.air.copyToRuntime(runtime);
             try debugger.initState(assembler.gpa, runtime);
 

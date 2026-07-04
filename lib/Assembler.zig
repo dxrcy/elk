@@ -46,13 +46,13 @@ pub fn assembleFromFile(assembler: *Assembler) !void {
         try parser.parseAir(assembler.gpa, &assembler.air);
         if (assembler.reporter.getLevel() == .err) {
             assembler.reporter.summarize();
-            return error.AssembleFailed;
+            return error.Reported;
         }
 
         parser.resolveLabelReferences(&assembler.air);
         if (assembler.reporter.getLevel() == .err) {
             assembler.reporter.summarize();
-            return error.AssembleFailed;
+            return error.Reported;
         }
     }
     assembler.reporter.summarize();

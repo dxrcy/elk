@@ -73,10 +73,7 @@ pub fn main(init: std.process.Init) !u8 {
             };
             defer assembler.deinit();
 
-            assembler.assembleFromFile() catch |err| switch (err) {
-                error.AssembleFailed => return 1,
-                else => |err2| return err2,
-            };
+            try assembler.assembleFromFile();
 
             const out_extension = switch (operation.output_mode) {
                 .none => return 0,
@@ -207,10 +204,7 @@ pub fn main(init: std.process.Init) !u8 {
             };
             defer assembler.deinit();
 
-            assembler.assembleFromFile() catch |err| switch (err) {
-                error.AssembleFailed => return 1,
-                else => |err2| return err2,
-            };
+            try assembler.assembleFromFile();
 
             try emulate(
                 io,
