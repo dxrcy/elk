@@ -275,7 +275,7 @@ debugging use and may be undefined on other implementations.
 ### Available commands
 - List them here
 ### Initial commands
-- `--commands`
+- `--input`
 - ...
 ### Change history filepath
 - `--history-file`

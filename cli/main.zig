@@ -345,7 +345,7 @@ fn emulate(
             .provider = provider,
             .assembler = assembler,
             .history_file = history_file,
-            .initial_command_line = debug.commands orelse "",
+            .initial_command_line = debug.input orelse "",
             .use_color = use_color,
         });
     } else null;

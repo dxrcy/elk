@@ -60,7 +60,7 @@ const Operation = union(enum) {
 };
 
 pub const Debug = struct {
-    commands: ?[]const u8,
+    input: ?[]const u8,
     history_file: ?[]const u8,
 };
 
@@ -113,9 +113,9 @@ const template = .{
         .value = .{ .type = []const struct { []const u8, u16 }, .parser = parsePatches },
     },
 
-    .commands = zilc.Flag{
-        .short = 'C',
-        .long = "commands",
+    .input = zilc.Flag{
+        .short = 'i',
+        .long = "input",
         .value = zilc.types.string,
     },
     .history_file = zilc.Flag{
@@ -305,7 +305,7 @@ fn checkDependencies(options: *const zilc.Options(template)) !void {
     try zilc.checkDependencies(.export_listing, enum { assemble }, enum {}, &options.flags);
     try zilc.checkDependencies(.trap_aliases, enum { assemble, check, format }, enum {}, &options.flags);
     try zilc.checkDependencies(.debug, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
-    try zilc.checkDependencies(.commands, enum { debug }, enum {}, &options.flags);
+    try zilc.checkDependencies(.input, enum { debug }, enum {}, &options.flags);
     try zilc.checkDependencies(.history_file, enum { debug }, enum {}, &options.flags);
     try zilc.checkDependencies(.import_symbols, enum { emulate }, enum {}, &options.flags);
 
@@ -323,7 +323,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
         options.pos.items.len == 0) // TODO: There should be a better way to do this this check
     {
         return .{ .debug_empty = .{
-            .commands = options.flags.commands,
+            .input = options.flags.input,
             .history_file = options.flags.history_file,
         } };
     }
@@ -355,7 +355,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
         return .{ .emulate = .{
             .input = input,
             .debug = if (options.flags.debug) .{
-                .commands = options.flags.commands,
+                .input = options.flags.input,
                 .history_file = options.flags.history_file,
             } else null,
             .import_symbols = options.flags.import_symbols,
@@ -394,7 +394,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
         .assemble_emulate = .{
             .input = input,
             .debug = if (options.flags.debug) .{
-                .commands = options.flags.commands,
+                .input = options.flags.input,
                 .history_file = options.flags.history_file,
             } else null,
             .patch_symbols = options.flags.patch_symbols,
