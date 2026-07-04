@@ -159,5 +159,9 @@ pub fn Reporter(comptime Diag: type) type {
                 return true;
             return level.order(max).compare(.lte);
         }
+
+        pub fn clear(reporter: *Self) void {
+            reporter.count = .initFill(0);
+        }
     };
 }

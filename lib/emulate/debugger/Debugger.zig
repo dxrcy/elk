@@ -18,6 +18,8 @@ const Breakpoints = @import("Breakpoints.zig");
 const Input = @import("Input.zig");
 const parse = @import("parse.zig");
 
+const Assembler = @import("../../root.zig").Assembler;
+
 state: struct {
     status: Status = .get_action,
     instruction_count: usize = 0,
@@ -29,6 +31,7 @@ state: struct {
 breakpoints: Breakpoints,
 initial_state: ?Runtime.State,
 provider: Provider,
+assembler: ?*Assembler,
 
 current_line: []const u8,
 input: Input,
@@ -123,6 +126,7 @@ pub fn init(params: struct {
     reporter: *Reporter,
     command_buffer: []u8,
     provider: Provider,
+    assembler: ?*Assembler,
     history_file: ?Io.File = null,
     initial_command_line: []const u8 = "",
     use_color: bool,
@@ -144,6 +148,7 @@ pub fn init(params: struct {
         .breakpoints = breakpoints,
         .initial_state = null,
         .provider = params.provider,
+        .assembler = params.assembler,
         .current_line = params.initial_command_line,
         .input = input,
         .writer = .{ .inner = params.writer, .use_color = params.use_color },
@@ -164,6 +169,8 @@ pub fn initState(
     gpa: Allocator,
     runtime: *const Runtime,
 ) Allocator.Error!void {
+    if (debugger.initial_state) |initial_state|
+        initial_state.deinit(gpa);
     debugger.initial_state = try .init(gpa);
     debugger.initial_state.?.copyFrom(runtime.state);
 }
@@ -386,14 +393,32 @@ fn runCommand(
             };
         },
 
-        .reset => {
-            const state = debugger.initial_state orelse {
-                try debugger.reporter.report(.debugger_requires_state, .{
+        .reload => {
+            const assembler = debugger.assembler orelse {
+                try debugger.reporter.report(.debugger_requires_assembler, .{
                     .command = command.tag,
                 }).abort();
             };
-            runtime.state.copyFrom(state);
-            try debugger.writer.printLine("Reset registers and memory to initial state.", .{});
+
+            if (assembler.source.path == null) {
+                try debugger.reporter.report(.debugger_requires_file, .{
+                    .command = command.tag,
+                }).abort();
+            }
+
+            assembler.assembleFromFile() catch |err| switch (err) {
+                error.Reported => return error.Reported,
+                else => |e| {
+                    std.log.err("failed to reassemble: {t}", .{e});
+                    return error.Reported;
+                },
+            };
+
+            debugger.provider.assembly.source.text = assembler.source.text;
+            try assembler.air.copyToRuntime(runtime);
+            try debugger.initState(assembler.gpa, runtime);
+
+            try debugger.writer.printLine("Reassembled program from input file.", .{});
             debugger.state.should_print_pc = true;
         },
 

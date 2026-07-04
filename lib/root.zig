@@ -4,6 +4,7 @@ pub const reporting = @import("reporting/reporting.zig");
 pub const Policies = @import("policies.zig").Policies;
 pub const Provider = @import("provider.zig").Provider;
 pub const Traps = @import("Traps.zig");
+pub const Assembler = @import("Assembler.zig");
 pub const Air = @import("compile/Air.zig");
 pub const Parser = @import("compile/parse/Parser.zig");
 pub const Runtime = @import("emulate/Runtime.zig");

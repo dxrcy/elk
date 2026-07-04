@@ -15,7 +15,7 @@ pub const Value = union(enum) {
     quit,
     exit,
     clear,
-    reset,
+    reload,
     registers,
     @"continue",
     print: struct {
@@ -104,7 +104,7 @@ pub fn tagString(command: Tag) [:0]const u8 {
         .quit => "quit",
         .exit => "exit",
         .clear => "clear",
-        .reset => "reset",
+        .reload => "reload",
         .registers => "registers",
         .@"continue" => "continue",
         .print => "print",

@@ -403,6 +403,16 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
             }});
         },
 
+        .debugger_requires_assembler => |info| {
+            try ctx.writeTitle("Command requires access to assembler system", .{});
+            try ctx.deepen().writeSourceNote("Command", .{}, info.command);
+            // TODO: Add more info or change info
+        },
+        .debugger_requires_file => |info| {
+            try ctx.writeTitle("Command cannot be used with stdin input file", .{});
+            try ctx.deepen().writeSourceNote("Command", .{}, info.command);
+            // TODO: Add more info or change info
+        },
         .debugger_requires_assembly => |info| {
             try ctx.writeTitle("Command requires access to assembly", .{});
             try ctx.deepen().writeSourceNote("Command", .{}, info.command);
@@ -413,11 +423,6 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
             try ctx.deepen().writeSourceNote("Command", .{}, info.command);
             try ctx.deepen().writeNote("Debugger does not have access to original assembly", .{});
             try ctx.deepen().writeNote("Debugger does not have access to imported symbol table", .{});
-        },
-        .debugger_requires_state => |info| {
-            try ctx.writeTitle("Command requires initial state to be set", .{});
-            try ctx.deepen().writeSourceNote("Command", .{}, info.command);
-            try ctx.deepen().writeNote("Debugger does not have access to initial emulator state", .{});
         },
         .debugger_address_not_in_assembly => |info| {
             try ctx.writeTitle("Address x{X:04} is not contained in assembly source", .{info.value});

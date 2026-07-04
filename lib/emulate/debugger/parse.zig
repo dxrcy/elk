@@ -67,7 +67,7 @@ const Parser = struct {
             inline .quit,
             .exit,
             .clear,
-            .reset,
+            .reload,
             .registers,
             .@"continue",
             .step_over,

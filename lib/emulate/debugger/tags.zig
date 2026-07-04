@@ -32,9 +32,9 @@ pub const single: SingleMap = .init(.{
     .clear = .{
         .aliases = &.{"clear"},
     },
-    .reset = .{
-        .aliases = &.{ "reset", "z" },
-        .suggestions = &.{ "restart", "refresh", "reboot" },
+    .reload = .{
+        .aliases = &.{ "reload", "z" },
+        .suggestions = &.{ "reset", "restart", "refresh", "reboot" },
     },
     .registers = .{
         .aliases = &.{ "registers", "r", "reg" },

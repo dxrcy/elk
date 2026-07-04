@@ -49,43 +49,31 @@ pub fn main(init: std.process.Init) !u8 {
     switch (cli.operation) {
         .assemble => |operation| {
             var input_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-            var input_path: ?[]const u8 = null;
-
-            const in_file = file: switch (operation.input) {
-                .stdio => {
-                    break :file Io.File.stdin();
-                },
+            const input_path = blk: switch (operation.input) {
+                .stdio => null,
                 .regular => |regular| {
                     const length = try Io.Dir.cwd().realPathFile(io, regular, &input_path_buffer);
-                    input_path = input_path_buffer[0..length];
-                    break :file try Io.Dir.cwd().openFile(io, input_path.?, .{});
+                    break :blk input_path_buffer[0..length];
                 },
             };
-
-            var reader = in_file.reader(io, &.{});
-            const text = try reader.interface.allocRemaining(gpa, .unlimited);
-            defer gpa.free(text);
-
-            const source: elk.Source = .{
-                .text = text,
-                .path = input_path,
-            };
-
-            reporter.source = source;
 
             const traps = operation.trap_aliases orelse default_traps;
 
-            var air = assemble(
-                gpa,
-                source,
-                operation.patch_symbols,
-                &traps,
-                &reporter,
-            ) catch |err| switch (err) {
-                error.ProgramError => return 1,
-                else => |err2| return err2,
+            var assembler: elk.Assembler = .{
+                .air = .init(),
+                .source = .{
+                    .text = "",
+                    .path = input_path,
+                },
+                .traps = &traps,
+                .patch_symbols = operation.patch_symbols,
+                .reporter = &reporter,
+                .gpa = gpa,
+                .io = io,
             };
-            defer air.deinit(gpa);
+            defer assembler.deinit();
+
+            try assembler.assembleFromFile();
 
             const out_extension = switch (operation.output_mode) {
                 .none => return 0,
@@ -124,9 +112,9 @@ pub fn main(init: std.process.Init) !u8 {
 
             switch (operation.output_mode) {
                 .none => unreachable,
-                .assembly => try air.writeAssembly(&writer.interface),
-                .symbols => try air.writeSymbols(&writer.interface, source),
-                .listing => try air.writeListing(&writer.interface, source),
+                .assembly => try assembler.air.writeAssembly(&writer.interface),
+                .symbols => try assembler.air.writeSymbols(&writer.interface, assembler.source),
+                .listing => try assembler.air.writeListing(&writer.interface, assembler.source),
             }
 
             try writer.flush();
@@ -169,6 +157,7 @@ pub fn main(init: std.process.Init) !u8 {
                 cli.policies,
                 &reporter,
                 cli.tty_color,
+                null,
             );
         },
 
@@ -187,58 +176,48 @@ pub fn main(init: std.process.Init) !u8 {
                 cli.policies,
                 &reporter,
                 cli.tty_color,
+                null,
             );
         },
 
         .assemble_emulate => |operation| {
             var input_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-            var input_path: ?[]const u8 = null;
-
-            const in_file = file: switch (operation.input) {
-                .stdio => {
-                    break :file Io.File.stdin();
-                },
+            const input_path = blk: switch (operation.input) {
+                .stdio => null,
                 .regular => |regular| {
                     const length = try Io.Dir.cwd().realPathFile(io, regular, &input_path_buffer);
-                    input_path = input_path_buffer[0..length];
-                    break :file try Io.Dir.cwd().openFile(io, input_path.?, .{});
+                    break :blk input_path_buffer[0..length];
                 },
             };
 
-            var reader = in_file.reader(io, &.{});
-            const text = try reader.interface.allocRemaining(gpa, .unlimited);
-            defer gpa.free(text);
-
-            const source: elk.Source = .{
-                .text = text,
-                .path = input_path,
+            var assembler: elk.Assembler = .{
+                .air = .init(),
+                .source = .{
+                    .text = "",
+                    .path = input_path,
+                },
+                .traps = &default_traps,
+                .patch_symbols = operation.patch_symbols,
+                .reporter = &reporter,
+                .gpa = gpa,
+                .io = io,
             };
+            defer assembler.deinit();
 
-            reporter.source = source;
-
-            var air = assemble(
-                gpa,
-                source,
-                operation.patch_symbols,
-                &default_traps,
-                &reporter,
-            ) catch |err| switch (err) {
-                error.ProgramError => return 1,
-                else => |err2| return err2,
-            };
-            defer air.deinit(gpa);
+            try assembler.assembleFromFile();
 
             try emulate(
                 io,
                 gpa,
                 init.environ_map,
-                .{ .assembly = .{ .air = &air, .source = source } },
+                .{ .assembly = .{ .air = &assembler.air, .source = assembler.source } },
                 null,
                 operation.debug,
                 &default_traps,
                 cli.policies,
                 &reporter,
                 cli.tty_color,
+                &assembler,
             );
         },
 
@@ -314,45 +293,9 @@ fn replacePathExtension(buffer: []u8, path: []const u8, extension: []const u8) [
     return buffer[0 .. index + 1 + extension.len];
 }
 
-fn assemble(
-    gpa: Allocator,
-    source: elk.Source,
-    patch_symbols_opt: ?[]const struct { []const u8, u16 },
-    traps: *const elk.Traps,
-    reporter: *elk.reporting.Primary,
-) !elk.Air {
-    var air: elk.Air = .init();
-    errdefer air.deinit(gpa);
-
-    var parser = elk.Parser.new(traps, source, reporter) catch
-        return error.ProgramError;
-
-    try parser.parseAir(gpa, &air);
-    if (reporter.getLevel() == .err) {
-        reporter.summarize();
-        return error.ProgramError;
-    }
-
-    parser.resolveLabelReferences(&air);
-    if (reporter.getLevel() == .err) {
-        reporter.summarize();
-        return error.ProgramError;
-    }
-
-    reporter.summarize();
-
-    if (patch_symbols_opt) |patch_symbols| {
-        for (patch_symbols) |item| {
-            const symbol, const word = item;
-            try air.patchLabelValue(symbol, word, source);
-        }
-    }
-
-    return air;
-}
-
 fn emulate(
     io: Io,
+    // NOTE: Currently must be same allocated used by `Assembler`
     gpa: Allocator,
     environ_map: *const EnvironMap,
     runtime_source: union(enum) {
@@ -368,6 +311,7 @@ fn emulate(
     policies: elk.Policies,
     reporter: *elk.reporting.Primary,
     use_color: bool,
+    assembler: ?*elk.Assembler,
 ) !void {
     var write_buffer: [64]u8 = undefined;
     var debugger_buffer: [256]u8 = undefined;
@@ -399,6 +343,7 @@ fn emulate(
             .reporter = reporter,
             .command_buffer = &debugger_buffer,
             .provider = provider,
+            .assembler = assembler,
             .history_file = history_file,
             .initial_command_line = debug.commands orelse "",
             .use_color = use_color,

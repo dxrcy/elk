@@ -75,9 +75,12 @@ pub fn init() Air {
     };
 }
 
+/// Idempotent.
 pub fn deinit(air: *Air, gpa: Allocator) void {
     air.lines.deinit(gpa);
+    air.lines = .empty;
     air.labels.deinit(gpa);
+    air.labels = .empty;
 }
 
 pub fn copyToRuntime(air: *const Air, runtime: *elk.Runtime) !void {
