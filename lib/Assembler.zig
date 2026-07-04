@@ -21,6 +21,7 @@ pub fn deinit(assembler: *Assembler) void {
 
 pub fn assembleFromFile(assembler: *Assembler) !void {
     assembler.gpa.free(assembler.source.text);
+    assembler.source.text.len = 0;
     assembler.air.deinit(assembler.gpa);
 
     {
