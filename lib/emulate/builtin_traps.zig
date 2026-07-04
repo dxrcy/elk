@@ -26,7 +26,10 @@ fn readChar(runtime: *Runtime, comptime vect: enum { in, getc }) Traps.Result {
 
     try runtime.tty.enableRawMode();
 
-    const char = try runtime.readByte();
+    const char = runtime.readByte() catch |err| switch (err) {
+        error.EndOfStream => std.ascii.control_code.eot,
+        else => |e| return e,
+    };
 
     try runtime.tty.disableRawMode();
 
