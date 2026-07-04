@@ -187,7 +187,7 @@ fn parseCli(
 
 const FlagArg = struct {
     item: *const FlagItem,
-    short: bool,
+    short: ?u8,
     index: usize,
     value: ?usize,
 };
@@ -260,16 +260,20 @@ fn parseArgs(
         switch (kind) {
             .short => {
                 assert(name.len > 0);
-                if (name.len > 1) {
-                    for (name) |char| {
+                const final = if (name.len == 1)
+                    name[0]
+                else blk: {
+                    for (name, 0..) |char, j| {
                         const item = getFlagItemShort(&flag_items, char) orelse {
                             log.err("invalid flag: -{c} in {s}", .{ char, arg });
                             error_count += 1;
                             continue;
                         };
                         if (item.parser) |_| {
+                            if (j + 1 == name.len)
+                                break :blk char;
                             log.err(
-                                "cannot combine short flags which require values: -{c} (--{s}) in {s}",
+                                "flag which requires value must be last in combined short flags: -{c} (--{s}) in {s}",
                                 .{ char, item.long, arg },
                             );
                             error_count += 1;
@@ -277,22 +281,23 @@ fn parseArgs(
                         }
                         try flag_args.append(
                             arena,
-                            .{ .item = item, .short = true, .index = i, .value = null },
+                            .{ .item = item, .short = char, .index = i, .value = null },
                         );
                     }
-                } else {
-                    const item = getFlagItemShort(&flag_items, name[0]) orelse {
-                        log.err("invalid flag: {s}", .{arg});
-                        error_count += 1;
-                        continue;
-                    };
-                    if (item.parser) |_|
-                        recent_flag = flag_args.items.len; // Parse later
-                    try flag_args.append(
-                        arena,
-                        .{ .item = item, .short = true, .index = i, .value = null },
-                    );
-                }
+                    continue;
+                };
+
+                const item = getFlagItemShort(&flag_items, final) orelse {
+                    log.err("invalid flag: {s}", .{arg});
+                    error_count += 1;
+                    continue;
+                };
+                if (item.parser) |_|
+                    recent_flag = flag_args.items.len; // Parse later
+                try flag_args.append(
+                    arena,
+                    .{ .item = item, .short = final, .index = i, .value = null },
+                );
             },
 
             .long => {
@@ -305,7 +310,7 @@ fn parseArgs(
                     recent_flag = flag_args.items.len; // Parse later
                 try flag_args.append(
                     arena,
-                    .{ .item = item, .short = false, .index = i, .value = null },
+                    .{ .item = item, .short = null, .index = i, .value = null },
                 );
             },
 
@@ -335,9 +340,11 @@ fn parseFlagValues(
                 // This is disgusting...
                 log.err("{f}", .{struct {
                     pub fn format(self: @This(), w: *Writer) !void {
-                        try w.print("missing value for flag {s}", .{self.args[self.arg.index]});
-                        if (self.arg.short)
-                            try w.print(" (--{s})", .{self.arg.item.long});
+                        try w.print("missing value for flag ", .{});
+                        if (self.arg.short) |short|
+                            try w.print("-{c} (--{s})", .{ short, self.arg.item.long })
+                        else
+                            try w.print("{s}", .{self.args[self.arg.index]});
                         if (self.arg.index + 1 < self.args.len)
                             try w.print(", found '{s}'", .{self.args[self.arg.index + 1]});
                     }
