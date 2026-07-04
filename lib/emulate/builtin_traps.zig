@@ -1,8 +1,9 @@
 const std = @import("std");
 const Io = std.Io;
 
-const Runtime = @import("Runtime.zig");
-const Traps = @import("../Traps.zig");
+const elk = @import("../root.zig");
+const Traps = elk.Traps;
+const Runtime = elk.Runtime;
 
 pub fn halt(_: *Runtime) Traps.Result {
     return error.Halt;

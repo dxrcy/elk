@@ -1,15 +1,18 @@
 const std = @import("std");
 const assert = std.debug.assert;
 
-const Reporter = @import("../../reporting/reporting.zig").Primary;
-const Span = @import("../../compile/Span.zig");
+const elk = @import("../../root.zig");
+const Span = elk.Span;
 const Spanned = Span.Spanned;
-const Source = @import("../../compile/Source.zig");
+const Source = elk.Source;
+const Reporter = elk.reporting.Primary;
 const Lexer = @import("../../compile/parse/Lexer.zig");
 const parsing = @import("../../compile/parse/parsing.zig");
 const integers = @import("../../compile/parse/integers.zig");
 const Command = @import("Command.zig");
 const tags = @import("tags.zig");
+
+const max_edit_distance = 3;
 
 pub fn splitCommandLine(line: []const u8) struct { []const u8, []const u8 } {
     var lexer: Lexer = .new(line, false);
@@ -64,7 +67,7 @@ const Parser = struct {
             inline .quit,
             .exit,
             .clear,
-            .reset,
+            .reload,
             .registers,
             .@"continue",
             .step_over,
@@ -75,10 +78,14 @@ const Parser = struct {
             .print => .{ .print = .{
                 .location = try parser.nextOptionalLocation(),
             } },
-            .list => .{ .list = .{
-                .start = try parser.nextOptionalMemoryLocation(),
-                .length = try parser.nextPositiveIntOrDefault(10),
-            } },
+            .list => blk: {
+                const start = try parser.nextOptionalMemoryLocation();
+                const length = try parser.nextPositiveIntOrDefault(10);
+                break :blk .{ .list = .{
+                    .start = start,
+                    .end = try parser.addMemoryLength(start, length),
+                } };
+            },
             .move => .{ .move = .{
                 .location = try parser.nextLocation(),
                 .value = try parser.nextInteger(),
@@ -218,7 +225,11 @@ const Parser = struct {
             },
         };
 
-        // TODO: Report, if is register
+        if (parsing.tryRegister(argument.view(parser.source))) |_| {
+            try parser.reporter.report(.debugger_invalid_argument_kind, .{
+                .found = argument,
+            }).abort();
+        }
 
         if (try parser.parseMemoryLocation(argument)) |memory|
             return .{ .span = argument, .value = memory };
@@ -233,7 +244,11 @@ const Parser = struct {
             error.Eof => try parser.reporter.report(.debugger_unexpected_eol, .{ .eol = .endOf(parser.source) }).abort(),
         };
 
-        // TODO: Report, if is register
+        if (parsing.tryRegister(argument.view(parser.source))) |_| {
+            try parser.reporter.report(.debugger_invalid_argument_kind, .{
+                .found = argument,
+            }).abort();
+        }
 
         if (try parser.parseMemoryLocation(argument)) |memory|
             return .{ .span = argument, .value = memory };
@@ -393,6 +408,22 @@ const Parser = struct {
         return .{ .name = label, .offset = offset };
     }
 
+    fn addMemoryLength(
+        parser: *Parser,
+        start: Spanned(Command.Location.Memory),
+        length: Spanned(u16),
+    ) error{Reported}!Spanned(Command.Location.Memory) {
+        return .{
+            .span = length.span,
+            .value = start.value.add(length.value) catch {
+                try parser.reporter.report(.integer_too_large, .{
+                    .integer = start.span.join(length.span),
+                    .type_info = @typeInfo(i16).int,
+                }).abort();
+            },
+        };
+    }
+
     fn parseCommandTag(parser: *Parser) error{Reported}!?Spanned(Command.Tag) {
         const first = parser.next() catch |err| switch (err) {
             error.Eof => return null,
@@ -423,14 +454,14 @@ const Parser = struct {
         double: tags.DoubleEntry,
         first: Span,
     ) error{Reported}!?Spanned(Command.Tag) {
-        if (!anyCandidateMatches(double.first, first.view(parser.source)))
+        const first_string = anyCandidateMatches(double.first, first.view(parser.source)) orelse
             return null;
 
         const second = parser.next() catch |err| switch (err) {
             error.Eof => {
                 const tag = double.default orelse {
                     try parser.reporter.report(.debugger_missing_subcommand, .{
-                        .first = first,
+                        .first = first_string,
                         .eol = .endOf(parser.source),
                     }).abort();
                 };
@@ -464,7 +495,7 @@ const Parser = struct {
         switch (mode) {
             .exact => {
                 for (std.meta.tags(Command.Tag)) |tag| {
-                    if (anyCandidateMatches(singles.get(tag).aliases, string))
+                    if (anyCandidateMatches(singles.get(tag).aliases, string)) |_|
                         return .{ .span = span, .value = tag };
                 }
             },
@@ -472,21 +503,45 @@ const Parser = struct {
             .nearest => {
                 assert(parser.findSingleTagMatch(.exact, singles, span) == null);
                 for (std.meta.tags(Command.Tag)) |tag| {
-                    if (anyCandidateMatches(singles.get(tag).suggestions, string))
+                    if (anyCandidateMatches(singles.get(tag).suggestions, string)) |_|
                         return .{ .span = span, .value = tag };
                 }
-                // TODO: Find suggestion with low edit distance
+
+                const max_candidate_length = 20;
+                var buffer: [max_candidate_length]u8 = undefined;
+
+                var best_opt: ?struct { tag: Command.Tag, distance: usize } = null;
+                for (std.meta.tags(Command.Tag)) |tag| {
+                    var distance: usize = std.math.maxInt(usize);
+                    for (singles.get(tag).aliases) |candidate| {
+                        if (candidate.len + 1 > buffer.len)
+                            continue;
+                        distance = @min(
+                            distance,
+                            parsing.editDistance(string, candidate, &buffer),
+                        );
+                    }
+                    if (best_opt) |best| {
+                        if (best.distance < distance)
+                            continue;
+                    }
+                    best_opt = .{ .tag = tag, .distance = distance };
+                }
+                if (best_opt) |best| {
+                    if (best.distance <= max_edit_distance)
+                        return .{ .span = span, .value = best.tag };
+                }
             },
         }
 
         return null;
     }
 
-    fn anyCandidateMatches(candidates: []const []const u8, string: []const u8) bool {
+    fn anyCandidateMatches(candidates: []const []const u8, string: []const u8) ?[]const u8 {
         for (candidates) |candidate| {
             if (std.ascii.eqlIgnoreCase(string, candidate))
-                return true;
+                return candidates[0];
         }
-        return false;
+        return null;
     }
 };

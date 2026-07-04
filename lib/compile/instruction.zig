@@ -1,7 +1,7 @@
 /// Note that some instructions share the same 4-bit opcode, eg. `jsr` and `jsrr`, which are
 /// distinguished by a flag bit.
 pub const Instruction = union(enum) {
-    const Operand = @import("Operand.zig");
+    pub const Operand = @import("Operand.zig");
 
     add: struct {
         dest: Operand.Register,
@@ -194,5 +194,34 @@ pub const Instruction = union(enum) {
                 return 0x8000;
             },
         }
+    }
+
+    /// Returns `null` if no operand can be a label (ie. no operand is any PC-offset).
+    // TODO: Remove? (unused)
+    pub fn isLabelResolved(instruction: Instruction) ?bool {
+        return switch (instruction) {
+            .add,
+            .@"and",
+            .not,
+            .jmp,
+            .ret,
+            .jsrr,
+            .ldr,
+            .str,
+            .trap,
+            .push,
+            .pop,
+            .rets,
+            .rti,
+            => null,
+            .br => |operands| operands.dest.value == .resolved,
+            .jsr => |operands| operands.dest.value == .resolved,
+            .lea => |operands| operands.src.value == .resolved,
+            .ld => |operands| operands.src.value == .resolved,
+            .ldi => |operands| operands.src.value == .resolved,
+            .st => |operands| operands.dest.value == .resolved,
+            .sti => |operands| operands.dest.value == .resolved,
+            .call => |operands| operands.dest.value == .resolved,
+        };
     }
 };

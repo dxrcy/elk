@@ -4,8 +4,9 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
-const Air = @import("../../compile/Air.zig");
-const Debugger = @import("Debugger.zig");
+const elk = @import("../../root.zig");
+const Air = elk.Air;
+const Debugger = elk.Debugger;
 
 entries: std.ArrayList(Entry),
 gpa: Allocator,
@@ -26,7 +27,7 @@ pub fn deinit(breakpoints: *Breakpoints) void {
 pub fn initFrom(
     gpa: Allocator,
     air: *const Air,
-) error{OutOfMemory}!Breakpoints {
+) Allocator.Error!Breakpoints {
     var breakpoints: Breakpoints = .init(gpa);
     assert(air.lines.items.len + air.origin <= std.math.maxInt(u16));
     for (air.labels.items) |*label| {
@@ -46,7 +47,7 @@ pub fn contains(breakpoints: *const Breakpoints, address: u16) bool {
     return false;
 }
 
-pub fn insert(breakpoints: *Breakpoints, address: u16, is_label: bool) error{OutOfMemory}!bool {
+pub fn insert(breakpoints: *Breakpoints, address: u16, is_label: bool) Allocator.Error!bool {
     if (breakpoints.contains(address))
         return false;
 

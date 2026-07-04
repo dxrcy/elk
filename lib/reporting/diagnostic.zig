@@ -1,16 +1,17 @@
 const std = @import("std");
 
-const Policies = @import("../policies.zig").Policies;
-const Span = @import("../compile/Span.zig");
-const Source = @import("../compile/Source.zig");
-const Token = @import("../compile/parse/Token.zig");
-const Radix = @import("../compile/parse/integers.zig").Form.Radix;
-const Exception = @import("../emulate/Runtime.zig").Exception;
-const DebuggerCommand = @import("../emulate/debugger/Command.zig");
-const reporting = @import("reporting.zig");
+const elk = @import("../root.zig");
+const Span = elk.Span;
+const Source = elk.Source;
+const reporting = elk.reporting;
 const Options = reporting.Options;
 const Level = reporting.Level;
 const Response = reporting.Response;
+const Policies = elk.Policies;
+const Exception = elk.Runtime.Exception;
+const Token = @import("../compile/parse/Token.zig");
+const Radix = @import("../compile/parse/integers.zig").Form.Radix;
+const DebuggerCommand = @import("../emulate/debugger/Command.zig");
 
 pub const TokenKinds = struct {
     kinds: []const Kind,
@@ -58,7 +59,7 @@ fn policyResponse(
     options: Options,
     comptime category: std.meta.FieldEnum(Policies),
     comptime name: std.meta.FieldEnum(@FieldType(Policies, @tagName(category))),
-) reporting.Response {
+) Response {
     const policy = @field(@field(options.policies, @tagName(category)), @tagName(name));
     if (policy == .permit)
         return .pass;
@@ -66,6 +67,12 @@ fn policyResponse(
 }
 
 pub const Diagnostic = union(enum) {
+    pub const NearestSpan = union(enum) {
+        none,
+        case_insensitive: Span,
+        edit_distance: Span,
+    };
+
     // TODO: Prefix all fields with `compile_`, `debugger_`, etc ?????
 
     // Assembly file
@@ -96,7 +103,7 @@ pub const Diagnostic = union(enum) {
     invalid_label_target: struct { label: Span, target: ?Span },
     label_colon: struct { colon: Span },
     redefined_label: struct { existing: Span, new: Span },
-    undefined_label: struct { reference: Span, nearest: ?Span, definition_source: Source },
+    undefined_label: struct { reference: Span, nearest: NearestSpan, definition_source: Source },
     unused_label: struct { label: Span },
 
     // Integer syntax
@@ -106,8 +113,9 @@ pub const Diagnostic = union(enum) {
     invalid_digit: struct { integer: Span },
     unexpected_delimiter: struct { integer: Span },
     nonstandard_integer_radix: struct { integer: Span, radix: Radix },
+    implicit_integer_radix: struct { integer: Span },
     nonstandard_integer_form: struct { integer: Span, reason: enum { delimiter } },
-    undesirable_integer_form: struct { integer: Span, reason: enum { leading_zero, pre_radix_sign, post_radix_sign, implicit_radix } },
+    undesirable_integer_form: struct { integer: Span, reason: enum { leading_zero, pre_radix_sign, post_radix_sign } },
     character_integer: struct { integer: Span },
 
     // Integer bounds
@@ -132,17 +140,19 @@ pub const Diagnostic = union(enum) {
     // Emulator debugger
     // TODO: Reorder
     // TODO: Distinguish command vs label
+    debugger_requires_assembler: struct { command: Span },
+    debugger_requires_file: struct { command: Span },
     debugger_requires_assembly: struct { command: Span },
     debugger_requires_symbols: struct { command: Span },
-    debugger_requires_state: struct { command: Span },
     debugger_address_not_in_assembly: struct { value: u16, max: u16 },
     debugger_address_not_user_memory: struct { address: Span, value: u16, max: u16 },
+    // This is simply case-insensitive match, not for edit distance
     debugger_label_partial_match: struct { reference: Span, nearest: Span, definition_source: Source },
     debugger_no_space: struct {},
     // TODO: Add `expected` field (different type than `TokenKinds`), AND ELSEWHERE
     debugger_invalid_argument_kind: struct { found: Span },
     debugger_invalid_command: struct { command: Span, nearest: ?DebuggerCommand.Tag },
-    debugger_missing_subcommand: struct { first: Span, eol: Span },
+    debugger_missing_subcommand: struct { first: []const u8, eol: Span },
     // TODO: Rename ? not eol but end of command
     debugger_unexpected_eol: struct { eol: Span },
     debugger_expected_eol: struct { found: Span },
@@ -187,7 +197,9 @@ pub const Diagnostic = union(enum) {
             .existing_label_above => policyResponse(options, .extension, .multiple_labels),
             .label_colon => policyResponse(options, .extension, .label_definition_colons),
             .nonstandard_integer_radix => policyResponse(options, .extension, .more_integer_radixes),
-            .nonstandard_integer_form => policyResponse(options, .extension, .more_integer_forms),
+            .implicit_integer_radix,
+            .nonstandard_integer_form,
+            => policyResponse(options, .extension, .more_integer_forms),
             .multiline_string => policyResponse(options, .extension, .multiline_strings),
             .stack_instruction => policyResponse(options, .extension, .stack_instructions),
             .character_integer => policyResponse(options, .extension, .character_literals),
@@ -213,12 +225,13 @@ pub const Diagnostic = union(enum) {
             .emulate_exception => .fatal,
 
             // TODO: Merge appropriate branches
+            .debugger_requires_assembler => .fatal,
+            .debugger_requires_file => .fatal,
             .debugger_requires_assembly => .fatal,
             .debugger_requires_symbols => .fatal,
-            .debugger_requires_state => .fatal,
             .debugger_address_not_in_assembly => .fatal,
             .debugger_address_not_user_memory => .fatal,
-            .debugger_label_partial_match => .major,
+            .debugger_label_partial_match => .minor,
             .debugger_no_space => .fatal,
             .debugger_invalid_argument_kind => .fatal,
             .debugger_invalid_command => .fatal,

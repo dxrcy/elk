@@ -5,8 +5,9 @@ const Io = std.Io;
 const assert = std.debug.assert;
 const testing = std.testing;
 
-const Traps = @import("../../Traps.zig");
-const Span = @import("../Span.zig");
+const elk = @import("../../root.zig");
+const Span = elk.Span;
+const Traps = elk.Traps;
 const parsing = @import("parsing.zig");
 const integers = @import("integers.zig");
 

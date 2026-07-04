@@ -43,8 +43,8 @@ Available Commands:
         Emulate an assembly instruction.
           - INSTRUCTION: Mnemonic, Operands...
         Note: Labels cannot be created or modified.
-    reset(z)
-        Reset all memory and registers to initial state.
+    reload(z)
+        Recompile .asm file, resetting memory and registers, as if ELK was run afresh.
     quit(q)
         Stop debugger and continue execution as normal.
     exit(x)

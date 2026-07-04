@@ -5,20 +5,20 @@ const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
-const reporting = @import("../../reporting/reporting.zig");
-const Reporter = reporting.Primary;
-const writeSpanContext = reporting.Sink.Fancy.writeSpanContext;
-const Traps = @import("../../Traps.zig");
-const Air = @import("../../compile/Air.zig");
-const Span = @import("../../compile/Span.zig");
-const Source = @import("../../compile/Source.zig");
-const Parser = @import("../../compile/parse/Parser.zig");
-const Runtime = @import("../Runtime.zig");
-const Instruction = @import("../decode.zig").Instruction;
+const elk = @import("../../root.zig");
+const Span = elk.Span;
+const Source = elk.Source;
+const Reporter = elk.reporting.Primary;
+const writeSpanContext = elk.reporting.Sink.Fancy.writeSpanContext;
+const Provider = elk.Provider;
+const Air = elk.Air;
+const Runtime = elk.Runtime;
 const Command = @import("Command.zig");
 const Breakpoints = @import("Breakpoints.zig");
 const Input = @import("Input.zig");
 const parse = @import("parse.zig");
+
+const Assembler = @import("../../root.zig").Assembler;
 
 state: struct {
     status: Status = .get_action,
@@ -31,23 +31,13 @@ state: struct {
 breakpoints: Breakpoints,
 initial_state: ?Runtime.State,
 provider: Provider,
+assembler: ?*Assembler,
 
 current_line: []const u8,
 input: Input,
 writer: Writer,
-traps: *const Traps,
+traps: *const elk.Traps,
 reporter: *Reporter,
-
-pub const Provider = union(enum) {
-    none,
-    assembly: Assembly,
-    symbols: []const Runtime.SymbolEntry,
-};
-
-pub const Assembly = struct {
-    air: *const Air,
-    source: Source,
-};
 
 const Status = union(enum) {
     inactive,
@@ -69,6 +59,7 @@ pub const Writer = struct {
     const prompt = "> ";
 
     inner: *Io.Writer,
+    use_color: bool,
 
     pub fn print(writer: *Writer, comptime fmt: []const u8, args: anytype) error{WriteFailed}!void {
         try writer.inner.print(fmt, args);
@@ -85,10 +76,14 @@ pub const Writer = struct {
     }
 
     pub fn enableColor(writer: *Writer) !void {
+        if (!writer.use_color)
+            return;
         try writer.print("\x1b[{}m", .{color});
     }
 
     pub fn disableColor(writer: *Writer) !void {
+        if (!writer.use_color)
+            return;
         try writer.print("\x1b[0m", .{});
     }
 
@@ -110,9 +105,11 @@ pub const Writer = struct {
 
         try writer.print("{s}", .{first});
         if (rest.len > 0) {
-            try writer.print("\x1b[2m", .{});
+            if (writer.use_color)
+                try writer.print("\x1b[2m", .{});
             try writer.print("{s}", .{rest});
-            try writer.print("\x1b[0m", .{});
+            if (writer.use_color)
+                try writer.print("\x1b[0m", .{});
         }
 
         if (cursor_opt) |cursor|
@@ -125,13 +122,15 @@ pub fn init(params: struct {
     gpa: Allocator,
     reader: *Io.Reader,
     writer: *Io.Writer,
-    traps: *const Traps,
+    traps: *const elk.Traps,
     reporter: *Reporter,
     command_buffer: []u8,
     provider: Provider,
+    assembler: ?*Assembler,
     history_file: ?Io.File = null,
     initial_command_line: []const u8 = "",
-}) error{OutOfMemory}!Debugger {
+    use_color: bool,
+}) Allocator.Error!Debugger {
     const breakpoints: Breakpoints = switch (params.provider) {
         .assembly => |assembly| try .initFrom(params.gpa, assembly.air),
         .none, .symbols => .init(params.gpa),
@@ -149,9 +148,10 @@ pub fn init(params: struct {
         .breakpoints = breakpoints,
         .initial_state = null,
         .provider = params.provider,
+        .assembler = params.assembler,
         .current_line = params.initial_command_line,
         .input = input,
-        .writer = .{ .inner = params.writer },
+        .writer = .{ .inner = params.writer, .use_color = params.use_color },
         .traps = params.traps,
         .reporter = params.reporter,
     };
@@ -168,7 +168,9 @@ pub fn initState(
     debugger: *Debugger,
     gpa: Allocator,
     runtime: *const Runtime,
-) error{OutOfMemory}!void {
+) Allocator.Error!void {
+    if (debugger.initial_state) |initial_state|
+        initial_state.deinit(gpa);
     debugger.initial_state = try .init(gpa);
     debugger.initial_state.?.copyFrom(runtime.state);
 }
@@ -314,7 +316,7 @@ fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
 
 fn getNextInstruction(runtime: *const Runtime) ?enum { ret_rets } {
     const word = runtime.state.memory[runtime.state.pc];
-    const instruction = Instruction.decode(word) catch
+    const instruction = Runtime.Instruction.decode(word) catch
         return null;
     switch (instruction) {
         .jmp_ret => |operands| if (operands.base == 7)
@@ -391,14 +393,32 @@ fn runCommand(
             };
         },
 
-        .reset => {
-            const state = debugger.initial_state orelse {
-                try debugger.reporter.report(.debugger_requires_state, .{
+        .reload => {
+            const assembler = debugger.assembler orelse {
+                try debugger.reporter.report(.debugger_requires_assembler, .{
                     .command = command.tag,
                 }).abort();
             };
-            runtime.state.copyFrom(state);
-            try debugger.writer.printLine("Reset registers and memory to initial state.", .{});
+
+            if (assembler.source.path == null) {
+                try debugger.reporter.report(.debugger_requires_file, .{
+                    .command = command.tag,
+                }).abort();
+            }
+
+            assembler.assembleFromFile() catch |err| switch (err) {
+                error.Reported => return error.Reported,
+                else => |e| {
+                    std.log.err("failed to reassemble: {t}", .{e});
+                    return error.Reported;
+                },
+            };
+
+            debugger.provider.assembly.source.text = assembler.source.text;
+            try assembler.air.copyToRuntime(runtime);
+            try debugger.initState(assembler.gpa, runtime);
+
+            try debugger.writer.printLine("Reassembled program from input file.", .{});
             debugger.state.should_print_pc = true;
         },
 
@@ -441,8 +461,8 @@ fn runCommand(
             );
             const end = try debugger.resolveMemoryLocation(
                 runtime,
-                arguments.start.value.add(arguments.length.value - 1),
-                arguments.length.span,
+                arguments.end.value,
+                arguments.end.span,
                 source,
             );
             try debugger.printListing(runtime, start, end);
@@ -496,13 +516,27 @@ fn runCommand(
             try debugger.writer.printLine("Next instruction, at x{X:04}:", .{address});
             try writeSpanContext(debugger.writer.inner, line.span, .{
                 .max_context = arguments.context.value,
+                .use_color = debugger.writer.use_color, // Not from reporter sink
             }, assembly.source);
+
+            if (debugger.initial_state) |initial_state| {
+                if (isMemoryModifiedInContext(
+                    runtime,
+                    &initial_state,
+                    assembly,
+                    line.span,
+                    arguments.context.value,
+                )) {
+                    try debugger.writer.printLine(
+                        "WARNING: Assembly may no longer correspond to modified memory",
+                        .{},
+                    );
+                }
+            }
         },
 
         .eval => |arguments| {
-            // TODO: Eval should also work with symbol table instead of assembly! #53
-            const assembly = try debugger.getAssembly(command.tag);
-            try debugger.evalCommand(runtime, assembly, arguments.instruction, source);
+            try debugger.evalCommand(runtime, arguments.instruction, source);
         },
 
         .echo => |arguments| {
@@ -602,7 +636,7 @@ fn printListing(debugger: *Debugger, runtime: *Runtime, start: u16, end: u16) !v
         {
             const width = 16;
             var buffer: [width]u8 = undefined;
-            const string = if (Instruction.decode(word)) |instruction|
+            const string = if (Runtime.Instruction.decode(word)) |instruction|
                 std.fmt.bufPrint(&buffer, "{f}", .{instruction}) catch unreachable
             else |_|
                 "";
@@ -613,18 +647,12 @@ fn printListing(debugger: *Debugger, runtime: *Runtime, start: u16, end: u16) !v
             const width = 12;
             var buffer: [width]u8 = undefined;
             var string: []const u8 = buffer[0..0];
-            // TODO: This should also work via imported symbol table! #53
-            if (debugger.getAssemblyOpt()) |assembly| {
-                if (getAssemblyLineIndexOptional(assembly.air, address)) |index| {
-                    if (getLineLabel(assembly.air, index)) |label| {
-                        const name = label.span.view(assembly.source);
-                        const length = @min(name.len, width);
-                        @memcpy(buffer[0..length], name[0..length]);
-                        if (name.len > width)
-                            buffer[width - 1] = '-';
-                        string = buffer[0..length];
-                    }
-                }
+            if (debugger.getAddressInfo(address).label) |name| {
+                const length = @min(name.len, width);
+                @memcpy(buffer[0..length], name[0..length]);
+                if (name.len > width)
+                    buffer[width - 1] = '-';
+                string = buffer[0..length];
             }
             try debugger.writer.print("  {s:<[1]}", .{ string, width });
         }
@@ -641,33 +669,53 @@ fn printBreakpoints(debugger: *Debugger) !void {
         try debugger.writer.enableColor();
         try debugger.writer.print("    | Breakpoint at 0x{X:04}", .{entry.address});
 
-        blk: {
-            // TODO: This should also work via imported symbol table! #53
-            const assembly = debugger.getAssemblyOpt() orelse
-                break :blk;
-
-            const index = getAssemblyLineIndexOptional(assembly.air, entry.address) orelse
-                break :blk;
-            const line = &assembly.air.lines.items[index];
-
-            if (getLineLabel(assembly.air, index)) |label| {
-                try debugger.writer.print(" (labelled '{s}')", .{
-                    label.span.view(assembly.source),
-                });
-            }
-
+        const info = debugger.getAddressInfo(entry.address);
+        if (info.label) |label| {
+            try debugger.writer.print(" (labelled '{s}')", .{label});
+        }
+        if (info.assembly) |assembly| {
             try debugger.writer.print(":", .{});
             try debugger.writer.disableColor();
             try debugger.writer.print("\n", .{});
-
-            try writeSpanContext(debugger.writer.inner, line.span, .{}, assembly.source);
-            continue;
+            try writeSpanContext(debugger.writer.inner, assembly.line, .{
+                .use_color = debugger.writer.use_color, // Not from reporter sink
+            }, assembly.source);
+        } else {
+            try debugger.writer.disableColor();
+            try debugger.writer.print("\n", .{});
         }
-
-        try debugger.writer.print(" (not in assembly)", .{});
-        try debugger.writer.disableColor();
-        try debugger.writer.print("\n", .{});
     }
+}
+
+const AssemblyLine = struct { line: Span, source: Source };
+
+fn getAddressInfo(debugger: *const Debugger, address: u16) //
+struct { label: ?[]const u8, assembly: ?AssemblyLine } {
+    if (debugger.getAddressInfoAssembly(address)) |info|
+        return .{ .label = info.label, .assembly = info.assembly };
+
+    const label = switch (debugger.provider) {
+        else => null,
+        .symbols => |symbols| if (symbols.getName(address)) |label| label else null,
+    };
+    return .{ .label = label, .assembly = null };
+}
+
+fn getAddressInfoAssembly(debugger: *const Debugger, address: u16) //
+?struct { label: ?[]const u8, assembly: AssemblyLine } {
+    const assembly = debugger.getAssemblyOpt() orelse
+        return null;
+    const index = getAssemblyLineIndexOptional(assembly.air, address) orelse
+        return null;
+    const line = &assembly.air.lines.items[index];
+
+    const label =
+        if (getLineLabel(assembly.air, index)) |label| label.span.view(assembly.source) else null;
+
+    return .{
+        .label = label,
+        .assembly = .{ .line = line.span, .source = assembly.source },
+    };
 }
 
 fn getLineLabel(air: *const Air, index: usize) ?*const Air.Label {
@@ -686,23 +734,16 @@ fn getLineLabel(air: *const Air, index: usize) ?*const Air.Label {
 fn evalCommand(
     debugger: *Debugger,
     runtime: *Runtime,
-    assembly: Assembly,
-    span: Span,
+    line: Span,
     source: Source,
 ) (Runtime.HostError || error{Reported})!void {
-    const line = span.view(source);
-
-    const asm_instr = try debugger.parseInstructionLine(
-        assembly,
-        line,
-        runtime.state.pc - assembly.air.origin,
-    );
-
-    const runtime_instr = Instruction.decode(asm_instr.encode()) catch
+    const asm_instr = try debugger.parseInstructionLine(line.view(source), runtime.state.pc);
+    const runtime_instr = Runtime.Instruction.decode(asm_instr.encode()) catch
         // Any encoded instruction must be valid to decode
         unreachable;
 
     runtime.runInstruction(runtime_instr) catch |err| switch (err) {
+        error.OutOfMemory,
         error.WriteFailed,
         error.ReadFailed,
         error.EndOfStream,
@@ -721,17 +762,15 @@ fn evalCommand(
 
 fn parseInstructionLine(
     debugger: *const Debugger,
-    assembly: Assembly,
     line: []const u8,
     index: usize,
 ) error{Reported}!Air.Instruction {
     const source: Source = .{ .text = line, .path = null };
-
     var reporter = debugger.copyReporter(source);
-    var parser = try Parser.new(debugger.traps, source, &reporter);
+    var parser = try elk.Parser.new(debugger.traps, source, &reporter);
 
     var instruction = try parser.parseInstruction();
-    try parser.resolveLabelOperand(assembly.air, assembly.source, &instruction, index);
+    try debugger.provider.resolveOperand(&instruction, index, source, &reporter);
     return instruction;
 }
 
@@ -836,7 +875,7 @@ fn resolveLabelAddress(debugger: *const Debugger, label: Span, source: Source) e
         },
 
         .symbols => |symbols| {
-            return Runtime.getSymbolAddress(label.view(source), symbols) catch {
+            return symbols.getAddress(label.view(source)) orelse {
                 try debugger.reporter.report(.symbol_not_found, .{
                     .symbol = label,
                 }).abort();
@@ -851,16 +890,16 @@ fn resolveLabelAddress(debugger: *const Debugger, label: Span, source: Source) e
 
 fn resolveLabelIndex(
     debugger: *const Debugger,
-    assembly: Assembly,
+    assembly: Provider.Assembly,
     label: Span,
     source: Source,
 ) error{Reported}!u16 {
     const string = label.view(source);
 
-    if (assembly.air.findLabel(string, .sensitive, assembly.source)) |result|
+    if (assembly.air.findLabel(.exact, string, assembly.source)) |result|
         return result.index;
 
-    if (assembly.air.findLabel(string, .insensitive, assembly.source)) |result| {
+    if (assembly.air.findLabel(.nearest, string, assembly.source)) |result| {
         debugger.reporter.report(.debugger_label_partial_match, .{
             .reference = label,
             .nearest = result.span,
@@ -871,12 +910,12 @@ fn resolveLabelIndex(
 
     try debugger.reporter.report(.undefined_label, .{
         .reference = label,
-        .nearest = null,
+        .nearest = .none,
         .definition_source = assembly.source,
     }).abort();
 }
 
-fn getAssembly(debugger: *const Debugger, span: Span) error{Reported}!Assembly {
+fn getAssembly(debugger: *const Debugger, span: Span) error{Reported}!Provider.Assembly {
     return debugger.getAssemblyOpt() orelse {
         try debugger.reporter.report(.debugger_requires_assembly, .{
             .command = span,
@@ -884,7 +923,7 @@ fn getAssembly(debugger: *const Debugger, span: Span) error{Reported}!Assembly {
     };
 }
 
-fn getAssemblyOpt(debugger: *const Debugger) ?Assembly {
+fn getAssemblyOpt(debugger: *const Debugger) ?Provider.Assembly {
     switch (debugger.provider) {
         .assembly => |assembly| return assembly,
         .none, .symbols => return null,
@@ -902,6 +941,23 @@ fn ensureUserAddress(debugger: *Debugger, address: u16, span: Span) error{Report
             }).abort();
         },
     }
+}
+
+fn isMemoryModifiedInContext(
+    runtime: *const Runtime,
+    initial_state: *const Runtime.State,
+    assembly: Provider.Assembly,
+    span: Span,
+    max_context: usize,
+) bool {
+    const lines = span.getSurroundingLines(max_context, assembly.source.text);
+
+    for (assembly.air.lines.items, assembly.air.origin..) |line, address| {
+        if (line.span.overlaps(lines) and
+            runtime.state.memory[address] != initial_state.memory[address])
+            return true;
+    }
+    return false;
 }
 
 fn readCommand(debugger: *Debugger, runtime: *Runtime) ![]const u8 {

@@ -2,7 +2,8 @@ const Command = @This();
 
 const std = @import("std");
 
-const Span = @import("../../compile/Span.zig");
+const elk = @import("../../root.zig");
+const Span = elk.Span;
 const Spanned = Span.Spanned;
 
 line: Span,
@@ -14,7 +15,7 @@ pub const Value = union(enum) {
     quit,
     exit,
     clear,
-    reset,
+    reload,
     registers,
     @"continue",
     print: struct {
@@ -22,7 +23,7 @@ pub const Value = union(enum) {
     },
     list: struct {
         start: Spanned(Location.Memory),
-        length: Spanned(u16),
+        end: Spanned(Location.Memory),
     },
     move: struct {
         location: Spanned(Location),
@@ -66,20 +67,28 @@ pub const Location = union(enum) {
         pc_offset: i16,
         label: Label,
 
-        pub fn add(location: Memory, offset: u16) Memory {
-            // FIXME: Handle overflows
+        pub fn add(location: Memory, length: u16) error{Overflow}!Memory {
             return switch (location) {
                 .address => |address| .{
-                    .address = address + offset,
+                    .address = try std.math.add(u16, address, length),
                 },
                 .pc_offset => |pc_offset| .{
-                    .pc_offset = pc_offset + @as(i16, @intCast(offset)),
+                    .pc_offset = try addToOffset(pc_offset, length),
                 },
                 .label => |label| .{ .label = .{
                     .name = label.name,
-                    .offset = label.offset + @as(i16, @intCast(offset)),
+                    .offset = try addToOffset(label.offset, length),
                 } },
             };
+        }
+
+        fn addToOffset(offset: i16, length: u16) error{Overflow}!i16 {
+            return try std.math.add(
+                i16,
+                offset,
+                std.math.cast(i16, length) orelse
+                    return error.Overflow,
+            );
         }
     };
 };
@@ -95,7 +104,7 @@ pub fn tagString(command: Tag) [:0]const u8 {
         .quit => "quit",
         .exit => "exit",
         .clear => "clear",
-        .reset => "reset",
+        .reload => "reload",
         .registers => "registers",
         .@"continue" => "continue",
         .print => "print",

@@ -3,7 +3,8 @@ const Lexer = @This();
 const std = @import("std");
 const assert = std.debug.assert;
 
-const Span = @import("../Span.zig");
+const elk = @import("../../root.zig");
+const Span = elk.Span;
 
 source: []const u8,
 index: usize,

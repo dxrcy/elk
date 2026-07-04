@@ -4,9 +4,11 @@ const std = @import("std");
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
 
+const elk = @import("../root.zig");
+const Policies = elk.Policies;
+const Traps = elk.Traps;
+const Provider = elk.Provider;
 const Debugger = @import("debugger/Debugger.zig");
-const Policies = @import("../policies.zig").Policies;
-const Traps = @import("../Traps.zig");
 const Tty = @import("Tty.zig");
 
 pub const Callback = @import("../callback.zig").Callback;
@@ -36,7 +38,7 @@ pub const State = struct {
     pc: u16,
     condition: Condition,
 
-    pub fn init(gpa: Allocator) error{OutOfMemory}!State {
+    pub fn init(gpa: Allocator) Allocator.Error!State {
         const memory = try gpa.alloc(u16, memory_size);
 
         @memset(memory[0..user_memory_start], memory_init_privileged);
@@ -71,7 +73,6 @@ const Error = Exception || HostError;
 /// The user's program or configuration (traps, policies) is erroneous.
 pub const Exception = error{
     IncorrectPadding,
-    InvalidOperand,
     UnhandledTrap,
     UnsupportedRti,
     UnpermittedOpcode,
@@ -80,12 +81,11 @@ pub const Exception = error{
 };
 
 /// Stdio or terminal failure.
-pub const HostError = error{
-    WriteFailed,
-    ReadFailed,
-    EndOfStream,
-    TermiosFailed,
-};
+pub const HostError =
+    Allocator.Error ||
+    Io.Writer.Error ||
+    Io.Reader.Error ||
+    error{ EndOfStream, TermiosFailed };
 
 const Condition = enum(u3) {
     negative = 0b100,
@@ -96,11 +96,6 @@ const Condition = enum(u3) {
 pub const Hooks = struct {
     pre_decode: ?Callback(&.{ *Runtime, u16 }, HostError!void) = null,
     pre_execute: ?Callback(&.{ *Runtime, Instruction }, HostError!void) = null,
-};
-
-pub const SymbolEntry = struct {
-    address: u16,
-    name: []const u8,
 };
 
 pub fn init(params: struct {
@@ -131,21 +126,25 @@ pub fn deinit(runtime: Runtime, gpa: Allocator) void {
 
 pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !void {
     var reader = file.reader(io, buffer);
-    const metadata = try file.stat(io);
 
-    if (metadata.size < 2)
-        return error.FileTooSmall;
-    if (metadata.size % 2 != 0)
-        return error.FileNotAligned;
-
-    const origin = try reader.interface.takeInt(u16, .big);
+    const origin = reader.interface.takeInt(u16, .big) catch |err| switch (err) {
+        else => |e| return e,
+        error.EndOfStream => return error.FileTooSmall,
+    };
     runtime.state.pc = origin;
 
     var i: usize = 0;
-    const words = metadata.size / 2 - 1;
-    while (i < words) : (i += 1) {
-        const raw = try reader.interface.takeInt(u16, .big);
-        try runtime.setMemory(@intCast(origin + i), raw);
+    while (true) : (i += 1) {
+        const high = reader.interface.takeByte() catch |err| switch (err) {
+            else => |e| return e,
+            error.EndOfStream => break,
+        };
+        const low = reader.interface.takeByte() catch |err| switch (err) {
+            else => |e| return e,
+            error.EndOfStream => return error.FileNotAligned,
+        };
+        const word = (@as(u16, high) << 8) | low;
+        try runtime.setMemory(@intCast(origin + i), word);
     }
 }
 
@@ -153,18 +152,11 @@ pub fn patchLabelValue(
     runtime: *Runtime,
     name: []const u8,
     raw_word: u16,
-    symbols: []const SymbolEntry,
+    symbols: Provider.Symbols,
 ) error{ SymbolNotFound, UnpermittedMemoryAccess }!void {
-    const address = try getSymbolAddress(name, symbols);
+    const address = symbols.getAddress(name) orelse
+        return error.SymbolNotFound;
     try runtime.setMemory(address, raw_word);
-}
-
-pub fn getSymbolAddress(name: []const u8, symbols: []const SymbolEntry) error{SymbolNotFound}!u16 {
-    for (symbols) |entry| {
-        if (std.mem.eql(u8, entry.name, name))
-            return entry.address;
-    }
-    return error.SymbolNotFound;
 }
 
 pub fn run(runtime: *Runtime) Error!void {
@@ -180,6 +172,7 @@ pub fn run(runtime: *Runtime) Error!void {
         }
 
         runtime.runNextInstruction() catch |err| switch (err) {
+            error.OutOfMemory,
             error.WriteFailed,
             error.ReadFailed,
             error.EndOfStream,

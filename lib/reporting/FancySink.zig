@@ -3,11 +3,12 @@ const FancySink = @This();
 const std = @import("std");
 const Io = std.Io;
 
-const Source = @import("../compile/Source.zig");
-const Parser = @import("../compile/parse/Parser.zig");
+const elk = @import("../root.zig");
+const Source = elk.Source;
+const Parser = elk.Parser;
+const reporting = elk.reporting;
 const DebuggerCommand = @import("../emulate/debugger/Command.zig");
 const Ctx = @import("Ctx.zig");
-const reporting = @import("reporting.zig");
 const Sink = @import("Sink.zig");
 const diagnostic = @import("diagnostic.zig");
 const Diagnostic = diagnostic.Diagnostic;
@@ -16,11 +17,10 @@ const TokenKinds = diagnostic.TokenKinds;
 pub const writeSpanContext = Ctx.writeSpanContext;
 
 writer: *Io.Writer,
+use_color: bool,
 
-pub fn new(writer: *Io.Writer) FancySink {
-    return .{
-        .writer = writer,
-    };
+pub fn new(writer: *Io.Writer, use_color: bool) FancySink {
+    return .{ .writer = writer, .use_color = use_color };
 }
 
 pub fn interface(sink: *FancySink) Sink {
@@ -38,7 +38,7 @@ pub fn sendDiagnostic(
     diag: Diagnostic,
     level: reporting.Level,
     verbosity: reporting.Options.Verbosity,
-    source: Source,
+    source: ?Source,
 ) error{WriteFailed}!void {
     const sink: *FancySink = @ptrCast(@alignCast(ptr));
 
@@ -47,10 +47,11 @@ pub fn sendDiagnostic(
         sink.writer,
         verbosity,
         level,
+        sink.use_color,
         &ctx_items,
         source,
     );
-    try writeDiagnostic(ctx, diag, source);
+    try writeDiagnostic(ctx, diag);
     try sink.writer.flush();
 }
 
@@ -69,32 +70,37 @@ pub fn sendSummary(
         sink.writer,
         verbosity,
         .warn,
+        sink.use_color,
         null,
         null,
     );
 
     if (count_err > 0) {
-        try ctx.writer.print("\x1b[31m", .{});
+        if (sink.use_color)
+            try ctx.writer.print("\x1b[31m", .{});
         try ctx.writer.print("{} error{s}", .{
             count_err, if (count_err == 1) "" else "s",
         });
-        try ctx.writer.print("\x1b[0m", .{});
+        if (sink.use_color)
+            try ctx.writer.print("\x1b[0m", .{});
         try ctx.writer.print("\n", .{});
     }
 
     if (count_warn > 0) {
-        try ctx.writer.print("\x1b[33m", .{});
+        if (sink.use_color)
+            try ctx.writer.print("\x1b[33m", .{});
         try ctx.writer.print("{} warning{s}", .{
             count_warn, if (count_warn == 1) "" else "s",
         });
-        try ctx.writer.print("\x1b[0m", .{});
+        if (sink.use_color)
+            try ctx.writer.print("\x1b[0m", .{});
         try ctx.writer.print("\n", .{});
     }
 
     try sink.writer.flush();
 }
 
-fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed}!void {
+fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
     switch (diag) {
         .invalid_source_byte => |info| {
             try ctx.writeTitle("Assembly file contains invalid bytes", .{});
@@ -192,7 +198,10 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
             try ctx.deepen().writeSourceNote(
                 "Origin must be declared at start of file",
                 .{},
-                info.first_token orelse .firstCharOf(source.text),
+                if (ctx.source) |source|
+                    info.first_token orelse .firstCharOf(source.text)
+                else
+                    null,
             );
         },
         .missing_origin => |info| {
@@ -200,7 +209,10 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
             try ctx.deepen().writeSourceNote(
                 "Origin should be declared before any instructions",
                 .{},
-                info.first_token orelse .firstCharOf(source.text),
+                if (ctx.source) |source|
+                    info.first_token orelse .firstCharOf(source.text)
+                else
+                    null,
             );
         },
         .missing_end => |info| {
@@ -208,7 +220,10 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
             try ctx.deepen().writeSourceNote(
                 "End should be declared after included all instructions",
                 .{},
-                info.last_token orelse .lastCharOf(source.text),
+                if (ctx.source) |source|
+                    info.last_token orelse .lastCharOf(source.text)
+                else
+                    null,
             );
         },
 
@@ -228,7 +243,14 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
             if (info.target) |target|
                 try ctx.deepen().writeSourceNote("Token cannot be annotated with label", .{}, target)
             else
-                try ctx.deepen().writeSourceNote("Label is not followed by any token", .{}, .lastCharOf(source.text));
+                try ctx.deepen().writeSourceNote(
+                    "Label is not followed by any token",
+                    .{},
+                    if (ctx.source) |source|
+                        .lastCharOf(source.text)
+                    else
+                        null,
+                );
         },
         .label_colon => |info| {
             try ctx.writeTitle("Label followed by colon `:`", .{});
@@ -244,10 +266,14 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
         .undefined_label => |info| {
             try ctx.writeTitle("Label is not declared", .{});
             try ctx.deepen().writeSourceNote("Label used here", .{}, info.reference);
-            if (info.nearest) |close_match| {
-                try ctx.deepen().withSource(info.definition_source)
-                    .writeSourceNote("This label declaration is similar", .{}, close_match);
-                try ctx.deepen().writeNote("Label names are case-sensitive", .{});
+            switch (info.nearest) {
+                .none => {},
+                .case_insensitive, .edit_distance => |nearest| {
+                    try ctx.deepen().withSource(info.definition_source)
+                        .writeSourceNote("This label declaration is similar", .{}, nearest);
+                    if (info.nearest == .case_insensitive)
+                        try ctx.deepen().writeNote("Label names are case-sensitive", .{});
+                },
             }
         },
         .unused_label => |info| {
@@ -255,35 +281,39 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
             try ctx.deepen().writeSourceNote("Label declared here", .{}, info.label);
         },
 
-        // TODO: Change "operand" to "argument", and elsewhere
         .malformed_integer => |info| {
-            try ctx.writeTitle("Malformed integer operand", .{});
-            try ctx.deepen().writeSourceNote("Operand", .{}, info.integer);
+            try ctx.writeTitle("Malformed integer argument", .{});
+            try ctx.deepen().writeSourceNote("Argument", .{}, info.integer);
             try ctx.deepen().writeNote("Integer token is not in an valid form", .{});
         },
         .malformed_character => |info| {
-            try ctx.writeTitle("Malformed character literal operand", .{});
-            try ctx.deepen().writeSourceNote("Operand", .{}, info.integer);
+            try ctx.writeTitle("Malformed character literal argument", .{});
+            try ctx.deepen().writeSourceNote("Argument", .{}, info.integer);
             try ctx.deepen().writeNote("Character literal token is invalid", .{});
         },
         .expected_digit => |info| {
-            try ctx.writeTitle("Expected digit in integer operand", .{});
-            try ctx.deepen().writeSourceNote("Operand", .{}, info.integer);
+            try ctx.writeTitle("Expected digit in integer argument", .{});
+            try ctx.deepen().writeSourceNote("Argument", .{}, info.integer);
             try ctx.deepen().writeNote("Integer token ended unexpectedly", .{});
         },
         .invalid_digit => |info| {
-            try ctx.writeTitle("Invalid digit in integer operand", .{});
-            try ctx.deepen().writeSourceNote("Operand", .{}, info.integer);
+            try ctx.writeTitle("Invalid digit in integer argument", .{});
+            try ctx.deepen().writeSourceNote("Argument", .{}, info.integer);
             try ctx.deepen().writeNote("Integer token contains a character which is not valid in the base", .{});
         },
         .unexpected_delimiter => |info| {
-            try ctx.writeTitle("Unexpected digit delimiter in integer operand", .{});
-            try ctx.deepen().writeSourceNote("Operand", .{}, info.integer);
+            try ctx.writeTitle("Unexpected digit delimiter in integer argument", .{});
+            try ctx.deepen().writeSourceNote("Argument", .{}, info.integer);
             try ctx.deepen().writeNote("Delimiter character `_` must appear between digits", .{});
         },
         .nonstandard_integer_radix => |info| {
             try ctx.writeTitle("Integer uses non-standard base specifier '{t}'", .{info.radix});
             try ctx.deepen().writeSourceNote("Integer", .{}, info.integer);
+        },
+        .implicit_integer_radix => |info| {
+            try ctx.writeTitle("Integer uses implicit decimal base", .{});
+            try ctx.deepen().writeSourceNote("Integer", .{}, info.integer);
+            try ctx.deepen().writeNote("{s}", .{"Decimal integer literal should begin with `#`"});
         },
         .nonstandard_integer_form => |info| {
             try ctx.writeTitle("Integer uses non-standard syntax", .{});
@@ -299,7 +329,6 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
                 .leading_zero => "Leading zero should not appear before base specifier",
                 .pre_radix_sign => "Sign character should appear after decimal base specifier",
                 .post_radix_sign => "Sign character should appear before non-decimal base specifier",
-                .implicit_radix => "Decimal integer literal should begin with `#`",
             }});
         },
         .character_integer => |info| {
@@ -308,11 +337,11 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
         },
 
         .integer_too_large => |info| {
-            try ctx.writeTitle("Integer operand is too large", .{});
-            try ctx.deepen().writeSourceNote("Operand", .{}, info.integer);
+            try ctx.writeTitle("Integer argument is too large", .{});
+            try ctx.deepen().writeSourceNote("Argument", .{}, info.integer);
             try ctx.deepen().writeNote("Value cannot be represented in {} bits", .{info.type_info.bits});
             if (info.type_info.signedness == .signed) {
-                try ctx.deepen().writeNote("Since the operand is a signed integer, the highest bit is reserved as the sign bit", .{});
+                try ctx.deepen().writeNote("Since the argument is a signed integer, the highest bit is reserved as the sign bit", .{});
             }
         },
         .offset_too_large => |info| {
@@ -323,8 +352,8 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
             try ctx.deepen().writeNote("Address offset of {} words cannot be represented in {} bits", .{ info.offset, info.bits });
         },
         .unexpected_negative_integer => |info| {
-            try ctx.writeTitle("Integer operand cannot be negative", .{});
-            try ctx.deepen().writeSourceNote("Operand", .{}, info.integer);
+            try ctx.writeTitle("Integer argument cannot be negative", .{});
+            try ctx.deepen().writeSourceNote("Argument", .{}, info.integer);
         },
 
         .unmatched_quote => |info| {
@@ -364,9 +393,26 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
 
         .emulate_exception => |info| {
             try ctx.writeTitle("Runtime exception: {t}", .{info.code});
-            // TODO: Add additional information
+            try ctx.deepen().writeNote("{s}", .{switch (info.code) {
+                error.IncorrectPadding => "The instruction format contains invalid values for padding bits",
+                error.UnhandledTrap => "No trap routine is defined for the trap vector",
+                error.UnsupportedRti => "The RTI instruction is not supported by this implementation",
+                error.UnpermittedOpcode => "The executed instruction is not supported in this mode",
+                error.UnpermittedMemoryAccess => "The emulator tried to access supervisor-only memory while in user mode",
+                error.TrapFailed => "The trap routine failed due to an internal problem",
+            }});
         },
 
+        .debugger_requires_assembler => |info| {
+            try ctx.writeTitle("Command requires access to assembler system", .{});
+            try ctx.deepen().writeSourceNote("Command", .{}, info.command);
+            // TODO: Add more info or change info
+        },
+        .debugger_requires_file => |info| {
+            try ctx.writeTitle("Command cannot be used with stdin input file", .{});
+            try ctx.deepen().writeSourceNote("Command", .{}, info.command);
+            // TODO: Add more info or change info
+        },
         .debugger_requires_assembly => |info| {
             try ctx.writeTitle("Command requires access to assembly", .{});
             try ctx.deepen().writeSourceNote("Command", .{}, info.command);
@@ -377,11 +423,6 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
             try ctx.deepen().writeSourceNote("Command", .{}, info.command);
             try ctx.deepen().writeNote("Debugger does not have access to original assembly", .{});
             try ctx.deepen().writeNote("Debugger does not have access to imported symbol table", .{});
-        },
-        .debugger_requires_state => |info| {
-            try ctx.writeTitle("Command requires initial state to be set", .{});
-            try ctx.deepen().writeSourceNote("Command", .{}, info.command);
-            try ctx.deepen().writeNote("Debugger does not have access to initial emulator state", .{});
         },
         .debugger_address_not_in_assembly => |info| {
             try ctx.writeTitle("Address x{X:04} is not contained in assembly source", .{info.value});
@@ -413,7 +454,7 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic, source: Source) error{WriteFailed
                 try ctx.deepen().writeNote("Did you mean `{s}`?", .{DebuggerCommand.tagString(nearest)});
         },
         .debugger_missing_subcommand => |info| {
-            try ctx.writeTitle("Missing subcommand for `{s}`", .{info.first.view(source)});
+            try ctx.writeTitle("Missing subcommand for `{s}`", .{info.first});
             try ctx.deepen().writeSourceNote("Command requires subcommand", .{}, info.eol);
         },
         .debugger_unexpected_eol => |info| {

@@ -4,13 +4,13 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
-const Traps = @import("../../Traps.zig");
-const Reporter = @import("../../reporting/reporting.zig").Primary;
-const Air = @import("../Air.zig");
-const Instruction = @import("../instruction.zig").Instruction;
-const Span = @import("../Span.zig");
-const Source = @import("../Source.zig");
-const Operand = @import("../Operand.zig");
+const elk = @import("../../root.zig");
+const Span = elk.Span;
+const Source = elk.Source;
+const Reporter = elk.reporting.Primary;
+const Air = elk.Air;
+const Instruction = Air.Instruction;
+const Operand = Instruction.Operand;
 const Tokenizer = @import("Tokenizer.zig");
 const Lexer = @import("Lexer.zig");
 const Token = @import("Token.zig");
@@ -21,8 +21,10 @@ pub const max_line_width = 80;
 tokenizer: Tokenizer,
 origin: ?Span,
 
+pub const parseInteger = @import("integers.zig").tryInteger;
+
 pub fn new(
-    traps: *const Traps,
+    traps: *const elk.Traps,
     source_: Source,
     reporter_: *Reporter,
 ) error{Reported}!Parser {
@@ -56,7 +58,7 @@ const InnerError = error{
     OutOfMemory,
 };
 
-pub fn parseAir(parser: *Parser, gpa: Allocator, air: *Air) error{OutOfMemory}!void {
+pub fn parseAir(parser: *Parser, gpa: Allocator, air: *Air) Allocator.Error!void {
     var missing_end = false;
 
     while (true) {
@@ -89,7 +91,7 @@ pub fn parseAir(parser: *Parser, gpa: Allocator, air: *Air) error{OutOfMemory}!v
             }).proceed(); // Can't return `error.Reported`
         }
 
-        parser.discardCurrentLabel(air, null) catch
+        parser.ensureNoCurrentLabel(air, null) catch
             {}; // Can't return `error.Reported`
 
         if (missing_end) {
@@ -228,8 +230,7 @@ pub fn parseInstruction(parser: *Parser) error{Reported}!Instruction {
     }
 }
 
-// TODO: Rename, too close to `removeCurrentLabel`
-fn discardCurrentLabel(parser: *Parser, air: *Air, target: ?Span) error{Reported}!void {
+fn ensureNoCurrentLabel(parser: *Parser, air: *Air, target: ?Span) error{Reported}!void {
     if (parser.removeCurrentLabel(air)) |label| {
         try parser.reporter().report(.invalid_label_target, .{
             .label = label,
@@ -323,12 +324,12 @@ fn parseDirective(
 ) InnerError!Control {
     switch (directive) {
         .end => {
-            try parser.discardCurrentLabel(air, span);
+            try parser.ensureNoCurrentLabel(air, span);
             return .@"break";
         },
 
         .orig => {
-            try parser.discardCurrentLabel(air, span);
+            try parser.ensureNoCurrentLabel(air, span);
 
             const origin = try parser.tokenizer.expectArgument(.word);
             if (parser.origin) |existing| {
@@ -518,11 +519,13 @@ pub fn resolveLabelReferences(parser: *Parser, air: *Air) void {
             .raw_word => continue,
             .instruction => |*instruction| instruction,
         };
-        parser.resolveLabelOperand(
-            air,
-            parser.source(),
+
+        elk.Provider.resolveOperand(
+            .{ .assembly = .{ .air = air, .source = parser.source() } },
             instruction,
-            index + 1, // PC is at N+1 when instruction N is interpreted
+            index + air.origin + 1, // PC is at N+1 when instruction N is interpreted
+            parser.source(),
+            parser.reporter(),
         ) catch |err| switch (err) {
             error.Reported => continue,
         };
@@ -535,82 +538,4 @@ pub fn resolveLabelReferences(parser: *Parser, air: *Air) void {
             }).proceed();
         }
     }
-}
-
-pub fn resolveLabelOperand(
-    parser: *Parser,
-    air: *const Air,
-    air_source: Source,
-    instruction: *Instruction,
-    index: usize,
-) error{Reported}!void {
-    return switch (instruction.*) {
-        .br => |*operands| parser.resolveFieldLabel(air, air_source, &operands.dest, index),
-        .jsr => |*operands| parser.resolveFieldLabel(air, air_source, &operands.dest, index),
-        .ld => |*operands| parser.resolveFieldLabel(air, air_source, &operands.src, index),
-        .ldi => |*operands| parser.resolveFieldLabel(air, air_source, &operands.src, index),
-        .lea => |*operands| parser.resolveFieldLabel(air, air_source, &operands.src, index),
-        .st => |*operands| parser.resolveFieldLabel(air, air_source, &operands.dest, index),
-        .sti => |*operands| parser.resolveFieldLabel(air, air_source, &operands.dest, index),
-        .call => |*operands| parser.resolveFieldLabel(air, air_source, &operands.dest, index),
-        else => {},
-    };
-}
-
-fn resolveFieldLabel(
-    parser: *Parser,
-    air: *const Air,
-    air_source: Source,
-    operand: anytype,
-    index: usize,
-) error{Reported}!void {
-    // Extract integer type from operand argument type
-    const Spanned = @typeInfo(@TypeOf(operand)).pointer.child;
-    const Value = @FieldType(Spanned, "value");
-    const Formed = @FieldType(Value, "resolved");
-    const Int = @FieldType(Formed, "integer");
-
-    switch (operand.value) {
-        .unresolved => {},
-        .resolved => return,
-    }
-
-    const string = operand.span.view(parser.source());
-
-    const definition =
-        air.findLabel(string, .sensitive, air_source) orelse {
-            const near_match = air.findLabel(string, .insensitive, air_source);
-            try parser.reporter().report(.undefined_label, .{
-                .reference = operand.span,
-                .nearest = if (near_match) |label| label.span else null,
-                .definition_source = air_source,
-            }).abort();
-        };
-
-    const offset = calculateOffset(Int, definition.index, index) orelse {
-        try parser.reporter().report(.offset_too_large, .{
-            .reference = operand.span,
-            .definition = definition.span,
-            .offset = calculateOffset(i17, definition.index, index) orelse
-                unreachable,
-            .bits = @typeInfo(Int).int.bits,
-            .definition_source = air_source,
-        }).abort();
-    };
-
-    definition.references += 1;
-    operand.value = .{ .resolved = .{ .integer = offset, .form = null } };
-}
-
-fn calculateOffset(comptime T: type, definition: usize, reference: usize) ?T {
-    comptime assert(@typeInfo(T).int.signedness == .signed);
-    return std.math.cast(
-        T,
-        std.math.sub(
-            isize,
-            @intCast(definition),
-            @intCast(reference),
-        ) catch
-            return null,
-    );
 }

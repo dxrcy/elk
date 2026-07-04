@@ -13,8 +13,12 @@ pub fn Options(comptime template: anytype) type {
         flags: FlagValues(template),
         pos: std.ArrayList([]const u8),
 
-        pub fn parse(arena: Allocator, args: []const []const u8) !Options(template) {
-            return parseCli(template, arena, args);
+        pub fn parse(
+            gpa: Allocator,
+            arena: Allocator,
+            args: []const []const u8,
+        ) !Options(template) {
+            return parseCli(template, gpa, arena, args);
         }
 
         pub fn deinit(options: *@This(), arena: Allocator) void {
@@ -23,16 +27,18 @@ pub fn Options(comptime template: anytype) type {
 
         pub fn getPos(
             options: *const @This(),
+            gpa: Allocator,
             comptime value: ArgValue,
             comptime name: @EnumLiteral(),
             index: usize,
         ) !value.type {
-            return options.getPosInner(value, name, index) catch |err| {
+            return options.getPosInner(gpa, value, name, index) catch |err| {
                 switch (err) {
                     error.MissingArgument => {
                         log.err("missing positional argument '{t}'", .{name});
                     },
-                    error.ParseFailed => {},
+                    error.InvalidValue => {},
+                    error.OutOfMemory => |e| return e,
                 }
                 return error.ParseFailed;
             };
@@ -40,27 +46,29 @@ pub fn Options(comptime template: anytype) type {
 
         pub fn getPosOptional(
             options: *const @This(),
+            gpa: Allocator,
             comptime value: ArgValue,
             comptime name: @EnumLiteral(),
             index: usize,
         ) ?value.type {
-            return options.getPosInner(value, name, index) catch
+            return options.getPosInner(gpa, value, name, index) catch
                 return null;
         }
 
         pub fn getPosInner(
             options: *const @This(),
+            gpa: Allocator,
             comptime value: ArgValue,
             comptime name: @EnumLiteral(),
             index: usize,
-        ) error{ MissingArgument, ParseFailed }!value.type {
+        ) (error{MissingArgument} || ArgValue.ParseError)!value.type {
             _ = name;
             if (options.pos.items.len <= index)
                 return error.MissingArgument;
             const raw = options.pos.items[index];
 
             var dest: ?value.type = null;
-            try value.parser(&dest, raw);
+            try value.parser(&dest, raw, gpa);
             return dest orelse unreachable;
         }
     };
@@ -70,7 +78,7 @@ pub const types = struct {
     pub const string: ArgValue = .{
         .type = []const u8,
         .parser = struct {
-            fn parser(dest: *anyopaque, src: []const u8) !void {
+            fn parser(dest: *anyopaque, src: []const u8, _: Allocator) !void {
                 cast([]const u8, dest).* = src;
             }
         }.parser,
@@ -79,7 +87,7 @@ pub const types = struct {
     pub const integer: ArgValue = .{
         .type = i32,
         .parser = struct {
-            fn parser(dest: *anyopaque, src: []const u8) !void {
+            fn parser(dest: *anyopaque, src: []const u8, _: Allocator) !void {
                 cast(i32, dest).* =
                     std.fmt.parseInt(i32, src, 10) catch
                         return error.ParseFailed;
@@ -90,7 +98,7 @@ pub const types = struct {
     pub const path: ArgValue = .{
         .type = Path,
         .parser = struct {
-            fn parser(dest: *anyopaque, src: []const u8) !void {
+            fn parser(dest: *anyopaque, src: []const u8, _: Allocator) !void {
                 cast(Path, dest).* =
                     if (std.mem.eql(u8, src, "-")) .stdio else .{ .regular = src };
             }
@@ -104,13 +112,6 @@ pub const types = struct {
     pub const Path = union(enum) {
         stdio,
         regular: []const u8,
-
-        pub fn asRegular(self: Path) ![]const u8 {
-            return switch (self) {
-                .stdio => error.UnsupportedStdio,
-                .regular => |regular| regular,
-            };
-        }
     };
 };
 
@@ -124,7 +125,9 @@ pub const Flag = struct {
 const ArgValue = struct {
     type: type,
     parser: Parser,
-    const Parser = fn (dest: *anyopaque, src: []const u8) error{ParseFailed}!void;
+
+    const Parser = fn (dest: *anyopaque, src: []const u8, gpa: Allocator) ParseError!void;
+    const ParseError = error{InvalidValue} || Allocator.Error;
 };
 
 fn FlagValues(comptime template: anytype) type {
@@ -151,13 +154,13 @@ fn FlagValues(comptime template: anytype) type {
     return @Struct(.auto, null, &info.names, &info.types, &info.attrs);
 }
 
-pub fn collectArgs(arena: Allocator, args: std.process.Args) !std.ArrayList([]const u8) {
+pub fn collectArgs(gpa: Allocator, args: std.process.Args) !std.ArrayList([]const u8) {
     var list = std.ArrayList([]const u8).empty;
-    var iter = try args.iterateAllocator(arena);
+    var iter = try args.iterateAllocator(gpa);
 
     _ = iter.next();
     while (iter.next()) |arg| {
-        try list.append(arena, arg);
+        try list.append(gpa, arg);
     }
 
     return list;
@@ -165,6 +168,7 @@ pub fn collectArgs(arena: Allocator, args: std.process.Args) !std.ArrayList([]co
 
 fn parseCli(
     comptime template: anytype,
+    gpa: Allocator,
     arena: Allocator,
     args: []const []const u8,
 ) !Options(template) {
@@ -173,7 +177,7 @@ fn parseCli(
     defer flag_args.deinit(arena);
 
     try parseArgs(template, arena, args, &flag_args, &pos_args);
-    const flags = try parseFlagValues(template, args, flag_args.items);
+    const flags = try parseFlagValues(template, gpa, args, flag_args.items);
 
     return .{
         .flags = flags,
@@ -316,6 +320,7 @@ fn parseArgs(
 
 fn parseFlagValues(
     comptime template: anytype,
+    gpa: Allocator,
     args: []const []const u8,
     flag_args: []const FlagArg,
 ) !FlagValues(template) {
@@ -343,7 +348,7 @@ fn parseFlagValues(
                 continue;
             };
 
-            try parser(field, args[value_index]);
+            try parser(field, args[value_index], gpa);
         } else {
             const field_bool: *bool = @ptrCast(field);
             field_bool.* = true;

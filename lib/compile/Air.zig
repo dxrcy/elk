@@ -6,10 +6,14 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const assert = std.debug.assert;
 
-const Runtime = @import("../emulate/Runtime.zig");
-const Span = @import("Span.zig");
-const Source = @import("Source.zig");
+const elk = @import("../root.zig");
+const Span = elk.Span;
+const Source = elk.Source;
+const parsing = @import("parse/parsing.zig");
+
 pub const Instruction = @import("instruction.zig").Instruction;
+
+const max_edit_distance = 3;
 
 origin: u16,
 lines: ArrayList(Line),
@@ -71,12 +75,15 @@ pub fn init() Air {
     };
 }
 
+/// Idempotent.
 pub fn deinit(air: *Air, gpa: Allocator) void {
     air.lines.deinit(gpa);
+    air.lines = .empty;
     air.labels.deinit(gpa);
+    air.labels = .empty;
 }
 
-pub fn copyToRuntime(air: *const Air, runtime: *Runtime) !void {
+pub fn copyToRuntime(air: *const Air, runtime: *elk.Runtime) !void {
     assert(air.lines.items.len <= 0xffff);
 
     runtime.state.pc = air.origin;
@@ -197,20 +204,42 @@ pub fn patchLabelValue(
 
 pub fn findLabel(
     air: *const Air,
+    comptime mode: enum { exact, nearest },
     reference: []const u8,
-    case_mode: enum { sensitive, insensitive },
     source: Source,
 ) ?*Label {
     assertLabelOrder(air);
+
     for (air.labels.items) |*label| {
         const string = label.span.view(source);
-        const matches = switch (case_mode) {
-            .sensitive => std.mem.eql(u8, string, reference),
-            .insensitive => std.ascii.eqlIgnoreCase(string, reference),
+        const matches = switch (mode) {
+            .exact => std.mem.eql(u8, string, reference),
+            .nearest => std.ascii.eqlIgnoreCase(string, reference),
         };
         if (matches)
             return label;
     }
+
+    if (mode == .nearest) {
+        const max_candidate_length = 20;
+        var buffer: [max_candidate_length]u8 = undefined;
+
+        var best_opt: ?struct { label: *Label, distance: usize } = null;
+        for (air.labels.items) |*label| {
+            const string = label.span.view(source);
+            const distance = parsing.editDistance(string, reference, &buffer);
+            if (best_opt) |best| {
+                if (best.distance < distance)
+                    continue;
+            }
+            best_opt = .{ .label = label, .distance = distance };
+        }
+        if (best_opt) |best| {
+            if (best.distance <= max_edit_distance)
+                return best.label;
+        }
+    }
+
     return null;
 }
 

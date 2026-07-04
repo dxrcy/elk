@@ -2,9 +2,10 @@ const std = @import("std");
 const Io = std.Io;
 const assert = std.debug.assert;
 
-const Policies = @import("../policies.zig").Policies;
-const Span = @import("../compile/Span.zig");
-const Source = @import("../compile/Source.zig");
+const elk = @import("../root.zig");
+const Span = elk.Span;
+const Source = elk.Source;
+const Policies = elk.Policies;
 const Token = @import("../compile/parse/Token.zig");
 
 pub const Sink = @import("Sink.zig");
@@ -130,7 +131,7 @@ pub fn Reporter(comptime Diag: type) type {
                 diag,
                 level,
                 reporter.options.verbosity,
-                reporter.source orelse unreachable,
+                reporter.source,
             );
 
             assert(response != .pass);
@@ -157,6 +158,10 @@ pub fn Reporter(comptime Diag: type) type {
             const level = reporter.getLevel() orelse
                 return true;
             return level.order(max).compare(.lte);
+        }
+
+        pub fn clear(reporter: *Self) void {
+            reporter.count = .initFill(0);
         }
     };
 }

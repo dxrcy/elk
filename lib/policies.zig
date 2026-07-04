@@ -110,6 +110,18 @@ pub const Policies = packed struct {
         return false;
     }
 
+    pub fn setCategory(policies: *Policies, category: []const u8, policy: Policy) bool {
+        inline for (@typeInfo(Policies).@"struct".fields) |category_field| {
+            if (std.mem.eql(u8, category_field.name, category)) {
+                inline for (@typeInfo(category_field.type).@"struct".fields) |item_field| {
+                    @field(@field(policies, category_field.name), item_field.name) = policy;
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
     pub fn unionWith(lhs: Policies, rhs: Policies) Policies {
         var result: Policies = .none;
         inline for (@typeInfo(Policies).@"struct".fields) |category| {
@@ -127,7 +139,9 @@ pub const Policies = packed struct {
         var policies: Policies = .none;
 
         var words = std.mem.tokenizeScalar(u8, string, ',');
-        while (words.next()) |word| {
+        while (words.next()) |word_full| {
+            const word = std.mem.trim(u8, word_full, &std.ascii.whitespace);
+
             if (std.mem.cutPrefix(u8, word, "+")) |predef_name| {
                 const predef = resolvePredef(predef_name) orelse
                     return error.InvalidPredefName;
@@ -135,16 +149,22 @@ pub const Policies = packed struct {
                 continue;
             }
 
-            var segmentts = std.mem.tokenizeScalar(u8, word, '.');
-            const category = segmentts.next() orelse
-                return error.MalformedPolicyName;
-            const item = segmentts.next() orelse
-                return error.MalformedPolicyName;
-            if (segmentts.next() != null)
+            var segments = std.mem.tokenizeScalar(u8, word, '.');
+            const category = segments.next() orelse
                 return error.MalformedPolicyName;
 
-            if (!policies.set(category, item, .permit))
-                return error.InvalidPolicyName;
+            const item = segments.next() orelse
+                return error.MalformedPolicyName;
+
+            if (std.mem.eql(u8, item, "*")) {
+                if (!policies.setCategory(category, .permit))
+                    return error.InvalidPolicyName;
+            } else {
+                if (segments.next() != null)
+                    return error.MalformedPolicyName;
+                if (!policies.set(category, item, .permit))
+                    return error.InvalidPolicyName;
+            }
         }
 
         return policies;

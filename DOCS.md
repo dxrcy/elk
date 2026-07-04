@@ -346,8 +346,8 @@ description of all available policies.
 and formatting.
 
 The policy set string `<POLICIES>` is a comma-separated list of policies (of the
-form `CATEGORY.POLICY`) or [predefined policy set](#predefined-policy-sets)
-names (of the form `+PREDEF`).
+form `CATEGORY.POLICY`), a category wildcard (`CATEGORY.*`), or
+[predefined policy set](#predefined-policy-sets) names (of the form `+PREDEF`).
 These policies and predefined sets may be mixed and matched in any order.
 
 By default, ELK does not enable any policies, thus `--permit ""` is equivalent
@@ -364,7 +364,7 @@ elk example.asm -p extension.stack_instructions
 
 **Example:** Opt-out of a handful of lints:
 ```sh
-elk example.asm --permit +laser,smell.unused_label_definitions,smell.explicit_trap_instructions
+elk example.asm --permit '+laser,case.*,smell.unused_label_definitions,smell.explicit_trap_instructions'
 ```
 > This permits all of the policies in the predefined set `laser`, as well as
 > permitting "unused" label definitions, and the use of the `trap` mnemonic
