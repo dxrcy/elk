@@ -105,22 +105,20 @@ fn resolveFieldAssembly(
 ) error{Reported}!Int {
     const string = operand.view(source);
 
-    const definition =
-        assembly.air.findLabel(.exact, string, assembly.source) orelse {
-            const nearest: Reporter.Diagnostic.NearestSpan =
-                if (assembly.air.findLabel(.nearest, string, assembly.source)) |label|
-                    if (std.ascii.eqlIgnoreCase(string, label.span.view(assembly.source)))
-                        .{ .case_insensitive = label.span }
-                    else
-                        .{ .edit_distance = label.span }
-                else
-                    .none;
-            try reporter.report(.undefined_label, .{
-                .reference = operand,
-                .nearest = nearest,
-                .definition_source = assembly.source,
-            }).abort();
-        };
+    const definition = blk: {
+        const nearest: Reporter.Diagnostic.NearestSpan =
+            switch (assembly.air.findLabel(string, assembly.source)) {
+                .exact => |label| break :blk label,
+                .case_insensitive => |label| .{ .case_insensitive = label.span },
+                .edit_distance => |label| .{ .edit_distance = label.span },
+                .none => .none,
+            };
+        try reporter.report(.undefined_label, .{
+            .reference = operand,
+            .nearest = nearest,
+            .definition_source = assembly.source,
+        }).abort();
+    };
 
     const definition_address = definition.index + assembly.air.origin;
     const offset = calculateOffset(Int, definition_address, address) orelse {

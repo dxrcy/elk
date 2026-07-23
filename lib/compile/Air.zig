@@ -204,7 +204,27 @@ pub fn patchLabelValue(
 
 pub fn findLabel(
     air: *const Air,
-    comptime mode: enum { exact, nearest },
+    reference: []const u8,
+    source: Source,
+) union(enum) {
+    none,
+    exact: *Label,
+    case_insensitive: *Label,
+    edit_distance: *Label,
+} {
+    if (air.findLabelCase(.exact, reference, source)) |label|
+        return .{ .exact = label };
+    if (air.findLabelCase(.case_insensitive, reference, source)) |label|
+        return .{ .case_insensitive = label };
+    if (air.findLabelEditDistance(reference, source)) |label|
+        return .{ .edit_distance = label };
+    return .none;
+}
+
+/// `case_insensitive` mode asserts that no case-sensitive match exists (caller should first try `exact`).
+fn findLabelCase(
+    air: *const Air,
+    comptime mode: enum { exact, case_insensitive },
     reference: []const u8,
     source: Source,
 ) ?*Label {
@@ -214,32 +234,44 @@ pub fn findLabel(
         const string = label.span.view(source);
         const matches = switch (mode) {
             .exact => std.mem.eql(u8, string, reference),
-            .nearest => std.ascii.eqlIgnoreCase(string, reference),
+            .case_insensitive => blk: {
+                assert(!std.mem.eql(u8, string, reference));
+                break :blk std.ascii.eqlIgnoreCase(string, reference);
+            },
         };
         if (matches)
             return label;
     }
+    return null;
+}
 
-    if (mode == .nearest) {
-        const max_candidate_length = 20;
-        var buffer: [max_candidate_length]u8 = undefined;
+/// Asserts that no case-insensitive match exists (caller should first try `findLabelCase`).
+fn findLabelEditDistance(
+    air: *const Air,
+    reference: []const u8,
+    source: Source,
+) ?*Label {
+    assertLabelOrder(air);
+    assert(air.findLabelCase(.case_insensitive, reference, source) == null);
 
-        var best_opt: ?struct { label: *Label, distance: usize } = null;
-        for (air.labels.items) |*label| {
-            const string = label.span.view(source);
-            const distance = parsing.editDistance(string, reference, &buffer);
-            if (best_opt) |best| {
-                if (best.distance < distance)
-                    continue;
-            }
-            best_opt = .{ .label = label, .distance = distance };
-        }
+    const max_candidate_length = 20;
+    var buffer: [max_candidate_length]u8 = undefined;
+
+    var best_opt: ?struct { label: *Label, distance: usize } = null;
+    for (air.labels.items) |*label| {
+        const string = label.span.view(source);
+        const distance = parsing.editDistance(string, reference, &buffer);
         if (best_opt) |best| {
-            if (best.distance <= max_edit_distance)
-                return best.label;
+            if (best.distance < distance)
+                continue;
         }
+        best_opt = .{ .label = label, .distance = distance };
     }
 
+    if (best_opt) |best| {
+        if (best.distance <= max_edit_distance)
+            return best.label;
+    }
     return null;
 }
 

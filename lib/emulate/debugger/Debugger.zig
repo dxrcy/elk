@@ -908,23 +908,26 @@ fn resolveLabelIndex(
 ) error{Reported}!u16 {
     const string = label.view(source);
 
-    if (assembly.air.findLabel(.exact, string, assembly.source)) |result|
-        return result.index;
-
-    if (assembly.air.findLabel(.nearest, string, assembly.source)) |result| {
-        debugger.reporter.report(.debugger_label_partial_match, .{
-            .reference = label,
-            .nearest = result.span,
-            .definition_source = assembly.source,
-        }).proceed();
-        return result.index;
+    switch (assembly.air.findLabel(string, assembly.source)) {
+        .exact => |result| {
+            return result.index;
+        },
+        .case_insensitive, .edit_distance => |result| {
+            debugger.reporter.report(.debugger_label_partial_match, .{
+                .reference = label,
+                .nearest = result.span,
+                .definition_source = assembly.source,
+            }).proceed();
+            return result.index;
+        },
+        .none => {
+            try debugger.reporter.report(.undefined_label, .{
+                .reference = label,
+                .nearest = .none,
+                .definition_source = assembly.source,
+            }).abort();
+        },
     }
-
-    try debugger.reporter.report(.undefined_label, .{
-        .reference = label,
-        .nearest = .none,
-        .definition_source = assembly.source,
-    }).abort();
 }
 
 fn getAssembly(debugger: *const Debugger, span: Span) error{Reported}!Provider.Assembly {
