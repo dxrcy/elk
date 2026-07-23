@@ -903,26 +903,29 @@ fn resolveLabelAddress(debugger: *const Debugger, label: Span, source: Source) e
 fn resolveLabelIndex(
     debugger: *const Debugger,
     assembly: Provider.Assembly,
-    label: Span,
+    reference: Span,
     source: Source,
 ) error{Reported}!u16 {
-    const string = label.view(source);
-
-    switch (assembly.air.findLabel(string, assembly.source)) {
-        .exact => |result| {
-            return result.index;
-        },
-        .case_insensitive, .edit_distance => |result| {
+    switch (assembly.air.findLabel(reference.view(source), assembly.source)) {
+        .exact => |label| return label.index,
+        .case_insensitive => |label| {
             debugger.reporter.report(.debugger_label_partial_match, .{
-                .reference = label,
-                .nearest = result.span,
+                .reference = reference,
+                .nearest = label.span,
                 .definition_source = assembly.source,
             }).proceed();
-            return result.index;
+            return label.index;
+        },
+        .edit_distance => |label| {
+            try debugger.reporter.report(.undefined_label, .{
+                .reference = reference,
+                .nearest = .{ .edit_distance = label.span },
+                .definition_source = assembly.source,
+            }).abort();
         },
         .none => {
             try debugger.reporter.report(.undefined_label, .{
-                .reference = label,
+                .reference = reference,
                 .nearest = .none,
                 .definition_source = assembly.source,
             }).abort();
