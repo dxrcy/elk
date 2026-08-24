@@ -6,7 +6,6 @@ const EnvironMap = std.process.Environ.Map;
 const elk = @import("elk");
 
 const Cli = @import("Cli.zig");
-const zilc = @import("zilc.zig");
 
 pub fn main(init: std.process.Init) !u8 {
     const io, const gpa = .{ init.io, init.gpa };
@@ -19,7 +18,7 @@ pub fn main(init: std.process.Init) !u8 {
     var reporter = elk.reporting.Primary.new(sink.interface());
 
     const args_allocator = init.arena.allocator();
-    var args = try zilc.collectArgs(args_allocator, init.minimal.args);
+    var args = try Cli.zilc.collectArgs(args_allocator, init.minimal.args);
     defer args.deinit(init.arena.allocator());
 
     const cli = blk: {

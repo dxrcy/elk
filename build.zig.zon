@@ -8,6 +8,13 @@
     .minimum_zig_version = "0.16.0",
     .fingerprint = 0xa2754ca2e4a559fc,
 
+    .dependencies = .{
+        .zilc = .{
+            .url = "git+https://codeberg.org/dxrcy/zilc#acaf7b024fd6a2c46b802d7eb9808ec201ac9027",
+            .hash = "zilc-0.1.0-a-peQd9GAADxDOQqLB9xdujNTEveJcmQyswyk1Z_xWYQ",
+        },
+    },
+
     .paths = .{
         "build.zig",
         "build.zig.zon",
