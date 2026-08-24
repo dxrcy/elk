@@ -12,14 +12,19 @@ const info = struct {
     const zon = @import("build_zon");
 
     const program = @tagName(zon.name);
-    const version = zon.version;
+
+    const version =
+        program ++ " " ++ zon.version ++ " by " ++ zon.author ++ ".\n" ++
+        zon.description ++ " " ++ zon.homepage ++ "\n" ++
+        "Copyright (C) 2025 " ++ zon.author ++ "\n" ++
+        "License: GPL-3.0-only" ++ "\n\n";
 
     const help =
-        program ++ " " ++ version ++ " by " ++ zon.author ++ ".\n" ++
-        zon.description ++ " " ++ zon.homepage ++
-        "\n\n" ++ "USAGE:" ++
-        "\n    " ++ program ++ " INPUT [OPERATION] [...OPTIONS]" ++
-        "\n\n" ++ @embedFile("help.txt"); // Includes trailing newline
+        version ++
+        "USAGE:" ++ "\n" ++
+        "    " ++ program ++ " INPUT [OPERATION] [...OPTIONS]" ++ "\n\n" ++
+        @embedFile("help.txt") // File includes trailing newline
+        ++ "\n";
 };
 
 operation: Operation,
@@ -239,15 +244,23 @@ fn getMetaArg(args: []const []const u8) ?zilc.MetaArg {
     return zilc.getMetaArg(args);
 }
 
-pub fn parse(gpa: Allocator, arena: Allocator, args: []const []const u8, is_tty: bool) !Cli {
+pub fn parse(
+    gpa: Allocator,
+    arena: Allocator,
+    writer: *std.Io.Writer,
+    args: []const []const u8,
+    is_tty: bool,
+) !Cli {
     if (getMetaArg(args)) |meta| {
         switch (meta) {
             .help => {
-                std.debug.print(info.help ++ "\n", .{});
+                try writer.writeAll(info.help);
+                try writer.flush();
                 return error.DisplayMetadata;
             },
             .version => {
-                std.debug.print("{s}: {s}\n", .{ info.program, info.version });
+                try writer.writeAll(info.version);
+                try writer.flush();
                 return error.DisplayMetadata;
             },
         }

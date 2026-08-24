@@ -27,6 +27,7 @@ pub fn main(init: std.process.Init) !u8 {
         break :blk Cli.parse(
             args_allocator,
             temp_arena.allocator(),
+            &reporter_writer.interface,
             args.items,
             is_tty,
         ) catch |err| switch (err) {
