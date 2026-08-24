@@ -238,12 +238,6 @@ fn parseStringIntPair(comptime Int: type, item: []const u8) ?struct { []const u8
     return .{ alias, vect };
 }
 
-fn getMetaArg(args: []const []const u8) ?zilc.MetaArg {
-    if (args.len == 0)
-        return .help;
-    return zilc.getMetaArg(args);
-}
-
 pub fn parse(
     gpa: Allocator,
     arena: Allocator,
@@ -251,7 +245,7 @@ pub fn parse(
     args: []const []const u8,
     is_tty: bool,
 ) !Cli {
-    if (getMetaArg(args)) |meta| {
+    if (zilc.getMetaArg(args, .help)) |meta| {
         switch (meta) {
             .help => {
                 try writer.writeAll(info.help);
@@ -266,7 +260,7 @@ pub fn parse(
         }
     }
 
-    var options: zilc.Options(template) = try .parse(gpa, arena, args);
+    var options: zilc.Options(template) = try .parse(gpa, arena, args, .{});
     defer options.deinit(arena);
 
     const unimplemented_args = [_][]const u8{
