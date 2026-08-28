@@ -20,7 +20,8 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("build.zig.zon"),
     });
 
-    const zilc_dep = b.dependency("zilc", .{});
+    const zilc_dep = b.lazyDependency("zilc", .{}) orelse
+        return;
     const zilc_mod = zilc_dep.module("zilc");
 
     exe_mod.addImport("elk", lib_mod);

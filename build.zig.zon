@@ -12,6 +12,7 @@
         .zilc = .{
             .url = "git+https://codeberg.org/dxrcy/zilc#37ed2e03879727315a517fbfcac59e3814dc34e5",
             .hash = "zilc-0.1.0-a-peQcthAACzQCzrBUI8-rw_sZJuVikEhs6Rtiz7iH96",
+            .lazy = true,
         },
     },
 
