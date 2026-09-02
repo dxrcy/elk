@@ -47,7 +47,7 @@ pub const State = struct {
 
         return .{
             .memory = memory,
-            .registers = .{ 0, 0, 0, 0, 0, 0, 0, user_memory_end },
+            .registers = .{ 0, 0, 0, 0, 0, 0, 0, 0 },
             .pc = 0x0000,
             .condition = .zero,
         };
