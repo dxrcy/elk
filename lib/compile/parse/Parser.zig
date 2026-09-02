@@ -521,16 +521,15 @@ pub fn resolveLabelReferences(parser: *Parser, air: *Air) void {
         switch (line.statement) {
             .raw_word => continue,
             .unresolved_word => |label| {
-                line.statement = .{
-                    .raw_word = elk.Provider.resolveAbsolute(
-                        .{ .assembly = .{ .air = air, .source = parser.source() } },
-                        label,
-                        parser.source(),
-                        parser.reporter(),
-                    ) catch |err| switch (err) {
-                        error.Reported => continue,
-                    },
+                const definition = elk.Provider.resolveAbsolute(
+                    .{ .assembly = .{ .air = air, .source = parser.source() } },
+                    label,
+                    parser.source(),
+                    parser.reporter(),
+                ) catch |err| switch (err) {
+                    error.Reported => continue,
                 };
+                line.statement = .{ .raw_word = definition.address };
             },
             .instruction => |*instruction| {
                 elk.Provider.resolveOperand(

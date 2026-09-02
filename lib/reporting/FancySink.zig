@@ -346,7 +346,8 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
         },
         .offset_too_large => |info| {
             try ctx.writeTitle("Calculated label offset is too large", .{});
-            try ctx.deepen().writeSourceNote("Label declared here", .{}, info.definition);
+            if (info.definition) |definition|
+                try ctx.deepen().writeSourceNote("Label declared here", .{}, definition);
             try ctx.deepen().withSource(info.definition_source)
                 .writeSourceNote("Label used here", .{}, info.reference);
             try ctx.deepen().writeNote("Address offset of {} words cannot be represented in {} bits", .{ info.offset, info.bits });

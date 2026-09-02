@@ -83,12 +83,11 @@ pub const Provider = union(enum) {
 
         const definition = try provider.resolveAbsolute(operand.span, source, reporter);
 
-        const offset = calculateOffset(Int, definition, address) orelse {
+        const offset = calculateOffset(Int, definition.address, address) orelse {
             try reporter.report(.offset_too_large, .{
                 .reference = operand.span,
-                // TODO:
-                .definition = .fromBounds(0, 0),
-                .offset = calculateOffset(i17, definition, address) orelse
+                .definition = definition.span,
+                .offset = calculateOffset(i17, definition.address, address) orelse
                     unreachable,
                 .bits = @typeInfo(Int).int.bits,
                 .definition_source = source,
@@ -104,7 +103,7 @@ pub const Provider = union(enum) {
         operand: Span,
         source: Source,
         reporter: *Reporter,
-    ) error{Reported}!u16 {
+    ) error{Reported}!SpannedAddress {
         return switch (provider) {
             .none => {
                 // TODO: Report properly
@@ -117,12 +116,14 @@ pub const Provider = union(enum) {
     }
 };
 
+const SpannedAddress = struct { address: u16, span: ?Span };
+
 fn resolveAssemblyAbsolute(
     operand: Span,
     assembly: Provider.Assembly,
     source: Source,
     reporter: *Reporter,
-) error{Reported}!u16 {
+) error{Reported}!SpannedAddress {
     const string = operand.view(source);
 
     const definition = blk: {
@@ -141,7 +142,10 @@ fn resolveAssemblyAbsolute(
     };
 
     definition.references += 1;
-    return definition.index + assembly.air.origin;
+    return .{
+        .address = definition.index + assembly.air.origin,
+        .span = definition.span,
+    };
 }
 
 fn resolveSymbolAbsolute(
@@ -149,17 +153,19 @@ fn resolveSymbolAbsolute(
     symbols: Provider.Symbols,
     source: Source,
     reporter: *Reporter,
-) error{Reported}!u16 {
+) error{Reported}!SpannedAddress {
     const string = operand.view(source);
 
     // TODO: Provide suggestion for nearest match
-    return symbols.getAddress(string) orelse {
+    const address = symbols.getAddress(string) orelse {
         try reporter.report(.undefined_label, .{
             .reference = operand,
             .nearest = .none,
             .definition_source = .empty,
         }).abort();
     };
+
+    return .{ .address = address, .span = null };
 }
 
 fn calculateOffset(comptime T: type, definition: usize, reference: usize) ?T {

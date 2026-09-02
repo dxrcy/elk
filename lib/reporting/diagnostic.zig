@@ -120,7 +120,7 @@ pub const Diagnostic = union(enum) {
 
     // Integer bounds
     integer_too_large: struct { integer: Span, type_info: std.builtin.Type.Int },
-    offset_too_large: struct { definition: Span, reference: Span, offset: i17, bits: u16, definition_source: Source },
+    offset_too_large: struct { definition: ?Span, reference: Span, offset: i17, bits: u16, definition_source: Source },
     unexpected_negative_integer: struct { integer: Span },
 
     // Strings
