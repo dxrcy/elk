@@ -260,7 +260,7 @@ pub const Escaped = struct {
         return char_opt orelse error.InvalidSequence;
     }
 
-    fn nextRaw(escaped: *Escaped) ?u8 {
+    pub fn nextRaw(escaped: *Escaped) ?u8 {
         if (escaped.index >= escaped.string.len)
             return null;
         const raw = escaped.string[escaped.index];

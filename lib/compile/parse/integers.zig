@@ -206,7 +206,7 @@ fn tryCharInteger(string: []const u8) Error!?Word {
         return error.MalformedCharacter;
 
     const contents = string[1 .. string.len - 1];
-    if (contents.len > 0 and contents[contents.len - 1] == '\\')
+    if (contents.len > 1 and contents[0] != '\\')
         return error.MalformedCharacter;
 
     var escaped: Escaped = .new(.single, contents);
@@ -215,7 +215,8 @@ fn tryCharInteger(string: []const u8) Error!?Word {
         return error.MalformedCharacter) catch
         return error.MalformedCharacter;
 
-    if (escaped.next()) |_| {
+    // Don't use `.next`: rest of token may not be valid (eg. may end in a single `\`)
+    if (escaped.nextRaw()) |_| {
         return error.MalformedCharacter;
     }
 
