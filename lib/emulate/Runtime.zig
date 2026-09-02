@@ -254,7 +254,7 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
 
         .lea => |operands| {
             const address = runtime.state.pc +% signExtend(operands.pc_offset);
-            runtime.setRegister(operands.dest, address);
+            runtime.setRegisterNoCc(operands.dest, address);
         },
         .ld => |operands| {
             const address = runtime.state.pc +% signExtend(operands.pc_offset);
@@ -334,6 +334,10 @@ fn setRegister(runtime: *Runtime, register: u3, value: u16) void {
             .zero
         else
             .positive;
+}
+
+fn setRegisterNoCc(runtime: *Runtime, register: u3, value: u16) void {
+    runtime.state.registers[register] = value;
 }
 
 pub fn getMemory(runtime: *Runtime, address: u16) error{UnpermittedMemoryAccess}!u16 {
