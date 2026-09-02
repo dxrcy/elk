@@ -268,7 +268,7 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
             runtime.setRegister(operands.dest, value);
         },
         .ldr => |operands| {
-            const address = runtime.state.registers[operands.base] + signExtend(operands.offset);
+            const address = runtime.state.registers[operands.base] +% signExtend(operands.offset);
             const value = try runtime.getMemory(address);
             runtime.setRegister(operands.dest, value);
         },
@@ -282,7 +282,7 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
             try runtime.setMemory(address, runtime.state.registers[operands.src]);
         },
         .str => |operands| {
-            const address = runtime.state.registers[operands.base] + signExtend(operands.offset);
+            const address = runtime.state.registers[operands.base] +% signExtend(operands.offset);
             try runtime.setMemory(address, runtime.state.registers[operands.src]);
         },
 
