@@ -237,12 +237,19 @@ pub fn expectArgument(
 pub const Argument = union(enum) {
     operand: type,
     word,
+    word_or_label,
     string,
+
+    const WordOrLabel = union(enum) {
+        word: SourceInt(16),
+        label,
+    };
 
     pub fn Value(comptime argument: Argument) type {
         return switch (argument) {
             .operand => |operand| operand,
             .word => SourceInt(16),
+            .word_or_label => WordOrLabel,
             .string => Span,
         };
     }
@@ -256,6 +263,12 @@ pub const Argument = union(enum) {
             .word => return switch (token.value) {
                 .integer => |integer| integer,
                 else => try unexpected(token, &.{.integer}, reporter),
+            },
+
+            .word_or_label => return switch (token.value) {
+                .integer => |integer| .{ .word = integer },
+                .label => .label,
+                else => try unexpected(token, &.{ .integer, .label }, reporter),
             },
 
             .string => return switch (token.value) {

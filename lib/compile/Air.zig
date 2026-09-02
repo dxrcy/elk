@@ -57,11 +57,13 @@ pub const Line = struct {
 
 pub const Statement = union(enum) {
     raw_word: u16,
+    unresolved_word: Span,
     instruction: Instruction,
 
     pub fn encode(statement: Statement) u16 {
         return switch (statement) {
             .raw_word => |raw| raw,
+            .unresolved_word => unreachable,
             .instruction => |instruction| instruction.encode(),
         };
     }

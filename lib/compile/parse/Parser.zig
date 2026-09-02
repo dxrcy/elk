@@ -354,12 +354,15 @@ fn parseDirective(
         },
 
         .fill => {
-            const word = try parser.tokenizer.expectArgument(.word);
+            const argument = try parser.tokenizer.expectArgument(.word_or_label);
 
             try parser.ensureCanAppendLines(air, 1, span);
             try air.lines.append(gpa, .{
-                .statement = .{ .raw_word = word.value.underlying },
-                .span = word.span,
+                .statement = switch (argument.value) {
+                    .word => |word| .{ .raw_word = word.underlying },
+                    .label => .{ .unresolved_word = argument.span },
+                },
+                .span = argument.span,
             });
         },
 
@@ -517,6 +520,11 @@ pub fn resolveLabelReferences(parser: *Parser, air: *Air) void {
     for (air.lines.items, 0..) |*line, index| {
         const instruction = switch (line.statement) {
             .raw_word => continue,
+            .unresolved_word => {
+                // TODO:
+                line.statement = .{ .raw_word = 0xAA };
+                continue;
+            },
             .instruction => |*instruction| instruction,
         };
 
