@@ -231,7 +231,6 @@ pub const Escaped = struct {
     }
 
     pub fn new(delim: Delim, string: []const u8) Escaped {
-        if (string.len > 0) assert(string[string.len - 1] != indicator);
         return .{
             .delim = delim,
             .string = string,
