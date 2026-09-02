@@ -106,7 +106,7 @@ pub const Form = struct {
 
         pub const default: Radix = .decimal;
 
-        pub fn parse_digit(radix: Radix, char: u8) ?u8 {
+        pub fn parseDigit(radix: Radix, char: u8) ?u8 {
             return switch (radix) {
                 .binary => switch (char) {
                     '0' => 0,
@@ -310,7 +310,7 @@ pub fn tryInteger(string: []const u8) Error!?Word {
             },
         }
 
-        const digit = real_radix.parse_digit(char) orelse
+        const digit = real_radix.parseDigit(char) orelse
             return endOfInteger(form, char);
         appendDigit(&oversize, real_radix, digit) catch
             return error.IntegerTooLarge;
