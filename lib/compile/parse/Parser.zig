@@ -518,25 +518,32 @@ fn getExistingLabelAbove(air: *Air, index: u16) ?*const Air.Label {
 
 pub fn resolveLabelReferences(parser: *Parser, air: *Air) void {
     for (air.lines.items, 0..) |*line, index| {
-        const instruction = switch (line.statement) {
+        switch (line.statement) {
             .raw_word => continue,
-            .unresolved_word => {
-                // TODO:
-                line.statement = .{ .raw_word = 0xAA };
-                continue;
+            .unresolved_word => |label| {
+                line.statement = .{
+                    .raw_word = elk.Provider.resolveAbsolute(
+                        .{ .assembly = .{ .air = air, .source = parser.source() } },
+                        label,
+                        parser.source(),
+                        parser.reporter(),
+                    ) catch |err| switch (err) {
+                        error.Reported => continue,
+                    },
+                };
             },
-            .instruction => |*instruction| instruction,
-        };
-
-        elk.Provider.resolveOperand(
-            .{ .assembly = .{ .air = air, .source = parser.source() } },
-            instruction,
-            index + air.origin + 1, // PC is at N+1 when instruction N is interpreted
-            parser.source(),
-            parser.reporter(),
-        ) catch |err| switch (err) {
-            error.Reported => continue,
-        };
+            .instruction => |*instruction| {
+                elk.Provider.resolveOperand(
+                    .{ .assembly = .{ .air = air, .source = parser.source() } },
+                    instruction,
+                    index + air.origin + 1, // PC is at N+1 when instruction N is interpreted
+                    parser.source(),
+                    parser.reporter(),
+                ) catch |err| switch (err) {
+                    error.Reported => continue,
+                };
+            },
+        }
     }
 
     for (air.labels.items) |*label| {
