@@ -105,6 +105,7 @@ pub const Diagnostic = union(enum) {
     redefined_label: struct { existing: Span, new: Span },
     undefined_label: struct { reference: Span, nearest: NearestSpan, definition_source: Source },
     unused_label: struct { label: Span },
+    label_too_long: struct { label: Span },
 
     // Integer syntax
     malformed_integer: struct { integer: Span },
@@ -195,6 +196,7 @@ pub const Diagnostic = union(enum) {
             .missing_origin => policyResponse(options, .extension, .implicit_origin),
             .missing_end => policyResponse(options, .extension, .implicit_end),
             .existing_label_above => policyResponse(options, .extension, .multiple_labels),
+            .label_too_long => policyResponse(options, .extension, .longer_labels),
             .label_colon => policyResponse(options, .extension, .label_definition_colons),
             .nonstandard_integer_radix => policyResponse(options, .extension, .more_integer_radixes),
             .implicit_integer_radix,

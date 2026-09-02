@@ -17,6 +17,7 @@ const Token = @import("Token.zig");
 const case = @import("case.zig");
 
 pub const max_line_width = 80;
+pub const max_label_length = 20;
 
 tokenizer: Tokenizer,
 origin: ?Span,
@@ -305,6 +306,12 @@ fn addLabel(parser: *Parser, gpa: Allocator, air: *Air, label: Span) InnerError!
         try parser.reporter().report(.existing_label_above, .{
             .existing = existing.span,
             .new = label,
+        }).handle();
+    }
+
+    if (label.len > max_label_length) {
+        try parser.reporter().report(.label_too_long, .{
+            .label = label,
         }).handle();
     }
 

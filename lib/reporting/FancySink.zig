@@ -280,6 +280,14 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
             try ctx.writeTitle("Label declaration is not used", .{});
             try ctx.deepen().writeSourceNote("Label declared here", .{}, info.label);
         },
+        .label_too_long => |info| {
+            try ctx.writeTitle("Label is too long", .{});
+            try ctx.deepen().writeSourceNote("Label", .{}, .{
+                .offset = info.label.offset + Parser.max_label_length,
+                .len = info.label.len - Parser.max_label_length,
+            });
+            try ctx.deepen().writeNote("Labels must not be longer than {} characters", .{Parser.max_label_length});
+        },
 
         .malformed_integer => |info| {
             try ctx.writeTitle("Malformed integer argument", .{});
