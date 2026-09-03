@@ -449,6 +449,32 @@ fn printDisplayChar(runtime: *Runtime, word: u16) error{WriteFailed}!void {
     try runtime.writer.print("{s}", .{display});
 }
 
+pub fn stringzAt(runtime: *const Runtime, address: u16) Stringz {
+    return .{
+        .memory = runtime.state.memory,
+        .address = address,
+        .end = false,
+    };
+}
+
+pub const Stringz = struct {
+    memory: *const [Runtime.memory_size]u16,
+    address: u16,
+    end: bool,
+
+    pub fn next(stringz: *Stringz) ?u16 {
+        if (stringz.end)
+            return null;
+        const word = stringz.memory[stringz.address];
+        if (word == 0x0000) {
+            stringz.end = true;
+            return null;
+        }
+        stringz.address += 1;
+        return word;
+    }
+};
+
 fn signExtend(value: anytype) u16 {
     const bits = @typeInfo(@TypeOf(value)).int.bits;
     const Signed = @Int(.signed, bits);
