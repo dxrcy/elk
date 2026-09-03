@@ -49,11 +49,11 @@ pub fn out(runtime: *Runtime) Traps.Result {
 }
 
 pub fn puts(runtime: *Runtime) Traps.Result {
-    var i: usize = runtime.state.registers[0];
-    while (true) : (i += 1) {
-        const word = runtime.state.memory[i];
-        if (word == 0x0000)
-            break;
+    var stringz: Stringz = .{
+        .memory = runtime.state.memory,
+        .address = runtime.state.registers[0],
+    };
+    while (stringz.next()) |word| {
         const byte: u8 = @truncate(word);
         try runtime.writeChar(byte);
     }
@@ -61,16 +61,35 @@ pub fn puts(runtime: *Runtime) Traps.Result {
 }
 
 pub fn putsp(runtime: *Runtime) Traps.Result {
-    var i: usize = runtime.state.registers[0];
-    while (true) : (i += 1) {
-        const bytes: [2]u8 = @bitCast(runtime.state.memory[i]);
-        if (bytes[0] == 0x00 and bytes[1] == 0x00)
-            break;
+    var stringz: Stringz = .{
+        .memory = runtime.state.memory,
+        .address = runtime.state.registers[0],
+    };
+    while (stringz.next()) |word| {
+        const bytes: [2]u8 = @bitCast(word);
         try runtime.writeChar(bytes[0]);
         try runtime.writeChar(bytes[1]);
     }
     try runtime.writer.flush();
 }
+
+const Stringz = struct {
+    memory: []u16,
+    address: u16,
+    end: bool = false,
+
+    pub fn next(stringz: *Stringz) ?u16 {
+        if (stringz.end)
+            return null;
+        const word = stringz.memory[stringz.address];
+        if (word == 0x0000) {
+            stringz.end = true;
+            return null;
+        }
+        stringz.address += 1;
+        return word;
+    }
+};
 
 pub fn putn(runtime: *Runtime) Traps.Result {
     try runtime.ensureWriterNewline();
