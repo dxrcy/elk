@@ -269,11 +269,11 @@ fn ensureCanAppendLines(parser: *Parser, air: *Air, n: usize, span: Span) error{
     }
 }
 
-fn addLabel(parser: *Parser, gpa: Allocator, air: *Air, label: Span) InnerError!void {
-    if (parser.getLabelWithName(air, label.view(parser.source()))) |existing_label| {
+fn addLabel(parser: *Parser, gpa: Allocator, air: *Air, span: Span) InnerError!void {
+    if (parser.getLabelWithName(air, span.view(parser.source()))) |existing_label| {
         try parser.reporter().report(.redefined_label, .{
             .existing = existing_label,
-            .new = label,
+            .new = span,
         }).abort();
     }
 
@@ -288,14 +288,14 @@ fn addLabel(parser: *Parser, gpa: Allocator, air: *Air, label: Span) InnerError!
     // this reports a more appropriate message
     if (try parser.tokenizer.nextMatching(.label)) |right| {
         try parser.reporter().report(.existing_label_left, .{
-            .existing = label,
+            .existing = span,
             .new = right.span,
         }).handle();
     }
 
-    if (!case.isPascalCase(label.view(parser.source()))) {
+    if (!case.isPascalCase(span.view(parser.source()))) {
         try parser.reporter().report(.unconventional_case, .{
-            .token = label,
+            .token = span,
             .kind = .label,
         }).handle();
     }
@@ -305,21 +305,25 @@ fn addLabel(parser: *Parser, gpa: Allocator, air: *Air, label: Span) InnerError!
     if (getExistingLabelAbove(air, index)) |existing| {
         try parser.reporter().report(.existing_label_above, .{
             .existing = existing.span,
-            .new = label,
+            .new = span,
         }).handle();
     }
 
-    if (label.len > max_label_length) {
+    if (span.len > max_label_length) {
         try parser.reporter().report(.label_too_long, .{
-            .label = label,
+            .label = span,
         }).handle();
     }
 
-    try air.labels.append(gpa, .new(
-        index,
-        label,
-        label.view(parser.source()),
-    ));
+    const label: Air.Label = .new(index, span, span.view(parser.source()));
+
+    if (label.kind == .breakpoint) {
+        parser.reporter().report(.breakpoint_label, .{
+            .label = span,
+        }).proceed();
+    }
+
+    try air.labels.append(gpa, label);
 }
 
 fn parseDirective(

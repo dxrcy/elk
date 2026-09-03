@@ -106,6 +106,7 @@ pub const Diagnostic = union(enum) {
     undefined_label: struct { reference: Span, nearest: NearestSpan, definition_source: Source },
     unused_label: struct { label: Span },
     label_too_long: struct { label: Span },
+    breakpoint_label: struct { label: Span },
 
     // Integer syntax
     malformed_integer: struct { integer: Span },
@@ -188,6 +189,8 @@ pub const Diagnostic = union(enum) {
             => .fatal,
 
             .existing_label_left => .major,
+
+            .breakpoint_label => .info,
 
             .invalid_label_target,
             .invalid_string_escape,

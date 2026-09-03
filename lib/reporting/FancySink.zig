@@ -288,6 +288,11 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
             });
             try ctx.deepen().writeNote("Labels must not be longer than {} characters", .{Parser.max_label_length});
         },
+        .breakpoint_label => |info| {
+            try ctx.writeTitle("Label declares a breakpoint", .{});
+            try ctx.deepen().writeSourceNote("Label", .{}, info.label);
+            try ctx.deepen().writeNote("Labels beginning with `__` cause a breakpoint to be created at that address", .{});
+        },
 
         .malformed_integer => |info| {
             try ctx.writeTitle("Malformed integer argument", .{});
