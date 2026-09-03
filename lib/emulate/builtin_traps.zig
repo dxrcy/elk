@@ -50,7 +50,9 @@ pub fn out(runtime: *Runtime) Traps.Result {
 
 pub fn puts(runtime: *Runtime) Traps.Result {
     var stringz = runtime.stringzAt(runtime.state.registers[0]);
-    while (stringz.next()) |word| {
+    while (stringz.next() catch
+        return error.TrapFailed) |word|
+    {
         const byte: u8 = @truncate(word);
         try runtime.writeChar(byte);
     }
@@ -59,7 +61,9 @@ pub fn puts(runtime: *Runtime) Traps.Result {
 
 pub fn putsp(runtime: *Runtime) Traps.Result {
     var stringz = runtime.stringzAt(runtime.state.registers[0]);
-    while (stringz.next()) |word| {
+    while (stringz.next() catch
+        return error.TrapFailed) |word|
+    {
         const bytes: [2]u8 = @bitCast(word);
         try runtime.writeChar(bytes[0]);
         try runtime.writeChar(bytes[1]);

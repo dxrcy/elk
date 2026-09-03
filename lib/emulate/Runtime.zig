@@ -340,7 +340,7 @@ fn setRegisterNoCc(runtime: *Runtime, register: u3, value: u16) void {
     runtime.state.registers[register] = value;
 }
 
-pub fn getMemory(runtime: *Runtime, address: u16) error{UnpermittedMemoryAccess}!u16 {
+pub fn getMemory(runtime: *const Runtime, address: u16) error{UnpermittedMemoryAccess}!u16 {
     try checkMemoryAccess(address);
     return runtime.state.memory[address];
 }
@@ -451,21 +451,21 @@ fn printDisplayChar(runtime: *Runtime, word: u16) error{WriteFailed}!void {
 
 pub fn stringzAt(runtime: *const Runtime, address: u16) Stringz {
     return .{
-        .memory = runtime.state.memory,
+        .runtime = runtime,
         .address = address,
         .end = false,
     };
 }
 
 pub const Stringz = struct {
-    memory: *const [Runtime.memory_size]u16,
+    runtime: *const Runtime,
     address: u16,
     end: bool,
 
-    pub fn next(stringz: *Stringz) ?u16 {
+    pub fn next(stringz: *Stringz) error{UnpermittedMemoryAccess}!?u16 {
         if (stringz.end)
             return null;
-        const word = stringz.memory[stringz.address];
+        const word = try stringz.runtime.getMemory(stringz.address);
         if (word == 0x0000) {
             stringz.end = true;
             return null;
