@@ -64,11 +64,9 @@ pub fn putsp(runtime: *Runtime) Traps.Result {
     var i: usize = runtime.state.registers[0];
     while (true) : (i += 1) {
         const bytes: [2]u8 = @bitCast(runtime.state.memory[i]);
-        if (bytes[0] == 0x00)
+        if (bytes[0] == 0x00 and bytes[1] == 0x00)
             break;
         try runtime.writeChar(bytes[0]);
-        if (bytes[1] == 0x00)
-            break;
         try runtime.writeChar(bytes[1]);
     }
     try runtime.writer.flush();
