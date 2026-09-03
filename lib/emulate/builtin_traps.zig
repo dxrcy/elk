@@ -51,10 +51,11 @@ pub fn out(runtime: *Runtime) Traps.Result {
 pub fn puts(runtime: *Runtime) Traps.Result {
     var i: usize = runtime.state.registers[0];
     while (true) : (i += 1) {
-        const word: u8 = @truncate(runtime.state.memory[i]);
-        if (word == 0x00)
+        const word = runtime.state.memory[i];
+        if (word == 0x0000)
             break;
-        try runtime.writeChar(word);
+        const byte: u8 = @truncate(word);
+        try runtime.writeChar(byte);
     }
     try runtime.writer.flush();
 }
@@ -62,13 +63,13 @@ pub fn puts(runtime: *Runtime) Traps.Result {
 pub fn putsp(runtime: *Runtime) Traps.Result {
     var i: usize = runtime.state.registers[0];
     while (true) : (i += 1) {
-        const words: [2]u8 = @bitCast(runtime.state.memory[i]);
-        if (words[0] == 0x00)
+        const bytes: [2]u8 = @bitCast(runtime.state.memory[i]);
+        if (bytes[0] == 0x00)
             break;
-        try runtime.writeChar(words[0]);
-        if (words[1] == 0x00)
+        try runtime.writeChar(bytes[0]);
+        if (bytes[1] == 0x00)
             break;
-        try runtime.writeChar(words[1]);
+        try runtime.writeChar(bytes[1]);
     }
     try runtime.writer.flush();
 }
