@@ -33,13 +33,13 @@ writer_is_newline: bool,
 tty: Tty,
 
 pub const State = struct {
-    memory: []u16,
+    memory: *[memory_size]u16,
     registers: [8]u16,
     pc: u16,
     condition: Condition,
 
     pub fn init(gpa: Allocator) Allocator.Error!State {
-        const memory = try gpa.alloc(u16, memory_size);
+        const memory = try gpa.create([memory_size]u16);
 
         @memset(memory[0..user_memory_start], memory_init_privileged);
         @memset(memory[user_memory_start..user_memory_end], memory_init_user);
@@ -64,7 +64,7 @@ pub const State = struct {
     }
 
     pub fn deinit(state: State, gpa: Allocator) void {
-        defer gpa.free(state.memory);
+        defer gpa.destroy(state.memory);
     }
 };
 

@@ -74,7 +74,7 @@ pub fn putsp(runtime: *Runtime) Traps.Result {
 }
 
 const Stringz = struct {
-    memory: []u16,
+    memory: *const [Runtime.memory_size]u16,
     address: u16,
     end: bool = false,
 
