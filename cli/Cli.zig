@@ -43,12 +43,11 @@ pub const Operation = union(enum) {
     assemble: struct {
         input: Path,
         output: ?Path,
-        // TODO: Rename `options` ?
-        assemble: Assemble,
+        options: Assemble,
     },
     assemble_many: struct {
         inputs: []const []const u8,
-        assemble: Assemble,
+        options: Assemble,
     },
     emulate: struct {
         input: Path,
@@ -396,7 +395,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
         return .{
             .assemble_many = .{
                 .inputs = inputs,
-                .assemble = .{
+                .options = .{
                     .output_mode = output_mode,
                     .trap_aliases = options.flags.trap_aliases,
                     .patch_symbols = options.flags.patch_symbols,
@@ -412,7 +411,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
             .assemble = .{
                 .input = input,
                 .output = options.flags.output,
-                .assemble = .{
+                .options = .{
                     .output_mode = if (options.flags.export_symbols)
                         .symbols
                     else if (options.flags.export_listing)
@@ -442,7 +441,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
         return .{ .assemble = .{
             .input = input,
             .output = null,
-            .assemble = .{
+            .options = .{
                 .output_mode = .none,
                 .trap_aliases = options.flags.trap_aliases,
                 .patch_symbols = options.flags.patch_symbols,

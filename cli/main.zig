@@ -48,34 +48,34 @@ pub fn main(init: std.process.Init) !u8 {
 
     switch (cli.operation) {
         .assemble => |operation| {
-            const traps = operation.assemble.trap_aliases orelse default_traps;
+            const traps = operation.options.trap_aliases orelse default_traps;
             var assembler: elk.Assembler = .{
                 .air = .init(),
                 .source = .empty,
                 .traps = &traps,
-                .patch_symbols = operation.assemble.patch_symbols,
+                .patch_symbols = operation.options.patch_symbols,
                 .reporter = &reporter,
                 .gpa = gpa,
                 .io = io,
             };
 
-            try assembleFile(io, &assembler, operation.input, operation.output, operation.assemble);
+            try assembleFile(io, &assembler, operation.input, operation.output, operation.options);
         },
 
         .assemble_many => |operation| {
-            const traps = operation.assemble.trap_aliases orelse default_traps;
+            const traps = operation.options.trap_aliases orelse default_traps;
             var assembler: elk.Assembler = .{
                 .air = .init(),
                 .source = .empty,
                 .traps = &traps,
-                .patch_symbols = operation.assemble.patch_symbols,
+                .patch_symbols = operation.options.patch_symbols,
                 .reporter = &reporter,
                 .gpa = gpa,
                 .io = io,
             };
 
             for (operation.inputs) |input| {
-                try assembleFile(io, &assembler, .{ .regular = input }, null, operation.assemble);
+                try assembleFile(io, &assembler, .{ .regular = input }, null, operation.options);
             }
         },
 
