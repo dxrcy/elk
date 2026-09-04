@@ -470,12 +470,14 @@ fn runCommand(
                 arguments.start.value,
                 arguments.start.span,
                 source,
+                false,
             );
             const end = try debugger.resolveMemoryLocation(
                 runtime,
                 arguments.end.value,
                 arguments.end.span,
                 source,
+                true,
             );
             try debugger.printListing(runtime, start, end);
         },
@@ -506,6 +508,7 @@ fn runCommand(
                 arguments.location.value,
                 arguments.location.span,
                 source,
+                false,
             );
             try debugger.ensureUserAddress(address, arguments.location.span);
             runtime.state.pc = address;
@@ -521,6 +524,7 @@ fn runCommand(
                 arguments.location.value,
                 arguments.location.span,
                 source,
+                false,
             );
 
             const line = try debugger.getAssemblyLine(assembly.air, address, arguments.location.span);
@@ -594,6 +598,7 @@ fn runCommand(
                 arguments.location.value,
                 arguments.location.span,
                 source,
+                false,
             );
             try debugger.ensureUserAddress(address, arguments.location.span);
             const inserted = debugger.breakpoints.insert(address, false) catch {
@@ -611,6 +616,7 @@ fn runCommand(
                 arguments.location.value,
                 arguments.location.span,
                 source,
+                false,
             );
             const removed = debugger.breakpoints.remove(address);
             if (removed)
@@ -835,7 +841,13 @@ fn resolveLocation(
             return .{ .register = register };
         },
         .memory => |memory| {
-            const address = try debugger.resolveMemoryLocation(runtime, memory, location.span, source);
+            const address = try debugger.resolveMemoryLocation(
+                runtime,
+                memory,
+                location.span,
+                source,
+                false,
+            );
             return .{ .address = address };
         },
     }
@@ -847,12 +859,15 @@ fn resolveMemoryLocation(
     memory: Command.Location.Memory,
     span: Span,
     source: Source,
+    comptime saturate: bool,
 ) error{Reported}!u16 {
     switch (memory) {
         .address => |address| return address,
 
         .pc_offset => |pc_offset| {
             const combined = @as(isize, runtime.state.pc) + pc_offset;
+            if (saturate and combined >= 0)
+                return runtime.state.pc +| @as(u16, @intCast(pc_offset));
 
             return std.math.cast(u16, combined) orelse {
                 try debugger.reporter.report(.integer_too_large, .{
@@ -864,7 +879,12 @@ fn resolveMemoryLocation(
 
         .label => |label| {
             const address = try debugger.resolveLabelAddress(label.name, source);
-            return std.math.cast(u16, @as(i17, address) + label.offset) orelse {
+
+            const combined = @as(isize, address) + label.offset;
+            if (saturate and combined >= 0)
+                return address +| @as(u16, @intCast(label.offset));
+
+            return std.math.cast(u16, combined) orelse {
                 try debugger.reporter.report(.integer_too_large, .{
                     .integer = span,
                     .type_info = @typeInfo(u16).int,
