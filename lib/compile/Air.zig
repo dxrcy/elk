@@ -10,6 +10,7 @@ const elk = @import("../root.zig");
 const Span = elk.Span;
 const Source = elk.Source;
 const parsing = @import("parse/parsing.zig");
+const Parser = @import("parse/Parser.zig");
 
 pub const Instruction = @import("instruction.zig").Instruction;
 
@@ -256,8 +257,11 @@ fn findLabelEditDistance(
     assertLabelOrder(air);
     assert(air.findLabelCase(.case_insensitive, reference, source) == null);
 
-    const max_candidate_length = 20;
-    var buffer: [max_candidate_length]u8 = undefined;
+    // Don't attempt on labels which are too long: it is too slow.
+    const max_candidate_length = Parser.max_label_length;
+    if (reference.len > max_candidate_length)
+        return null;
+    var buffer: [max_candidate_length + 1]u8 = undefined;
 
     var best_opt: ?struct { label: *Label, distance: usize } = null;
     for (air.labels.items) |*label| {
