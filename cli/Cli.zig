@@ -70,22 +70,24 @@ pub const Operation = union(enum) {
         output_mode: OutputMode,
         trap_aliases: ?elk.Traps,
         patch_symbols: ?[]const struct { []const u8, u16 },
+    };
 
-        pub const OutputMode = enum {
-            none,
-            assembly,
-            symbols,
-            listing,
+    pub const OutputMode = enum {
+        none,
+        assembly,
+        symbols,
+        listing,
 
-            pub fn extension(output_mode: OutputMode) ?[]const u8 {
-                return switch (output_mode) {
-                    .none => null,
-                    .assembly => "obj",
-                    .symbols => "sym",
-                    .listing => "lst",
-                };
-            }
-        };
+        pub const extensions = [_][]const u8{ "obj", "sym", "lst" };
+
+        pub fn extension(output_mode: OutputMode) ?[]const u8 {
+            return switch (output_mode) {
+                .none => null,
+                .assembly => "obj",
+                .symbols => "sym",
+                .listing => "lst",
+            };
+        }
     };
 
     pub const Debug = struct {
@@ -382,7 +384,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
     }
 
     if (options.pos.items.len > 1) {
-        const output_mode: Operation.Assemble.OutputMode =
+        const output_mode: Operation.OutputMode =
             if (options.flags.check)
                 .none
             else if (options.flags.assemble)

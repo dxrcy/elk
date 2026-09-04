@@ -189,8 +189,7 @@ pub fn main(init: std.process.Init) !u8 {
                 else => |err2| return err2,
             };
 
-            const extensions = [_][]const u8{ "obj", "sym", "lst" };
-            for (extensions) |extension| {
+            for (Cli.Operation.OutputMode.extensions) |extension| {
                 var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
                 const path = replacePathExtension(&path_buffer, operation.input, extension);
 
@@ -241,7 +240,7 @@ fn assembleFile(
 fn openOutputFile(
     io: Io,
     output: ?Cli.Path,
-    output_mode: Cli.Operation.Assemble.OutputMode,
+    output_mode: Cli.Operation.OutputMode,
     input_path: ?[]const u8,
 ) !?Io.File {
     const out_extension = output_mode.extension() orelse
