@@ -57,7 +57,7 @@ pub fn main(init: std.process.Init) !u8 {
                 },
             };
 
-            const traps = operation.trap_aliases orelse default_traps;
+            const traps = operation.assemble.trap_aliases orelse default_traps;
 
             var assembler: elk.Assembler = .{
                 .air = .init(),
@@ -66,7 +66,7 @@ pub fn main(init: std.process.Init) !u8 {
                     .path = input_path,
                 },
                 .traps = &traps,
-                .patch_symbols = operation.patch_symbols,
+                .patch_symbols = operation.assemble.patch_symbols,
                 .reporter = &reporter,
                 .gpa = gpa,
                 .io = io,
@@ -75,7 +75,7 @@ pub fn main(init: std.process.Init) !u8 {
 
             try assembler.assembleFromFile();
 
-            const out_extension = switch (operation.output_mode) {
+            const out_extension = switch (operation.assemble.output_mode) {
                 .none => return 0,
                 .assembly => "obj",
                 .symbols => "sym",
@@ -110,7 +110,7 @@ pub fn main(init: std.process.Init) !u8 {
             var buffer: [512]u8 = undefined;
             var writer = out_file.writer(io, &buffer);
 
-            switch (operation.output_mode) {
+            switch (operation.assemble.output_mode) {
                 .none => unreachable,
                 .assembly => try assembler.air.writeAssembly(&writer.interface),
                 .symbols => try assembler.air.writeSymbols(&writer.interface, assembler.source),
@@ -312,7 +312,7 @@ fn emulate(
         assembly: elk.Provider.Assembly,
     },
     patch_symbols_opt: ?[]const struct { []const u8, u16 },
-    debug_opt: ?Cli.Debug,
+    debug_opt: ?Cli.Operation.Debug,
     traps: *const elk.Traps,
     policies: elk.Policies,
     reporter: *elk.reporting.Primary,

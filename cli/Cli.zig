@@ -33,7 +33,7 @@ strictness: elk.reporting.Options.Strictness,
 verbosity: elk.reporting.Options.Verbosity,
 tty_color: bool,
 
-const Operation = union(enum) {
+pub const Operation = union(enum) {
     assemble_emulate: struct {
         input: zilc.types.Path,
         debug: ?Debug,
@@ -42,16 +42,11 @@ const Operation = union(enum) {
     assemble: struct {
         input: zilc.types.Path,
         output: ?zilc.types.Path,
-        // TODO: Move these fields to struct, to share with `assemble_many`
-        output_mode: OutputMode,
-        trap_aliases: ?elk.Traps,
-        patch_symbols: ?[]const struct { []const u8, u16 },
+        assemble: Assemble,
     },
     assemble_many: struct {
         inputs: []const []const u8,
-        output_mode: OutputMode,
-        trap_aliases: ?elk.Traps,
-        patch_symbols: ?[]const struct { []const u8, u16 },
+        assemble: Assemble,
     },
     emulate: struct {
         input: zilc.types.Path,
@@ -70,17 +65,23 @@ const Operation = union(enum) {
     },
     lsp: struct {},
 
-    pub const OutputMode = enum { none, assembly, symbols, listing };
-};
+    pub const Assemble = struct {
+        output_mode: OutputMode,
+        trap_aliases: ?elk.Traps,
+        patch_symbols: ?[]const struct { []const u8, u16 },
 
-pub const Debug = struct {
-    input: Input,
-    history_file: ?[]const u8,
+        pub const OutputMode = enum { none, assembly, symbols, listing };
+    };
 
-    pub const Input = union(enum) {
-        none,
-        partial: []const u8,
-        full: []const u8,
+    pub const Debug = struct {
+        input: Input,
+        history_file: ?[]const u8,
+
+        pub const Input = union(enum) {
+            none,
+            partial: []const u8,
+            full: []const u8,
+        };
     };
 };
 
@@ -347,7 +348,7 @@ fn checkDependencies(options: *const zilc.Options(template)) !void {
 }
 
 fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Operation {
-    const debug_input: Debug.Input =
+    const debug_input: Operation.Debug.Input =
         if (options.flags.input_full) |input|
             .{ .full = input }
         else if (options.flags.input_partial) |input|
@@ -365,7 +366,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
     }
 
     if (options.pos.items.len > 1) {
-        const output_mode: Operation.OutputMode =
+        const output_mode: Operation.Assemble.OutputMode =
             if (options.flags.check)
                 .none
             else if (options.flags.assemble)
@@ -393,9 +394,11 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
         return .{
             .assemble_many = .{
                 .inputs = inputs,
-                .output_mode = output_mode,
-                .trap_aliases = options.flags.trap_aliases,
-                .patch_symbols = options.flags.patch_symbols,
+                .assemble = .{
+                    .output_mode = output_mode,
+                    .trap_aliases = options.flags.trap_aliases,
+                    .patch_symbols = options.flags.patch_symbols,
+                },
             },
         };
     }
@@ -407,14 +410,16 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
             .assemble = .{
                 .input = input,
                 .output = options.flags.output,
-                .output_mode = if (options.flags.export_symbols)
-                    .symbols
-                else if (options.flags.export_listing)
-                    .listing
-                else
-                    .assembly,
-                .trap_aliases = options.flags.trap_aliases,
-                .patch_symbols = options.flags.patch_symbols,
+                .assemble = .{
+                    .output_mode = if (options.flags.export_symbols)
+                        .symbols
+                    else if (options.flags.export_listing)
+                        .listing
+                    else
+                        .assembly,
+                    .trap_aliases = options.flags.trap_aliases,
+                    .patch_symbols = options.flags.patch_symbols,
+                },
             },
         };
     }
@@ -435,9 +440,11 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
         return .{ .assemble = .{
             .input = input,
             .output = null,
-            .output_mode = .none,
-            .trap_aliases = options.flags.trap_aliases,
-            .patch_symbols = options.flags.patch_symbols,
+            .assemble = .{
+                .output_mode = .none,
+                .trap_aliases = options.flags.trap_aliases,
+                .patch_symbols = options.flags.patch_symbols,
+            },
         } };
     }
 
