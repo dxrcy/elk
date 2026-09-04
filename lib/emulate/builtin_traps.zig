@@ -25,8 +25,12 @@ fn readChar(runtime: *Runtime, comptime vect: enum { in, getc }) Traps.Result {
     }
 
     try runtime.tty.enableRawMode();
+    errdefer runtime.tty.disableRawMode() catch {};
 
-    const char = try runtime.readByte();
+    const char = runtime.readByte() catch |err| switch (err) {
+        error.EndOfStream => std.ascii.control_code.eot,
+        else => |e| return e,
+    };
 
     try runtime.tty.disableRawMode();
 
@@ -46,26 +50,24 @@ pub fn out(runtime: *Runtime) Traps.Result {
 }
 
 pub fn puts(runtime: *Runtime) Traps.Result {
-    var i: usize = runtime.state.registers[0];
-    while (true) : (i += 1) {
-        const word: u8 = @truncate(runtime.state.memory[i]);
-        if (word == 0x00)
-            break;
-        try runtime.writeChar(word);
+    var stringz = runtime.stringzAt(runtime.state.registers[0]);
+    while (stringz.next() catch
+        return error.TrapFailed) |word|
+    {
+        const byte: u8 = @truncate(word);
+        try runtime.writeChar(byte);
     }
     try runtime.writer.flush();
 }
 
 pub fn putsp(runtime: *Runtime) Traps.Result {
-    var i: usize = runtime.state.registers[0];
-    while (true) : (i += 1) {
-        const words: [2]u8 = @bitCast(runtime.state.memory[i]);
-        if (words[0] == 0x00)
-            break;
-        try runtime.writeChar(words[0]);
-        if (words[1] == 0x00)
-            break;
-        try runtime.writeChar(words[1]);
+    var stringz = runtime.stringzAt(runtime.state.registers[0]);
+    while (stringz.next() catch
+        return error.TrapFailed) |word|
+    {
+        const bytes: [2]u8 = @bitCast(word);
+        try runtime.writeChar(bytes[0]);
+        try runtime.writeChar(bytes[1]);
     }
     try runtime.writer.flush();
 }

@@ -33,21 +33,20 @@ writer_is_newline: bool,
 tty: Tty,
 
 pub const State = struct {
-    memory: []u16,
+    memory: *[memory_size]u16,
     registers: [8]u16,
     pc: u16,
     condition: Condition,
 
     pub fn init(gpa: Allocator) Allocator.Error!State {
-        const memory = try gpa.alloc(u16, memory_size);
+        const memory = try gpa.create([memory_size]u16);
 
-        @memset(memory[0..user_memory_start], memory_init_privileged);
-        @memset(memory[user_memory_start..user_memory_end], memory_init_user);
-        @memset(memory[user_memory_end..], memory_init_privileged);
+        @memset(memory[0..memory_size], memory_init_privileged);
+        @memset(memory[user_memory_start .. user_memory_end + 1], memory_init_user);
 
         return .{
             .memory = memory,
-            .registers = .{ 0, 0, 0, 0, 0, 0, 0, user_memory_end },
+            .registers = .{ 0, 0, 0, 0, 0, 0, 0, 0 },
             .pc = 0x0000,
             .condition = .zero,
         };
@@ -64,7 +63,7 @@ pub const State = struct {
     }
 
     pub fn deinit(state: State, gpa: Allocator) void {
-        defer gpa.free(state.memory);
+        defer gpa.destroy(state.memory);
     }
 };
 
@@ -144,7 +143,9 @@ pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !voi
             error.EndOfStream => return error.FileNotAligned,
         };
         const word = (@as(u16, high) << 8) | low;
-        try runtime.setMemory(@intCast(origin + i), word);
+        const addr = std.math.cast(u16, origin + i) orelse
+            return error.FileTooLarge;
+        try runtime.setMemory(addr, word);
     }
 }
 
@@ -254,7 +255,7 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
 
         .lea => |operands| {
             const address = runtime.state.pc +% signExtend(operands.pc_offset);
-            runtime.setRegister(operands.dest, address);
+            runtime.setRegisterNoCc(operands.dest, address);
         },
         .ld => |operands| {
             const address = runtime.state.pc +% signExtend(operands.pc_offset);
@@ -268,7 +269,7 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
             runtime.setRegister(operands.dest, value);
         },
         .ldr => |operands| {
-            const address = runtime.state.registers[operands.base] + signExtend(operands.offset);
+            const address = runtime.state.registers[operands.base] +% signExtend(operands.offset);
             const value = try runtime.getMemory(address);
             runtime.setRegister(operands.dest, value);
         },
@@ -282,7 +283,7 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
             try runtime.setMemory(address, runtime.state.registers[operands.src]);
         },
         .str => |operands| {
-            const address = runtime.state.registers[operands.base] + signExtend(operands.offset);
+            const address = runtime.state.registers[operands.base] +% signExtend(operands.offset);
             try runtime.setMemory(address, runtime.state.registers[operands.src]);
         },
 
@@ -336,7 +337,11 @@ fn setRegister(runtime: *Runtime, register: u3, value: u16) void {
             .positive;
 }
 
-pub fn getMemory(runtime: *Runtime, address: u16) error{UnpermittedMemoryAccess}!u16 {
+fn setRegisterNoCc(runtime: *Runtime, register: u3, value: u16) void {
+    runtime.state.registers[register] = value;
+}
+
+pub fn getMemory(runtime: *const Runtime, address: u16) error{UnpermittedMemoryAccess}!u16 {
     try checkMemoryAccess(address);
     return runtime.state.memory[address];
 }
@@ -441,9 +446,35 @@ fn printDisplayChar(runtime: *Runtime, word: u16) error{WriteFailed}!void {
         " ` ", " a ", " b ",  " c ", " d ", " e ", " f ", " g ", " h ", " i ", " j ", " k ", " l ",  " m ", " n ", " o ",
         " p ", " q ", " r ",  " s ", " t ", " u ", " v ", " w ", " x ", " y ", " z ", " { ", " | ",  " } ", " ~ ", "DEL",
     };
-    const display = if (word > 0x80) "---" else ascii[word];
+    const display = if (word > 0x7F) "---" else ascii[word];
     try runtime.writer.print("{s}", .{display});
 }
+
+pub fn stringzAt(runtime: *const Runtime, address: u16) Stringz {
+    return .{
+        .runtime = runtime,
+        .address = address,
+        .end = false,
+    };
+}
+
+pub const Stringz = struct {
+    runtime: *const Runtime,
+    address: u16,
+    end: bool,
+
+    pub fn next(stringz: *Stringz) error{UnpermittedMemoryAccess}!?u16 {
+        if (stringz.end)
+            return null;
+        const word = try stringz.runtime.getMemory(stringz.address);
+        if (word == 0x0000) {
+            stringz.end = true;
+            return null;
+        }
+        stringz.address += 1;
+        return word;
+    }
+};
 
 fn signExtend(value: anytype) u16 {
     const bits = @typeInfo(@TypeOf(value)).int.bits;

@@ -1,6 +1,6 @@
 .{
     .name = .elk,
-    .version = "0.1.6-mc",
+    .version = "0.1.7-mc",
     .author = "darcy",
     .homepage = "https://codeberg.org/dxrcy/elk",
     .description = "Complete LC-3 toolchain.",
@@ -12,6 +12,11 @@
         .mcz = .{
             .url = "git+https://codeberg.org/dxrcy/mcz#89104409aa94b4b7587a142229cdeaa4fa4f047d",
             .hash = "mcz-0.1.0-kvwPQhu1AAAXmBTC5OSwCu3ZcTSLq7oD9nVjSjIN8LSk",
+        },
+        .zilc = .{
+            .url = "git+https://codeberg.org/dxrcy/zilc#v0.1.1",
+            .hash = "zilc-0.1.1-a-peQU1mAACLAH4S-PFTopK0hbjExw9V-t559zdJGN1q",
+            .lazy = true,
         },
     },
 

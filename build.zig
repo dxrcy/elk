@@ -25,8 +25,13 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     }).module("mcz");
 
-    exe_mod.addImport("build_zon", build_zon_mod);
+    const zilc_dep = b.lazyDependency("zilc", .{}) orelse
+        return;
+    const zilc_mod = zilc_dep.module("zilc");
+
     exe_mod.addImport("elk", lib_mod);
+    exe_mod.addImport("build_zon", build_zon_mod);
+    exe_mod.addImport("zilc", zilc_mod);
     exe_mod.addImport("mcz", mcz_mod);
 
     const exe = b.addExecutable(.{

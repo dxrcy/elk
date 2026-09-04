@@ -275,7 +275,7 @@ debugging use and may be undefined on other implementations.
 ### Available commands
 - List them here
 ### Initial commands
-- `--commands`
+- `--input`
 - ...
 ### Change history filepath
 - `--history-file`
@@ -510,6 +510,10 @@ ELK is available on [Homebrew](https://brew.sh) through the tap
 
 ```sh
 brew install dxrcy/elk/elk
+```
+
+```sh
+brew tap dxrcy/elk
 ```
 
 > Note: To install the **ELCI** build, use `brew install dxrcy/elk/elk-mc`

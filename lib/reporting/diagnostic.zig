@@ -105,6 +105,8 @@ pub const Diagnostic = union(enum) {
     redefined_label: struct { existing: Span, new: Span },
     undefined_label: struct { reference: Span, nearest: NearestSpan, definition_source: Source },
     unused_label: struct { label: Span },
+    label_too_long: struct { label: Span },
+    breakpoint_label: struct { label: Span },
 
     // Integer syntax
     malformed_integer: struct { integer: Span },
@@ -120,7 +122,7 @@ pub const Diagnostic = union(enum) {
 
     // Integer bounds
     integer_too_large: struct { integer: Span, type_info: std.builtin.Type.Int },
-    offset_too_large: struct { definition: Span, reference: Span, offset: i17, bits: u16, definition_source: Source },
+    offset_too_large: struct { definition: ?Span, reference: Span, offset: i17, bits: u16, definition_source: Source },
     unexpected_negative_integer: struct { integer: Span },
 
     // Strings
@@ -188,6 +190,8 @@ pub const Diagnostic = union(enum) {
 
             .existing_label_left => .major,
 
+            .breakpoint_label => .info,
+
             .invalid_label_target,
             .invalid_string_escape,
             => strictnessResponse(options),
@@ -195,6 +199,7 @@ pub const Diagnostic = union(enum) {
             .missing_origin => policyResponse(options, .extension, .implicit_origin),
             .missing_end => policyResponse(options, .extension, .implicit_end),
             .existing_label_above => policyResponse(options, .extension, .multiple_labels),
+            .label_too_long => policyResponse(options, .extension, .longer_labels),
             .label_colon => policyResponse(options, .extension, .label_definition_colons),
             .nonstandard_integer_radix => policyResponse(options, .extension, .more_integer_radixes),
             .implicit_integer_radix,

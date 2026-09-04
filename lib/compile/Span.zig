@@ -70,10 +70,7 @@ pub fn view(span: Span, source: Source) []const u8 {
 }
 
 pub fn overlaps(lhs: Span, rhs: Span) bool {
-    return (lhs.offset >= rhs.end() and
-        lhs.end() <= rhs.offset) or
-        (lhs.offset <= rhs.end() and
-            lhs.end() >= rhs.offset);
+    return lhs.offset < rhs.end() and rhs.offset < lhs.end();
 }
 
 pub fn containsIndex(span: Span, index: usize) bool {
@@ -237,4 +234,22 @@ test getContainingLines {
         try expect(actual.end() <= source.len); // <= is intended
         try expect(std.mem.eql(u8, actual_string, expected_string));
     }
+}
+
+test overlaps {
+    const expect = std.testing.expect;
+
+    try expect((Span{ .offset = 5, .len = 5 }).overlaps(Span{ .offset = 5, .len = 5 }));
+
+    try expect((Span{ .offset = 0, .len = 6 }).overlaps(Span{ .offset = 3, .len = 5 }));
+    try expect((Span{ .offset = 3, .len = 5 }).overlaps(Span{ .offset = 0, .len = 6 }));
+
+    try expect((Span{ .offset = 0, .len = 10 }).overlaps(Span{ .offset = 2, .len = 3 }));
+    try expect((Span{ .offset = 2, .len = 3 }).overlaps(Span{ .offset = 0, .len = 10 }));
+
+    try expect(!(Span{ .offset = 0, .len = 5 }).overlaps(Span{ .offset = 5, .len = 5 }));
+    try expect(!(Span{ .offset = 5, .len = 5 }).overlaps(Span{ .offset = 0, .len = 5 }));
+
+    try expect(!(Span{ .offset = 0, .len = 3 }).overlaps(Span{ .offset = 7, .len = 3 }));
+    try expect(!(Span{ .offset = 7, .len = 3 }).overlaps(Span{ .offset = 0, .len = 3 }));
 }

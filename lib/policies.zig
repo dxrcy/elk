@@ -38,6 +38,7 @@ pub const Policies = packed struct {
         more_integer_forms: Policy,
         label_definition_colons: Policy,
         multiple_labels: Policy,
+        longer_labels: Policy,
         character_literals: Policy,
 
         pub const forbid_all = fillFields(@This(), .forbid);

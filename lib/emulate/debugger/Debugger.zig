@@ -99,15 +99,27 @@ pub const Writer = struct {
         else
             string;
 
-        const semicolon = std.mem.findScalar(u8, trimmed, ';') orelse trimmed.len;
-        const first = trimmed[0..semicolon];
-        const rest = trimmed[semicolon..];
+        const start = std.mem.findNone(u8, trimmed, " ;") orelse 0;
+        const end = std.mem.findScalarPos(u8, trimmed, start, ';') orelse trimmed.len;
 
-        try writer.print("{s}", .{first});
-        if (rest.len > 0) {
+        const before = trimmed[0..start];
+        const command = trimmed[start..end];
+        const after = trimmed[end..];
+
+        if (before.len > 0) {
             if (writer.use_color)
                 try writer.print("\x1b[2m", .{});
-            try writer.print("{s}", .{rest});
+            try writer.print("{s}", .{before});
+            if (writer.use_color)
+                try writer.print("\x1b[0m", .{});
+        }
+
+        try writer.print("{s}", .{command});
+
+        if (after.len > 0) {
+            if (writer.use_color)
+                try writer.print("\x1b[2m", .{});
+            try writer.print("{s}", .{after});
             if (writer.use_color)
                 try writer.print("\x1b[0m", .{});
         }
@@ -458,12 +470,14 @@ fn runCommand(
                 arguments.start.value,
                 arguments.start.span,
                 source,
+                false,
             );
             const end = try debugger.resolveMemoryLocation(
                 runtime,
                 arguments.end.value,
                 arguments.end.span,
                 source,
+                true,
             );
             try debugger.printListing(runtime, start, end);
         },
@@ -494,6 +508,7 @@ fn runCommand(
                 arguments.location.value,
                 arguments.location.span,
                 source,
+                false,
             );
             try debugger.ensureUserAddress(address, arguments.location.span);
             runtime.state.pc = address;
@@ -509,6 +524,7 @@ fn runCommand(
                 arguments.location.value,
                 arguments.location.span,
                 source,
+                false,
             );
 
             const line = try debugger.getAssemblyLine(assembly.air, address, arguments.location.span);
@@ -547,7 +563,7 @@ fn runCommand(
 
         .step_over => {
             debugger.state.status = .{ .step_over = .{
-                .return_address = runtime.state.pc + 1,
+                .return_address = runtime.state.pc +% 1,
             } };
             debugger.state.should_print_pc = true;
             // Don't print message here, we can't know if next instruction will change PC.
@@ -582,6 +598,7 @@ fn runCommand(
                 arguments.location.value,
                 arguments.location.span,
                 source,
+                false,
             );
             try debugger.ensureUserAddress(address, arguments.location.span);
             const inserted = debugger.breakpoints.insert(address, false) catch {
@@ -599,6 +616,7 @@ fn runCommand(
                 arguments.location.value,
                 arguments.location.span,
                 source,
+                false,
             );
             const removed = debugger.breakpoints.remove(address);
             if (removed)
@@ -619,7 +637,7 @@ fn printListing(debugger: *Debugger, runtime: *Runtime, start: u16, end: u16) !v
     try debugger.writer.print("|          hex     decoded         label        |\n", .{});
     try debugger.writer.print(line, .{});
 
-    for (start..end + 1) |i| {
+    for (@as(u32, start)..@as(u32, end) + 1) |i| {
         const address: u16 = @intCast(i);
         const word = runtime.state.memory[address];
 
@@ -794,15 +812,13 @@ fn getAssemblyLine(
     span: Span,
 ) error{Reported}!*const Air.Line {
     try debugger.ensureUserAddress(address, span);
-    // Overflow is not possible since address is in user memory
-    const index = address - air.origin;
-    if (index >= air.lines.items.len) {
+    if (address < air.origin or address -% air.origin >= air.lines.items.len) {
         try debugger.reporter.report(.debugger_address_not_in_assembly, .{
             .value = address,
             .max = @intCast(air.origin + air.lines.items.len - 1),
         }).abort();
     }
-    return &air.lines.items[index];
+    return &air.lines.items[address -% air.origin];
 }
 
 fn getAssemblyLineIndexOptional(air: *const Air, address: u16) ?usize {
@@ -825,7 +841,13 @@ fn resolveLocation(
             return .{ .register = register };
         },
         .memory => |memory| {
-            const address = try debugger.resolveMemoryLocation(runtime, memory, location.span, source);
+            const address = try debugger.resolveMemoryLocation(
+                runtime,
+                memory,
+                location.span,
+                source,
+                false,
+            );
             return .{ .address = address };
         },
     }
@@ -837,12 +859,15 @@ fn resolveMemoryLocation(
     memory: Command.Location.Memory,
     span: Span,
     source: Source,
+    comptime saturate: bool,
 ) error{Reported}!u16 {
     switch (memory) {
         .address => |address| return address,
 
         .pc_offset => |pc_offset| {
             const combined = @as(isize, runtime.state.pc) + pc_offset;
+            if (saturate and combined >= 0)
+                return runtime.state.pc +| @as(u16, @intCast(pc_offset));
 
             return std.math.cast(u16, combined) orelse {
                 try debugger.reporter.report(.integer_too_large, .{
@@ -854,7 +879,12 @@ fn resolveMemoryLocation(
 
         .label => |label| {
             const address = try debugger.resolveLabelAddress(label.name, source);
-            return std.math.cast(u16, @as(i17, address) + label.offset) orelse {
+
+            const combined = @as(isize, address) + label.offset;
+            if (saturate and combined >= 0)
+                return address +| @as(u16, @intCast(label.offset));
+
+            return std.math.cast(u16, combined) orelse {
                 try debugger.reporter.report(.integer_too_large, .{
                     .integer = span,
                     .type_info = @typeInfo(u16).int,
@@ -891,28 +921,34 @@ fn resolveLabelAddress(debugger: *const Debugger, label: Span, source: Source) e
 fn resolveLabelIndex(
     debugger: *const Debugger,
     assembly: Provider.Assembly,
-    label: Span,
+    reference: Span,
     source: Source,
 ) error{Reported}!u16 {
-    const string = label.view(source);
-
-    if (assembly.air.findLabel(.exact, string, assembly.source)) |result|
-        return result.index;
-
-    if (assembly.air.findLabel(.nearest, string, assembly.source)) |result| {
-        debugger.reporter.report(.debugger_label_partial_match, .{
-            .reference = label,
-            .nearest = result.span,
-            .definition_source = assembly.source,
-        }).proceed();
-        return result.index;
+    switch (assembly.air.findLabel(reference.view(source), assembly.source)) {
+        .exact => |label| return label.index,
+        .case_insensitive => |label| {
+            debugger.reporter.report(.debugger_label_partial_match, .{
+                .reference = reference,
+                .nearest = label.span,
+                .definition_source = assembly.source,
+            }).proceed();
+            return label.index;
+        },
+        .edit_distance => |label| {
+            try debugger.reporter.report(.undefined_label, .{
+                .reference = reference,
+                .nearest = .{ .edit_distance = label.span },
+                .definition_source = assembly.source,
+            }).abort();
+        },
+        .none => {
+            try debugger.reporter.report(.undefined_label, .{
+                .reference = reference,
+                .nearest = .none,
+                .definition_source = assembly.source,
+            }).abort();
+        },
     }
-
-    try debugger.reporter.report(.undefined_label, .{
-        .reference = label,
-        .nearest = .none,
-        .definition_source = assembly.source,
-    }).abort();
 }
 
 fn getAssembly(debugger: *const Debugger, span: Span) error{Reported}!Provider.Assembly {
@@ -967,7 +1003,13 @@ fn readCommand(debugger: *Debugger, runtime: *Runtime) ![]const u8 {
     try debugger.writer.print("\n", .{});
     try debugger.writer.flush();
 
-    const first, const rest = parse.splitCommandLine(line);
+    var rest = line;
+    const first = while (rest.len > 0) {
+        const first, rest = parse.splitCommandLine(rest);
+        if (first.len > 0)
+            break first;
+    } else ""; // Line was empty, not including delimiters
+
     debugger.current_line = rest;
     return first;
 }
@@ -977,7 +1019,9 @@ fn readInputLine(debugger: *Debugger, runtime: *Runtime) ![]const u8 {
         return debugger.current_line;
 
     try runtime.ensureWriterNewline();
+
     try runtime.tty.enableRawMode();
+    errdefer runtime.tty.disableRawMode() catch {};
     const line = debugger.input.readLine(&debugger.writer);
     try runtime.tty.disableRawMode();
     return line;

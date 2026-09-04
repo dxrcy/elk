@@ -81,87 +81,91 @@ pub const Provider = union(enum) {
             .resolved => return,
         }
 
-        const offset = switch (provider) {
+        const definition = try provider.resolveAbsolute(operand.span, source, reporter);
+
+        const offset = calculateOffset(Int, definition.address, address) orelse {
+            try reporter.report(.offset_too_large, .{
+                .reference = operand.span,
+                .definition = definition.span,
+                .offset = calculateOffset(i17, definition.address, address) orelse
+                    unreachable,
+                .bits = @typeInfo(Int).int.bits,
+                .definition_source = source,
+            }).abort();
+        };
+
+        operand.value = .{ .resolved = .{ .integer = offset, .form = null } };
+    }
+
+    /// Also increments reference count of definition, when using `Assembly` provider.
+    pub fn resolveAbsolute(
+        provider: Provider,
+        operand: Span,
+        source: Source,
+        reporter: *Reporter,
+    ) error{Reported}!SpannedAddress {
+        return switch (provider) {
             .none => {
                 // TODO: Report properly
                 std.log.err("label operand cannot be resolved", .{});
                 return error.Reported;
             },
-            .assembly => |assembly| try resolveFieldAssembly(Int, operand.span, address, assembly, source, reporter),
-            .symbols => |symbols| try resolveFieldSymbols(Int, operand.span, address, symbols, source, reporter),
+            .assembly => |assembly| try resolveAssemblyAbsolute(operand, assembly, source, reporter),
+            .symbols => |symbols| try resolveSymbolAbsolute(operand, symbols, source, reporter),
         };
-
-        operand.value = .{ .resolved = .{ .integer = offset, .form = null } };
     }
 };
 
-fn resolveFieldAssembly(
-    comptime Int: type,
+const SpannedAddress = struct { address: u16, span: ?Span };
+
+fn resolveAssemblyAbsolute(
     operand: Span,
-    address: usize,
     assembly: Provider.Assembly,
     source: Source,
     reporter: *Reporter,
-) error{Reported}!Int {
+) error{Reported}!SpannedAddress {
     const string = operand.view(source);
 
-    const definition =
-        assembly.air.findLabel(.exact, string, assembly.source) orelse {
-            const nearest: Reporter.Diagnostic.NearestSpan =
-                if (assembly.air.findLabel(.nearest, string, assembly.source)) |label|
-                    if (std.ascii.eqlIgnoreCase(string, label.span.view(assembly.source)))
-                        .{ .case_insensitive = label.span }
-                    else
-                        .{ .edit_distance = label.span }
-                else
-                    .none;
-            try reporter.report(.undefined_label, .{
-                .reference = operand,
-                .nearest = nearest,
-                .definition_source = assembly.source,
-            }).abort();
-        };
-
-    const definition_address = definition.index + assembly.air.origin;
-    const offset = calculateOffset(Int, definition_address, address) orelse {
-        try reporter.report(.offset_too_large, .{
+    const definition = blk: {
+        const nearest: Reporter.Diagnostic.NearestSpan =
+            switch (assembly.air.findLabel(string, assembly.source)) {
+                .exact => |label| break :blk label,
+                .case_insensitive => |label| .{ .case_insensitive = label.span },
+                .edit_distance => |label| .{ .edit_distance = label.span },
+                .none => .none,
+            };
+        try reporter.report(.undefined_label, .{
             .reference = operand,
-            .definition = definition.span,
-            .offset = calculateOffset(i17, definition_address, address) orelse
-                unreachable,
-            .bits = @typeInfo(Int).int.bits,
+            .nearest = nearest,
             .definition_source = assembly.source,
         }).abort();
     };
 
     definition.references += 1;
-    return offset;
+    return .{
+        .address = definition.index + assembly.air.origin,
+        .span = definition.span,
+    };
 }
 
-fn resolveFieldSymbols(
-    comptime Int: type,
+fn resolveSymbolAbsolute(
     operand: Span,
-    address: usize,
     symbols: Provider.Symbols,
     source: Source,
     reporter: *Reporter,
-) error{Reported}!Int {
+) error{Reported}!SpannedAddress {
     const string = operand.view(source);
 
     // TODO: Provide suggestion for nearest match
-    const definition = (symbols.getAddress(string) orelse {
+    const address = symbols.getAddress(string) orelse {
         try reporter.report(.undefined_label, .{
             .reference = operand,
             .nearest = .none,
             .definition_source = .empty,
         }).abort();
-    });
-
-    return calculateOffset(Int, definition, address) orelse {
-        // TODO: Report properly
-        std.log.err("offset too large", .{});
-        return error.Reported;
     };
+
+    return .{ .address = address, .span = null };
 }
 
 fn calculateOffset(comptime T: type, definition: usize, reference: usize) ?T {

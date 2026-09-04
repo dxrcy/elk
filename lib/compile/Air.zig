@@ -10,6 +10,7 @@ const elk = @import("../root.zig");
 const Span = elk.Span;
 const Source = elk.Source;
 const parsing = @import("parse/parsing.zig");
+const Parser = @import("parse/Parser.zig");
 
 pub const Instruction = @import("instruction.zig").Instruction;
 
@@ -57,11 +58,13 @@ pub const Line = struct {
 
 pub const Statement = union(enum) {
     raw_word: u16,
+    unresolved_word: Span,
     instruction: Instruction,
 
     pub fn encode(statement: Statement) u16 {
         return switch (statement) {
             .raw_word => |raw| raw,
+            .unresolved_word => unreachable,
             .instruction => |instruction| instruction.encode(),
         };
     }
@@ -84,7 +87,7 @@ pub fn deinit(air: *Air, gpa: Allocator) void {
 }
 
 pub fn copyToRuntime(air: *const Air, runtime: *elk.Runtime) !void {
-    assert(air.lines.items.len <= 0xffff);
+    assert(air.lines.items.len + air.origin < elk.Runtime.memory_size);
 
     runtime.state.pc = air.origin;
     for (air.lines.items, 0..) |line, i| {
@@ -94,7 +97,7 @@ pub fn copyToRuntime(air: *const Air, runtime: *elk.Runtime) !void {
 }
 
 pub fn writeAssembly(air: *const Air, writer: *Io.Writer) !void {
-    assert(air.lines.items.len <= 0xffff);
+    assert(air.lines.items.len + air.origin < elk.Runtime.memory_size);
 
     try writer.writeInt(u16, air.origin, .big);
     for (air.lines.items) |line| {
@@ -204,7 +207,27 @@ pub fn patchLabelValue(
 
 pub fn findLabel(
     air: *const Air,
-    comptime mode: enum { exact, nearest },
+    reference: []const u8,
+    source: Source,
+) union(enum) {
+    none,
+    exact: *Label,
+    case_insensitive: *Label,
+    edit_distance: *Label,
+} {
+    if (air.findLabelCase(.exact, reference, source)) |label|
+        return .{ .exact = label };
+    if (air.findLabelCase(.case_insensitive, reference, source)) |label|
+        return .{ .case_insensitive = label };
+    if (air.findLabelEditDistance(reference, source)) |label|
+        return .{ .edit_distance = label };
+    return .none;
+}
+
+/// `case_insensitive` mode asserts that no case-sensitive match exists (caller should first try `exact`).
+fn findLabelCase(
+    air: *const Air,
+    comptime mode: enum { exact, case_insensitive },
     reference: []const u8,
     source: Source,
 ) ?*Label {
@@ -214,32 +237,47 @@ pub fn findLabel(
         const string = label.span.view(source);
         const matches = switch (mode) {
             .exact => std.mem.eql(u8, string, reference),
-            .nearest => std.ascii.eqlIgnoreCase(string, reference),
+            .case_insensitive => blk: {
+                assert(!std.mem.eql(u8, string, reference));
+                break :blk std.ascii.eqlIgnoreCase(string, reference);
+            },
         };
         if (matches)
             return label;
     }
+    return null;
+}
 
-    if (mode == .nearest) {
-        const max_candidate_length = 20;
-        var buffer: [max_candidate_length]u8 = undefined;
+/// Asserts that no case-insensitive match exists (caller should first try `findLabelCase`).
+fn findLabelEditDistance(
+    air: *const Air,
+    reference: []const u8,
+    source: Source,
+) ?*Label {
+    assertLabelOrder(air);
+    assert(air.findLabelCase(.case_insensitive, reference, source) == null);
 
-        var best_opt: ?struct { label: *Label, distance: usize } = null;
-        for (air.labels.items) |*label| {
-            const string = label.span.view(source);
-            const distance = parsing.editDistance(string, reference, &buffer);
-            if (best_opt) |best| {
-                if (best.distance < distance)
-                    continue;
-            }
-            best_opt = .{ .label = label, .distance = distance };
-        }
+    // Don't attempt on labels which are too long: it is too slow.
+    const max_candidate_length = Parser.max_label_length;
+    if (reference.len > max_candidate_length)
+        return null;
+    var buffer: [max_candidate_length + 1]u8 = undefined;
+
+    var best_opt: ?struct { label: *Label, distance: usize } = null;
+    for (air.labels.items) |*label| {
+        const string = label.span.view(source);
+        const distance = parsing.editDistance(string, reference, &buffer);
         if (best_opt) |best| {
-            if (best.distance <= max_edit_distance)
-                return best.label;
+            if (best.distance < distance)
+                continue;
         }
+        best_opt = .{ .label = label, .distance = distance };
     }
 
+    if (best_opt) |best| {
+        if (best.distance <= max_edit_distance)
+            return best.label;
+    }
     return null;
 }
 

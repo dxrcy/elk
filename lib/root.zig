@@ -10,7 +10,6 @@ pub const Parser = @import("compile/parse/Parser.zig");
 pub const Runtime = @import("emulate/Runtime.zig");
 pub const Debugger = @import("emulate/debugger/Debugger.zig");
 
-// TODO: Update
 test {
     const refAllDecls = @import("std").testing.refAllDecls;
     refAllDecls(@import("reporting/Sink.zig"));
@@ -20,8 +19,8 @@ test {
     refAllDecls(@import("reporting/diagnostic.zig"));
     refAllDecls(@import("root.zig"));
     refAllDecls(@import("compile/Operand.zig"));
-    refAllDecls(@import("compile/Span.zig"));
     refAllDecls(@import("compile/Source.zig"));
+    refAllDecls(@import("compile/Span.zig"));
     refAllDecls(@import("compile/instruction.zig"));
     refAllDecls(@import("compile/Air.zig"));
     refAllDecls(@import("compile/parse/parsing.zig"));
@@ -32,6 +31,7 @@ test {
     refAllDecls(@import("compile/parse/Token.zig"));
     refAllDecls(@import("compile/parse/Tokenizer.zig"));
     refAllDecls(@import("callback.zig"));
+    refAllDecls(@import("provider.zig"));
     refAllDecls(@import("policies.zig"));
     refAllDecls(@import("Traps.zig"));
     refAllDecls(@import("emulate/decode.zig"));
@@ -48,4 +48,5 @@ test {
     refAllDecls(@import("emulate/debugger/Debugger.zig"));
     refAllDecls(@import("emulate/debugger/parse.zig"));
     refAllDecls(@import("emulate/Runtime.zig"));
+    refAllDecls(@import("Assembler.zig"));
 }

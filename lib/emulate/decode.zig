@@ -49,6 +49,9 @@ const bitmasks = struct {
         pub const jsrr_low: Bitmask = .new(.unsigned, 0, 5, 6);
         pub const rti: Bitmask = .new(.unsigned, 0, 11, 12);
         pub const trap: Bitmask = .new(.unsigned, 8, 11, 4);
+        pub const pop_push_high: Bitmask = .new(.unsigned, 9, 9, 1);
+        pub const pop_push_low: Bitmask = .new(.unsigned, 0, 5, 6);
+        pub const rets_low: Bitmask = .new(.unsigned, 0, 9, 10);
     };
 
     pub const operand = struct {
@@ -291,18 +294,26 @@ pub const Instruction = union(enum) {
             .pop_push_rets_call => {
                 switch (bitmasks.flag.pop_push_rets_call.apply(word)) {
                     0b00 => { // POP
+                        if (bitmasks.padding.pop_push_high.apply(word) != 0 or
+                            bitmasks.padding.pop_push_low.apply(word) != 0)
+                            return error.IncorrectPadding;
                         const dest = bitmasks.operand.reg_mid.apply(word);
                         return .{ .pop_push_rets_call = .{
                             .pop = .{ .dest = dest },
                         } };
                     },
                     0b01 => { // PUSH
+                        if (bitmasks.padding.pop_push_high.apply(word) != 0 or
+                            bitmasks.padding.pop_push_low.apply(word) != 0)
+                            return error.IncorrectPadding;
                         const src = bitmasks.operand.reg_mid.apply(word);
                         return .{ .pop_push_rets_call = .{
                             .push = .{ .src = src },
                         } };
                     },
                     0b10 => { // RETS
+                        if (bitmasks.padding.rets_low.apply(word) != 0)
+                            return error.IncorrectPadding;
                         return .{
                             .pop_push_rets_call = .rets,
                         };

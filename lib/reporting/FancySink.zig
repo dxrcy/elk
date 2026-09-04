@@ -280,6 +280,19 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
             try ctx.writeTitle("Label declaration is not used", .{});
             try ctx.deepen().writeSourceNote("Label declared here", .{}, info.label);
         },
+        .label_too_long => |info| {
+            try ctx.writeTitle("Label is too long", .{});
+            try ctx.deepen().writeSourceNote("Label", .{}, .{
+                .offset = info.label.offset + Parser.max_label_length,
+                .len = info.label.len - Parser.max_label_length,
+            });
+            try ctx.deepen().writeNote("Labels must not be longer than {} characters", .{Parser.max_label_length});
+        },
+        .breakpoint_label => |info| {
+            try ctx.writeTitle("Label declares a breakpoint", .{});
+            try ctx.deepen().writeSourceNote("Label", .{}, info.label);
+            try ctx.deepen().writeNote("Labels beginning with `__` cause a breakpoint to be created at that address", .{});
+        },
 
         .malformed_integer => |info| {
             try ctx.writeTitle("Malformed integer argument", .{});
@@ -346,7 +359,8 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
         },
         .offset_too_large => |info| {
             try ctx.writeTitle("Calculated label offset is too large", .{});
-            try ctx.deepen().writeSourceNote("Label declared here", .{}, info.definition);
+            if (info.definition) |definition|
+                try ctx.deepen().writeSourceNote("Label declared here", .{}, definition);
             try ctx.deepen().withSource(info.definition_source)
                 .writeSourceNote("Label used here", .{}, info.reference);
             try ctx.deepen().writeNote("Address offset of {} words cannot be represented in {} bits", .{ info.offset, info.bits });

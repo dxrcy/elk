@@ -106,7 +106,7 @@ pub const Form = struct {
 
         pub const default: Radix = .decimal;
 
-        pub fn parse_digit(radix: Radix, char: u8) ?u8 {
+        pub fn parseDigit(radix: Radix, char: u8) ?u8 {
             return switch (radix) {
                 .binary => switch (char) {
                     '0' => 0,
@@ -206,7 +206,7 @@ fn tryCharInteger(string: []const u8) Error!?Word {
         return error.MalformedCharacter;
 
     const contents = string[1 .. string.len - 1];
-    if (contents.len > 0 and contents[contents.len - 1] == '\\')
+    if (contents.len > 1 and contents[0] != '\\')
         return error.MalformedCharacter;
 
     var escaped: Escaped = .new(.single, contents);
@@ -215,7 +215,8 @@ fn tryCharInteger(string: []const u8) Error!?Word {
         return error.MalformedCharacter) catch
         return error.MalformedCharacter;
 
-    if (escaped.next()) |_| {
+    // Don't use `.next`: rest of token may not be valid (eg. may end in a single `\`)
+    if (escaped.nextRaw()) |_| {
         return error.MalformedCharacter;
     }
 
@@ -310,7 +311,7 @@ pub fn tryInteger(string: []const u8) Error!?Word {
             },
         }
 
-        const digit = real_radix.parse_digit(char) orelse
+        const digit = real_radix.parseDigit(char) orelse
             return endOfInteger(form, char);
         appendDigit(&oversize, real_radix, digit) catch
             return error.IntegerTooLarge;
@@ -595,12 +596,20 @@ test tryInteger {
         .{ "''a'", error.MalformedCharacter },
         .{ "'a", error.MalformedCharacter },
         .{ "'aa", error.MalformedCharacter },
+        .{ "'aab", error.MalformedCharacter },
+        .{ "'aa\\", error.MalformedCharacter },
+        .{ "'a\\", error.MalformedCharacter },
         .{ "'aa'", error.MalformedCharacter },
         .{ "'\\x'", error.MalformedCharacter },
         .{ "'a\\n'", error.MalformedCharacter },
         .{ "'\\na'", error.MalformedCharacter },
         .{ "'\\n\\n'", error.MalformedCharacter },
         .{ "'\\xa'", error.MalformedCharacter },
+        .{ "'\\\\\\'", error.MalformedCharacter },
+        .{ "'a''", error.MalformedCharacter },
+        .{ "'  '", error.MalformedCharacter },
+        .{ "' a'", error.MalformedCharacter },
+        .{ "'\\'''", error.MalformedCharacter },
         // Decimal
         .{ "0", .{ .underlying = 0, .form = .{ .radix = null, .sign = null, .zero = false, .delimited = false, .prefix_length = 0 } } },
         .{ "00", .{ .underlying = 0, .form = .{ .radix = null, .sign = null, .zero = true, .delimited = false, .prefix_length = 1 } } },
@@ -675,8 +684,10 @@ test tryInteger {
         // Characters
         .{ "'0'", .{ .underlying = '0', .form = .{ .radix = null, .sign = null, .zero = false, .delimited = false, .char = true, .prefix_length = 0 } } },
         .{ "'a'", .{ .underlying = 'a', .form = .{ .radix = null, .sign = null, .zero = false, .delimited = false, .char = true, .prefix_length = 0 } } },
+        .{ "' '", .{ .underlying = ' ', .form = .{ .radix = null, .sign = null, .zero = false, .delimited = false, .char = true, .prefix_length = 0 } } },
         .{ "'\\n'", .{ .underlying = '\n', .form = .{ .radix = null, .sign = null, .zero = false, .delimited = false, .char = true, .prefix_length = 0 } } },
         .{ "'\\''", .{ .underlying = '\'', .form = .{ .radix = null, .sign = null, .zero = false, .delimited = false, .char = true, .prefix_length = 0 } } },
+        .{ "'\\\\'", .{ .underlying = '\\', .form = .{ .radix = null, .sign = null, .zero = false, .delimited = false, .char = true, .prefix_length = 0 } } },
         .{ "'\\\"'", .{ .underlying = '"', .form = .{ .radix = null, .sign = null, .zero = false, .delimited = false, .char = true, .prefix_length = 0 } } },
         // Bounds checking
         .{ "0xffff", .{ .underlying = 0xffff, .form = .{ .radix = .hex, .sign = null, .zero = true, .delimited = false, .prefix_length = 2 } } },

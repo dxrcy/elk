@@ -67,10 +67,11 @@ pub const Location = union(enum) {
         pc_offset: i16,
         label: Label,
 
+        /// Iff location is `.address`, addition is saturating.
         pub fn add(location: Memory, length: u16) error{Overflow}!Memory {
             return switch (location) {
                 .address => |address| .{
-                    .address = try std.math.add(u16, address, length),
+                    .address = address +| length,
                 },
                 .pc_offset => |pc_offset| .{
                     .pc_offset = try addToOffset(pc_offset, length),

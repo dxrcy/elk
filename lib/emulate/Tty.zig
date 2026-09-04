@@ -29,22 +29,24 @@ pub fn init(tty: *Tty) error{TermiosFailed}!void {
     tty.state = .{ .unmodified = termios };
 }
 
+/// Idempotent.
 pub fn enableRawMode(tty: *Tty) error{TermiosFailed}!void {
     if (tty.state == .uninit)
         try tty.init();
     const termios = switch (tty.state) {
-        .not_a_tty => return,
-        .uninit, .modified => unreachable,
+        .not_a_tty, .modified => return,
+        .uninit => unreachable,
         .unmodified => |termios| termios,
     };
     try setTermios(applyRawMode(termios));
     tty.state = .{ .modified = termios };
 }
 
+/// Idempotent.
 pub fn disableRawMode(tty: *Tty) error{TermiosFailed}!void {
     const termios = switch (tty.state) {
-        .not_a_tty => return,
-        .uninit, .unmodified => unreachable,
+        .not_a_tty, .unmodified => return,
+        .uninit => unreachable,
         .modified => |termios| termios,
     };
     try setTermios(termios);

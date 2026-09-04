@@ -32,6 +32,8 @@ pub fn next(lexer: *Lexer) ?Span {
 
     if (first.value == '"')
         lexer.consumeStringLiteral()
+    else if (first.value == '\'')
+        lexer.consumeCharLiteral()
     else
         lexer.consumeNormal();
 
@@ -71,6 +73,22 @@ fn consumeStringLiteral(lexer: *Lexer) void {
         switch (char.value) {
             '"' => break,
             '\\' => is_escaped = true,
+            else => {},
+        }
+    }
+}
+
+fn consumeCharLiteral(lexer: *Lexer) void {
+    var is_escaped = false;
+    while (lexer.takeChar()) |char| {
+        if (is_escaped) {
+            is_escaped = false;
+            continue;
+        }
+        switch (char.value) {
+            '\'' => break,
+            '\\' => is_escaped = true,
+            '\n' => break,
             else => {},
         }
     }

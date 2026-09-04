@@ -4,7 +4,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 const elk = @import("elk");
-const zilc = @import("zilc.zig");
+pub const zilc = @import("zilc");
 
 const log = std.log.scoped(.cli);
 
@@ -12,15 +12,20 @@ const info = struct {
     const zon = @import("build_zon");
 
     const program = @tagName(zon.name);
-    const version = zon.version;
+
+    const version =
+        program ++ " " ++ zon.version ++ " by " ++ zon.author ++ ".\n" ++
+        zon.description ++ " " ++ zon.homepage ++ "\n" ++
+        "Copyright (C) 2025 " ++ zon.author ++ "\n" ++
+        "License: GPL-3.0-only" ++ "\n\n";
 
     const help =
-        program ++ " " ++ version ++ " by " ++ zon.author ++ ".\n" ++
-        zon.description ++ " " ++ zon.homepage ++
-        "\n== This build includes ELCI integration! ==" ++
-        "\n\n" ++ "USAGE:" ++
-        "\n    " ++ program ++ " INPUT [OPERATION] [...OPTIONS]" ++
-        "\n\n" ++ @embedFile("help.txt"); // Includes trailing newline
+        version ++
+        "== This build includes ELCI integration! ==" ++ "\n\n" ++
+        "USAGE:" ++ "\n" ++
+        "    " ++ program ++ " INPUT [OPERATION] [...OPTIONS]" ++ "\n\n" ++
+        @embedFile("help.txt") // File includes trailing newline
+        ++ "\n";
 };
 
 operation: Operation,
@@ -61,8 +66,14 @@ const Operation = union(enum) {
 };
 
 pub const Debug = struct {
-    commands: ?[]const u8,
+    input: Input,
     history_file: ?[]const u8,
+
+    pub const Input = union(enum) {
+        none,
+        partial: []const u8,
+        full: []const u8,
+    };
 };
 
 const template = .{
@@ -114,9 +125,14 @@ const template = .{
         .value = .{ .type = []const struct { []const u8, u16 }, .parser = parsePatches },
     },
 
-    .commands = zilc.Flag{
-        .short = 'C',
-        .long = "commands",
+    .input_partial = zilc.Flag{
+        .short = 'i',
+        .long = "input",
+        .value = zilc.types.string,
+    },
+    .input_full = zilc.Flag{
+        .short = 'I',
+        .long = "input-full",
         .value = zilc.types.string,
     },
     .history_file = zilc.Flag{
@@ -223,27 +239,29 @@ fn parseStringIntPair(comptime Int: type, item: []const u8) ?struct { []const u8
     return .{ alias, vect };
 }
 
-fn getMetaArg(args: []const []const u8) ?zilc.MetaArg {
-    if (args.len == 0)
-        return .help;
-    return zilc.getMetaArg(args);
-}
-
-pub fn parse(gpa: Allocator, arena: Allocator, args: []const []const u8, is_tty: bool) !Cli {
-    if (getMetaArg(args)) |meta| {
+pub fn parse(
+    gpa: Allocator,
+    arena: Allocator,
+    writer: *std.Io.Writer,
+    args: []const []const u8,
+    is_tty: bool,
+) !Cli {
+    if (zilc.getMetaArg(args, .help)) |meta| {
         switch (meta) {
             .help => {
-                std.debug.print(info.help ++ "\n", .{});
+                try writer.writeAll(info.help);
+                try writer.flush();
                 return error.DisplayMetadata;
             },
             .version => {
-                std.debug.print("{s}: {s}\n", .{ info.program, info.version });
+                try writer.writeAll(info.version);
+                try writer.flush();
                 return error.DisplayMetadata;
             },
         }
     }
 
-    var options: zilc.Options(template) = try .parse(gpa, arena, args);
+    var options: zilc.Options(template) = try .parse(gpa, arena, args, .{});
     defer options.deinit(arena);
 
     const unimplemented_args = [_][]const u8{
@@ -306,7 +324,8 @@ fn checkDependencies(options: *const zilc.Options(template)) !void {
     try zilc.checkDependencies(.export_listing, enum { assemble }, enum {}, &options.flags);
     try zilc.checkDependencies(.trap_aliases, enum { assemble, check, format }, enum {}, &options.flags);
     try zilc.checkDependencies(.debug, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
-    try zilc.checkDependencies(.commands, enum { debug }, enum {}, &options.flags);
+    try zilc.checkDependencies(.input_partial, enum { debug }, enum { input_full }, &options.flags);
+    try zilc.checkDependencies(.input_full, enum { debug }, enum { input_partial }, &options.flags);
     try zilc.checkDependencies(.history_file, enum { debug }, enum {}, &options.flags);
     try zilc.checkDependencies(.import_symbols, enum { emulate }, enum {}, &options.flags);
 
@@ -320,11 +339,19 @@ fn checkDependencies(options: *const zilc.Options(template)) !void {
 }
 
 fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Operation {
+    const debug_input: Debug.Input =
+        if (options.flags.input_full) |input|
+            .{ .full = input }
+        else if (options.flags.input_partial) |input|
+            .{ .partial = input }
+        else
+            .none;
+
     if (options.flags.debug and
         options.pos.items.len == 0) // TODO: There should be a better way to do this this check
     {
         return .{ .debug_empty = .{
-            .commands = options.flags.commands,
+            .input = debug_input,
             .history_file = options.flags.history_file,
         } };
     }
@@ -356,7 +383,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
         return .{ .emulate = .{
             .input = input,
             .debug = if (options.flags.debug) .{
-                .commands = options.flags.commands,
+                .input = debug_input,
                 .history_file = options.flags.history_file,
             } else null,
             .import_symbols = options.flags.import_symbols,
@@ -395,7 +422,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
         .assemble_emulate = .{
             .input = input,
             .debug = if (options.flags.debug) .{
-                .commands = options.flags.commands,
+                .input = debug_input,
                 .history_file = options.flags.history_file,
             } else null,
             .patch_symbols = options.flags.patch_symbols,
