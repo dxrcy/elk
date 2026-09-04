@@ -559,7 +559,7 @@ fn runCommand(
 
         .step_over => {
             debugger.state.status = .{ .step_over = .{
-                .return_address = runtime.state.pc + 1,
+                .return_address = runtime.state.pc +% 1,
             } };
             debugger.state.should_print_pc = true;
             // Don't print message here, we can't know if next instruction will change PC.
@@ -806,15 +806,13 @@ fn getAssemblyLine(
     span: Span,
 ) error{Reported}!*const Air.Line {
     try debugger.ensureUserAddress(address, span);
-    // Overflow is not possible since address is in user memory
-    const index = address - air.origin;
-    if (index >= air.lines.items.len) {
+    if (address < air.origin or address -% air.origin >= air.lines.items.len) {
         try debugger.reporter.report(.debugger_address_not_in_assembly, .{
             .value = address,
             .max = @intCast(air.origin + air.lines.items.len - 1),
         }).abort();
     }
-    return &air.lines.items[index];
+    return &air.lines.items[address -% air.origin];
 }
 
 fn getAssemblyLineIndexOptional(air: *const Air, address: u16) ?usize {
