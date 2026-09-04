@@ -631,7 +631,7 @@ fn printListing(debugger: *Debugger, runtime: *Runtime, start: u16, end: u16) !v
     try debugger.writer.print("|          hex     decoded         label        |\n", .{});
     try debugger.writer.print(line, .{});
 
-    for (start..end + 1) |i| {
+    for (@as(u32, start)..@as(u32, end) + 1) |i| {
         const address: u16 = @intCast(i);
         const word = runtime.state.memory[address];
 
