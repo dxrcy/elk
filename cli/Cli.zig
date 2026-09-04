@@ -42,7 +42,14 @@ const Operation = union(enum) {
     assemble: struct {
         input: zilc.types.Path,
         output: ?zilc.types.Path,
-        output_mode: enum { none, assembly, symbols, listing },
+        // TODO: Move these fields to struct, to share with `assemble_many`
+        output_mode: OutputMode,
+        trap_aliases: ?elk.Traps,
+        patch_symbols: ?[]const struct { []const u8, u16 },
+    },
+    assemble_many: struct {
+        inputs: []const []const u8,
+        output_mode: OutputMode,
         trap_aliases: ?elk.Traps,
         patch_symbols: ?[]const struct { []const u8, u16 },
     },
@@ -62,6 +69,8 @@ const Operation = union(enum) {
         trap_aliases: ?elk.Traps,
     },
     lsp: struct {},
+
+    pub const OutputMode = enum { none, assembly, symbols, listing };
 };
 
 pub const Debug = struct {
@@ -355,11 +364,43 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
         } };
     }
 
-    const input = try options.getPos(gpa, zilc.types.path, .input, 0);
     if (options.pos.items.len > 1) {
-        log.err("unexpected positional argument '{s}'", .{options.pos.items[1]});
-        return error.ParseFailed;
+        const output_mode: Operation.OutputMode =
+            if (options.flags.check)
+                .none
+            else if (options.flags.assemble)
+                if (options.flags.export_symbols)
+                    .symbols
+                else if (options.flags.export_listing)
+                    .listing
+                else
+                    .assembly
+            else {
+                log.err("multiple input arguments require --assemble or --check", .{});
+                return error.ParseFailed;
+            };
+        if (options.flags.output) |_| {
+            log.err("--output cannot be used with multiple input arguments", .{});
+            return error.ParseFailed;
+        }
+        const inputs = try gpa.dupe([]const u8, options.pos.items);
+        for (options.pos.items) |input| {
+            if (zilc.types.Path.new(input) != .regular) {
+                log.err("stdin input is not supported with multiple inputs", .{});
+                return error.ParseFailed;
+            }
+        }
+        return .{
+            .assemble_many = .{
+                .inputs = inputs,
+                .output_mode = output_mode,
+                .trap_aliases = options.flags.trap_aliases,
+                .patch_symbols = options.flags.patch_symbols,
+            },
+        };
     }
+
+    const input = try options.getPos(gpa, zilc.types.path, .input, 0);
 
     if (options.flags.assemble) {
         return .{

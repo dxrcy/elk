@@ -120,6 +120,12 @@ pub fn main(init: std.process.Init) !u8 {
             try writer.flush();
         },
 
+        .assemble_many => |operation| {
+            for (operation.inputs) |input| {
+                std.debug.print("{s}\n", .{input});
+            }
+        },
+
         .emulate => |operation| {
             const in_file = file: switch (operation.input) {
                 .stdio => {
