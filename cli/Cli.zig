@@ -304,16 +304,17 @@ pub fn parse(
     }
 
     if (options.getPosOptional(gpa, zilc.types.path, .input, 0)) |input| {
-        if (options.flags.clean) {
-            log.err("unsupported stdin input path for operation", .{});
-            return error.ParseFailed;
-        }
-        if (input == .stdio and
-            options.flags.output == null and
-            options.flags.assemble)
-        {
-            log.err("--output is required for stdin input", .{});
-            return error.ParseFailed;
+        if (input == .stdio) {
+            if (options.flags.clean) {
+                log.err("unsupported stdin input path for operation", .{});
+                return error.ParseFailed;
+            }
+            if (options.flags.output == null and
+                options.flags.assemble)
+            {
+                log.err("--output is required for stdin input", .{});
+                return error.ParseFailed;
+            }
         }
     }
 
