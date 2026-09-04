@@ -1001,7 +1001,9 @@ fn readInputLine(debugger: *Debugger, runtime: *Runtime) ![]const u8 {
         return debugger.current_line;
 
     try runtime.ensureWriterNewline();
+
     try runtime.tty.enableRawMode();
+    errdefer runtime.tty.disableRawMode() catch {};
     const line = debugger.input.readLine(&debugger.writer);
     try runtime.tty.disableRawMode();
     return line;
