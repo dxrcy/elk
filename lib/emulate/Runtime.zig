@@ -444,7 +444,7 @@ fn printDisplayChar(runtime: *Runtime, word: u16) error{WriteFailed}!void {
         " ` ", " a ", " b ",  " c ", " d ", " e ", " f ", " g ", " h ", " i ", " j ", " k ", " l ",  " m ", " n ", " o ",
         " p ", " q ", " r ",  " s ", " t ", " u ", " v ", " w ", " x ", " y ", " z ", " { ", " | ",  " } ", " ~ ", "DEL",
     };
-    const display = if (word > 0x80) "---" else ascii[word];
+    const display = if (word > 0x7F) "---" else ascii[word];
     try runtime.writer.print("{s}", .{display});
 }
 
