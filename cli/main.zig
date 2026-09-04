@@ -48,81 +48,22 @@ pub fn main(init: std.process.Init) !u8 {
 
     switch (cli.operation) {
         .assemble => |operation| {
-            var input_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-            const input_path = blk: switch (operation.input) {
-                .stdio => null,
-                .regular => |regular| {
-                    const length = try Io.Dir.cwd().realPathFile(io, regular, &input_path_buffer);
-                    break :blk input_path_buffer[0..length];
-                },
-            };
-
             const traps = operation.assemble.trap_aliases orelse default_traps;
-
             var assembler: elk.Assembler = .{
                 .air = .init(),
-                .source = .{
-                    .text = "",
-                    .path = input_path,
-                },
+                .source = .empty,
                 .traps = &traps,
                 .patch_symbols = operation.assemble.patch_symbols,
                 .reporter = &reporter,
                 .gpa = gpa,
                 .io = io,
             };
-            defer assembler.deinit();
 
-            try assembler.assembleFromFile();
-
-            const out_extension = switch (operation.assemble.output_mode) {
-                .none => return 0,
-                .assembly => "obj",
-                .symbols => "sym",
-                .listing => "lst",
-            };
-
-            const output: union(enum) { stdio, regular: []const u8, auto } =
-                if (operation.output) |output| switch (output) {
-                    .stdio => .stdio,
-                    .regular => |regular| .{ .regular = regular },
-                } else .auto;
-
-            var out_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-            var out_file = file: switch (output) {
-                .stdio => {
-                    break :file Io.File.stdout();
-                },
-                .regular => |regular| {
-                    break :file try Io.Dir.cwd().createFile(io, regular, .{});
-                },
-                .auto => {
-                    const out_path = replacePathExtension(
-                        &out_path_buffer,
-                        input_path orelse unreachable,
-                        out_extension,
-                    );
-                    break :file try Io.Dir.cwd().createFile(io, out_path, .{});
-                },
-            };
-            defer out_file.close(io);
-
-            var buffer: [512]u8 = undefined;
-            var writer = out_file.writer(io, &buffer);
-
-            switch (operation.assemble.output_mode) {
-                .none => unreachable,
-                .assembly => try assembler.air.writeAssembly(&writer.interface),
-                .symbols => try assembler.air.writeSymbols(&writer.interface, assembler.source),
-                .listing => try assembler.air.writeListing(&writer.interface, assembler.source),
-            }
-
-            try writer.flush();
+            try assembleFile(io, &assembler, operation.input, operation.output, operation.assemble);
         },
 
         .assemble_many => |operation| {
             const traps = operation.assemble.trap_aliases orelse default_traps;
-
             var assembler: elk.Assembler = .{
                 .air = .init(),
                 .source = .empty,
@@ -134,47 +75,7 @@ pub fn main(init: std.process.Init) !u8 {
             };
 
             for (operation.inputs) |input| {
-                std.debug.print("{s}\n", .{input});
-
-                var input_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-                const input_path = blk: {
-                    const length = try Io.Dir.cwd().realPathFile(io, input, &input_path_buffer);
-                    break :blk input_path_buffer[0..length];
-                };
-
-                assembler.source = .{ .text = "", .path = input_path };
-                try assembler.assembleFromFile();
-                defer assembler.deinit(); // Must free source text once per input
-
-                const out_extension = switch (operation.assemble.output_mode) {
-                    .none => return 0,
-                    .assembly => "obj",
-                    .symbols => "sym",
-                    .listing => "lst",
-                };
-
-                var out_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-                var out_file = file: {
-                    const out_path = replacePathExtension(
-                        &out_path_buffer,
-                        input_path,
-                        out_extension,
-                    );
-                    break :file try Io.Dir.cwd().createFile(io, out_path, .{});
-                };
-                defer out_file.close(io);
-
-                var buffer: [512]u8 = undefined;
-                var writer = out_file.writer(io, &buffer);
-
-                switch (operation.assemble.output_mode) {
-                    .none => unreachable,
-                    .assembly => try assembler.air.writeAssembly(&writer.interface),
-                    .symbols => try assembler.air.writeSymbols(&writer.interface, assembler.source),
-                    .listing => try assembler.air.writeListing(&writer.interface, assembler.source),
-                }
-
-                try writer.flush();
+                try assembleFile(io, &assembler, .{ .regular = input }, null, operation.assemble);
             }
         },
 
@@ -309,6 +210,71 @@ pub fn main(init: std.process.Init) !u8 {
     }
 
     return 0;
+}
+
+fn assembleFile(
+    io: Io,
+    assembler: *elk.Assembler,
+    input: Cli.Path,
+    output_: ?Cli.Path,
+    options: Cli.Operation.Assemble,
+) !void {
+    var input_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
+    const input_path = blk: switch (input) {
+        .stdio => null,
+        .regular => |regular| {
+            const length = try Io.Dir.cwd().realPathFile(io, regular, &input_path_buffer);
+            break :blk input_path_buffer[0..length];
+        },
+    };
+
+    assembler.source = .{ .text = "", .path = input_path };
+    try assembler.assembleFromFile();
+    defer assembler.deinit();
+
+    const out_extension = switch (options.output_mode) {
+        .none => return,
+        .assembly => "obj",
+        .symbols => "sym",
+        .listing => "lst",
+    };
+
+    const output: union(enum) { stdio, regular: []const u8, auto } =
+        if (output_) |output| switch (output) {
+            .stdio => .stdio,
+            .regular => |regular| .{ .regular = regular },
+        } else .auto;
+
+    var out_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
+    var out_file = file: switch (output) {
+        .stdio => {
+            break :file Io.File.stdout();
+        },
+        .regular => |regular| {
+            break :file try Io.Dir.cwd().createFile(io, regular, .{});
+        },
+        .auto => {
+            const out_path = replacePathExtension(
+                &out_path_buffer,
+                input_path orelse unreachable,
+                out_extension,
+            );
+            break :file try Io.Dir.cwd().createFile(io, out_path, .{});
+        },
+    };
+    defer out_file.close(io);
+
+    var buffer: [512]u8 = undefined;
+    var writer = out_file.writer(io, &buffer);
+
+    switch (options.output_mode) {
+        .none => unreachable,
+        .assembly => try assembler.air.writeAssembly(&writer.interface),
+        .symbols => try assembler.air.writeSymbols(&writer.interface, assembler.source),
+        .listing => try assembler.air.writeListing(&writer.interface, assembler.source),
+    }
+
+    try writer.flush();
 }
 
 fn readSymbolTable(

@@ -5,6 +5,7 @@ const Allocator = std.mem.Allocator;
 
 const elk = @import("elk");
 pub const zilc = @import("zilc");
+pub const Path = zilc.types.Path;
 
 const log = std.log.scoped(.cli);
 
@@ -35,13 +36,14 @@ tty_color: bool,
 
 pub const Operation = union(enum) {
     assemble_emulate: struct {
-        input: zilc.types.Path,
+        input: Path,
         debug: ?Debug,
         patch_symbols: ?[]const struct { []const u8, u16 },
     },
     assemble: struct {
-        input: zilc.types.Path,
-        output: ?zilc.types.Path,
+        input: Path,
+        output: ?Path,
+        // TODO: Rename `options` ?
         assemble: Assemble,
     },
     assemble_many: struct {
@@ -49,7 +51,7 @@ pub const Operation = union(enum) {
         assemble: Assemble,
     },
     emulate: struct {
-        input: zilc.types.Path,
+        input: Path,
         debug: ?Debug,
         import_symbols: ?[]const u8,
         patch_symbols: ?[]const struct { []const u8, u16 },
@@ -59,8 +61,8 @@ pub const Operation = union(enum) {
         input: []const u8,
     },
     format: struct {
-        input: zilc.types.Path,
-        output: ?zilc.types.Path,
+        input: Path,
+        output: ?Path,
         trap_aliases: ?elk.Traps,
     },
     lsp: struct {},
@@ -386,7 +388,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
         }
         const inputs = try gpa.dupe([]const u8, options.pos.items);
         for (options.pos.items) |input| {
-            if (zilc.types.Path.new(input) != .regular) {
+            if (Path.new(input) != .regular) {
                 log.err("stdin input is not supported with multiple inputs", .{});
                 return error.ParseFailed;
             }
