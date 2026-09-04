@@ -210,7 +210,7 @@ pub fn parseInstruction(parser: *Parser) error{Reported}!Instruction {
         },
 
         .trap_alias => |vect| {
-            return .{
+            const instruction = Instruction{
                 .trap = .{
                     .vect = .{
                         .span = token.span,
@@ -220,6 +220,8 @@ pub fn parseInstruction(parser: *Parser) error{Reported}!Instruction {
                     },
                 },
             };
+            try parser.tokenizer.expectEol();
+            return instruction;
         },
 
         else => {
