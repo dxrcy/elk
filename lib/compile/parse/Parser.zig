@@ -263,7 +263,7 @@ fn removeCurrentLabel(parser: *Parser, air: *Air) ?Span {
 }
 
 fn ensureCanAppendLines(parser: *Parser, air: *Air, n: usize, span: Span) error{TooLong}!void {
-    if (air.origin + air.lines.items.len + n > 0xffff) {
+    if (air.origin + air.lines.items.len + n >= elk.Runtime.memory_size) {
         parser.reporter().report(.output_too_long, .{
             .statement = span,
         }).abort() catch

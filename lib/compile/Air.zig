@@ -87,7 +87,7 @@ pub fn deinit(air: *Air, gpa: Allocator) void {
 }
 
 pub fn copyToRuntime(air: *const Air, runtime: *elk.Runtime) !void {
-    assert(air.lines.items.len <= 0xffff);
+    assert(air.lines.items.len + air.origin < elk.Runtime.memory_size);
 
     runtime.state.pc = air.origin;
     for (air.lines.items, 0..) |line, i| {
@@ -97,7 +97,7 @@ pub fn copyToRuntime(air: *const Air, runtime: *elk.Runtime) !void {
 }
 
 pub fn writeAssembly(air: *const Air, writer: *Io.Writer) !void {
-    assert(air.lines.items.len <= 0xffff);
+    assert(air.lines.items.len + air.origin < elk.Runtime.memory_size);
 
     try writer.writeInt(u16, air.origin, .big);
     for (air.lines.items) |line| {
