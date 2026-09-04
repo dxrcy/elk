@@ -246,7 +246,7 @@ pub const Escaped = struct {
         if (!escaped.is_escaped and raw == indicator) {
             escaped.is_escaped = true;
             raw = escaped.nextRaw() orelse
-                unreachable; // Trailing indicator should have been checked already
+                return error.InvalidSequence;
         }
 
         if (!escaped.is_escaped) {
@@ -268,3 +268,30 @@ pub const Escaped = struct {
         return raw;
     }
 };
+
+test Escaped {
+    {
+        var escaped: Escaped = .new(.double, "abc\\");
+        try testing.expectEqual(@as(?error{InvalidSequence}!u8, 'a'), escaped.next());
+        try testing.expectEqual(@as(?error{InvalidSequence}!u8, 'b'), escaped.next());
+        try testing.expectEqual(@as(?error{InvalidSequence}!u8, 'c'), escaped.next());
+        const result = escaped.next();
+        try testing.expect(result != null);
+        try testing.expectError(error.InvalidSequence, result.?);
+    }
+    {
+        var escaped: Escaped = .new(.single, "\\");
+        const result = escaped.next();
+        try testing.expect(result != null);
+        try testing.expectError(error.InvalidSequence, result.?);
+    }
+    {
+        var escaped: Escaped = .new(.double, "\\n\\t\\\\\\\"\\'");
+        try testing.expectEqual(@as(?error{InvalidSequence}!u8, '\n'), escaped.next());
+        try testing.expectEqual(@as(?error{InvalidSequence}!u8, '\t'), escaped.next());
+        try testing.expectEqual(@as(?error{InvalidSequence}!u8, '\\'), escaped.next());
+        try testing.expectEqual(@as(?error{InvalidSequence}!u8, '"'), escaped.next());
+        try testing.expectEqual(@as(?error{InvalidSequence}!u8, '\''), escaped.next());
+        try testing.expectEqual(@as(?error{InvalidSequence}!u8, null), escaped.next());
+    }
+}
