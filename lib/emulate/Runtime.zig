@@ -41,9 +41,8 @@ pub const State = struct {
     pub fn init(gpa: Allocator) Allocator.Error!State {
         const memory = try gpa.create([memory_size]u16);
 
-        @memset(memory[0..user_memory_start], memory_init_privileged);
-        @memset(memory[user_memory_start..user_memory_end], memory_init_user);
-        @memset(memory[user_memory_end..], memory_init_privileged);
+        @memset(memory[0..memory_size], memory_init_privileged);
+        @memset(memory[user_memory_start .. user_memory_end + 1], memory_init_user);
 
         return .{
             .memory = memory,
