@@ -71,7 +71,21 @@ pub const Operation = union(enum) {
         trap_aliases: ?elk.Traps,
         patch_symbols: ?[]const struct { []const u8, u16 },
 
-        pub const OutputMode = enum { none, assembly, symbols, listing };
+        pub const OutputMode = enum {
+            none,
+            assembly,
+            symbols,
+            listing,
+
+            pub fn extension(output_mode: OutputMode) ?[]const u8 {
+                return switch (output_mode) {
+                    .none => null,
+                    .assembly => "obj",
+                    .symbols => "sym",
+                    .listing => "lst",
+                };
+            }
+        };
     };
 
     pub const Debug = struct {
