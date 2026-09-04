@@ -143,7 +143,9 @@ pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !voi
             error.EndOfStream => return error.FileNotAligned,
         };
         const word = (@as(u16, high) << 8) | low;
-        try runtime.setMemory(@intCast(origin + i), word);
+        const addr = std.math.cast(u16, origin + i) orelse
+            return error.FileTooLarge;
+        try runtime.setMemory(addr, word);
     }
 }
 
