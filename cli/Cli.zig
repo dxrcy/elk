@@ -52,7 +52,7 @@ pub const Operation = union(enum) {
     },
     debug_empty: Debug,
     clean: struct {
-        input: []const u8,
+        paths: IoPaths,
     },
     format: struct {
         paths: IoPaths,
@@ -296,10 +296,6 @@ pub fn parse(
 
     if (options.getPosOptional(gpa, zilc.types.path, .input, 0)) |input| {
         if (input == .stdio) {
-            if (options.flags.clean) {
-                log.err("unsupported stdin input path for operation", .{});
-                return error.ParseFailed;
-            }
             if (options.flags.output == null and
                 options.flags.assemble)
             {
@@ -373,7 +369,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
     }
 
     if (options.flags.assemble) {
-        const paths = try parseIoPaths(gpa, options);
+        const paths = try parseIoPaths(gpa, options, true);
         return .{
             .assemble = .{
                 .paths = paths,
@@ -405,7 +401,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
     }
 
     if (options.flags.check) {
-        const paths = try parseIoPaths(gpa, options);
+        const paths = try parseIoPaths(gpa, options, true);
         return .{ .assemble = .{
             .paths = paths,
             .options = .{
@@ -417,17 +413,14 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
     }
 
     if (options.flags.clean) {
-        const input = try parseSingleInputPath(gpa, options);
+        const paths = try parseIoPaths(gpa, options, false);
         return .{ .clean = .{
-            .input = switch (input) {
-                .regular => |regular| regular,
-                .stdio => unreachable,
-            },
+            .paths = paths,
         } };
     }
 
     if (options.flags.format) {
-        const paths = try parseIoPaths(gpa, options);
+        const paths = try parseIoPaths(gpa, options, true);
         return .{ .format = .{
             .paths = paths,
             .trap_aliases = options.flags.trap_aliases,
@@ -459,9 +452,18 @@ fn parseSingleInputPath(gpa: Allocator, options: *const zilc.Options(template)) 
     return try options.getPos(gpa, zilc.types.path, .input, 0);
 }
 
-fn parseIoPaths(gpa: Allocator, options: *const zilc.Options(template)) !Operation.IoPaths {
+fn parseIoPaths(
+    gpa: Allocator,
+    options: *const zilc.Options(template),
+    comptime allow_stdio: bool,
+) !Operation.IoPaths {
     {
         const input_single = try options.getPos(gpa, zilc.types.path, .input, 0);
+        if (!allow_stdio and input_single == .stdio) {
+            // TODO: Include operation flag name
+            log.err("stdin input argument is not supported by this operation", .{});
+            return error.ParseFailed;
+        }
         if (options.pos.items.len == 1)
             return .{ .single = .{
                 .input = input_single,

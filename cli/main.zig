@@ -168,12 +168,19 @@ pub fn main(init: std.process.Init) !u8 {
         },
 
         .clean => |operation| {
-            if (!std.mem.endsWith(u8, operation.input, ".asm")) {
+            if (operation.paths == .many) {
+                std.log.err("unimplemented feature: --clean with multiple input arguments", .{});
+                return error.ParseFailed;
+            }
+
+            const input = operation.paths.single.input.regular;
+
+            if (!std.mem.endsWith(u8, input, ".asm")) {
                 std.log.err("--clean requires filename to end with .asm", .{});
                 return error.BadFilename;
             }
 
-            _ = Io.Dir.cwd().statFile(io, operation.input, .{}) catch |err| switch (err) {
+            _ = Io.Dir.cwd().statFile(io, input, .{}) catch |err| switch (err) {
                 error.FileNotFound => {
                     std.log.err("--clean requires existing .asm file", .{});
                     return error.BadFilename;
@@ -183,7 +190,7 @@ pub fn main(init: std.process.Init) !u8 {
 
             for (Cli.Operation.OutputMode.extensions) |extension| {
                 var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-                const path = replacePathExtension(&path_buffer, operation.input, extension);
+                const path = replacePathExtension(&path_buffer, input, extension);
 
                 Io.Dir.cwd().deleteFile(io, path) catch |err| switch (err) {
                     error.FileNotFound => {},
