@@ -1,21 +1,23 @@
 INPUT:
     Input filename: *.asm, or *.obj when used with --emulate
+    Multiple input filenames are supported by: --assemble, --check, and --clean.
 
 OPERATION:
     (default)
             Assemble and emulate an .asm file. Supports --debug.
     -a, --assemble
-            Assemble an .asm file and write output.
+            Assemble one or more .asm files and write output.
     -e, --emulate
             Emulate an assembled .obj file. Supports --debug.
     -c, --check
-            Check an assembly file for errors without assembling.
+            Check one or more assembly files for errors without assembling.
         --clean
-            Delete all output files (.obj, .sym, .lst) for an .asm file.
+            Delete all output files (.obj, .sym, .lst) for one or more .asm files.
 
 OPTIONS:
     -o, --output <FILE>
             Specify filename of object, symbol table, or listing output.
+            Must not be used if multiple input filenames are present.
 
     -d, --debug
             Run debugger while emulating. Requires --emulate or (default) operation.
@@ -58,3 +60,4 @@ EXAMPLES:
      elk hello.asm --assemble --output hello.obj --strict --quiet
      elk hello.asm --assemble --export-listing
      elk hello.obj --emulate --permit +laser,case.*,extension.stack_instructions
+     elk --check *.asm

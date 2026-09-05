@@ -2,17 +2,21 @@ const std = @import("std");
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const EnvironMap = std.process.Environ.Map;
+const assert = std.debug.assert;
 
 const elk = @import("elk");
 
 const Cli = @import("Cli.zig");
+
+// TODO: Move buffer size definitions somewhere
 
 pub fn main(init: std.process.Init) !u8 {
     const io, const gpa = .{ init.io, init.gpa };
 
     const is_tty = try Io.File.stdout().isTty(io);
 
-    var reporter_buffer: [1024]u8 = undefined;
+    const reporter_buffer_size = 1024;
+    var reporter_buffer: [reporter_buffer_size]u8 = undefined;
     var reporter_writer = Io.File.stderr().writer(io, &reporter_buffer);
     var sink = elk.reporting.Sink.Fancy.new(&reporter_writer.interface, is_tty);
     var reporter = elk.reporting.Primary.new(sink.interface());
@@ -47,79 +51,6 @@ pub fn main(init: std.process.Init) !u8 {
     });
 
     switch (cli.operation) {
-        .assemble => |operation| {
-            var input_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-            const input_path = blk: switch (operation.input) {
-                .stdio => null,
-                .regular => |regular| {
-                    const length = try Io.Dir.cwd().realPathFile(io, regular, &input_path_buffer);
-                    break :blk input_path_buffer[0..length];
-                },
-            };
-
-            const traps = operation.trap_aliases orelse default_traps;
-
-            var assembler: elk.Assembler = .{
-                .air = .init(),
-                .source = .{
-                    .text = "",
-                    .path = input_path,
-                },
-                .traps = &traps,
-                .patch_symbols = operation.patch_symbols,
-                .reporter = &reporter,
-                .gpa = gpa,
-                .io = io,
-            };
-            defer assembler.deinit();
-
-            try assembler.assembleFromFile();
-
-            const out_extension = switch (operation.output_mode) {
-                .none => return 0,
-                .assembly => "obj",
-                .symbols => "sym",
-                .listing => "lst",
-            };
-
-            const output: union(enum) { stdio, regular: []const u8, auto } =
-                if (operation.output) |output| switch (output) {
-                    .stdio => .stdio,
-                    .regular => |regular| .{ .regular = regular },
-                } else .auto;
-
-            var out_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-            var out_file = file: switch (output) {
-                .stdio => {
-                    break :file Io.File.stdout();
-                },
-                .regular => |regular| {
-                    break :file try Io.Dir.cwd().createFile(io, regular, .{});
-                },
-                .auto => {
-                    const out_path = replacePathExtension(
-                        &out_path_buffer,
-                        input_path orelse unreachable,
-                        out_extension,
-                    );
-                    break :file try Io.Dir.cwd().createFile(io, out_path, .{});
-                },
-            };
-            defer out_file.close(io);
-
-            var buffer: [512]u8 = undefined;
-            var writer = out_file.writer(io, &buffer);
-
-            switch (operation.output_mode) {
-                .none => unreachable,
-                .assembly => try assembler.air.writeAssembly(&writer.interface),
-                .symbols => try assembler.air.writeSymbols(&writer.interface, assembler.source),
-                .listing => try assembler.air.writeListing(&writer.interface, assembler.source),
-            }
-
-            try writer.flush();
-        },
-
         .emulate => |operation| {
             const in_file = file: switch (operation.input) {
                 .stdio => {
@@ -181,21 +112,9 @@ pub fn main(init: std.process.Init) !u8 {
         },
 
         .assemble_emulate => |operation| {
-            var input_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-            const input_path = blk: switch (operation.input) {
-                .stdio => null,
-                .regular => |regular| {
-                    const length = try Io.Dir.cwd().realPathFile(io, regular, &input_path_buffer);
-                    break :blk input_path_buffer[0..length];
-                },
-            };
-
             var assembler: elk.Assembler = .{
                 .air = .init(),
-                .source = .{
-                    .text = "",
-                    .path = input_path,
-                },
+                .source = .empty,
                 .traps = &default_traps,
                 .patch_symbols = operation.patch_symbols,
                 .reporter = &reporter,
@@ -204,6 +123,10 @@ pub fn main(init: std.process.Init) !u8 {
             };
             defer assembler.deinit();
 
+            var input_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
+            const input_path = try resolveInputPath(io, &input_path_buffer, operation.input);
+
+            assembler.source = .{ .text = "", .path = input_path };
             try assembler.assembleFromFile();
 
             try emulate(
@@ -221,36 +144,154 @@ pub fn main(init: std.process.Init) !u8 {
             );
         },
 
-        .clean => |operation| {
-            if (!std.mem.endsWith(u8, operation.input, ".asm")) {
-                std.log.err("--clean requires filename to end with .asm", .{});
-                return error.BadFilename;
-            }
-
-            _ = Io.Dir.cwd().statFile(io, operation.input, .{}) catch |err| switch (err) {
-                error.FileNotFound => {
-                    std.log.err("--clean requires existing .asm file", .{});
-                    return error.BadFilename;
-                },
-                else => |err2| return err2,
+        .assemble => |operation| {
+            const traps = operation.options.trap_aliases orelse default_traps;
+            var assembler: elk.Assembler = .{
+                .air = .init(),
+                .source = .empty,
+                .traps = &traps,
+                .patch_symbols = operation.options.patch_symbols,
+                .reporter = &reporter,
+                .gpa = gpa,
+                .io = io,
             };
+            defer assembler.deinit();
 
-            const extensions = [_][]const u8{ "obj", "sym", "lst" };
-            for (extensions) |extension| {
-                var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-                const path = replacePathExtension(&path_buffer, operation.input, extension);
-
-                Io.Dir.cwd().deleteFile(io, path) catch |err| switch (err) {
-                    error.FileNotFound => {},
-                    else => |err2| return err2,
-                };
+            switch (operation.paths) {
+                .single => |single| {
+                    try assembleFile(io, &assembler, single.input, single.output, operation.options);
+                },
+                .many => |many| {
+                    for (many.inputs) |input| {
+                        try assembleFile(io, &assembler, .{ .regular = input }, null, operation.options);
+                    }
+                },
             }
         },
 
-        else => unreachable,
+        .clean => |operation| {
+            var removed_count: usize = 0;
+            switch (operation.paths) {
+                .single => |single| {
+                    assert(single.input == .regular);
+                    assert(single.output == null);
+                    removed_count += try cleanFile(io, single.input.regular);
+                },
+                .many => |many| {
+                    for (many.inputs) |input|
+                        removed_count += try cleanFile(io, input);
+                },
+            }
+            const input_count = operation.paths.count();
+            std.log.info("removed {} output file{s} for {} input file{s}", .{
+                removed_count,
+                if (removed_count == 1) "" else "s",
+                input_count,
+                if (input_count == 1) "" else "s",
+            });
+        },
+
+        .format => |operation| {
+            std.log.err("unimplemented feature: format", .{});
+            switch (operation.paths) {
+                .single => |single| {
+                    std.log.info("format input file: {s}", .{switch (single.input) {
+                        .regular => |regular| regular,
+                        .stdio => "(stdin)",
+                    }});
+                },
+                .many => |many| {
+                    for (many.inputs) |input| {
+                        std.log.info("format input file: {s}", .{input});
+                    }
+                },
+            }
+            return 1;
+        },
+
+        .lsp => {
+            std.log.err("unimplemented feature: lsp", .{});
+            return 1;
+        },
     }
 
     return 0;
+}
+
+fn assembleFile(
+    io: Io,
+    assembler: *elk.Assembler,
+    input: Cli.Path,
+    output: ?Cli.Path,
+    options: Cli.Operation.Assemble,
+) !void {
+    var input_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
+    const input_path = try resolveInputPath(io, &input_path_buffer, input);
+
+    assembler.deinit();
+    assembler.source = .{ .text = "", .path = input_path };
+    try assembler.assembleFromFile();
+
+    const out_file = try openOutputFile(io, output, options.output_mode, input_path) orelse
+        return;
+    defer out_file.close(io);
+
+    const write_buffer_size = 512;
+    var buffer: [write_buffer_size]u8 = undefined;
+    var writer = out_file.writer(io, &buffer);
+
+    switch (options.output_mode) {
+        .none => unreachable,
+        .assembly => try assembler.air.writeAssembly(&writer.interface),
+        .symbols => try assembler.air.writeSymbols(&writer.interface, assembler.source),
+        .listing => try assembler.air.writeListing(&writer.interface, assembler.source),
+    }
+    try writer.flush();
+}
+
+fn openOutputFile(
+    io: Io,
+    output: ?Cli.Path,
+    output_mode: Cli.Operation.OutputMode,
+    input_path: ?[]const u8,
+) !?Io.File {
+    const out_extension = output_mode.extension() orelse
+        return null;
+
+    const output_kind: union(enum) { stdio, regular: []const u8, auto } =
+        if (output) |o| switch (o) {
+            .stdio => .stdio,
+            .regular => |regular| .{ .regular = regular },
+        } else .auto;
+
+    switch (output_kind) {
+        .stdio => {
+            return Io.File.stdout();
+        },
+        .regular => |regular| {
+            return try Io.Dir.cwd().createFile(io, regular, .{});
+        },
+        .auto => {
+            var out_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
+            const out_path = replacePathExtension(
+                &out_path_buffer,
+                input_path orelse
+                    unreachable, // Cli parsing should prevent this
+                out_extension,
+            );
+            return try Io.Dir.cwd().createFile(io, out_path, .{});
+        },
+    }
+}
+
+fn resolveInputPath(io: Io, buffer: *[std.fs.max_path_bytes]u8, input: Cli.Path) !?[]const u8 {
+    switch (input) {
+        .stdio => return null,
+        .regular => |regular| {
+            const length = try Io.Dir.cwd().realPathFile(io, regular, buffer);
+            return buffer[0..length];
+        },
+    }
 }
 
 fn readSymbolTable(
@@ -263,7 +304,8 @@ fn readSymbolTable(
     var file = try Io.Dir.cwd().openFile(io, filepath, .{});
     defer file.close(io);
 
-    var buffer: [512]u8 = undefined;
+    const read_buffer_size = 512;
+    var buffer: [read_buffer_size]u8 = undefined;
     var reader = file.reader(io, &buffer);
 
     while (try reader.interface.takeDelimiter('\n')) |line| {
@@ -306,18 +348,22 @@ fn emulate(
         assembly: elk.Provider.Assembly,
     },
     patch_symbols_opt: ?[]const struct { []const u8, u16 },
-    debug_opt: ?Cli.Debug,
+    debug_opt: ?Cli.Operation.Debug,
     traps: *const elk.Traps,
     policies: elk.Policies,
     reporter: *elk.reporting.Primary,
     use_color: bool,
     assembler: ?*elk.Assembler,
 ) !void {
-    var write_buffer: [64]u8 = undefined;
-    var debugger_buffer: [256]u8 = undefined;
+    const write_buffer_size = 64;
+    const debugger_buffer_size = 256;
+
+    var write_buffer: [write_buffer_size]u8 = undefined;
+    var debugger_buffer: [debugger_buffer_size]u8 = undefined;
     var writer = Io.File.stdout().writer(io, &write_buffer);
     var reader = Io.File.stdin().reader(io, &.{});
 
+    // TODO: Extract to function
     var debugger_opt: ?elk.Debugger = if (debug_opt) |debug| debugger: {
         var history_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
         const history_path = if (debug.history_file) |path|
@@ -370,9 +416,11 @@ fn emulate(
     });
     defer runtime.deinit(gpa);
 
+    // TODO: Extract to function
     switch (runtime_source) {
         .object => |object| {
-            var read_buffer: [1024]u8 = undefined;
+            const read_buffer_size = 1024;
+            var read_buffer: [read_buffer_size]u8 = undefined;
             try runtime.readFromFile(io, object.file, &read_buffer);
         },
         .assembly => |assembly| {
@@ -380,6 +428,7 @@ fn emulate(
         },
     }
 
+    // TODO: Extract to function
     if (patch_symbols_opt) |patch_symbols| {
         const symbols = switch (runtime_source) {
             .object => |object| object.symbols orelse unreachable,
@@ -435,4 +484,33 @@ fn openHistoryFile(io: Io, path: []const u8) !Io.File {
     const file = try Io.Dir.createFileAbsolute(io, path, flags);
 
     return file;
+}
+
+/// Returns number of files removed.
+fn cleanFile(io: Io, input: []const u8) !usize {
+    if (!std.mem.endsWith(u8, input, ".asm")) {
+        std.log.err("--clean requires filename to end with .asm", .{});
+        return error.BadFilename;
+    }
+
+    _ = Io.Dir.cwd().statFile(io, input, .{}) catch |err| switch (err) {
+        error.FileNotFound => {
+            std.log.err("--clean requires existing .asm file", .{});
+            return error.BadFilename;
+        },
+        else => |err2| return err2,
+    };
+
+    var count: usize = 0;
+    for (Cli.Operation.OutputMode.extensions) |extension| {
+        var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
+        const path = replacePathExtension(&path_buffer, input, extension);
+
+        Io.Dir.cwd().deleteFile(io, path) catch |err| switch (err) {
+            error.FileNotFound => continue,
+            else => |err2| return err2,
+        };
+        count += 1;
+    }
+    return count;
 }

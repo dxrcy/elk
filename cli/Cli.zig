@@ -5,6 +5,7 @@ const Allocator = std.mem.Allocator;
 
 const elk = @import("elk");
 pub const zilc = @import("zilc");
+pub const Path = zilc.types.Path;
 
 const log = std.log.scoped(.cli);
 
@@ -22,7 +23,7 @@ const info = struct {
     const help =
         version ++
         "USAGE:" ++ "\n" ++
-        "    " ++ program ++ " INPUT [OPERATION] [...OPTIONS]" ++ "\n\n" ++
+        "    " ++ program ++ " INPUT(S) [OPERATION] [...OPTIONS]" ++ "\n\n" ++
         @embedFile("help.txt") // File includes trailing newline
         ++ "\n";
 };
@@ -33,45 +34,82 @@ strictness: elk.reporting.Options.Strictness,
 verbosity: elk.reporting.Options.Verbosity,
 tty_color: bool,
 
-const Operation = union(enum) {
+pub const Operation = union(enum) {
     assemble_emulate: struct {
-        input: zilc.types.Path,
+        input: Path,
         debug: ?Debug,
         patch_symbols: ?[]const struct { []const u8, u16 },
     },
-    assemble: struct {
-        input: zilc.types.Path,
-        output: ?zilc.types.Path,
-        output_mode: enum { none, assembly, symbols, listing },
-        trap_aliases: ?elk.Traps,
-        patch_symbols: ?[]const struct { []const u8, u16 },
-    },
     emulate: struct {
-        input: zilc.types.Path,
+        input: Path,
         debug: ?Debug,
         import_symbols: ?[]const u8,
         patch_symbols: ?[]const struct { []const u8, u16 },
     },
+    assemble: struct {
+        paths: IoPaths,
+        options: Assemble,
+    },
     debug_empty: Debug,
     clean: struct {
-        input: []const u8,
+        paths: IoPaths,
     },
     format: struct {
-        input: zilc.types.Path,
-        output: ?zilc.types.Path,
+        paths: IoPaths,
         trap_aliases: ?elk.Traps,
     },
     lsp: struct {},
-};
 
-pub const Debug = struct {
-    input: Input,
-    history_file: ?[]const u8,
+    pub const IoPaths = union(enum) {
+        single: struct {
+            input: Path,
+            output: ?Path,
+        },
+        many: struct {
+            inputs: []const []const u8,
+        },
 
-    pub const Input = union(enum) {
+        pub fn count(paths: IoPaths) usize {
+            return switch (paths) {
+                .single => 1,
+                .many => |many| many.inputs.len,
+            };
+        }
+    };
+
+    pub const Assemble = struct {
+        output_mode: OutputMode,
+        trap_aliases: ?elk.Traps,
+        patch_symbols: ?[]const struct { []const u8, u16 },
+    };
+
+    pub const OutputMode = enum {
         none,
-        partial: []const u8,
-        full: []const u8,
+        assembly,
+        symbols,
+        listing,
+
+        pub const extensions = [_][]const u8{ "obj", "sym", "lst" };
+
+        pub fn extension(output_mode: OutputMode) ?[]const u8 {
+            return switch (output_mode) {
+                .none => null,
+                .assembly => "obj",
+                .symbols => "sym",
+                .listing => "lst",
+            };
+        }
+    };
+
+    pub const Debug = struct {
+        input: Input,
+        history_file: ?[]const u8,
+
+        pub const Input = union(enum) {
+            none,
+            partial: []const u8,
+            full: []const u8,
+        };
     };
 };
 
@@ -263,32 +301,14 @@ pub fn parse(
     var options: zilc.Options(template) = try .parse(gpa, arena, args, .{});
     defer options.deinit(arena);
 
-    const unimplemented_args = [_][]const u8{
-        "format",
-        "lsp",
-    };
-    for (unimplemented_args) |name| {
-        inline for (@typeInfo(@TypeOf(options.flags)).@"struct".fields) |field| {
-            if (std.mem.eql(u8, field.name, name) and
-                zilc.isFlagSet(@field(options.flags, field.name)))
-            {
-                log.err("unimplemented feature: {s}", .{field.name});
-                return error.UnimplementedFeature;
-            }
-        }
-    }
-
     if (options.getPosOptional(gpa, zilc.types.path, .input, 0)) |input| {
-        if (options.flags.clean) {
-            log.err("unsupported stdin input path for operation", .{});
-            return error.ParseFailed;
-        }
-        if (input == .stdio and
-            options.flags.output == null and
-            options.flags.assemble)
-        {
-            log.err("--output is required for stdin input", .{});
-            return error.ParseFailed;
+        if (input == .stdio) {
+            if (options.flags.output == null and
+                options.flags.assemble)
+            {
+                log.err("--output is required for stdin input", .{});
+                return error.ParseFailed;
+            }
         }
     }
 
@@ -338,7 +358,7 @@ fn checkDependencies(options: *const zilc.Options(template)) !void {
 }
 
 fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Operation {
-    const debug_input: Debug.Input =
+    const debug_input: Operation.Debug.Input =
         if (options.flags.input_full) |input|
             .{ .full = input }
         else if (options.flags.input_partial) |input|
@@ -355,30 +375,57 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
         } };
     }
 
-    const input = try options.getPos(gpa, zilc.types.path, .input, 0);
-    if (options.pos.items.len > 1) {
-        log.err("unexpected positional argument '{s}'", .{options.pos.items[1]});
-        return error.ParseFailed;
-    }
-
     if (options.flags.assemble) {
+        const paths = try parseIoPaths(gpa, options, true);
         return .{
             .assemble = .{
-                .input = input,
-                .output = options.flags.output,
-                .output_mode = if (options.flags.export_symbols)
-                    .symbols
-                else if (options.flags.export_listing)
-                    .listing
-                else
-                    .assembly,
-                .trap_aliases = options.flags.trap_aliases,
-                .patch_symbols = options.flags.patch_symbols,
+                .paths = paths,
+                .options = .{
+                    .output_mode = if (options.flags.export_symbols)
+                        .symbols
+                    else if (options.flags.export_listing)
+                        .listing
+                    else
+                        .assembly,
+                    .trap_aliases = options.flags.trap_aliases,
+                    .patch_symbols = options.flags.patch_symbols,
+                },
             },
         };
     }
 
+    if (options.flags.check) {
+        const paths = try parseIoPaths(gpa, options, true);
+        return .{ .assemble = .{
+            .paths = paths,
+            .options = .{
+                .output_mode = .none,
+                .trap_aliases = options.flags.trap_aliases,
+                .patch_symbols = options.flags.patch_symbols,
+            },
+        } };
+    }
+
+    if (options.flags.clean) {
+        const paths = try parseIoPaths(gpa, options, false);
+        return .{ .clean = .{
+            .paths = paths,
+        } };
+    }
+
+    if (options.flags.format) {
+        const paths = try parseIoPaths(gpa, options, true);
+        return .{ .format = .{
+            .paths = paths,
+            .trap_aliases = options.flags.trap_aliases,
+        } };
+    }
+
+    if (options.flags.lsp)
+        return .lsp;
+
     if (options.flags.emulate) {
+        const input = try parseSingleInputPath(gpa, options);
         return .{ .emulate = .{
             .input = input,
             .debug = if (options.flags.debug) .{
@@ -390,33 +437,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
         } };
     }
 
-    if (options.flags.check) {
-        return .{ .assemble = .{
-            .input = input,
-            .output = null,
-            .output_mode = .none,
-            .trap_aliases = options.flags.trap_aliases,
-            .patch_symbols = options.flags.patch_symbols,
-        } };
-    }
-
-    if (options.flags.clean) {
-        return .{ .clean = .{
-            .input = switch (input) {
-                .regular => |regular| regular,
-                .stdio => unreachable,
-            },
-        } };
-    }
-
-    if (options.flags.format) {
-        return .{ .format = .{
-            .input = input,
-            .output = options.flags.output,
-            .trap_aliases = options.flags.trap_aliases,
-        } };
-    }
-
+    const input = try parseSingleInputPath(gpa, options);
     return .{
         .assemble_emulate = .{
             .input = input,
@@ -427,4 +448,48 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
             .patch_symbols = options.flags.patch_symbols,
         },
     };
+}
+
+fn parseSingleInputPath(gpa: Allocator, options: *const zilc.Options(template)) !Path {
+    if (options.pos.items.len > 1) {
+        // TODO: Include operation flag name
+        log.err("multiple input arguments are not supported by this operation", .{});
+        return error.ParseFailed;
+    }
+    return try options.getPos(gpa, zilc.types.path, .input, 0);
+}
+
+fn parseIoPaths(
+    gpa: Allocator,
+    options: *const zilc.Options(template),
+    comptime allow_stdio: bool,
+) !Operation.IoPaths {
+    {
+        const input_single = try options.getPos(gpa, zilc.types.path, .input, 0);
+        if (!allow_stdio and input_single == .stdio) {
+            // TODO: Include operation flag name
+            log.err("stdin input argument is not supported by this operation", .{});
+            return error.ParseFailed;
+        }
+        if (options.pos.items.len == 1)
+            return .{ .single = .{
+                .input = input_single,
+                .output = options.flags.output,
+            } };
+    }
+
+    if (options.flags.output) |_| {
+        log.err("--output cannot be used with multiple input arguments", .{});
+        return error.ParseFailed;
+    }
+
+    const inputs = try gpa.dupe([]const u8, options.pos.items);
+    for (options.pos.items) |input| {
+        if (Path.new(input) != .regular) {
+            log.err("stdin input is not supported with multiple inputs", .{});
+            return error.ParseFailed;
+        }
+    }
+
+    return .{ .many = .{ .inputs = inputs } };
 }
