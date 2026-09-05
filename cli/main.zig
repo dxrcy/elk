@@ -192,6 +192,14 @@ pub fn main(init: std.process.Init) !u8 {
             }
         },
 
+        .format => |operation| {
+            std.log.err("unimplemented feature: format", .{});
+            std.log.info("format input file: {s}", .{switch (operation.input) {
+                .regular => |regular| regular,
+                .stdio => "(stdin)",
+            }});
+        },
+
         else => unreachable,
     }
 

@@ -296,7 +296,6 @@ pub fn parse(
     defer options.deinit(arena);
 
     const unimplemented_args = [_][]const u8{
-        "format",
         "lsp",
     };
     for (unimplemented_args) |name| {
