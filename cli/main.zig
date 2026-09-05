@@ -170,18 +170,25 @@ pub fn main(init: std.process.Init) !u8 {
         },
 
         .clean => |operation| {
+            var removed_count: usize = 0;
             switch (operation.paths) {
                 .single => |single| {
                     assert(single.input == .regular);
                     assert(single.output == null);
-                    try cleanFile(io, single.input.regular);
+                    removed_count += try cleanFile(io, single.input.regular);
                 },
                 .many => |many| {
                     for (many.inputs) |input|
-                        try cleanFile(io, input);
+                        removed_count += try cleanFile(io, input);
                 },
             }
-            std.log.info("removed output files for {} inputs", .{operation.paths.count()});
+            const input_count = operation.paths.count();
+            std.log.info("removed {} output file{s} for {} input file{s}", .{
+                removed_count,
+                if (removed_count == 1) "" else "s",
+                input_count,
+                if (input_count == 1) "" else "s",
+            });
         },
 
         .format => |operation| {
@@ -479,7 +486,8 @@ fn openHistoryFile(io: Io, path: []const u8) !Io.File {
     return file;
 }
 
-fn cleanFile(io: Io, input: []const u8) !void {
+/// Returns number of files removed.
+fn cleanFile(io: Io, input: []const u8) !usize {
     if (!std.mem.endsWith(u8, input, ".asm")) {
         std.log.err("--clean requires filename to end with .asm", .{});
         return error.BadFilename;
@@ -493,6 +501,7 @@ fn cleanFile(io: Io, input: []const u8) !void {
         else => |err2| return err2,
     };
 
+    var count: usize = 0;
     for (Cli.Operation.OutputMode.extensions) |extension| {
         var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
         const path = replacePathExtension(&path_buffer, input, extension);
@@ -501,7 +510,7 @@ fn cleanFile(io: Io, input: []const u8) !void {
             error.FileNotFound => continue,
             else => |err2| return err2,
         };
-
-        std.log.info("clean {s}", .{path});
+        count += 1;
     }
+    return count;
 }
