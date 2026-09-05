@@ -2,6 +2,7 @@ const std = @import("std");
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
 const EnvironMap = std.process.Environ.Map;
+const assert = std.debug.assert;
 
 const elk = @import("elk");
 
@@ -168,35 +169,18 @@ pub fn main(init: std.process.Init) !u8 {
         },
 
         .clean => |operation| {
-            if (operation.paths == .many) {
-                std.log.err("unimplemented feature: --clean with multiple input arguments", .{});
-                return error.ParseFailed;
-            }
-
-            const input = operation.paths.single.input.regular;
-
-            if (!std.mem.endsWith(u8, input, ".asm")) {
-                std.log.err("--clean requires filename to end with .asm", .{});
-                return error.BadFilename;
-            }
-
-            _ = Io.Dir.cwd().statFile(io, input, .{}) catch |err| switch (err) {
-                error.FileNotFound => {
-                    std.log.err("--clean requires existing .asm file", .{});
-                    return error.BadFilename;
+            switch (operation.paths) {
+                .single => |single| {
+                    assert(single.input == .regular);
+                    assert(single.output == null);
+                    try cleanFile(io, single.input.regular);
                 },
-                else => |err2| return err2,
-            };
-
-            for (Cli.Operation.OutputMode.extensions) |extension| {
-                var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-                const path = replacePathExtension(&path_buffer, input, extension);
-
-                Io.Dir.cwd().deleteFile(io, path) catch |err| switch (err) {
-                    error.FileNotFound => {},
-                    else => |err2| return err2,
-                };
+                .many => |many| {
+                    for (many.inputs) |input|
+                        try cleanFile(io, input);
+                },
             }
+            std.log.info("removed all output files for {} inputs", .{operation.paths.count()});
         },
 
         .format => |operation| {
@@ -490,4 +474,31 @@ fn openHistoryFile(io: Io, path: []const u8) !Io.File {
     const file = try Io.Dir.createFileAbsolute(io, path, flags);
 
     return file;
+}
+
+fn cleanFile(io: Io, input: []const u8) !void {
+    if (!std.mem.endsWith(u8, input, ".asm")) {
+        std.log.err("--clean requires filename to end with .asm", .{});
+        return error.BadFilename;
+    }
+
+    _ = Io.Dir.cwd().statFile(io, input, .{}) catch |err| switch (err) {
+        error.FileNotFound => {
+            std.log.err("--clean requires existing .asm file", .{});
+            return error.BadFilename;
+        },
+        else => |err2| return err2,
+    };
+
+    for (Cli.Operation.OutputMode.extensions) |extension| {
+        var path_buffer: [std.fs.max_path_bytes]u8 = undefined;
+        const path = replacePathExtension(&path_buffer, input, extension);
+
+        Io.Dir.cwd().deleteFile(io, path) catch |err| switch (err) {
+            error.FileNotFound => continue,
+            else => |err2| return err2,
+        };
+
+        std.log.info("clean {s}", .{path});
+    }
 }

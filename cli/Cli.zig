@@ -68,6 +68,13 @@ pub const Operation = union(enum) {
         many: struct {
             inputs: []const []const u8,
         },
+
+        pub fn count(paths: IoPaths) usize {
+            return switch (paths) {
+                .single => 1,
+                .many => |many| many.inputs.len,
+            };
+        }
     };
 
     pub const Assemble = struct {
