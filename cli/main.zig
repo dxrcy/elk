@@ -181,7 +181,7 @@ pub fn main(init: std.process.Init) !u8 {
                         try cleanFile(io, input);
                 },
             }
-            std.log.info("removed all output files for {} inputs", .{operation.paths.count()});
+            std.log.info("removed output files for {} inputs", .{operation.paths.count()});
         },
 
         .format => |operation| {
@@ -199,10 +199,12 @@ pub fn main(init: std.process.Init) !u8 {
                     }
                 },
             }
+            return 1;
         },
 
         .lsp => {
             std.log.err("unimplemented feature: lsp", .{});
+            return 1;
         },
     }
 
