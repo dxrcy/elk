@@ -209,7 +209,9 @@ pub fn main(init: std.process.Init) !u8 {
             }
         },
 
-        else => unreachable,
+        .lsp => {
+            std.log.err("unimplemented feature: lsp", .{});
+        },
     }
 
     return 0;

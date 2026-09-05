@@ -294,20 +294,6 @@ pub fn parse(
     var options: zilc.Options(template) = try .parse(gpa, arena, args, .{});
     defer options.deinit(arena);
 
-    const unimplemented_args = [_][]const u8{
-        "lsp",
-    };
-    for (unimplemented_args) |name| {
-        inline for (@typeInfo(@TypeOf(options.flags)).@"struct".fields) |field| {
-            if (std.mem.eql(u8, field.name, name) and
-                zilc.isFlagSet(@field(options.flags, field.name)))
-            {
-                log.err("unimplemented feature: {s}", .{field.name});
-                return error.UnimplementedFeature;
-            }
-        }
-    }
-
     if (options.getPosOptional(gpa, zilc.types.path, .input, 0)) |input| {
         if (input == .stdio) {
             if (options.flags.clean) {
@@ -451,6 +437,9 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
             .trap_aliases = options.flags.trap_aliases,
         } };
     }
+
+    if (options.flags.lsp)
+        return .lsp;
 
     const input = try parseSingleInputPath(gpa, options);
     return .{
