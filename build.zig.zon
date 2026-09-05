@@ -10,8 +10,9 @@
 
     .dependencies = .{
         .zilc = .{
-            .url = "git+https://codeberg.org/dxrcy/zilc#v0.1.1",
-            .hash = "zilc-0.1.1-a-peQU1mAACLAH4S-PFTopK0hbjExw9V-t559zdJGN1q",
+            // Should use tagged release for ELK release
+            .url = "git+https://codeberg.org/dxrcy/zilc#93c667894d4ef53bb8c90da669be2916eccc8941",
+            .hash = "zilc-0.1.1-a-peQYdmAADzhSVVG9Ge41n3enFLKX7_5fmrbZCYYr39",
             .lazy = true,
         },
     },
