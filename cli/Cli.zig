@@ -40,15 +40,15 @@ pub const Operation = union(enum) {
         debug: ?Debug,
         patch_symbols: ?[]const struct { []const u8, u16 },
     },
-    assemble: struct {
-        paths: IoPaths,
-        options: Assemble,
-    },
     emulate: struct {
         input: Path,
         debug: ?Debug,
         import_symbols: ?[]const u8,
         patch_symbols: ?[]const struct { []const u8, u16 },
+    },
+    assemble: struct {
+        paths: IoPaths,
+        options: Assemble,
     },
     debug_empty: Debug,
     clean: struct {
@@ -394,19 +394,6 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
         };
     }
 
-    if (options.flags.emulate) {
-        const input = try parseSingleInputPath(gpa, options);
-        return .{ .emulate = .{
-            .input = input,
-            .debug = if (options.flags.debug) .{
-                .input = debug_input,
-                .history_file = options.flags.history_file,
-            } else null,
-            .import_symbols = options.flags.import_symbols,
-            .patch_symbols = options.flags.patch_symbols,
-        } };
-    }
-
     if (options.flags.check) {
         const paths = try parseIoPaths(gpa, options, true);
         return .{ .assemble = .{
@@ -436,6 +423,19 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
 
     if (options.flags.lsp)
         return .lsp;
+
+    if (options.flags.emulate) {
+        const input = try parseSingleInputPath(gpa, options);
+        return .{ .emulate = .{
+            .input = input,
+            .debug = if (options.flags.debug) .{
+                .input = debug_input,
+                .history_file = options.flags.history_file,
+            } else null,
+            .import_symbols = options.flags.import_symbols,
+            .patch_symbols = options.flags.patch_symbols,
+        } };
+    }
 
     const input = try parseSingleInputPath(gpa, options);
     return .{
