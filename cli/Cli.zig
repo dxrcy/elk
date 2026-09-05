@@ -23,7 +23,7 @@ const info = struct {
     const help =
         version ++
         "USAGE:" ++ "\n" ++
-        "    " ++ program ++ " INPUT [OPERATION] [...OPTIONS]" ++ "\n\n" ++
+        "    " ++ program ++ " INPUT(S) [OPERATION] [...OPTIONS]" ++ "\n\n" ++
         @embedFile("help.txt") // File includes trailing newline
         ++ "\n";
 };
