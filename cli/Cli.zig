@@ -41,12 +41,7 @@ pub const Operation = union(enum) {
         patch_symbols: ?[]const struct { []const u8, u16 },
     },
     assemble: struct {
-        input: Path,
-        output: ?Path,
-        options: Assemble,
-    },
-    assemble_many: struct {
-        inputs: []const []const u8,
+        paths: IoPaths,
         options: Assemble,
     },
     emulate: struct {
@@ -65,6 +60,16 @@ pub const Operation = union(enum) {
         trap_aliases: ?elk.Traps,
     },
     lsp: struct {},
+
+    pub const IoPaths = union(enum) {
+        single: struct {
+            input: Path,
+            output: ?Path,
+        },
+        many: struct {
+            inputs: []const []const u8,
+        },
+    };
 
     pub const Assemble = struct {
         output_mode: OutputMode,
@@ -410,8 +415,10 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
             }
         }
         return .{
-            .assemble_many = .{
-                .inputs = inputs,
+            .assemble = .{
+                .paths = .{ .many = .{
+                    .inputs = inputs,
+                } },
                 .options = .{
                     .output_mode = output_mode,
                     .trap_aliases = options.flags.trap_aliases,
@@ -426,8 +433,10 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
     if (options.flags.assemble) {
         return .{
             .assemble = .{
-                .input = input,
-                .output = options.flags.output,
+                .paths = .{ .single = .{
+                    .input = input,
+                    .output = options.flags.output,
+                } },
                 .options = .{
                     .output_mode = if (options.flags.export_symbols)
                         .symbols
@@ -456,8 +465,10 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
 
     if (options.flags.check) {
         return .{ .assemble = .{
-            .input = input,
-            .output = null,
+            .paths = .{ .single = .{
+                .input = input,
+                .output = null,
+            } },
             .options = .{
                 .output_mode = .none,
                 .trap_aliases = options.flags.trap_aliases,

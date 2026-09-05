@@ -62,23 +62,15 @@ pub fn main(init: std.process.Init) !u8 {
                 .io = io,
             };
 
-            try assembleFile(io, &assembler, operation.input, operation.output, operation.options);
-        },
-
-        .assemble_many => |operation| {
-            const traps = operation.options.trap_aliases orelse default_traps;
-            var assembler: elk.Assembler = .{
-                .air = .init(),
-                .source = .empty,
-                .traps = &traps,
-                .patch_symbols = operation.options.patch_symbols,
-                .reporter = &reporter,
-                .gpa = gpa,
-                .io = io,
-            };
-
-            for (operation.inputs) |input| {
-                try assembleFile(io, &assembler, .{ .regular = input }, null, operation.options);
+            switch (operation.paths) {
+                .single => |single| {
+                    try assembleFile(io, &assembler, single.input, single.output, operation.options);
+                },
+                .many => |many| {
+                    for (many.inputs) |input| {
+                        try assembleFile(io, &assembler, .{ .regular = input }, null, operation.options);
+                    }
+                },
             }
         },
 
