@@ -55,8 +55,7 @@ pub const Operation = union(enum) {
         input: []const u8,
     },
     format: struct {
-        input: Path,
-        output: ?Path,
+        paths: IoPaths,
         trap_aliases: ?elk.Traps,
     },
     lsp: struct {},
@@ -487,8 +486,10 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
 
     if (options.flags.format) {
         return .{ .format = .{
-            .input = input,
-            .output = options.flags.output,
+            .paths = .{ .single = .{
+                .input = input,
+                .output = options.flags.output,
+            } },
             .trap_aliases = options.flags.trap_aliases,
         } };
     }
