@@ -386,55 +386,11 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
         } };
     }
 
-    if (options.pos.items.len > 1) {
-        const output_mode: Operation.OutputMode =
-            if (options.flags.check)
-                .none
-            else if (options.flags.assemble)
-                if (options.flags.export_symbols)
-                    .symbols
-                else if (options.flags.export_listing)
-                    .listing
-                else
-                    .assembly
-            else {
-                log.err("multiple input arguments require --assemble or --check", .{});
-                return error.ParseFailed;
-            };
-        if (options.flags.output) |_| {
-            log.err("--output cannot be used with multiple input arguments", .{});
-            return error.ParseFailed;
-        }
-        const inputs = try gpa.dupe([]const u8, options.pos.items);
-        for (options.pos.items) |input| {
-            if (Path.new(input) != .regular) {
-                log.err("stdin input is not supported with multiple inputs", .{});
-                return error.ParseFailed;
-            }
-        }
-        return .{
-            .assemble = .{
-                .paths = .{ .many = .{
-                    .inputs = inputs,
-                } },
-                .options = .{
-                    .output_mode = output_mode,
-                    .trap_aliases = options.flags.trap_aliases,
-                    .patch_symbols = options.flags.patch_symbols,
-                },
-            },
-        };
-    }
-
-    const input = try options.getPos(gpa, zilc.types.path, .input, 0);
-
     if (options.flags.assemble) {
+        const paths = try parseIoPaths(gpa, options);
         return .{
             .assemble = .{
-                .paths = .{ .single = .{
-                    .input = input,
-                    .output = options.flags.output,
-                } },
+                .paths = paths,
                 .options = .{
                     .output_mode = if (options.flags.export_symbols)
                         .symbols
@@ -450,6 +406,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
     }
 
     if (options.flags.emulate) {
+        const input = try parseSingleInputPath(gpa, options);
         return .{ .emulate = .{
             .input = input,
             .debug = if (options.flags.debug) .{
@@ -462,11 +419,9 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
     }
 
     if (options.flags.check) {
+        const paths = try parseIoPaths(gpa, options);
         return .{ .assemble = .{
-            .paths = .{ .single = .{
-                .input = input,
-                .output = null,
-            } },
+            .paths = paths,
             .options = .{
                 .output_mode = .none,
                 .trap_aliases = options.flags.trap_aliases,
@@ -476,6 +431,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
     }
 
     if (options.flags.clean) {
+        const input = try parseSingleInputPath(gpa, options);
         return .{ .clean = .{
             .input = switch (input) {
                 .regular => |regular| regular,
@@ -485,6 +441,8 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
     }
 
     if (options.flags.format) {
+        // TODO: Use `parseIoPaths`
+        const input = try parseSingleInputPath(gpa, options);
         return .{ .format = .{
             .paths = .{ .single = .{
                 .input = input,
@@ -494,6 +452,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
         } };
     }
 
+    const input = try parseSingleInputPath(gpa, options);
     return .{
         .assemble_emulate = .{
             .input = input,
@@ -504,4 +463,39 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
             .patch_symbols = options.flags.patch_symbols,
         },
     };
+}
+
+fn parseSingleInputPath(gpa: Allocator, options: *const zilc.Options(template)) !Path {
+    if (options.pos.items.len > 1) {
+        // TODO: Include operation flag name
+        log.err("multiple input arguments are not supported by this operation", .{});
+        return error.ParseFailed;
+    }
+    return try options.getPos(gpa, zilc.types.path, .input, 0);
+}
+
+fn parseIoPaths(gpa: Allocator, options: *const zilc.Options(template)) !Operation.IoPaths {
+    {
+        const input_single = try options.getPos(gpa, zilc.types.path, .input, 0);
+        if (options.pos.items.len == 1)
+            return .{ .single = .{
+                .input = input_single,
+                .output = options.flags.output,
+            } };
+    }
+
+    if (options.flags.output) |_| {
+        log.err("--output cannot be used with multiple input arguments", .{});
+        return error.ParseFailed;
+    }
+
+    const inputs = try gpa.dupe([]const u8, options.pos.items);
+    for (options.pos.items) |input| {
+        if (Path.new(input) != .regular) {
+            log.err("stdin input is not supported with multiple inputs", .{});
+            return error.ParseFailed;
+        }
+    }
+
+    return .{ .many = .{ .inputs = inputs } };
 }
