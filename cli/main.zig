@@ -121,13 +121,13 @@ pub fn main(init: std.process.Init) !u8 {
                 .gpa = gpa,
                 .io = io,
             };
+            defer assembler.deinit();
 
             var input_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
             const input_path = try resolveInputPath(io, &input_path_buffer, operation.input);
 
             assembler.source = .{ .text = "", .path = input_path };
             try assembler.assembleFromFile();
-            defer assembler.deinit();
 
             try emulate(
                 io,
@@ -155,6 +155,7 @@ pub fn main(init: std.process.Init) !u8 {
                 .gpa = gpa,
                 .io = io,
             };
+            defer assembler.deinit();
 
             switch (operation.paths) {
                 .single => |single| {
@@ -218,9 +219,9 @@ fn assembleFile(
     var input_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
     const input_path = try resolveInputPath(io, &input_path_buffer, input);
 
+    assembler.deinit();
     assembler.source = .{ .text = "", .path = input_path };
     try assembler.assembleFromFile();
-    defer assembler.deinit();
 
     const out_file = try openOutputFile(io, output, options.output_mode, input_path) orelse
         return;
