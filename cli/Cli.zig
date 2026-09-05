@@ -427,13 +427,9 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
     }
 
     if (options.flags.format) {
-        // TODO: Use `parseIoPaths`
-        const input = try parseSingleInputPath(gpa, options);
+        const paths = try parseIoPaths(gpa, options);
         return .{ .format = .{
-            .paths = .{ .single = .{
-                .input = input,
-                .output = options.flags.output,
-            } },
+            .paths = paths,
             .trap_aliases = options.flags.trap_aliases,
         } };
     }
