@@ -205,9 +205,11 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?enum { @"continue", @"br
         .proceed => {},
         .disable_debugger => {
             debugger.state.status = .inactive;
+            try debugger.writer.printLine("Continuing execution without debugger...", .{});
             return if (debugger.isHalted(runtime)) .@"break" else .@"continue";
         },
         .stop_runtime => {
+            try debugger.writer.printLine("Exiting ELK.", .{});
             return .@"break";
         },
     }
