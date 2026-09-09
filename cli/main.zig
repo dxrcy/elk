@@ -162,8 +162,27 @@ pub fn main(init: std.process.Init) !u8 {
                     try assembleFile(io, &assembler, single.input, single.output, operation.options);
                 },
                 .many => |many| {
+                    var error_count: usize = 0;
                     for (many.inputs) |input| {
-                        try assembleFile(io, &assembler, .{ .regular = input }, null, operation.options);
+                        assembleFile(
+                            io,
+                            &assembler,
+                            .{ .regular = input },
+                            null,
+                            operation.options,
+                        ) catch |err| {
+                            switch (err) {
+                                error.Reported => {
+                                    std.log.err("failed to assemble: {s}", .{input});
+                                },
+                                else => std.log.err("{t}: {s}", .{ err, input }),
+                            }
+                            error_count += 1;
+                        };
+                    }
+                    if (error_count > 0) {
+                        std.log.err("{} files failed to assemble", .{error_count});
+                        return 1;
                     }
                 },
             }
@@ -178,8 +197,20 @@ pub fn main(init: std.process.Init) !u8 {
                     removed_count += try cleanFile(io, single.input.regular);
                 },
                 .many => |many| {
-                    for (many.inputs) |input|
-                        removed_count += try cleanFile(io, input);
+                    var error_count: usize = 0;
+                    for (many.inputs) |input| {
+                        removed_count += cleanFile(io, input) catch |err| {
+                            switch (err) {
+                                error.Reported => {},
+                                else => std.log.err("{t}: {s}", .{ err, input }),
+                            }
+                            error_count += 1;
+                            continue;
+                        };
+                    }
+                    if (error_count > 0) {
+                        return 1;
+                    }
                 },
             }
             const input_count = operation.paths.count();
@@ -491,13 +522,13 @@ fn openHistoryFile(io: Io, path: []const u8) !Io.File {
 fn cleanFile(io: Io, input: []const u8) !usize {
     if (!std.mem.endsWith(u8, input, ".asm")) {
         std.log.err("--clean requires filename to end with .asm", .{});
-        return error.BadFilename;
+        return error.Reported;
     }
 
     _ = Io.Dir.cwd().statFile(io, input, .{}) catch |err| switch (err) {
         error.FileNotFound => {
             std.log.err("--clean requires existing .asm file", .{});
-            return error.BadFilename;
+            return error.Reported;
         },
         else => |err2| return err2,
     };
