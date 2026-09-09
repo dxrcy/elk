@@ -40,6 +40,10 @@ OPTIONS:
             Read .sym symbol table file, for patching and debugger use. Requires --emulate.
         --trap-aliases <ALIASES>
             Override trap aliases to parse (and assemble). Requires --assemble or --check.
+            ALIASES is a comma-separated list of alias-vector pairs, eg. 'getp=x29,setp=x2a'.
+        --patch <PATCHES>
+            Override labelled values. Requires .asm input file or --import-symbols.
+            PATCHES is a comma-separated list of label-value pairs, eg. 'Height=5,Char=x30'
 
         --strict
             Treat all warnings as errors.
