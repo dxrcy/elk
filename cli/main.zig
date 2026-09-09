@@ -362,6 +362,7 @@ fn emulate(
     var debugger_buffer: [debugger_buffer_size]u8 = undefined;
     var writer = Io.File.stdout().writer(io, &write_buffer);
     var reader = Io.File.stdin().reader(io, &.{});
+    var empty_reader: Io.Reader = .fixed(&.{});
 
     // TODO: Extract to function
     var debugger_opt: ?elk.Debugger = if (debug_opt) |debug| debugger: {
@@ -386,7 +387,7 @@ fn emulate(
         };
         const debug_reader = switch (debug.input) {
             .none, .partial => &reader.interface,
-            .full => Io.Reader.ending,
+            .full => &empty_reader,
         };
 
         break :debugger try .init(.{
