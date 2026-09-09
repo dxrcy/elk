@@ -35,7 +35,7 @@ jobs:
             artifact_name: ${{ github.event.repository.name }}
             asset_name: ${{ github.event.repository.name }}-linux-x64
             artifact_id: linux-x64
-          - os: macos-14
+          - os: macos-14-intel
             artifact_name: ${{ github.event.repository.name }}
             asset_name: ${{ github.event.repository.name }}-macos-x64
             artifact_id: macos-x64

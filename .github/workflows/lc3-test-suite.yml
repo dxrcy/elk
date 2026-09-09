@@ -1,0 +1,25 @@
+name: LC-3 Test Suite
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - name: Build
+        run: zig build
+
+      - uses: twhlynch/lc3-test-suite@v2
+        with:
+          assemble: "$GITHUB_WORKSPACE/zig-out/bin/elk %s --assemble --output %o"
+          emulate: "$GITHUB_WORKSPACE/zig-out/bin/elk %o --emulate"
+          extensions: "true"

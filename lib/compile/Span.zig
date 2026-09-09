@@ -70,7 +70,10 @@ pub fn view(span: Span, source: Source) []const u8 {
 }
 
 pub fn overlaps(lhs: Span, rhs: Span) bool {
-    return lhs.offset < rhs.end() and rhs.offset < lhs.end();
+    return (lhs.offset >= rhs.end() and
+        lhs.end() <= rhs.offset) or
+        (lhs.offset <= rhs.end() and
+            lhs.end() >= rhs.offset);
 }
 
 pub fn containsIndex(span: Span, index: usize) bool {
@@ -247,8 +250,12 @@ test overlaps {
     try expect((Span{ .offset = 0, .len = 10 }).overlaps(Span{ .offset = 2, .len = 3 }));
     try expect((Span{ .offset = 2, .len = 3 }).overlaps(Span{ .offset = 0, .len = 10 }));
 
-    try expect(!(Span{ .offset = 0, .len = 5 }).overlaps(Span{ .offset = 5, .len = 5 }));
-    try expect(!(Span{ .offset = 5, .len = 5 }).overlaps(Span{ .offset = 0, .len = 5 }));
+    // This behavior is desirable, eg. for diagnostic token highlighting
+    try expect((Span{ .offset = 0, .len = 5 }).overlaps(Span{ .offset = 5, .len = 5 }));
+    try expect((Span{ .offset = 5, .len = 5 }).overlaps(Span{ .offset = 0, .len = 5 }));
+
+    try expect(!(Span{ .offset = 0, .len = 5 }).overlaps(Span{ .offset = 6, .len = 5 }));
+    try expect(!(Span{ .offset = 6, .len = 5 }).overlaps(Span{ .offset = 0, .len = 5 }));
 
     try expect(!(Span{ .offset = 0, .len = 3 }).overlaps(Span{ .offset = 7, .len = 3 }));
     try expect(!(Span{ .offset = 7, .len = 3 }).overlaps(Span{ .offset = 0, .len = 3 }));
