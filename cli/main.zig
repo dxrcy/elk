@@ -525,13 +525,18 @@ fn cleanFile(io: Io, input: []const u8) !usize {
         return error.Reported;
     }
 
-    _ = Io.Dir.cwd().statFile(io, input, .{}) catch |err| switch (err) {
+    const stat = Io.Dir.cwd().statFile(io, input, .{}) catch |err| switch (err) {
         error.FileNotFound => {
             std.log.err("--clean requires existing .asm file", .{});
             return error.Reported;
         },
         else => |err2| return err2,
     };
+
+    if (stat.kind != .file) {
+        std.log.err("--clean requires regular .asm file", .{});
+        return error.Reported;
+    }
 
     var count: usize = 0;
     for (Cli.Operation.OutputMode.extensions) |extension| {
