@@ -29,6 +29,7 @@ fn readChar(runtime: *Runtime, comptime vect: enum { in, getc }) Traps.Result {
 
     const char = runtime.readByte() catch |err| switch (err) {
         error.EndOfStream => std.ascii.control_code.eot,
+        error.EndOfText => return error.Halt,
         else => |e| return e,
     };
 

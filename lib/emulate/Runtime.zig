@@ -371,13 +371,16 @@ fn stackPop(runtime: *Runtime) error{UnpermittedMemoryAccess}!u16 {
     return value;
 }
 
-pub fn readByte(runtime: *const Runtime) error{ EndOfStream, ReadFailed }!u8 {
+pub fn readByte(runtime: *const Runtime) error{ EndOfStream, EndOfText, ReadFailed }!u8 {
     var char: u8 = undefined;
     runtime.reader.readSliceAll(@ptrCast(&char)) catch |err| switch (err) {
         error.EndOfStream => return error.EndOfStream,
         else => return error.ReadFailed,
     };
-    return char;
+    return switch (char) {
+        else => char,
+        std.ascii.control_code.etx => error.EndOfText,
+    };
 }
 
 pub fn ensureWriterNewline(runtime: *Runtime) error{WriteFailed}!void {
