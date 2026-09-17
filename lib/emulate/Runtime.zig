@@ -13,6 +13,7 @@ const Tty = @import("Tty.zig");
 
 pub const Callback = @import("../callback.zig").Callback;
 pub const Instruction = @import("decode.zig").Instruction;
+pub const Analytics = @import("Analytics.zig");
 
 pub const memory_size = 0x1_0000;
 pub const user_memory_start = 0x3000;
@@ -24,6 +25,7 @@ state: State,
 
 traps: *const Traps,
 hooks: Hooks,
+analytics: Analytics,
 policies: Policies,
 debugger: ?*Debugger,
 
@@ -109,6 +111,7 @@ pub fn init(params: struct {
     return .{
         .state = try .init(params.gpa),
         .traps = params.traps,
+        .analytics = .init(params.gpa),
         .hooks = params.hooks,
         .policies = params.policies,
         .debugger = params.debugger,
@@ -119,8 +122,9 @@ pub fn init(params: struct {
     };
 }
 
-pub fn deinit(runtime: Runtime, gpa: Allocator) void {
+pub fn deinit(runtime: *Runtime, gpa: Allocator) void {
     runtime.state.deinit(gpa);
+    runtime.analytics.deinit();
 }
 
 pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !void {
