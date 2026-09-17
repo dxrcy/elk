@@ -46,6 +46,15 @@ pub fn assembleFromFile(assembler: *Assembler) !void {
     {
         var parser = try elk.Parser.new(assembler.traps, assembler.source, assembler.reporter);
 
+        var symbols: std.ArrayList(elk.Provider.Symbols.Entry) = .empty;
+        defer symbols.deinit(assembler.gpa);
+
+        try parser.createSymbolTable(assembler.gpa, &symbols);
+
+        for (symbols.items) |symbol| {
+            std.debug.print("[{s}]\t{}\n", .{ symbol.name, symbol.address });
+        }
+
         try parser.parseAir(assembler.gpa, &assembler.air);
         if (assembler.reporter.getLevel() == .err) {
             assembler.reporter.summarize();

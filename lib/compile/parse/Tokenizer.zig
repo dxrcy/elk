@@ -48,6 +48,12 @@ pub fn new(
     };
 }
 
+pub fn reset(tokenizer: *Tokenizer) void {
+    tokenizer.lexer.index = 0;
+    tokenizer.peeked = null;
+    tokenizer.latest = null;
+}
+
 pub fn getIndex(tokenizer: *const Tokenizer) usize {
     // We currently have no need to support 'getting index when token has been peeked'
     assert(tokenizer.peeked == null);

@@ -59,9 +59,44 @@ const InnerError = error{
     OutOfMemory,
 };
 
+pub fn createSymbolTable(
+    parser: *Parser,
+    gpa: Allocator,
+    symbols: *std.ArrayList(elk.Provider.Symbols.Entry),
+) Allocator.Error!void {
+    assert(symbols.items.len == 0);
+
+    parser.tokenizer.reset();
+    var index: u16 = 0;
+    while (true) {
+        const token_opt = parser.tokenizer.nextExcluding(&.{.newline}) catch |err| switch (err) {
+            error.Reported => null,
+            error.Eof => {
+                break;
+            },
+        };
+        parser.tokenizer.discardRemainingLine();
+
+        const token = token_opt orelse
+            continue;
+        switch (token.value) {
+            .label => {
+                try symbols.append(
+                    gpa,
+                    // FIXME: Using string from source might cause UAF. Alloc string
+                    .{ .address = index, .name = token.span.view(parser.source()) },
+                );
+            },
+            else => {},
+        }
+        index += 1;
+    }
+}
+
 pub fn parseAir(parser: *Parser, gpa: Allocator, air: *Air) Allocator.Error!void {
     var missing_end = false;
 
+    parser.tokenizer.reset();
     while (true) {
         const control = parser.parseLine(gpa, air) catch |err| switch (err) {
             error.Reported => {
