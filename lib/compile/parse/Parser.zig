@@ -92,9 +92,6 @@ pub fn parseAir(parser: *Parser, gpa: Allocator, air: *Air) Allocator.Error!void
             }).proceed(); // Can't return `error.Reported`
         }
 
-        parser.ensureNoCurrentLabel(air, null) catch
-            {}; // Can't return `error.Reported`
-
         if (missing_end) {
             parser.reporter().report(.missing_end, .{
                 .last_token = parser.tokenizer.latest,
@@ -233,15 +230,6 @@ pub fn parseInstruction(parser: *Parser) error{Reported}!Instruction {
     }
 }
 
-fn ensureNoCurrentLabel(parser: *Parser, air: *Air, target: ?Span) error{Reported}!void {
-    if (parser.removeCurrentLabel(air)) |label| {
-        try parser.reporter().report(.invalid_label_target, .{
-            .label = label,
-            .target = target,
-        }).handle();
-    }
-}
-
 fn removeCurrentLabel(parser: *Parser, air: *Air) ?Span {
     air.assertLabelOrder();
 
@@ -337,12 +325,16 @@ fn parseDirective(
 ) InnerError!Control {
     switch (directive) {
         .end => {
-            try parser.ensureNoCurrentLabel(air, span);
             return .@"break";
         },
 
         .orig => {
-            try parser.ensureNoCurrentLabel(air, span);
+            if (parser.removeCurrentLabel(air)) |label| {
+                try parser.reporter().report(.invalid_label_target, .{
+                    .label = label,
+                    .target = span,
+                }).handle();
+            }
 
             const origin = try parser.tokenizer.expectArgument(.word);
             if (parser.origin) |existing| {
