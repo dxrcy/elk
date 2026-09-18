@@ -195,6 +195,32 @@ pub fn nextMatching(
     return token;
 }
 
+pub fn nextMatchingExcluding(
+    tokenizer: *Tokenizer,
+    comptime match: TokenKind,
+    comptime discards: []const TokenKind,
+) error{Reported}!?Token {
+    token: while (true) {
+        const token = tokenizer.peekAny() catch |err| switch (err) {
+            // These can be handled by next token request
+            error.InvalidTokenPeeked, error.Eof => return null,
+        };
+        for (discards) |discard| {
+            if (token.value == discard) {
+                tokenizer.peeked = null;
+                continue :token;
+            }
+        }
+        if (token.value != match)
+            return null;
+        assert(tokenizer.peeked != null);
+        tokenizer.peeked = null;
+        try tokenizer.ensureSupported(token, null);
+        return token;
+    }
+    comptime unreachable;
+}
+
 pub fn discardRemainingLine(tokenizer: *Tokenizer) void {
     while (true) {
         const token = tokenizer.nextAny() catch |err| switch (err) {

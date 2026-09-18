@@ -69,27 +69,68 @@ pub fn createSymbolTable(
     parser.tokenizer.reset();
     var index: u16 = 0;
     while (true) {
-        const token_opt = parser.tokenizer.nextExcluding(&.{.newline}) catch |err| switch (err) {
-            error.Reported => null,
-            error.Eof => {
-                break;
-            },
+        const label_opt = parser.tokenizer.nextMatchingExcluding(
+            .label,
+            &.{.newline},
+        ) catch |err| switch (err) {
+            error.Reported => null, // Should be reported later
         };
-        parser.tokenizer.discardRemainingLine();
 
-        const token = token_opt orelse
-            continue;
-        switch (token.value) {
-            .label => {
-                try symbols.append(
-                    gpa,
-                    // FIXME: Using string from source might cause UAF. Alloc string
-                    .{ .address = index, .name = token.span.view(parser.source()) },
-                );
-            },
-            else => {},
+        // FIXME: This doesnt work with newline between label and statement
+        const token_opt = parser.tokenizer.nextExcluding(&.{}) catch |err| switch (err) {
+            error.Reported => null, // Should be reported later
+            error.Eof => null,
+        };
+
+        if (label_opt) |label| {
+            assert(label.value == .label);
+            try symbols.append(
+                gpa,
+                // FIXME: Using string from source might cause UAF. Alloc string
+                .{ .address = index, .name = label.span.view(parser.source()) },
+            );
         }
-        index += 1;
+
+        if (token_opt) |token| {
+            switch (token.value) {
+                .mnemonic => {
+                    index += 1;
+                },
+                .directive => |directive| {
+                    // TODO: Make this nicer
+                    switch (directive) {
+                        .fill => {
+                            index += 1;
+                        },
+                        .blkw => {
+                            if (parser.tokenizer.expectArgument(.unsigned_word)) |size| {
+                                index += size.value;
+                            } else |err| switch (err) {
+                                error.Reported => {}, // Should be reported later
+                            }
+                        },
+                        .stringz => {
+                            if (parser.tokenizer.expectArgument(.string)) |string| {
+                                const contents = string.value.in(string.span);
+                                const contents_string = contents.view(parser.source());
+                                const length = Token.Escaped.validLength(.double, contents_string) + 1; // Include NUL
+                                index += @intCast(length);
+                            } else |err| switch (err) {
+                                error.Reported => {}, // Should be reported later
+                            }
+                        },
+                        .orig => {},
+                        .end => {},
+                    }
+                },
+                // Invalid token, should be reported later
+                .newline, .comma, .colon, .trap_alias, .label, .register, .integer, .string => {},
+            }
+        }
+
+        parser.tokenizer.discardRemainingLine();
+        if (token_opt == null)
+            break;
     }
 }
 
