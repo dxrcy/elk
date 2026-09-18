@@ -236,7 +236,7 @@ pub fn expectArgument(
 
 pub const Argument = union(enum) {
     operand: type,
-    word,
+    unsigned_word,
     word_or_label,
     string,
 
@@ -248,7 +248,7 @@ pub const Argument = union(enum) {
     pub fn Value(comptime argument: Argument) type {
         return switch (argument) {
             .operand => |operand| operand,
-            .word => SourceInt(16),
+            .unsigned_word => u16,
             .word_or_label => WordOrLabel,
             .string => Span,
         };
@@ -260,8 +260,8 @@ pub const Argument = union(enum) {
         reporter: *Reporter,
     ) error{Reported}!argument.Value() {
         return switch (argument) {
-            .word => return switch (token.value) {
-                .integer => |integer| integer,
+            .unsigned_word => return switch (token.value) {
+                .integer => |integer| try shrinkUnsigned(u16, integer, token.span, reporter),
                 else => try unexpected(token, &.{.integer}, reporter),
             },
 
@@ -351,6 +351,28 @@ pub const Argument = union(enum) {
             .integer = value,
             .form = integer.form,
         };
+    }
+
+    fn shrinkUnsigned(
+        comptime T: type,
+        integer: SourceInt(16),
+        span: Span,
+        reporter: *Reporter,
+    ) error{Reported}!T {
+        if (integer.form.signValue() == .negative) {
+            try reporter.report(.unexpected_negative_integer, .{
+                .integer = span,
+            }).abort();
+        }
+        const value = integer.castToSmaller(T) catch |err| switch (err) {
+            error.IntegerTooLarge => {
+                try reporter.report(.integer_too_large, .{
+                    .integer = span,
+                    .type_info = @typeInfo(T).int,
+                }).abort();
+            },
+        };
+        return value;
     }
 
     fn unexpected(
