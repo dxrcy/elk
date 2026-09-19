@@ -31,6 +31,9 @@ OPTIONS:
                 Requires --debug. -i and -I may not be used together.
         --history-file <FILE>
             Specify path for debugger history file. Requires --debug.
+        --random-memory <SEED>
+            Fill memory with pseudo-random words generated from SEED instead of
+            zeroes, to simulate real uninitialized memory.
 
         --export-symbols <FILE>
             Write .sym symbol table file instead of compiling .obj. Requires --assemble.

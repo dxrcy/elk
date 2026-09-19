@@ -38,11 +38,19 @@ pub const State = struct {
     pc: u16,
     condition: Condition,
 
-    pub fn init(gpa: Allocator) Allocator.Error!State {
+    pub fn init(gpa: Allocator, random_seed: ?u64) Allocator.Error!State {
         const memory = try gpa.create([memory_size]u16);
 
-        @memset(memory[0..memory_size], memory_init_privileged);
-        @memset(memory[user_memory_start .. user_memory_end + 1], memory_init_user);
+        if (random_seed) |seed| {
+            // Simulate uninitialized memory
+            var prng = std.Random.DefaultPrng.init(seed);
+            for (memory) |*word| {
+                word.* = prng.random().int(u16);
+            }
+        } else {
+            @memset(memory[0..memory_size], memory_init_privileged);
+            @memset(memory[user_memory_start .. user_memory_end + 1], memory_init_user);
+        }
 
         return .{
             .memory = memory,
@@ -105,9 +113,10 @@ pub fn init(params: struct {
     hooks: Hooks = .{},
     policies: Policies,
     debugger: ?*Debugger = null,
+    random_seed: ?u64 = null,
 }) !Runtime {
     return .{
-        .state = try .init(params.gpa),
+        .state = try .init(params.gpa, params.random_seed),
         .traps = params.traps,
         .hooks = params.hooks,
         .policies = params.policies,

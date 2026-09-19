@@ -89,6 +89,7 @@ pub fn main(init: std.process.Init) !u8 {
                 &reporter,
                 cli.tty_color,
                 null,
+                cli.random_seed,
             );
         },
 
@@ -108,6 +109,7 @@ pub fn main(init: std.process.Init) !u8 {
                 &reporter,
                 cli.tty_color,
                 null,
+                cli.random_seed,
             );
         },
 
@@ -141,6 +143,7 @@ pub fn main(init: std.process.Init) !u8 {
                 &reporter,
                 cli.tty_color,
                 &assembler,
+                cli.random_seed,
             );
         },
 
@@ -385,6 +388,7 @@ fn emulate(
     reporter: *elk.reporting.Primary,
     use_color: bool,
     assembler: ?*elk.Assembler,
+    random_seed: ?u64,
 ) !void {
     const write_buffer_size = 64;
     const debugger_buffer_size = 256;
@@ -445,6 +449,7 @@ fn emulate(
         .traps = traps,
         .policies = policies,
         .debugger = if (debugger_opt) |*debugger| debugger else null,
+        .random_seed = random_seed,
     });
     defer runtime.deinit(gpa);
 

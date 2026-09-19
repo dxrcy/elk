@@ -30,6 +30,7 @@ const info = struct {
 
 operation: Operation,
 policies: elk.Policies,
+random_seed: ?u64,
 strictness: elk.reporting.Options.Strictness,
 verbosity: elk.reporting.Options.Verbosity,
 tty_color: bool,
@@ -157,6 +158,10 @@ const template = .{
         .short = 'd',
         .long = "debug",
     },
+    .random_memory = zilc.Flag{
+        .long = "random-memory",
+        .value = .{ .type = u64, .parser = parseSeed },
+    },
     .patch_symbols = zilc.Flag{
         .long = "patch",
         .value = .{ .type = []const struct { []const u8, u16 }, .parser = parsePatches },
@@ -243,6 +248,12 @@ fn parseTrapAliases(dest: *anyopaque, src: []const u8, _: Allocator) !void {
     }
 }
 
+fn parseSeed(dest: *anyopaque, src: []const u8, _: Allocator) !void {
+    const seed: *?u64 = @ptrCast(@alignCast(dest));
+    seed.* = std.fmt.parseInt(u64, src, 0) catch
+        return error.InvalidValue;
+}
+
 fn parsePatches(dest: *anyopaque, src: []const u8, gpa: Allocator) !void {
     const patches_opt: *?[]const struct { []const u8, u16 } = @ptrCast(@alignCast(dest));
     var patches: std.ArrayList(struct { []const u8, u16 }) = .empty;
@@ -318,6 +329,7 @@ pub fn parse(
     return .{
         .operation = operation,
         .policies = if (options.flags.permit) |policies| policies else .none,
+        .random_seed = options.flags.random_memory,
         .strictness = if (options.flags.strict)
             .strict
         else if (options.flags.relaxed)
@@ -343,6 +355,7 @@ fn checkDependencies(options: *const zilc.Options(template)) !void {
     try zilc.checkDependencies(.export_listing, enum { assemble }, enum {}, &options.flags);
     try zilc.checkDependencies(.trap_aliases, enum { assemble, check, format }, enum {}, &options.flags);
     try zilc.checkDependencies(.debug, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
+    try zilc.checkDependencies(.random_memory, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
     try zilc.checkDependencies(.input_partial, enum { debug }, enum { input_full }, &options.flags);
     try zilc.checkDependencies(.input_full, enum { debug }, enum { input_partial }, &options.flags);
     try zilc.checkDependencies(.history_file, enum { debug }, enum {}, &options.flags);
