@@ -31,10 +31,6 @@ OPTIONS:
                 Requires --debug. -i and -I may not be used together.
         --history-file <FILE>
             Specify path for debugger history file. Requires --debug.
-        --random-init <SEED>
-            Fill memory, registers, and condition codes with pseudo-random
-            words generated from SEED instead of zeroes, to simulate
-            uninitialized memory.
 
         --export-symbols <FILE>
             Write .sym symbol table file instead of compiling .obj. Requires --assemble.
@@ -48,6 +44,10 @@ OPTIONS:
         --patch <PATCHES>
             Override labelled values. Requires .asm input file or --import-symbols.
             PATCHES is a comma-separated list of label-value pairs, eg. 'Height=5,Char=x30'
+        --random-init <SEED>
+            Fill memory, registers, and condition codes with pseudo-random
+            words generated from SEED instead of zeroes, to simulate
+            uninitialized memory.
 
         --strict
             Treat all warnings as errors.
