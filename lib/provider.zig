@@ -49,19 +49,19 @@ pub const Provider = union(enum) {
     pub fn resolveOperand(
         provider: Provider,
         instruction: *Air.Instruction,
-        address: usize,
+        index: usize,
         source: Source,
         reporter: *Reporter,
     ) error{Reported}!void {
         return switch (instruction.*) {
-            .br => |*operands| provider.resolveField(&operands.dest, address, source, reporter),
-            .jsr => |*operands| provider.resolveField(&operands.dest, address, source, reporter),
-            .ld => |*operands| provider.resolveField(&operands.src, address, source, reporter),
-            .ldi => |*operands| provider.resolveField(&operands.src, address, source, reporter),
-            .lea => |*operands| provider.resolveField(&operands.src, address, source, reporter),
-            .st => |*operands| provider.resolveField(&operands.dest, address, source, reporter),
-            .sti => |*operands| provider.resolveField(&operands.dest, address, source, reporter),
-            .call => |*operands| provider.resolveField(&operands.dest, address, source, reporter),
+            .br => |*operands| provider.resolveField(&operands.dest, index, source, reporter),
+            .jsr => |*operands| provider.resolveField(&operands.dest, index, source, reporter),
+            .ld => |*operands| provider.resolveField(&operands.src, index, source, reporter),
+            .ldi => |*operands| provider.resolveField(&operands.src, index, source, reporter),
+            .lea => |*operands| provider.resolveField(&operands.src, index, source, reporter),
+            .st => |*operands| provider.resolveField(&operands.dest, index, source, reporter),
+            .sti => |*operands| provider.resolveField(&operands.dest, index, source, reporter),
+            .call => |*operands| provider.resolveField(&operands.dest, index, source, reporter),
             else => {},
         };
     }
@@ -69,7 +69,7 @@ pub const Provider = union(enum) {
     fn resolveField(
         provider: Provider,
         operand: anytype,
-        address: usize,
+        index: usize,
         source: Source,
         reporter: *Reporter,
     ) error{Reported}!void {
@@ -85,12 +85,13 @@ pub const Provider = union(enum) {
         }
 
         const definition = try provider.resolveAbsolute(operand.span, source, reporter);
+        const orig_offset = index + 1; // PC is at N+1 when instruction N is interpreted
 
-        const offset = calculateOffset(Int, definition.address, address) orelse {
+        const offset = calculateOffset(Int, definition.address, orig_offset) orelse {
             try reporter.report(.offset_too_large, .{
                 .reference = operand.span,
                 .definition = definition.span,
-                .offset = calculateOffset(i17, definition.address, address) orelse
+                .offset = calculateOffset(i17, definition.address, orig_offset) orelse
                     unreachable,
                 .bits = @typeInfo(Int).int.bits,
                 .definition_source = source,

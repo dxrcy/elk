@@ -143,7 +143,8 @@ pub fn parseAir(parser: *Parser, gpa: Allocator, air: *Air) Allocator.Error!void
         const control = parser.parseLine(gpa, air) catch |err| switch (err) {
             error.Reported => {
                 parser.tokenizer.discardRemainingLine();
-                _ = parser.removeCurrentLabel(air);
+                // FIXME: Re-implement this behavior
+                // _ = parser.removeCurrentLabel(air);
                 continue;
             },
             error.Eof => {
@@ -215,9 +216,7 @@ fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
     const token = try parser.tokenizer.nextExcluding(&.{.newline});
 
     switch (token.value) {
-        .label => {
-            try parser.addLabel(gpa, air, token.span);
-        },
+        .label => {},
 
         .directive => |directive| {
             const control = try parser.parseDirective(gpa, air, directive, token.span);
@@ -231,7 +230,7 @@ fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
             try elk.Provider.resolveOperand(
                 .{ .symbols = parser.symbols },
                 &instruction,
-                air.lines.items.len + 1, // PC is at N+1 when instruction N is interpreted
+                air.lines.items.len,
                 parser.source(),
                 parser.reporter(),
             );
@@ -287,9 +286,16 @@ pub fn parseInstruction(parser: *Parser, index: usize) error{Reported}!Instructi
 
     switch (token.value) {
         .mnemonic => |mnemonic| {
-            const instruction = try parser.parseInstructionOperands(mnemonic, token.span);
-            // FIXME: resolve label
-            _ = index;
+            var instruction = try parser.parseInstructionOperands(mnemonic, token.span);
+
+            try elk.Provider.resolveOperand(
+                .{ .symbols = parser.symbols },
+                &instruction,
+                index,
+                parser.source(),
+                parser.reporter(),
+            );
+
             try parser.tokenizer.expectEol();
             return instruction;
         },
@@ -318,26 +324,6 @@ pub fn parseInstruction(parser: *Parser, index: usize) error{Reported}!Instructi
     }
 }
 
-fn removeCurrentLabel(parser: *Parser, air: *Air) ?Span {
-    air.assertLabelOrder();
-
-    const index = air.lines.items.len;
-    var i: usize = air.labels.items.len;
-    while (i > 0) : (i -= 1) {
-        const label = air.labels.items[i - 1];
-        assert(label.index <= index);
-        if (label.index != index)
-            break;
-
-        if (Air.Label.Kind.from(label.span.view(parser.source())) != .normal)
-            continue;
-
-        _ = air.labels.orderedRemove(i - 1);
-        return label.span;
-    }
-    return null;
-}
-
 fn ensureCanAppendLines(parser: *Parser, air: *Air, n: usize, span: Span) error{TooLong}!void {
     if (air.origin + air.lines.items.len + n >= elk.Runtime.memory_size) {
         parser.reporter().report(.output_too_long, .{
@@ -345,63 +331,6 @@ fn ensureCanAppendLines(parser: *Parser, air: *Air, n: usize, span: Span) error{
         }).abort() catch
             return error.TooLong;
     }
-}
-
-fn addLabel(parser: *Parser, gpa: Allocator, air: *Air, span: Span) InnerError!void {
-    if (parser.getLabelWithName(air, span.view(parser.source()))) |existing_label| {
-        try parser.reporter().report(.redefined_label, .{
-            .existing = existing_label,
-            .new = span,
-        }).abort();
-    }
-
-    if (try parser.tokenizer.nextMatching(.colon)) |colon| {
-        try parser.reporter().report(.label_colon, .{
-            .colon = colon.span,
-        }).handle();
-    }
-
-    // Disallow two labels on same line
-    // This should also be checked when the second label is parsed, but
-    // this reports a more appropriate message
-    if (try parser.tokenizer.nextMatching(.label)) |right| {
-        try parser.reporter().report(.existing_label_left, .{
-            .existing = span,
-            .new = right.span,
-        }).handle();
-    }
-
-    if (!case.isPascalCase(span.view(parser.source()))) {
-        try parser.reporter().report(.unconventional_case, .{
-            .token = span,
-            .kind = .label,
-        }).handle();
-    }
-
-    const index: u16 = @intCast(air.lines.items.len);
-
-    if (getExistingLabelAbove(air, index)) |existing| {
-        try parser.reporter().report(.existing_label_above, .{
-            .existing = existing.span,
-            .new = span,
-        }).handle();
-    }
-
-    if (span.len > max_label_length) {
-        try parser.reporter().report(.label_too_long, .{
-            .label = span,
-        }).handle();
-    }
-
-    const label: Air.Label = .new(index, span, span.view(parser.source()));
-
-    if (label.kind == .breakpoint) {
-        parser.reporter().report(.breakpoint_label, .{
-            .label = span,
-        }).proceed();
-    }
-
-    try air.labels.append(gpa, label);
 }
 
 fn parseDirective(
@@ -417,12 +346,14 @@ fn parseDirective(
         },
 
         .orig => {
-            if (parser.removeCurrentLabel(air)) |label| {
-                try parser.reporter().report(.invalid_label_target, .{
-                    .label = label,
-                    .target = span,
-                }).handle();
-            }
+            // FIXME: Re-implement this behavior
+            // try parser.addLabel(gpa, air, token.span);
+            // if (parser.removeCurrentLabel(air)) |label| {
+            //     try parser.reporter().report(.invalid_label_target, .{
+            //         .label = label,
+            //         .target = span,
+            //     }).handle();
+            // }
 
             const origin = try parser.tokenizer.expectArgument(.unsigned_word);
             if (parser.origin) |existing| {
@@ -585,62 +516,5 @@ fn parseInstructionOperands(
                 .dest = dest,
             } };
         },
-    }
-}
-
-fn getLabelWithName(parser: *const Parser, air: *Air, new_label: []const u8) ?Span {
-    for (air.labels.items) |*label| {
-        if (std.mem.eql(u8, label.span.view(parser.source()), new_label))
-            return label.span;
-    }
-    return null;
-}
-
-fn getExistingLabelAbove(air: *Air, index: u16) ?*const Air.Label {
-    for (air.labels.items) |*existing| {
-        if (existing.index == index)
-            return existing;
-    }
-    return null;
-}
-
-pub fn resolveLabelReferences(parser: *Parser, air: *Air) void {
-    // TODO:
-    if (true) unreachable;
-
-    for (air.lines.items, 0..) |*line, index| {
-        switch (line.statement) {
-            .raw_word => continue,
-            .unresolved_word => |label| {
-                const definition = elk.Provider.resolveAbsolute(
-                    .{ .assembly = .{ .air = air, .source = parser.source() } },
-                    label,
-                    parser.source(),
-                    parser.reporter(),
-                ) catch |err| switch (err) {
-                    error.Reported => continue,
-                };
-                line.statement = .{ .raw_word = definition.address };
-            },
-            .instruction => |*instruction| {
-                elk.Provider.resolveOperand(
-                    .{ .assembly = .{ .air = air, .source = parser.source() } },
-                    instruction,
-                    index + air.origin + 1, // PC is at N+1 when instruction N is interpreted
-                    parser.source(),
-                    parser.reporter(),
-                ) catch |err| switch (err) {
-                    error.Reported => continue,
-                };
-            },
-        }
-    }
-
-    for (air.labels.items) |*label| {
-        if (label.references == 0 and label.kind == .normal) {
-            parser.reporter().report(.unused_label, .{
-                .label = label.span,
-            }).proceed();
-        }
     }
 }
