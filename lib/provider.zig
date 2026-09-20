@@ -20,6 +20,9 @@ pub const Provider = union(enum) {
 
     pub const Symbols = struct {
         items: []const Entry,
+
+        pub const empty: Symbols = .{ .items = &.{} };
+
         pub const Entry = struct {
             address: u16,
             name: []const u8,

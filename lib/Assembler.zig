@@ -61,11 +61,11 @@ pub fn assembleFromFile(assembler: *Assembler) !void {
             return error.Reported;
         }
 
-        parser.resolveLabelReferences(&assembler.air);
-        if (assembler.reporter.getLevel() == .err) {
-            assembler.reporter.summarize();
-            return error.Reported;
-        }
+        // parser.resolveLabelReferences(&assembler.air);
+        // if (assembler.reporter.getLevel() == .err) {
+        //     assembler.reporter.summarize();
+        //     return error.Reported;
+        // }
     }
     assembler.reporter.summarize();
 

@@ -784,7 +784,7 @@ fn parseInstructionLine(
     var reporter = debugger.copyReporter(source);
     var parser = try elk.Parser.new(debugger.traps, source, &reporter);
 
-    var instruction = try parser.parseInstruction();
+    var instruction = try parser.parseInstruction(index);
     try debugger.provider.resolveOperand(&instruction, index, source, &reporter);
     return instruction;
 }

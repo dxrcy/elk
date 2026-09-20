@@ -21,6 +21,7 @@ pub const max_label_length = 20;
 
 tokenizer: Tokenizer,
 origin: ?Span,
+symbols: elk.Provider.Symbols,
 
 pub const parseInteger = @import("integers.zig").tryInteger;
 
@@ -40,6 +41,7 @@ pub fn new(
     return .{
         .tokenizer = .new(traps, source_, reporter_),
         .origin = null,
+        .symbols = .empty,
     };
 }
 
@@ -59,6 +61,8 @@ const InnerError = error{
     OutOfMemory,
 };
 
+/// Symbol entry strings have same lifetime as parser source.
+/// Generated symbol table is not yet offset by `.ORIG`.
 pub fn createSymbolTable(
     parser: *Parser,
     gpa: Allocator,
@@ -76,19 +80,14 @@ pub fn createSymbolTable(
             error.Reported => null, // Should be reported later
         };
 
-        // FIXME: This doesnt work with newline between label and statement
-        const token_opt = parser.tokenizer.nextExcluding(&.{}) catch |err| switch (err) {
+        const token_opt = parser.tokenizer.nextExcluding(&.{.newline}) catch |err| switch (err) {
             error.Reported => null, // Should be reported later
             error.Eof => null,
         };
 
         if (label_opt) |label| {
             assert(label.value == .label);
-            try symbols.append(
-                gpa,
-                // FIXME: Using string from source might cause UAF. Alloc string
-                .{ .address = index, .name = label.span.view(parser.source()) },
-            );
+            try symbols.append(gpa, .{ .address = index, .name = label.span.view(parser.source()) });
         }
 
         if (token_opt) |token| {
@@ -132,6 +131,8 @@ pub fn createSymbolTable(
         if (token_opt == null)
             break;
     }
+
+    parser.symbols = .{ .items = symbols.items };
 }
 
 pub fn parseAir(parser: *Parser, gpa: Allocator, air: *Air) Allocator.Error!void {
@@ -225,7 +226,16 @@ fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
         },
 
         .mnemonic => |mnemonic| {
-            const instruction = try parser.parseInstructionOperands(mnemonic, token.span);
+            var instruction = try parser.parseInstructionOperands(mnemonic, token.span);
+
+            try elk.Provider.resolveOperand(
+                .{ .symbols = parser.symbols },
+                &instruction,
+                air.lines.items.len + 1, // PC is at N+1 when instruction N is interpreted
+                parser.source(),
+                parser.reporter(),
+            );
+
             const span: Span = .fromBounds(
                 token.span.offset,
                 parser.tokenizer.getIndex(),
@@ -269,7 +279,7 @@ fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
 
 /// Asserts that at least one non-`newline` token exists before EOF.
 /// Label definition for this line must be handled by caller.
-pub fn parseInstruction(parser: *Parser) error{Reported}!Instruction {
+pub fn parseInstruction(parser: *Parser, index: usize) error{Reported}!Instruction {
     const token = parser.tokenizer.nextExcluding(&.{.newline}) catch |err| switch (err) {
         error.Reported => return error.Reported,
         error.Eof => unreachable,
@@ -278,6 +288,8 @@ pub fn parseInstruction(parser: *Parser) error{Reported}!Instruction {
     switch (token.value) {
         .mnemonic => |mnemonic| {
             const instruction = try parser.parseInstructionOperands(mnemonic, token.span);
+            // FIXME: resolve label
+            _ = index;
             try parser.tokenizer.expectEol();
             return instruction;
         },
@@ -593,6 +605,9 @@ fn getExistingLabelAbove(air: *Air, index: u16) ?*const Air.Label {
 }
 
 pub fn resolveLabelReferences(parser: *Parser, air: *Air) void {
+    // TODO:
+    if (true) unreachable;
+
     for (air.lines.items, 0..) |*line, index| {
         switch (line.statement) {
             .raw_word => continue,
