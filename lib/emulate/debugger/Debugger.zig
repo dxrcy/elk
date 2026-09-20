@@ -734,15 +734,18 @@ fn getAddressInfoAssembly(debugger: *const Debugger, address: u16) //
 }
 
 fn getLineLabel(air: *const Air, index: usize) ?*const Air.Label {
-    for (air.labels.items) |*label| {
-        if (label.index == index and
-            label.kind != .breakpoint)
-            return label;
-    }
-    for (air.labels.items) |*label| {
-        if (label.index == index)
-            return label;
-    }
+    _ = air;
+    _ = index;
+    // FIXME: Re-implement behavior
+    // for (air.labels.items) |*label| {
+    //     if (label.index == index and
+    //         label.kind != .breakpoint)
+    //         return label;
+    // }
+    // for (air.labels.items) |*label| {
+    //     if (label.index == index)
+    //         return label;
+    // }
     return null;
 }
 

@@ -18,7 +18,6 @@ const max_edit_distance = 3;
 
 origin: u16,
 lines: ArrayList(Line),
-labels: ArrayList(Label),
 
 pub const Label = struct {
     /// Index in `lines`. `address - offset`.
@@ -74,7 +73,6 @@ pub fn init() Air {
     return .{
         .origin = 0x3000,
         .lines = .empty,
-        .labels = .empty,
     };
 }
 
@@ -82,8 +80,6 @@ pub fn init() Air {
 pub fn deinit(air: *Air, gpa: Allocator) void {
     air.lines.deinit(gpa);
     air.lines = .empty;
-    air.labels.deinit(gpa);
-    air.labels = .empty;
 }
 
 pub fn copyToRuntime(air: *const Air, runtime: *elk.Runtime) !void {
@@ -107,12 +103,14 @@ pub fn writeAssembly(air: *const Air, writer: *Io.Writer) !void {
 }
 
 pub fn writeSymbols(air: *const Air, writer: *Io.Writer, source: Source) !void {
-    for (air.labels.items) |label| {
-        try writer.print("{s:<74} x{X:04}\n", .{
-            label.span.view(source),
-            air.origin + label.index,
-        });
-    }
+    _ = .{ air, writer, source };
+    // FIXME: Re-implement behavior
+    //     for (air.labels.items) |label| {
+    //         try writer.print("{s:<74} x{X:04}\n", .{
+    //             label.span.view(source),
+    //             air.origin + label.index,
+    //         });
+    //     }
 }
 
 pub fn writeListing(air: *const Air, writer: *Io.Writer, source: Source) !void {
@@ -195,13 +193,15 @@ pub fn patchLabelValue(
     raw_word: u16,
     source: Source,
 ) error{LabelNotFound}!void {
-    for (air.labels.items) |label| {
-        if (!std.mem.eql(u8, label.span.view(source), name))
-            continue;
-        // Keep span
-        air.lines.items[label.index].statement = .{ .raw_word = raw_word };
-        return;
-    }
+    _ = .{ air, name, raw_word, source };
+    // FIXME: Re-implement behavior
+    // for (air.labels.items) |label| {
+    //     if (!std.mem.eql(u8, label.span.view(source), name))
+    //         continue;
+    //     // Keep span
+    //     air.lines.items[label.index].statement = .{ .raw_word = raw_word };
+    //     return;
+    // }
     return error.LabelNotFound;
 }
 
@@ -231,20 +231,22 @@ fn findLabelCase(
     reference: []const u8,
     source: Source,
 ) ?*Label {
-    assertLabelOrder(air);
-
-    for (air.labels.items) |*label| {
-        const string = label.span.view(source);
-        const matches = switch (mode) {
-            .exact => std.mem.eql(u8, string, reference),
-            .case_insensitive => blk: {
-                assert(!std.mem.eql(u8, string, reference));
-                break :blk std.ascii.eqlIgnoreCase(string, reference);
-            },
-        };
-        if (matches)
-            return label;
-    }
+    _ = .{ air, mode, reference, source };
+    // FIXME: Re-implement behavior
+    // assertLabelOrder(air);
+    //
+    // for (air.labels.items) |*label| {
+    //     const string = label.span.view(source);
+    //     const matches = switch (mode) {
+    //         .exact => std.mem.eql(u8, string, reference),
+    //         .case_insensitive => blk: {
+    //             assert(!std.mem.eql(u8, string, reference));
+    //             break :blk std.ascii.eqlIgnoreCase(string, reference);
+    //         },
+    //     };
+    //     if (matches)
+    //         return label;
+    // }
     return null;
 }
 
@@ -254,38 +256,42 @@ fn findLabelEditDistance(
     reference: []const u8,
     source: Source,
 ) ?*Label {
-    assertLabelOrder(air);
-    assert(air.findLabelCase(.case_insensitive, reference, source) == null);
-
-    // Don't attempt on labels which are too long: it is too slow.
-    const max_candidate_length = Parser.max_label_length;
-    if (reference.len > max_candidate_length)
-        return null;
-    var buffer: [max_candidate_length + 1]u8 = undefined;
-
-    var best_opt: ?struct { label: *Label, distance: usize } = null;
-    for (air.labels.items) |*label| {
-        const string = label.span.view(source);
-        const distance = parsing.editDistance(string, reference, &buffer);
-        if (best_opt) |best| {
-            if (best.distance < distance)
-                continue;
-        }
-        best_opt = .{ .label = label, .distance = distance };
-    }
-
-    if (best_opt) |best| {
-        if (best.distance <= max_edit_distance)
-            return best.label;
-    }
+    _ = .{ air, reference, source };
+    // FIXME: Re-implement behavior
+    // assertLabelOrder(air);
+    // assert(air.findLabelCase(.case_insensitive, reference, source) == null);
+    //
+    // // Don't attempt on labels which are too long: it is too slow.
+    // const max_candidate_length = Parser.max_label_length;
+    // if (reference.len > max_candidate_length)
+    //     return null;
+    // var buffer: [max_candidate_length + 1]u8 = undefined;
+    //
+    // var best_opt: ?struct { label: *Label, distance: usize } = null;
+    // for (air.labels.items) |*label| {
+    //     const string = label.span.view(source);
+    //     const distance = parsing.editDistance(string, reference, &buffer);
+    //     if (best_opt) |best| {
+    //         if (best.distance < distance)
+    //             continue;
+    //     }
+    //     best_opt = .{ .label = label, .distance = distance };
+    // }
+    //
+    // if (best_opt) |best| {
+    //     if (best.distance <= max_edit_distance)
+    //         return best.label;
+    // }
     return null;
 }
 
 pub fn assertLabelOrder(air: *const Air) void {
-    var i: usize = 0;
-    while (i + 1 < air.labels.items.len) : (i += 1) {
-        const first = air.labels.items[i];
-        const second = air.labels.items[i + 1];
-        assert(first.index <= second.index);
-    }
+    _ = air;
+    // FIXME: Re-implement behavior
+    // var i: usize = 0;
+    // while (i + 1 < air.labels.items.len) : (i += 1) {
+    //     const first = air.labels.items[i];
+    //     const second = air.labels.items[i + 1];
+    //     assert(first.index <= second.index);
+    // }
 }

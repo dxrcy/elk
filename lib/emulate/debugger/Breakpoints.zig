@@ -29,13 +29,16 @@ pub fn initFrom(
     air: *const Air,
 ) Allocator.Error!Breakpoints {
     var breakpoints: Breakpoints = .init(gpa);
-    assert(air.lines.items.len + air.origin <= std.math.maxInt(u16));
-    for (air.labels.items) |*label| {
-        if (label.kind != .breakpoint)
-            continue;
-        // May not have been inserted, if multiple breakpoint labels exist for a line
-        _ = try breakpoints.insert(label.index + air.origin, true);
-    }
+    _ = air;
+    _ = &breakpoints;
+    // FIXME: Re-implement behavior
+    // assert(air.lines.items.len + air.origin <= std.math.maxInt(u16));
+    // for (air.labels.items) |*label| {
+    //     if (label.kind != .breakpoint)
+    //         continue;
+    //     // May not have been inserted, if multiple breakpoint labels exist for a line
+    //     _ = try breakpoints.insert(label.index + air.origin, true);
+    // }
     return breakpoints;
 }
 
