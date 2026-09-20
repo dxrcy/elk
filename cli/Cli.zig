@@ -30,7 +30,7 @@ const info = struct {
 
 operation: Operation,
 policies: elk.Policies,
-random_seed: ?u64,
+random_init: ?u64,
 strictness: elk.reporting.Options.Strictness,
 verbosity: elk.reporting.Options.Verbosity,
 tty_color: bool,
@@ -323,7 +323,7 @@ pub fn parse(
     return .{
         .operation = operation,
         .policies = if (options.flags.permit) |policies| policies else .none,
-        .random_seed = options.flags.random_init,
+        .random_init = options.flags.random_init,
         .strictness = if (options.flags.strict)
             .strict
         else if (options.flags.relaxed)
