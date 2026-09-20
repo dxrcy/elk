@@ -442,6 +442,11 @@ fn emulate(
     } else null;
     defer if (debugger_opt) |*debugger| debugger.deinit(gpa);
 
+    var prng_storage: ?std.Random.DefaultPrng = null;
+    if (random_seed) |seed| {
+        prng_storage = std.Random.DefaultPrng.init(seed);
+    }
+
     var runtime = try elk.Runtime.init(.{
         .gpa = gpa,
         .reader = &reader.interface,
@@ -449,7 +454,7 @@ fn emulate(
         .traps = traps,
         .policies = policies,
         .debugger = if (debugger_opt) |*debugger| debugger else null,
-        .random_seed = random_seed,
+        .random = if (prng_storage) |*prng| prng.random() else null,
     });
     defer runtime.deinit(gpa);
 
