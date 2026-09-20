@@ -47,9 +47,7 @@ pub const State = struct {
         if (random) |rand| {
             // Simulate uninitialized memory
             rand.bytes(std.mem.sliceAsBytes(memory));
-            for (&registers) |*register| {
-                register.* = rand.int(u16);
-            }
+            rand.bytes(std.mem.sliceAsBytes(&registers));
             condition = rand.enumValue(Condition);
         } else {
             @memset(memory[0..memory_size], memory_init_privileged);
