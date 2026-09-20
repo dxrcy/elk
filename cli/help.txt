@@ -32,8 +32,9 @@ OPTIONS:
         --history-file <FILE>
             Specify path for debugger history file. Requires --debug.
         --random-init <SEED>
-            Fill memory with pseudo-random words generated from SEED instead of
-            zeroes, to simulate real uninitialized memory.
+            Fill memory, registers, and condition codes with pseudo-random
+            words generated from SEED instead of zeroes, to simulate
+            uninitialized memory.
 
         --export-symbols <FILE>
             Write .sym symbol table file instead of compiling .obj. Requires --assemble.

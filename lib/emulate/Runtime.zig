@@ -41,11 +41,19 @@ pub const State = struct {
     pub fn init(gpa: Allocator, random: ?std.Random) Allocator.Error!State {
         const memory = try gpa.create([memory_size]u16);
 
+        var registers: [8]u16 = .{ 0, 0, 0, 0, 0, 0, 0, 0 };
+        var condition: Condition = .zero;
+
         if (random) |rand| {
             // Simulate uninitialized memory
             for (memory) |*word| {
                 word.* = rand.int(u16);
             }
+            for (&registers) |*register| {
+                register.* = rand.int(u16);
+            }
+            const conditions = [_]Condition{ .negative, .zero, .positive };
+            condition = conditions[rand.intRangeLessThan(usize, 0, conditions.len)];
         } else {
             @memset(memory[0..memory_size], memory_init_privileged);
             @memset(memory[user_memory_start .. user_memory_end + 1], memory_init_user);
@@ -53,9 +61,9 @@ pub const State = struct {
 
         return .{
             .memory = memory,
-            .registers = .{ 0, 0, 0, 0, 0, 0, 0, 0 },
+            .registers = registers,
             .pc = 0x0000,
-            .condition = .zero,
+            .condition = condition,
         };
     }
 
