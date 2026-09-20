@@ -30,6 +30,7 @@ const info = struct {
 
 operation: Operation,
 policies: elk.Policies,
+random_init: ?u64,
 strictness: elk.reporting.Options.Strictness,
 verbosity: elk.reporting.Options.Verbosity,
 tty_color: bool,
@@ -156,6 +157,10 @@ const template = .{
     .debug = zilc.Flag{
         .short = 'd',
         .long = "debug",
+    },
+    .random_init = zilc.Flag{
+        .long = "random-init",
+        .value = zilc.types.integer(u64),
     },
     .patch_symbols = zilc.Flag{
         .long = "patch",
@@ -318,6 +323,7 @@ pub fn parse(
     return .{
         .operation = operation,
         .policies = if (options.flags.permit) |policies| policies else .none,
+        .random_init = options.flags.random_init,
         .strictness = if (options.flags.strict)
             .strict
         else if (options.flags.relaxed)
@@ -343,6 +349,7 @@ fn checkDependencies(options: *const zilc.Options(template)) !void {
     try zilc.checkDependencies(.export_listing, enum { assemble }, enum {}, &options.flags);
     try zilc.checkDependencies(.trap_aliases, enum { assemble, check, format }, enum {}, &options.flags);
     try zilc.checkDependencies(.debug, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
+    try zilc.checkDependencies(.random_init, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
     try zilc.checkDependencies(.input_partial, enum { debug }, enum { input_full }, &options.flags);
     try zilc.checkDependencies(.input_full, enum { debug }, enum { input_partial }, &options.flags);
     try zilc.checkDependencies(.history_file, enum { debug }, enum {}, &options.flags);

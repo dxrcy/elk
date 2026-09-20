@@ -89,6 +89,7 @@ pub fn main(init: std.process.Init) !u8 {
                 &reporter,
                 cli.tty_color,
                 null,
+                cli.random_init,
             );
         },
 
@@ -108,6 +109,7 @@ pub fn main(init: std.process.Init) !u8 {
                 &reporter,
                 cli.tty_color,
                 null,
+                cli.random_init,
             );
         },
 
@@ -141,6 +143,7 @@ pub fn main(init: std.process.Init) !u8 {
                 &reporter,
                 cli.tty_color,
                 &assembler,
+                cli.random_init,
             );
         },
 
@@ -385,6 +388,7 @@ fn emulate(
     reporter: *elk.reporting.Primary,
     use_color: bool,
     assembler: ?*elk.Assembler,
+    random_init: ?u64,
 ) !void {
     const write_buffer_size = 64;
     const debugger_buffer_size = 256;
@@ -438,6 +442,11 @@ fn emulate(
     } else null;
     defer if (debugger_opt) |*debugger| debugger.deinit(gpa);
 
+    var prng_storage: ?std.Random.DefaultPrng = null;
+    if (random_init) |seed| {
+        prng_storage = std.Random.DefaultPrng.init(seed);
+    }
+
     var runtime = try elk.Runtime.init(.{
         .gpa = gpa,
         .reader = &reader.interface,
@@ -445,6 +454,7 @@ fn emulate(
         .traps = traps,
         .policies = policies,
         .debugger = if (debugger_opt) |*debugger| debugger else null,
+        .random = if (prng_storage) |*prng| prng.random() else null,
     });
     defer runtime.deinit(gpa);
 

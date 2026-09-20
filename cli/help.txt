@@ -44,6 +44,10 @@ OPTIONS:
         --patch <PATCHES>
             Override labelled values. Requires .asm input file or --import-symbols.
             PATCHES is a comma-separated list of label-value pairs, eg. 'Height=5,Char=x30'
+        --random-init <SEED>
+            Fill memory, registers, and condition codes with pseudo-random
+            words generated from SEED instead of zeroes, to simulate
+            uninitialized memory.
 
         --strict
             Treat all warnings as errors.

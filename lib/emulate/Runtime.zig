@@ -38,17 +38,27 @@ pub const State = struct {
     pc: u16,
     condition: Condition,
 
-    pub fn init(gpa: Allocator) Allocator.Error!State {
+    pub fn init(gpa: Allocator, random: ?std.Random) Allocator.Error!State {
         const memory = try gpa.create([memory_size]u16);
 
-        @memset(memory[0..memory_size], memory_init_privileged);
-        @memset(memory[user_memory_start .. user_memory_end + 1], memory_init_user);
+        var registers: [8]u16 = .{ 0, 0, 0, 0, 0, 0, 0, 0 };
+        var condition: Condition = .zero;
+
+        if (random) |rand| {
+            // Simulate uninitialized memory
+            rand.bytes(std.mem.sliceAsBytes(memory));
+            rand.bytes(std.mem.sliceAsBytes(&registers));
+            condition = rand.enumValue(Condition);
+        } else {
+            @memset(memory[0..memory_size], memory_init_privileged);
+            @memset(memory[user_memory_start .. user_memory_end + 1], memory_init_user);
+        }
 
         return .{
             .memory = memory,
-            .registers = .{ 0, 0, 0, 0, 0, 0, 0, 0 },
+            .registers = registers,
             .pc = 0x0000,
-            .condition = .zero,
+            .condition = condition,
         };
     }
 
@@ -105,9 +115,10 @@ pub fn init(params: struct {
     hooks: Hooks = .{},
     policies: Policies,
     debugger: ?*Debugger = null,
+    random: ?std.Random = null,
 }) !Runtime {
     return .{
-        .state = try .init(params.gpa),
+        .state = try .init(params.gpa, params.random),
         .traps = params.traps,
         .hooks = params.hooks,
         .policies = params.policies,
