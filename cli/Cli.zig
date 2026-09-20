@@ -160,7 +160,7 @@ const template = .{
     },
     .random_memory = zilc.Flag{
         .long = "random-memory",
-        .value = .{ .type = u64, .parser = parseSeed },
+        .value = zilc.types.integer(u64),
     },
     .patch_symbols = zilc.Flag{
         .long = "patch",
@@ -246,12 +246,6 @@ fn parseTrapAliases(dest: *anyopaque, src: []const u8, _: Allocator) !void {
             return error.InvalidValue;
         traps.register(vect, entry);
     }
-}
-
-fn parseSeed(dest: *anyopaque, src: []const u8, _: Allocator) !void {
-    const seed: *?u64 = @ptrCast(@alignCast(dest));
-    seed.* = std.fmt.parseInt(u64, src, 0) catch
-        return error.InvalidValue;
 }
 
 fn parsePatches(dest: *anyopaque, src: []const u8, gpa: Allocator) !void {
