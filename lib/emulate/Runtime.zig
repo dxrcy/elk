@@ -52,8 +52,7 @@ pub const State = struct {
             for (&registers) |*register| {
                 register.* = rand.int(u16);
             }
-            const conditions = [_]Condition{ .negative, .zero, .positive };
-            condition = conditions[rand.intRangeLessThan(usize, 0, conditions.len)];
+            condition = rand.enumValue(Condition);
         } else {
             @memset(memory[0..memory_size], memory_init_privileged);
             @memset(memory[user_memory_start .. user_memory_end + 1], memory_init_user);
