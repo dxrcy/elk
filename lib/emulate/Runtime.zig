@@ -46,9 +46,7 @@ pub const State = struct {
 
         if (random) |rand| {
             // Simulate uninitialized memory
-            for (memory) |*word| {
-                word.* = rand.int(u16);
-            }
+            rand.bytes(std.mem.sliceAsBytes(memory));
             for (&registers) |*register| {
                 register.* = rand.int(u16);
             }
