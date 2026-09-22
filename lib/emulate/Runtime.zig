@@ -48,7 +48,8 @@ pub const State = struct {
             @memset(memory[user_memory_start .. user_memory_end + 1], memory_init_user);
         }
 
-        const registers: [8]u16 = if (random) |rand| rand.array(u16, 8) else @splat(0);
+        // Hack for `Random.array` until #36929 is merged into stdlib
+        const registers: [8]u16 = if (random) |rand| @bitCast(rand.array(u8, 2 * 8)) else @splat(0);
         const condition = if (random) |rand| rand.enumValue(Condition) else .zero;
 
         return .{
