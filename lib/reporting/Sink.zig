@@ -10,6 +10,7 @@ const Ctx = @import("Ctx.zig");
 const Diagnostic = @import("diagnostic.zig").Diagnostic;
 
 pub const Fancy = @import("FancySink.zig");
+pub const Collect = @import("CollectSink.zig");
 
 ptr: *anyopaque,
 vtable: *const VTable,

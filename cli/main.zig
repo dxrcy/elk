@@ -19,7 +19,10 @@ pub fn main(init: std.process.Init) !u8 {
     var reporter_buffer: [reporter_buffer_size]u8 = undefined;
     var reporter_writer = Io.File.stderr().writer(io, &reporter_buffer);
     var sink = elk.reporting.Sink.Fancy.new(&reporter_writer.interface, is_tty);
-    var reporter = elk.reporting.Primary.new(sink.interface());
+
+    var sink_collect = elk.reporting.Sink.Collect.init(gpa, sink.interface());
+    defer sink_collect.deinit();
+    var reporter = elk.reporting.Primary.new(sink_collect.interface());
 
     const args_allocator = init.arena.allocator();
     var args = try Cli.zilc.collectArgs(args_allocator, init.minimal.args);
