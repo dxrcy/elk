@@ -92,9 +92,6 @@ pub fn parseAir(parser: *Parser, gpa: Allocator, air: *Air) Allocator.Error!void
             }).proceed(); // Can't return `error.Reported`
         }
 
-        parser.ensureNoCurrentLabel(air, null) catch
-            {}; // Can't return `error.Reported`
-
         if (missing_end) {
             parser.reporter().report(.missing_end, .{
                 .last_token = parser.tokenizer.latest,
@@ -233,15 +230,6 @@ pub fn parseInstruction(parser: *Parser) error{Reported}!Instruction {
     }
 }
 
-fn ensureNoCurrentLabel(parser: *Parser, air: *Air, target: ?Span) error{Reported}!void {
-    if (parser.removeCurrentLabel(air)) |label| {
-        try parser.reporter().report(.invalid_label_target, .{
-            .label = label,
-            .target = target,
-        }).handle();
-    }
-}
-
 fn removeCurrentLabel(parser: *Parser, air: *Air) ?Span {
     air.assertLabelOrder();
 
@@ -337,25 +325,25 @@ fn parseDirective(
 ) InnerError!Control {
     switch (directive) {
         .end => {
-            try parser.ensureNoCurrentLabel(air, span);
             return .@"break";
         },
 
         .orig => {
-            try parser.ensureNoCurrentLabel(air, span);
+            if (parser.removeCurrentLabel(air)) |label| {
+                try parser.reporter().report(.invalid_label_target, .{
+                    .label = label,
+                    .target = span,
+                }).handle();
+            }
 
-            const origin = try parser.tokenizer.expectArgument(.word);
+            const origin = try parser.tokenizer.expectArgument(.unsigned_word);
             if (parser.origin) |existing| {
                 try parser.reporter().report(.multiple_origins, .{
                     .existing = existing,
                     .new = origin.span,
                 }).abort();
             }
-            air.origin = origin.value.castToUnsigned() orelse {
-                try parser.reporter().report(.unexpected_negative_integer, .{
-                    .integer = origin.span,
-                }).abort();
-            };
+            air.origin = origin.value;
             parser.origin = origin.span;
 
             if (air.lines.items.len > 0) {
@@ -380,15 +368,14 @@ fn parseDirective(
         },
 
         .blkw => {
-            const size = try parser.tokenizer.expectArgument(.word);
-            const size_value = size.value.underlying;
-            if (size_value == 0)
+            const size = try parser.tokenizer.expectArgument(.unsigned_word);
+            if (size.value == 0)
                 return .@"continue";
-            try parser.ensureCanAppendLines(air, size_value, span);
+            try parser.ensureCanAppendLines(air, size.value, span);
             try air.lines.appendNTimes(gpa, .{
                 .statement = .{ .raw_word = 0x0000 },
                 .span = size.span,
-            }, size_value);
+            }, size.value);
         },
 
         .stringz => {

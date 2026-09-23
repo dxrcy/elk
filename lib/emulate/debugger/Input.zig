@@ -20,6 +20,7 @@ io: Io,
 pub const Key = union(enum) {
     char: u8,
     enter,
+    etx,
     eot,
     bs,
     escape: Escape,
@@ -58,7 +59,7 @@ pub fn new(
 pub fn readLine(
     input: *Input,
     writer: *Debugger.Writer,
-) (Io.Writer.Error || Io.Reader.Error || Allocator.Error)![]const u8 {
+) (Io.Writer.Error || Io.Reader.Error || Allocator.Error || error{EndOfText})![]const u8 {
     input.editor.clear();
     var eof = false;
 
@@ -137,6 +138,7 @@ fn readKey(input: *Input) error{ EndOfStream, ReadFailed }!?Key {
         0x20...0x7e => |char| .{ .char = char },
 
         '\n' => .enter,
+        control_code.etx => .etx,
         control_code.eot => .eot,
         control_code.bs, control_code.del => .bs,
 

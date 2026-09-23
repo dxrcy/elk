@@ -38,6 +38,7 @@ pub fn handleKey(editor: *Editor, key: Key) !void {
 
     switch (key) {
         .enter => return error.EndOfLine,
+        .etx => return error.EndOfText,
         .eot => return error.EndOfStream,
 
         .char => |char| editor.insert(char),

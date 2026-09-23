@@ -183,7 +183,7 @@ pub fn initState(
 ) Allocator.Error!void {
     if (debugger.initial_state) |initial_state|
         initial_state.deinit(gpa);
-    debugger.initial_state = try .init(gpa);
+    debugger.initial_state = try .init(gpa, null);
     debugger.initial_state.?.copyFrom(runtime.state);
 }
 
@@ -359,12 +359,7 @@ fn tryNextAction(debugger: *Debugger, runtime: *Runtime) !?Action {
     debugger.state.instruction_count = 0;
     debugger.state.should_print_pc = false;
 
-    const command_string = debugger.readCommand(runtime) catch |err| switch (err) {
-        else => |err2| return err2,
-        error.EndOfStream => {
-            return .disable_debugger;
-        },
-    };
+    const command_string = try debugger.readCommand(runtime);
 
     const source: Source = .{ .text = command_string, .path = null };
     debugger.reporter.source = source;
@@ -999,7 +994,11 @@ fn isMemoryModifiedInContext(
 }
 
 fn readCommand(debugger: *Debugger, runtime: *Runtime) ![]const u8 {
-    const line = try debugger.readInputLine(runtime);
+    const line = debugger.readInputLine(runtime) catch |err| switch (err) {
+        else => |e| return e,
+        error.EndOfStream => "quit",
+        error.EndOfText => "exit",
+    };
 
     try debugger.writer.writePrompt(line, null);
     try debugger.writer.print("\n", .{});

@@ -15,8 +15,8 @@
         },
         .zilc = .{
             // Should use tagged release for ELK release
-            .url = "git+https://codeberg.org/dxrcy/zilc#v0.1.2",
-            .hash = "zilc-0.1.2-a-peQYdmAACUIZVce0XqJY7sHL-EM_2wFaNjT1TYR92V",
+            .url = "git+https://codeberg.org/dxrcy/zilc#142ebeeaeaf17e31ea8dd22d5078e47741841c4d",
+            .hash = "zilc-0.1.2-a-peQchmAAC8o-E88GZQenCreCOutVSK7JIoTs-OPEo0",
             .lazy = true,
         },
     },

@@ -12,6 +12,13 @@ const Cli = @import("Cli.zig");
 // TODO: Move buffer size definitions somewhere
 
 pub fn main(init: std.process.Init) !u8 {
+    return mainInner(init) catch |err| switch (err) {
+        else => |e| e,
+        error.Reported => 1,
+    };
+}
+
+pub fn mainInner(init: std.process.Init) !u8 {
     const io, const gpa = .{ init.io, init.gpa };
 
     const is_tty = try Io.File.stdout().isTty(io);
@@ -20,7 +27,11 @@ pub fn main(init: std.process.Init) !u8 {
     var reporter_buffer: [reporter_buffer_size]u8 = undefined;
     var reporter_writer = Io.File.stderr().writer(io, &reporter_buffer);
     var sink = elk.reporting.Sink.Fancy.new(&reporter_writer.interface, is_tty);
-    var reporter = elk.reporting.Primary.new(sink.interface());
+
+    var sink_collect = elk.reporting.Sink.Collect.init(gpa, sink.interface());
+    defer sink_collect.deinit();
+    var reporter = elk.reporting.Primary.new(sink_collect.interface());
+    defer reporter.flush(); // Should already be flushed by now, but just in case
 
     const args_allocator = init.arena.allocator();
     var args = try Cli.zilc.collectArgs(args_allocator, init.minimal.args);
@@ -100,6 +111,7 @@ pub fn main(init: std.process.Init) !u8 {
                 &reporter,
                 cli.tty_color,
                 null,
+                cli.random_init,
             );
         },
 
@@ -119,6 +131,7 @@ pub fn main(init: std.process.Init) !u8 {
                 &reporter,
                 cli.tty_color,
                 null,
+                cli.random_init,
             );
         },
 
@@ -152,6 +165,7 @@ pub fn main(init: std.process.Init) !u8 {
                 &reporter,
                 cli.tty_color,
                 &assembler,
+                cli.random_init,
             );
         },
 
@@ -173,8 +187,27 @@ pub fn main(init: std.process.Init) !u8 {
                     try assembleFile(io, &assembler, single.input, single.output, operation.options);
                 },
                 .many => |many| {
+                    var error_count: usize = 0;
                     for (many.inputs) |input| {
-                        try assembleFile(io, &assembler, .{ .regular = input }, null, operation.options);
+                        assembleFile(
+                            io,
+                            &assembler,
+                            .{ .regular = input },
+                            null,
+                            operation.options,
+                        ) catch |err| {
+                            switch (err) {
+                                error.Reported => {
+                                    std.log.err("failed to assemble: {s}", .{input});
+                                },
+                                else => std.log.err("{t}: {s}", .{ err, input }),
+                            }
+                            error_count += 1;
+                        };
+                    }
+                    if (error_count > 0) {
+                        std.log.err("{} files failed to assemble", .{error_count});
+                        return 1;
                     }
                 },
             }
@@ -189,8 +222,20 @@ pub fn main(init: std.process.Init) !u8 {
                     removed_count += try cleanFile(io, single.input.regular);
                 },
                 .many => |many| {
-                    for (many.inputs) |input|
-                        removed_count += try cleanFile(io, input);
+                    var error_count: usize = 0;
+                    for (many.inputs) |input| {
+                        removed_count += cleanFile(io, input) catch |err| {
+                            switch (err) {
+                                error.Reported => {},
+                                else => std.log.err("{t}: {s}", .{ err, input }),
+                            }
+                            error_count += 1;
+                            continue;
+                        };
+                    }
+                    if (error_count > 0) {
+                        return 1;
+                    }
                 },
             }
             const input_count = operation.paths.count();
@@ -365,6 +410,7 @@ fn emulate(
     reporter: *elk.reporting.Primary,
     use_color: bool,
     assembler: ?*elk.Assembler,
+    random_init: ?u64,
 ) !void {
     const write_buffer_size = 64;
     const debugger_buffer_size = 256;
@@ -432,6 +478,11 @@ fn emulate(
     } else null;
     defer if (debugger_opt) |*debugger| debugger.deinit(gpa);
 
+    var prng_storage: ?std.Random.DefaultPrng = null;
+    if (random_init) |seed| {
+        prng_storage = std.Random.DefaultPrng.init(seed);
+    }
+
     var runtime = try elk.Runtime.init(.{
         .gpa = gpa,
         .reader = &reader.interface,
@@ -439,6 +490,7 @@ fn emulate(
         .traps = traps,
         .policies = policies,
         .debugger = if (debugger_opt) |*debugger| debugger else null,
+        .random = if (prng_storage) |*prng| prng.random() else null,
     });
     defer runtime.deinit(gpa);
 
@@ -487,6 +539,7 @@ fn emulate(
 
     try runtime.ensureWriterNewline();
     try runtime.writer.flush();
+    reporter.flush();
 }
 
 fn getHistoryPath(environ_map: *const EnvironMap, buffer: []u8) ![]const u8 {
@@ -516,16 +569,21 @@ fn openHistoryFile(io: Io, path: []const u8) !Io.File {
 fn cleanFile(io: Io, input: []const u8) !usize {
     if (!std.mem.endsWith(u8, input, ".asm")) {
         std.log.err("--clean requires filename to end with .asm", .{});
-        return error.BadFilename;
+        return error.Reported;
     }
 
-    _ = Io.Dir.cwd().statFile(io, input, .{}) catch |err| switch (err) {
+    const stat = Io.Dir.cwd().statFile(io, input, .{}) catch |err| switch (err) {
         error.FileNotFound => {
             std.log.err("--clean requires existing .asm file", .{});
-            return error.BadFilename;
+            return error.Reported;
         },
         else => |err2| return err2,
     };
+
+    if (stat.kind != .file) {
+        std.log.err("--clean requires regular .asm file", .{});
+        return error.Reported;
+    }
 
     var count: usize = 0;
     for (Cli.Operation.OutputMode.extensions) |extension| {

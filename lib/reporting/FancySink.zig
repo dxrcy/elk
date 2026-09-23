@@ -28,6 +28,7 @@ pub fn interface(sink: *FancySink) Sink {
         .ptr = sink,
         .vtable = &.{
             .sendDiagnostic = FancySink.sendDiagnostic,
+            .flush = FancySink.flush,
             .sendSummary = FancySink.sendSummary,
         },
     };
@@ -54,6 +55,8 @@ pub fn sendDiagnostic(
     try writeDiagnostic(ctx, diag);
     try sink.writer.flush();
 }
+
+pub fn flush(_: *anyopaque) error{WriteFailed}!void {}
 
 pub fn sendSummary(
     ptr: *anyopaque,

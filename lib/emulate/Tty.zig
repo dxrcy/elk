@@ -57,6 +57,7 @@ fn applyRawMode(termios: posix.termios) posix.termios {
     var termios_raw = termios;
     termios_raw.lflag.ICANON = false;
     termios_raw.lflag.ECHO = false;
+    termios_raw.lflag.ISIG = false;
     return termios_raw;
 }
 
