@@ -1,4 +1,4 @@
-const Printer = @This();
+const Sink = @This();
 
 const std = @import("std");
 const Io = std.Io;
@@ -32,17 +32,17 @@ pub const VTable = struct {
 };
 
 pub fn sendDiagnostic(
-    printer: *Printer,
+    sink: *Sink,
     diag: Diagnostic,
     level: reporting.Level,
     verbosity: reporting.Options.Verbosity,
     source: ?Source,
 ) error{WriteFailed}!void {
-    return printer.vtable.sendDiagnostic(printer.ptr, diag, level, verbosity, source);
+    return sink.vtable.sendDiagnostic(sink.ptr, diag, level, verbosity, source);
 }
 
 pub fn sendSummary(
-    printer: *Printer,
+    sink: *Sink,
     count: *const std.EnumArray(reporting.Level, usize),
     verbosity: reporting.Options.Verbosity,
 ) error{WriteFailed}!void {
