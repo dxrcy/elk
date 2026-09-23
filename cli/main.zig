@@ -11,6 +11,13 @@ const Cli = @import("Cli.zig");
 // TODO: Move buffer size definitions somewhere
 
 pub fn main(init: std.process.Init) !u8 {
+    return mainInner(init) catch |err| switch (err) {
+        else => |e| e,
+        error.Reported => 1,
+    };
+}
+
+pub fn mainInner(init: std.process.Init) !u8 {
     const io, const gpa = .{ init.io, init.gpa };
 
     const is_tty = try Io.File.stdout().isTty(io);
