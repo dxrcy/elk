@@ -71,6 +71,8 @@ pub fn flush(ptr: *anyopaque) error{WriteFailed}!void {
 
     for (sink.entries.items) |entry|
         try sink.inner.sendDiagnostic(entry.diag, entry.level, entry.verbosity, entry.source);
+
+    sink.entries.clearRetainingCapacity();
 }
 
 pub fn sendSummary(
