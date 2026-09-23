@@ -30,6 +30,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
     var sink_collect = elk.reporting.Sink.Collect.init(gpa, sink.interface());
     defer sink_collect.deinit();
     var reporter = elk.reporting.Primary.new(sink_collect.interface());
+    defer reporter.flush(); // Should already be flushed by now, but just in case
 
     const args_allocator = init.arena.allocator();
     var args = try Cli.zilc.collectArgs(args_allocator, init.minimal.args);
@@ -513,6 +514,7 @@ fn emulate(
 
     try runtime.ensureWriterNewline();
     try runtime.writer.flush();
+    reporter.flush();
 }
 
 fn getHistoryPath(environ_map: *const EnvironMap, buffer: []u8) ![]const u8 {
