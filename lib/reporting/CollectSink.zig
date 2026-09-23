@@ -69,7 +69,18 @@ pub fn sendSummary(
 ) error{WriteFailed}!void {
     const sink: *CollectSink = @ptrCast(@alignCast(ptr));
 
+    // Stable
+    std.mem.sort(Entry, sink.entries.items, {}, lessThanEntry);
+
     for (sink.entries.items) |entry|
         try sink.inner.sendDiagnostic(entry.diag, entry.level, entry.verbosity, entry.source);
     try sink.inner.sendSummary(count, verbosity);
+}
+
+fn lessThanEntry(_: void, a: Entry, b: Entry) bool {
+    const a_span = a.diag.getPrimarySpan() orelse
+        return false;
+    const b_span = b.diag.getPrimarySpan() orelse
+        return false;
+    return a_span.offset < b_span.offset;
 }
