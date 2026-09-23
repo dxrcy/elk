@@ -64,7 +64,13 @@ pub fn sendDiagnostic(
 }
 
 pub fn flush(ptr: *anyopaque) error{WriteFailed}!void {
-    _ = ptr;
+    const sink: *CollectSink = @ptrCast(@alignCast(ptr));
+
+    // Stable
+    std.mem.sort(Entry, sink.entries.items, {}, lessThanEntry);
+
+    for (sink.entries.items) |entry|
+        try sink.inner.sendDiagnostic(entry.diag, entry.level, entry.verbosity, entry.source);
 }
 
 pub fn sendSummary(
@@ -74,11 +80,7 @@ pub fn sendSummary(
 ) error{WriteFailed}!void {
     const sink: *CollectSink = @ptrCast(@alignCast(ptr));
 
-    // Stable
-    std.mem.sort(Entry, sink.entries.items, {}, lessThanEntry);
-
-    for (sink.entries.items) |entry|
-        try sink.inner.sendDiagnostic(entry.diag, entry.level, entry.verbosity, entry.source);
+    try flush(sink);
     try sink.inner.sendSummary(count, verbosity);
 }
 
