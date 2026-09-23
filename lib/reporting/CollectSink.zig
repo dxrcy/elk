@@ -39,6 +39,7 @@ pub fn interface(sink: *CollectSink) Sink {
         .ptr = sink,
         .vtable = &.{
             .sendDiagnostic = CollectSink.sendDiagnostic,
+            .flush = CollectSink.flush,
             .sendSummary = CollectSink.sendSummary,
         },
     };
@@ -60,6 +61,10 @@ pub fn sendDiagnostic(
         .source = source,
     }) catch
         return error.WriteFailed;
+}
+
+pub fn flush(ptr: *anyopaque) error{WriteFailed}!void {
+    _ = ptr;
 }
 
 pub fn sendSummary(

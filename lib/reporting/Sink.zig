@@ -24,6 +24,8 @@ pub const VTable = struct {
         source: ?Source,
     ) error{WriteFailed}!void,
 
+    flush: *const fn (ptr: *anyopaque) error{WriteFailed}!void,
+
     sendSummary: *const fn (
         ptr: *anyopaque,
         count: *const std.EnumArray(reporting.Level, usize),
@@ -41,10 +43,14 @@ pub fn sendDiagnostic(
     return sink.vtable.sendDiagnostic(sink.ptr, diag, level, verbosity, source);
 }
 
+pub fn flush(sink: *Sink) error{WriteFailed}!void {
+    return sink.vtable.flush(sink.ptr);
+}
+
 pub fn sendSummary(
     sink: *Sink,
     count: *const std.EnumArray(reporting.Level, usize),
     verbosity: reporting.Options.Verbosity,
 ) error{WriteFailed}!void {
-    return printer.vtable.sendSummary(printer.ptr, count, verbosity);
+    return sink.vtable.sendSummary(sink.ptr, count, verbosity);
 }
