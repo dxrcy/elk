@@ -380,18 +380,20 @@ fn replacePathExtension(buffer: []u8, path: []const u8, extension: []const u8) [
     return buffer[0 .. index + 1 + extension.len];
 }
 
+const RuntimeSource = union(enum) {
+    object: struct {
+        file: Io.File,
+        symbols: ?elk.Provider.Symbols,
+    },
+    assembly: elk.Provider.Assembly,
+};
+
 fn emulate(
     io: Io,
     // NOTE: Currently must be same allocated used by `Assembler`
     gpa: Allocator,
     environ_map: *const EnvironMap,
-    runtime_source: union(enum) {
-        object: struct {
-            file: Io.File,
-            symbols: ?elk.Provider.Symbols,
-        },
-        assembly: elk.Provider.Assembly,
-    },
+    runtime_source: RuntimeSource,
     patch_symbols_opt: ?[]const struct { []const u8, u16 },
     debug_opt: ?Cli.Operation.Debug,
     traps: *const elk.Traps,
@@ -408,49 +410,21 @@ fn emulate(
     var debugger_buffer: [debugger_buffer_size]u8 = undefined;
     var writer = Io.File.stdout().writer(io, &write_buffer);
     var reader = Io.File.stdin().reader(io, &.{});
-    var empty_reader: Io.Reader = .fixed(&.{});
 
-    // TODO: Extract to function
-    var debugger_opt: ?elk.Debugger = if (debug_opt) |debug| debugger: {
-        var history_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-        const history_path = if (debug.history_file) |path|
-            path
-        else
-            try getHistoryPath(environ_map, &history_path_buffer);
-        const history_file = openHistoryFile(io, history_path) catch |err| file: {
-            std.log.err("failed to open/create history file: {t}", .{err});
-            break :file null;
-        };
-
-        const provider: elk.Provider = switch (runtime_source) {
-            .object => |object| if (object.symbols) |symbols| .{ .symbols = symbols } else .none,
-            .assembly => |assembly| .{ .assembly = assembly },
-        };
-
-        const debug_input = switch (debug.input) {
-            .none => "",
-            .partial, .full => |input| input,
-        };
-        const debug_reader = switch (debug.input) {
-            .none, .partial => &reader.interface,
-            .full => &empty_reader,
-        };
-
-        break :debugger try .init(.{
-            .io = io,
-            .gpa = gpa,
-            .reader = debug_reader,
-            .writer = &writer.interface,
-            .traps = traps,
-            .reporter = reporter,
-            .command_buffer = &debugger_buffer,
-            .provider = provider,
-            .assembler = assembler,
-            .history_file = history_file,
-            .initial_command_line = debug_input,
-            .use_color = use_color,
-        });
-    } else null;
+    var debugger_opt: ?elk.Debugger = if (debug_opt) |debug| try createDebugger(
+        io,
+        gpa,
+        environ_map,
+        runtime_source,
+        debug,
+        traps,
+        reporter,
+        use_color,
+        assembler,
+        &reader.interface,
+        &writer.interface,
+        &debugger_buffer,
+    ) else null;
     defer if (debugger_opt) |*debugger| debugger.deinit(gpa);
 
     var prng_storage: ?std.Random.DefaultPrng = null;
@@ -469,29 +443,10 @@ fn emulate(
     });
     defer runtime.deinit(gpa);
 
-    // TODO: Extract to function
-    switch (runtime_source) {
-        .object => |object| {
-            const read_buffer_size = 1024;
-            var read_buffer: [read_buffer_size]u8 = undefined;
-            try runtime.readFromFile(io, object.file, &read_buffer);
-        },
-        .assembly => |assembly| {
-            try assembly.air.copyToRuntime(&runtime);
-        },
-    }
+    try loadRuntime(io, &runtime, runtime_source);
 
-    // TODO: Extract to function
-    if (patch_symbols_opt) |patch_symbols| {
-        const symbols = switch (runtime_source) {
-            .object => |object| object.symbols orelse unreachable,
-            .assembly => unreachable,
-        };
-        for (patch_symbols) |item| {
-            const symbol, const word = item;
-            try runtime.patchLabelValue(symbol, word, symbols);
-        }
-    }
+    if (patch_symbols_opt) |patch_symbols|
+        try patchSymbols(&runtime, runtime_source, patch_symbols);
 
     if (debugger_opt) |*debugger|
         try debugger.initState(gpa, &runtime);
@@ -502,7 +457,7 @@ fn emulate(
         error.ReadFailed,
         error.EndOfStream,
         error.TermiosFailed,
-        => |err2| return err2,
+        => |e| return e,
 
         else => |exception| {
             reporter.report(.emulate_exception, .{
@@ -515,6 +470,95 @@ fn emulate(
     try runtime.ensureWriterNewline();
     try runtime.writer.flush();
     reporter.flush();
+}
+
+fn createDebugger(
+    // TODO: Use struct for all these params
+    io: Io,
+    gpa: Allocator,
+    environ_map: *const EnvironMap,
+    runtime_source: RuntimeSource,
+    debug: Cli.Operation.Debug,
+    traps: *const elk.Traps,
+    reporter: *elk.reporting.Primary,
+    use_color: bool,
+    assembler: ?*elk.Assembler,
+    reader: *Io.Reader,
+    writer: *Io.Writer,
+    debugger_buffer: []u8,
+) !elk.Debugger {
+    const empty_reader = &struct {
+        var empty_reader: Io.Reader = .fixed(&.{});
+    }.empty_reader;
+
+    var history_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
+    const history_path = if (debug.history_file) |path|
+        path
+    else
+        try getHistoryPath(environ_map, &history_path_buffer);
+    const history_file = openHistoryFile(io, history_path) catch |err| file: {
+        std.log.err("failed to open/create history file: {t}", .{err});
+        break :file null;
+    };
+
+    const provider: elk.Provider = switch (runtime_source) {
+        .object => |object| if (object.symbols) |symbols| .{ .symbols = symbols } else .none,
+        .assembly => |assembly| .{ .assembly = assembly },
+    };
+
+    const debug_input = switch (debug.input) {
+        .none => "",
+        .partial, .full => |input| input,
+    };
+    const debug_reader = switch (debug.input) {
+        .none, .partial => reader,
+        .full => empty_reader,
+    };
+
+    return try .init(.{
+        .io = io,
+        .gpa = gpa,
+        .reader = debug_reader,
+        .writer = writer,
+        .traps = traps,
+        .reporter = reporter,
+        .command_buffer = debugger_buffer,
+        .provider = provider,
+        .assembler = assembler,
+        .history_file = history_file,
+        .initial_command_line = debug_input,
+        .use_color = use_color,
+    });
+}
+
+fn loadRuntime(io: Io, runtime: *elk.Runtime, runtime_source: RuntimeSource) !void {
+    const read_buffer_size = 1024;
+
+    switch (runtime_source) {
+        .object => |object| {
+            var read_buffer: [read_buffer_size]u8 = undefined;
+            return runtime.readFromFile(io, object.file, &read_buffer);
+        },
+        .assembly => |assembly| {
+            return assembly.air.copyToRuntime(runtime);
+        },
+    }
+}
+
+fn patchSymbols(
+    runtime: *elk.Runtime,
+    runtime_source: RuntimeSource,
+    patch_symbols: []const struct { []const u8, u16 },
+) !void {
+    // TODO: Extract to function
+    const symbols = switch (runtime_source) {
+        .object => |object| object.symbols orelse unreachable,
+        .assembly => unreachable,
+    };
+    for (patch_symbols) |item| {
+        const symbol, const word = item;
+        try runtime.patchLabelValue(symbol, word, symbols);
+    }
 }
 
 fn getHistoryPath(environ_map: *const EnvironMap, buffer: []u8) ![]const u8 {
