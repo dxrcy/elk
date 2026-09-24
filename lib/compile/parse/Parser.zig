@@ -375,7 +375,7 @@ fn parseDirective(
         .fill => {
             const argument = try parser.tokenizer.expectArgument(.word_or_label);
 
-            try parser.ensureCanAppendLines(air, 1, span);
+            try parser.ensureCanAppendLines(air, 1, span.join(argument.span));
             try air.lines.append(gpa, .{
                 .statement = switch (argument.value) {
                     .word => |word| .{ .raw_word = word.underlying },
@@ -389,7 +389,7 @@ fn parseDirective(
             const size = try parser.tokenizer.expectArgument(.unsigned_word);
             if (size.value == 0)
                 return .@"continue";
-            try parser.ensureCanAppendLines(air, size.value, span);
+            try parser.ensureCanAppendLines(air, size.value, span.join(size.span));
             try air.lines.appendNTimes(gpa, .{
                 .statement = .{ .raw_word = 0x0000 },
                 .span = size.span,
@@ -403,7 +403,7 @@ fn parseDirective(
 
             // Check length and allocate lines before proper string iteration
             const length = Token.Escaped.validLength(.double, contents_string) + 1; // Include NUL
-            try parser.ensureCanAppendLines(air, length, span);
+            try parser.ensureCanAppendLines(air, length, span.join(string.span));
             try air.lines.ensureUnusedCapacity(gpa, length);
 
             var escaped: Token.Escaped = .new(.double, contents_string);
