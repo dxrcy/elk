@@ -79,6 +79,7 @@ pub const Diagnostic = union(enum) {
     invalid_source_byte: struct { byte: usize },
     output_not_in_memory: struct { statement: Span },
     output_not_in_user_memory: struct { statement: Span },
+    origin_not_in_user_memory: struct { statement: Span },
     line_too_long: struct { overflow: Span },
 
     // Misc tokens, statements
@@ -194,6 +195,7 @@ pub const Diagnostic = union(enum) {
             .breakpoint_label => .info,
 
             .output_not_in_user_memory,
+            .origin_not_in_user_memory,
             .invalid_label_target,
             .invalid_string_escape,
             => strictnessResponse(options),
@@ -254,6 +256,7 @@ pub const Diagnostic = union(enum) {
             .invalid_source_byte => null,
             .output_not_in_memory => |info| info.statement,
             .output_not_in_user_memory => |info| info.statement,
+            .origin_not_in_user_memory => |info| info.statement,
             .line_too_long => |info| info.overflow,
             .invalid_token => |info| info.token,
             .unexpected_token_kind => |info| info.found.span,

@@ -127,6 +127,14 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
                 .{ elk.Runtime.user_memory_start, elk.Runtime.user_memory_end },
             );
         },
+        .origin_not_in_user_memory => |info| {
+            try ctx.writeTitle("Origin is declared as outside of user memory", .{});
+            try ctx.deepen().writeSourceNote("Line", .{}, info.statement);
+            try ctx.deepen().writeNote(
+                "Object files cannot be loaded which contain words outside of user memory: [x{:04}, x{:04}]",
+                .{ elk.Runtime.user_memory_start, elk.Runtime.user_memory_end },
+            );
+        },
         .line_too_long => |info| {
             try ctx.writeTitle("Line is longer than {} characters", .{Parser.max_line_width});
             try ctx.deepen().writeSourceNote("Characters past column limit", .{}, info.overflow);

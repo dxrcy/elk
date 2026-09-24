@@ -349,6 +349,13 @@ fn parseDirective(
                     .new = origin.span,
                 }).abort();
             }
+            if (origin.value > elk.Runtime.user_memory_end) {
+                parser.reporter().report(.origin_not_in_user_memory, .{
+                    .statement = origin.span,
+                }).handle() catch
+                    return error.TooLong;
+            }
+
             air.origin = origin.value;
             parser.origin = origin.span;
 
