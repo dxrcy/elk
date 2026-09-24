@@ -21,6 +21,8 @@ pub const max_label_length = 20;
 
 tokenizer: Tokenizer,
 origin: ?Span,
+// TODO: There might be a better place to put this or a better name for it...
+reported_not_in_user_memory: bool = false,
 
 pub const parseInteger = @import("integers.zig").tryInteger;
 
@@ -257,11 +259,14 @@ fn ensureCanAppendLines(parser: *Parser, air: *Air, n: usize, span: Span) error{
         }).abort() catch
             return error.TooLong;
     }
+    if (parser.reported_not_in_user_memory)
+        return;
     if (air.origin + air.lines.items.len + n > elk.Runtime.user_memory_end) {
         parser.reporter().report(.output_not_in_user_memory, .{
             .statement = span,
         }).handle() catch
             return error.TooLong;
+        parser.reported_not_in_user_memory = true;
     }
 }
 
