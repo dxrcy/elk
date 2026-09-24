@@ -111,10 +111,21 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
             try ctx.deepen().writeNote("Assembly file must only contain printable ASCII characters", .{});
             try ctx.deepen().writeNote("The assembler cannot read object files", .{});
         },
-        .output_too_long => |info| {
-            try ctx.writeTitle("Assembly file would emit too many words", .{});
+        .output_not_in_memory => |info| {
+            try ctx.writeTitle("Assembled file would contain data outside of program memory", .{});
             try ctx.deepen().writeSourceNote("Line", .{}, info.statement);
-            try ctx.deepen().writeNote("Object files cannot contain more than xFFFF words", .{});
+            try ctx.deepen().writeNote(
+                "Object files cannot contain words past address x{:04}",
+                .{elk.Runtime.memory_size},
+            );
+        },
+        .output_not_in_user_memory => |info| {
+            try ctx.writeTitle("Assembled file would contain data outside of user memory", .{});
+            try ctx.deepen().writeSourceNote("Line", .{}, info.statement);
+            try ctx.deepen().writeNote(
+                "Object files cannot be loaded which contain words outside of user memory: [x{:04}, x{:04}]",
+                .{ elk.Runtime.user_memory_start, elk.Runtime.user_memory_end },
+            );
         },
         .line_too_long => |info| {
             try ctx.writeTitle("Line is longer than {} characters", .{Parser.max_line_width});
