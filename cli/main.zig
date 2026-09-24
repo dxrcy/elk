@@ -443,7 +443,14 @@ fn emulate(
     });
     defer runtime.deinit(gpa);
 
-    try loadRuntime(io, &runtime, runtime_source);
+    loadRuntime(io, &runtime, runtime_source) catch |err| switch (err) {
+        else => |e| return e,
+        error.UnpermittedMemoryAccess => |exception| {
+            try reporter.report(.emulate_exception, .{
+                .code = exception,
+            }).abort();
+        },
+    };
 
     if (patch_symbols_opt) |patch_symbols|
         try patchSymbols(&runtime, runtime_source, patch_symbols);
