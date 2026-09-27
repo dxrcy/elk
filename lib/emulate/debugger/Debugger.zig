@@ -60,6 +60,7 @@ pub const Writer = struct {
 
     inner: *Io.Writer,
     use_color: bool,
+    use_decoration: bool,
 
     pub fn print(writer: *Writer, comptime fmt: []const u8, args: anytype) error{WriteFailed}!void {
         try writer.inner.print(fmt, args);
@@ -142,6 +143,7 @@ pub fn init(params: struct {
     history_file: ?Io.File = null,
     initial_command_line: []const u8 = "",
     use_color: bool,
+    use_decoration: bool,
 }) Allocator.Error!Debugger {
     const breakpoints: Breakpoints = switch (params.provider) {
         .assembly => |assembly| try .initFrom(params.gpa, assembly.air),
@@ -163,7 +165,11 @@ pub fn init(params: struct {
         .assembler = params.assembler,
         .current_line = params.initial_command_line,
         .input = input,
-        .writer = .{ .inner = params.writer, .use_color = params.use_color },
+        .writer = .{
+            .inner = params.writer,
+            .use_color = params.use_color,
+            .use_decoration = params.use_decoration,
+        },
         .traps = params.traps,
         .reporter = params.reporter,
     };
@@ -586,7 +592,7 @@ fn runCommand(
                 return null;
             }
             try debugger.writer.printLine("Breakpoints:", .{});
-            try debugger.printBreakpoints(runtime);
+            try debugger.printBreakpoints();
         },
 
         .break_add => |arguments| {
@@ -630,7 +636,7 @@ fn printListing(debugger: *Debugger, runtime: *const Runtime, start: u16, end: u
     try debugger.writer.enableColor();
 
     const line = "+-----------------------------------------------+\n";
-    if (runtime.use_decoration) {
+    if (debugger.writer.use_decoration) {
         try debugger.writer.print(line, .{});
         try debugger.writer.print("|          hex     decoded         label        |\n", .{});
         try debugger.writer.print(line, .{});
@@ -640,12 +646,12 @@ fn printListing(debugger: *Debugger, runtime: *const Runtime, start: u16, end: u
         const address: u16 = @intCast(i);
         const word = runtime.state.memory[address];
 
-        if (runtime.use_decoration)
+        if (debugger.writer.use_decoration)
             try debugger.writer.print("| ", .{});
 
         try debugger.writer.print("x{X:04}", .{address});
 
-        if (runtime.use_decoration) {
+        if (debugger.writer.use_decoration) {
             try debugger.writer.print(" {s}", .{
                 if (debugger.breakpoints.contains(address)) "B" else " ",
             });
@@ -657,7 +663,7 @@ fn printListing(debugger: *Debugger, runtime: *const Runtime, start: u16, end: u
 
         try debugger.writer.print(" x{X:04}", .{word});
 
-        if (runtime.use_decoration) {
+        if (debugger.writer.use_decoration) {
             const width = 16;
             var buffer: [width]u8 = undefined;
             const string = if (Runtime.Instruction.decode(word)) |instruction|
@@ -678,23 +684,23 @@ fn printListing(debugger: *Debugger, runtime: *const Runtime, start: u16, end: u
                     buffer[width - 1] = '-';
                 string = buffer[0..length];
             }
-            if (runtime.use_decoration)
+            if (debugger.writer.use_decoration)
                 try debugger.writer.print(" ", .{});
             try debugger.writer.print(" {s:<[1]}", .{ string, width });
         }
 
-        if (runtime.use_decoration)
+        if (debugger.writer.use_decoration)
             try debugger.writer.print(" |", .{});
         try debugger.writer.print("\n", .{});
     }
 
-    if (runtime.use_decoration)
+    if (debugger.writer.use_decoration)
         try debugger.writer.print(line, .{});
     try debugger.writer.disableColor();
 }
 
-fn printBreakpoints(debugger: *Debugger, runtime: *const Runtime) !void {
-    if (!runtime.use_decoration) {
+fn printBreakpoints(debugger: *Debugger) !void {
+    if (!debugger.writer.use_decoration) {
         try debugger.writer.enableColor();
         for (debugger.breakpoints.entries.items) |entry| {
             try debugger.writer.print("x{X:04}", .{entry.address});

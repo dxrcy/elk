@@ -424,6 +424,7 @@ fn emulate(
         traps,
         reporter,
         use_color,
+        use_decoration,
         assembler,
         &reader.interface,
         &writer.interface,
@@ -494,6 +495,7 @@ fn createDebugger(
     traps: *const elk.Traps,
     reporter: *elk.reporting.Primary,
     use_color: bool,
+    use_decoration: bool,
     assembler: ?*elk.Assembler,
     reader: *Io.Reader,
     writer: *Io.Writer,
@@ -540,6 +542,7 @@ fn createDebugger(
         .history_file = history_file,
         .initial_command_line = debug_input,
         .use_color = use_color,
+        .use_decoration = use_decoration,
     });
 }
 
