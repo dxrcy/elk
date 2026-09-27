@@ -175,7 +175,7 @@ pub fn patchLabelValue(
 
 pub fn run(runtime: *Runtime) Error!void {
     if (runtime.debugger) |debugger|
-        try debugger.startMessage();
+        try debugger.startMessage(runtime.use_decoration);
 
     while (true) {
         if (runtime.debugger) |debugger| {
