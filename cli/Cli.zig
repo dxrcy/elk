@@ -33,8 +33,8 @@ policies: elk.Policies,
 random_init: ?u64,
 strictness: elk.reporting.Options.Strictness,
 verbosity: elk.reporting.Options.Verbosity,
-tty_color: bool,
-decoration: bool,
+use_color: bool,
+use_decoration: bool,
 
 pub const Operation = union(enum) {
     assemble_emulate: struct {
@@ -202,42 +202,42 @@ const template = .{
         .long = "permit",
         .value = .{ .type = elk.Policies, .parser = parsePolicies },
     },
-    .color_mode = zilc.Flag{
+    .color_condition = zilc.Flag{
         .long = "color",
-        .value = .{ .type = Mode, .parser = parseMode },
+        .value = .{ .type = Condition, .parser = parseCondition },
     },
-    .decoration_mode = zilc.Flag{
+    .decoration_condition = zilc.Flag{
         .long = "decoration",
-        .value = .{ .type = Mode, .parser = parseMode },
+        .value = .{ .type = Condition, .parser = parseCondition },
     },
 };
 
-const Mode = enum {
+const Condition = enum {
     auto,
     always,
     never,
 
-    pub fn resolveBool(mode: ?Mode, is_tty: bool) bool {
+    pub fn resolve(mode: ?Condition, default: bool) bool {
         return switch (mode orelse .auto) {
-            .auto => is_tty,
+            .auto => default,
             .always => true,
             .never => false,
         };
     }
 };
 
-fn parseMode(dest: *anyopaque, src: []const u8, _: Allocator) !void {
-    const color_mode: *?Mode = @ptrCast(@alignCast(dest));
+fn parseCondition(dest: *anyopaque, src: []const u8, _: Allocator) !void {
+    const mode: *?Condition = @ptrCast(@alignCast(dest));
     if (std.mem.eql(u8, src, "auto")) {
-        color_mode.* = .auto;
+        mode.* = .auto;
         return;
     }
     if (std.mem.eql(u8, src, "always")) {
-        color_mode.* = .always;
+        mode.* = .always;
         return;
     }
     if (std.mem.eql(u8, src, "never")) {
-        color_mode.* = .never;
+        mode.* = .never;
         return;
     }
     return error.InvalidValue;
@@ -348,8 +348,8 @@ pub fn parse(
         else
             .normal,
         .verbosity = if (options.flags.quiet) .quiet else .normal,
-        .tty_color = Mode.resolveBool(options.flags.color_mode, is_tty),
-        .decoration = Mode.resolveBool(options.flags.decoration_mode, is_tty),
+        .use_color = Condition.resolve(options.flags.color_condition, is_tty),
+        .use_decoration = Condition.resolve(options.flags.decoration_condition, is_tty),
     };
 }
 
