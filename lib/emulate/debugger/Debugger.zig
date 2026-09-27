@@ -586,7 +586,7 @@ fn runCommand(
                 return null;
             }
             try debugger.writer.printLine("Breakpoints:", .{});
-            try debugger.printBreakpoints();
+            try debugger.printBreakpoints(runtime);
         },
 
         .break_add => |arguments| {
@@ -693,15 +693,30 @@ fn printListing(debugger: *Debugger, runtime: *const Runtime, start: u16, end: u
     try debugger.writer.disableColor();
 }
 
-fn printBreakpoints(debugger: *Debugger) !void {
+fn printBreakpoints(debugger: *Debugger, runtime: *const Runtime) !void {
+    if (!runtime.use_decoration) {
+        try debugger.writer.enableColor();
+        for (debugger.breakpoints.entries.items) |entry| {
+            try debugger.writer.print("x{X:04}", .{entry.address});
+
+            const info = debugger.getAddressInfo(entry.address);
+            if (info.label) |label|
+                try debugger.writer.print(" {s}", .{label});
+
+            try debugger.writer.print("\n", .{});
+        }
+        try debugger.writer.disableColor();
+        return;
+    }
+
     for (debugger.breakpoints.entries.items) |entry| {
         try debugger.writer.enableColor();
-        try debugger.writer.print("    | Breakpoint at 0x{X:04}", .{entry.address});
+        try debugger.writer.print("    | Breakpoint at x{X:04}", .{entry.address});
 
         const info = debugger.getAddressInfo(entry.address);
-        if (info.label) |label| {
+        if (info.label) |label|
             try debugger.writer.print(" (labelled '{s}')", .{label});
-        }
+
         if (info.assembly) |assembly| {
             try debugger.writer.print(":", .{});
             try debugger.writer.disableColor();
