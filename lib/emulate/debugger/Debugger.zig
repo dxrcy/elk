@@ -609,11 +609,14 @@ fn runCommand(
             else
                 try debugger.writer.printLine("assembly x{X:04}", .{address});
 
-            // TODO: Add `--decoration none` version
-            try writeSpanContext(debugger.writer.inner, line.span, .{
-                .max_context = arguments.context.value,
-                .use_color = debugger.writer.use_color, // Not from reporter sink
-            }, assembly.source);
+            if (debugger.writer.use_decoration) {
+                try writeSpanContext(debugger.writer.inner, line.span, .{
+                    .max_context = arguments.context.value,
+                    .use_color = debugger.writer.use_color, // Not from reporter sink
+                }, assembly.source);
+            } else {
+                try debugger.writer.printLine("{s}", .{line.span.view(assembly.source)});
+            }
 
             if (debugger.initial_state) |initial_state| {
                 if (isMemoryModifiedInContext(
