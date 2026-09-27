@@ -412,8 +412,8 @@ pub fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
 
     if (!runtime.use_decoration) {
         for (runtime.state.registers, 0..8) |word, i|
-            try runtime.writer.print("R{} x{x:04}\n", .{ i, word });
-        try runtime.writer.print("PC x{x:04}\n", .{runtime.state.pc});
+            try runtime.writer.print("R{} x{X:04}\n", .{ i, word });
+        try runtime.writer.print("PC x{X:04}\n", .{runtime.state.pc});
         try runtime.writer.print("CC {b:03}\n", .{runtime.state.condition});
         return;
     }
