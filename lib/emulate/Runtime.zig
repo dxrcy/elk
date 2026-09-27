@@ -459,7 +459,7 @@ pub fn printInteger(runtime: *Runtime, integer: u16) error{WriteFailed}!void {
 }
 
 fn printIntegerForms(runtime: *Runtime, word: u16) error{WriteFailed}!void {
-    assert(!runtime.use_decoration);
+    assert(runtime.use_decoration);
     try runtime.writer.print(
         "x{X:04}  {:7}  {:6}   ",
         .{ word, @as(i16, @bitCast(word)), word },
@@ -468,7 +468,7 @@ fn printIntegerForms(runtime: *Runtime, word: u16) error{WriteFailed}!void {
 }
 
 fn printDisplayChar(runtime: *Runtime, word: u16) error{WriteFailed}!void {
-    assert(!runtime.use_decoration);
+    assert(runtime.use_decoration);
     const ascii = [0x80]*const [3]u8{
         "NUL", "SOH", "STX",  "ETX", "EOT", "ENQ", "ACK", "BEL", " BS", " HT", " LF", " VT", " FF",  " CR", " SO", " SI",
         "DLE", "DC1", "DC2",  "DC3", "DC4", "NAK", "SYN", "ETB", "CAN", " EM", "SUB", "ESC", " FS",  " GS", " RS", " US",
