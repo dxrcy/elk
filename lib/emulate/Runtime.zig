@@ -26,6 +26,7 @@ traps: *const Traps,
 hooks: Hooks,
 policies: Policies,
 debugger: ?*Debugger,
+use_decoration: bool,
 
 reader: *Io.Reader,
 writer: *Io.Writer,
@@ -114,6 +115,7 @@ pub fn init(params: struct {
     policies: Policies,
     debugger: ?*Debugger = null,
     random: ?std.Random = null,
+    use_decoration: bool = true,
 }) !Runtime {
     return .{
         .state = try .init(params.gpa, params.random),
@@ -121,6 +123,7 @@ pub fn init(params: struct {
         .hooks = params.hooks,
         .policies = params.policies,
         .debugger = params.debugger,
+        .use_decoration = params.use_decoration,
         .reader = params.reader,
         .writer = params.writer,
         .writer_is_newline = true,
