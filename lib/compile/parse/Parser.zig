@@ -146,7 +146,6 @@ fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
 
         .directive => |directive| {
             const control = try parser.parseDirective(gpa, air, directive, token.span);
-            try parser.tokenizer.expectEol();
             return control;
         },
 
@@ -156,7 +155,6 @@ fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
                 token.span.offset,
                 parser.tokenizer.getIndex(),
             );
-            try parser.tokenizer.expectEol();
 
             try parser.ensureCanAppendLines(air, 1, span);
             try air.lines.append(gpa, .{
@@ -166,6 +164,7 @@ fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
         },
 
         .trap_alias => |vect| {
+            try parser.tokenizer.expectEol(0);
             const statement: Air.Statement = .{
                 .instruction = .{ .trap = .{
                     .vect = .{
@@ -174,7 +173,6 @@ fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
                     },
                 } },
             };
-            try parser.tokenizer.expectEol();
 
             try parser.ensureCanAppendLines(air, 1, token.span);
             try air.lines.append(gpa, .{
@@ -204,11 +202,11 @@ pub fn parseInstruction(parser: *Parser) error{Reported}!Instruction {
     switch (token.value) {
         .mnemonic => |mnemonic| {
             const instruction = try parser.parseInstructionOperands(mnemonic, token.span);
-            try parser.tokenizer.expectEol();
             return instruction;
         },
 
         .trap_alias => |vect| {
+            try parser.tokenizer.expectEol(0);
             const instruction = Instruction{
                 .trap = .{
                     .vect = .{
@@ -219,7 +217,6 @@ pub fn parseInstruction(parser: *Parser) error{Reported}!Instruction {
                     },
                 },
             };
-            try parser.tokenizer.expectEol();
             return instruction;
         },
 
@@ -336,6 +333,7 @@ fn parseDirective(
 ) InnerError!Control {
     switch (directive) {
         .end => {
+            try parser.tokenizer.expectEol(0);
             return .@"break";
         },
 
@@ -347,7 +345,11 @@ fn parseDirective(
                 }).handle();
             }
 
-            const origin = try parser.tokenizer.expectArgument(.unsigned_word);
+            const origin = try parser.tokenizer.expectArgument(.{
+                .type = .unsigned_word,
+            });
+            try parser.tokenizer.expectEol(1);
+
             if (parser.origin) |existing| {
                 try parser.reporter().report(.multiple_origins, .{
                     .existing = existing,
@@ -373,7 +375,10 @@ fn parseDirective(
         },
 
         .fill => {
-            const argument = try parser.tokenizer.expectArgument(.word_or_label);
+            const argument = try parser.tokenizer.expectArgument(.{
+                .type = .word_or_label,
+            });
+            try parser.tokenizer.expectEol(1);
 
             try parser.ensureCanAppendLines(air, 1, span.join(argument.span));
             try air.lines.append(gpa, .{
@@ -386,7 +391,11 @@ fn parseDirective(
         },
 
         .blkw => {
-            const size = try parser.tokenizer.expectArgument(.unsigned_word);
+            const size = try parser.tokenizer.expectArgument(.{
+                .type = .unsigned_word,
+            });
+            try parser.tokenizer.expectEol(1);
+
             if (size.value == 0)
                 return .@"continue";
             try parser.ensureCanAppendLines(air, size.value, span.join(size.span));
@@ -397,7 +406,11 @@ fn parseDirective(
         },
 
         .stringz => {
-            const string = try parser.tokenizer.expectArgument(.string);
+            const string = try parser.tokenizer.expectArgument(.{
+                .type = .string,
+            });
+            try parser.tokenizer.expectEol(1);
+
             const contents = string.value.in(string.span);
             const contents_string = contents.view(parser.source());
 
@@ -479,11 +492,15 @@ fn parseInstructionOperands(
 
             const fields = @typeInfo(Operands).@"struct".fields;
             inline for (fields, 0..) |field, i| {
-                const operand = try parser.tokenizer.expectArgument(
-                    .{ .operand = @FieldType(field.type, "value") },
-                );
+                const operand = try parser.tokenizer.expectArgument(.{
+                    .type = .{ .operand = @FieldType(field.type, "value") },
+                    .expected_count = fields.len,
+                    .current_count = i,
+                });
                 @field(operands, field.name) = operand;
 
+                // TODO: Don't report for missing comma before missing argument
+                // eg. `lea r0` has a missing comma after `r0`, but it is not between arguments!
                 if (i + 1 < fields.len)
                     if (try parser.tokenizer.nextMatching(.comma) == null) {
                         try parser.reporter().report(.missing_operand_comma, .{
@@ -492,6 +509,7 @@ fn parseInstructionOperands(
                     };
             }
 
+            try parser.tokenizer.expectEol(fields.len);
             return @unionInit(Instruction, @tagName(regular), operands);
         },
 
@@ -508,7 +526,7 @@ fn parseInstructionOperands(
                 else => comptime unreachable,
             };
             const dest = try parser.tokenizer.expectArgument(.{
-                .operand = Operand.value.PcOffset(9),
+                .type = .{ .operand = Operand.value.PcOffset(9) },
             });
             return .{ .br = .{
                 .condition = .{ .span = span, .value = condition },
