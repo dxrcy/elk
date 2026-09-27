@@ -34,6 +34,7 @@ random_init: ?u64,
 strictness: elk.reporting.Options.Strictness,
 verbosity: elk.reporting.Options.Verbosity,
 tty_color: bool,
+decoration: bool,
 
 pub const Operation = union(enum) {
     assemble_emulate: struct {
@@ -203,14 +204,30 @@ const template = .{
     },
     .color_mode = zilc.Flag{
         .long = "color",
-        .value = .{ .type = ColorMode, .parser = parseColorMode },
+        .value = .{ .type = Mode, .parser = parseMode },
+    },
+    .decoration_mode = zilc.Flag{
+        .long = "decoration",
+        .value = .{ .type = Mode, .parser = parseMode },
     },
 };
 
-const ColorMode = enum { auto, always, never };
+const Mode = enum {
+    auto,
+    always,
+    never,
 
-fn parseColorMode(dest: *anyopaque, src: []const u8, _: Allocator) !void {
-    const color_mode: *?ColorMode = @ptrCast(@alignCast(dest));
+    pub fn resolveBool(mode: ?Mode, is_tty: bool) bool {
+        return switch (mode orelse .auto) {
+            .auto => is_tty,
+            .always => true,
+            .never => false,
+        };
+    }
+};
+
+fn parseMode(dest: *anyopaque, src: []const u8, _: Allocator) !void {
+    const color_mode: *?Mode = @ptrCast(@alignCast(dest));
     if (std.mem.eql(u8, src, "auto")) {
         color_mode.* = .auto;
         return;
@@ -331,11 +348,8 @@ pub fn parse(
         else
             .normal,
         .verbosity = if (options.flags.quiet) .quiet else .normal,
-        .tty_color = switch (options.flags.color_mode orelse .auto) {
-            .auto => is_tty,
-            .always => true,
-            .never => false,
-        },
+        .tty_color = Mode.resolveBool(options.flags.color_mode, is_tty),
+        .decoration = Mode.resolveBool(options.flags.decoration_mode, is_tty),
     };
 }
 

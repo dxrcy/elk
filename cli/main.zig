@@ -99,6 +99,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 cli.policies,
                 &reporter,
                 cli.tty_color,
+                cli.decoration,
                 null,
                 cli.random_init,
             );
@@ -119,6 +120,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 cli.policies,
                 &reporter,
                 cli.tty_color,
+                cli.decoration,
                 null,
                 cli.random_init,
             );
@@ -153,6 +155,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 cli.policies,
                 &reporter,
                 cli.tty_color,
+                cli.decoration,
                 &assembler,
                 cli.random_init,
             );
@@ -400,6 +403,7 @@ fn emulate(
     policies: elk.Policies,
     reporter: *elk.reporting.Primary,
     use_color: bool,
+    use_decoration: bool,
     assembler: ?*elk.Assembler,
     random_init: ?u64,
 ) !void {
@@ -440,6 +444,7 @@ fn emulate(
         .policies = policies,
         .debugger = if (debugger_opt) |*debugger| debugger else null,
         .random = if (prng_storage) |*prng| prng.random() else null,
+        .use_decoration = use_decoration,
     });
     defer runtime.deinit(gpa);
 
