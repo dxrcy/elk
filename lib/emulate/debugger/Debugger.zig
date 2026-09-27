@@ -630,25 +630,34 @@ fn printListing(debugger: *Debugger, runtime: *const Runtime, start: u16, end: u
     try debugger.writer.enableColor();
 
     const line = "+-----------------------------------------------+\n";
-    try debugger.writer.print(line, .{});
-    try debugger.writer.print("|          hex     decoded         label        |\n", .{});
-    try debugger.writer.print(line, .{});
+    if (runtime.use_decoration) {
+        try debugger.writer.print(line, .{});
+        try debugger.writer.print("|          hex     decoded         label        |\n", .{});
+        try debugger.writer.print(line, .{});
+    }
 
     for (@as(u32, start)..@as(u32, end) + 1) |i| {
         const address: u16 = @intCast(i);
         const word = runtime.state.memory[address];
 
-        try debugger.writer.print("| ", .{});
+        if (runtime.use_decoration)
+            try debugger.writer.print("| ", .{});
 
         try debugger.writer.print("x{X:04}", .{address});
 
-        try debugger.writer.print(" {s}", .{
-            if (debugger.breakpoints.contains(address)) "B" else " ",
-        });
+        if (runtime.use_decoration) {
+            try debugger.writer.print(" {s}", .{
+                if (debugger.breakpoints.contains(address)) "B" else " ",
+            });
+        } else {
+            try debugger.writer.print(" {s}", .{
+                if (debugger.breakpoints.contains(address)) "B" else "-",
+            });
+        }
 
         try debugger.writer.print(" x{X:04}", .{word});
 
-        {
+        if (runtime.use_decoration) {
             const width = 16;
             var buffer: [width]u8 = undefined;
             const string = if (Runtime.Instruction.decode(word)) |instruction|
@@ -669,13 +678,18 @@ fn printListing(debugger: *Debugger, runtime: *const Runtime, start: u16, end: u
                     buffer[width - 1] = '-';
                 string = buffer[0..length];
             }
-            try debugger.writer.print("  {s:<[1]}", .{ string, width });
+            if (runtime.use_decoration)
+                try debugger.writer.print(" ", .{});
+            try debugger.writer.print(" {s:<[1]}", .{ string, width });
         }
 
-        try debugger.writer.print(" |\n", .{});
+        if (runtime.use_decoration)
+            try debugger.writer.print(" |", .{});
+        try debugger.writer.print("\n", .{});
     }
 
-    try debugger.writer.print(line, .{});
+    if (runtime.use_decoration)
+        try debugger.writer.print(line, .{});
     try debugger.writer.disableColor();
 }
 
