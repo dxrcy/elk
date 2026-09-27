@@ -416,7 +416,10 @@ fn tryNextAction(debugger: *Debugger, runtime: *Runtime) !?Action {
         return null; // No tokens lexed
 
     const action = debugger.runCommand(runtime, command, source) catch |err| switch (err) {
-        error.Reported => return null,
+        error.Reported => {
+            debugger.reporter.flush();
+            return null;
+        },
         else => |err2| return err2,
     };
     try runtime.writer.flush();
