@@ -3,6 +3,7 @@ const Runtime = @This();
 const std = @import("std");
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
+const assert = std.debug.assert;
 
 const elk = @import("../root.zig");
 const Policies = elk.Policies;
@@ -441,6 +442,12 @@ pub fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
 
 pub fn printInteger(runtime: *Runtime, integer: u16) error{WriteFailed}!void {
     try runtime.ensureWriterNewline();
+
+    if (!runtime.use_decoration) {
+        try runtime.writer.print("x{X:04}\n", .{integer});
+        return;
+    }
+
     try runtime.writer.print("+------------------------------+\n", .{});
     try runtime.writer.print("|   hex      int    uint   chr |\n", .{});
 
@@ -452,6 +459,7 @@ pub fn printInteger(runtime: *Runtime, integer: u16) error{WriteFailed}!void {
 }
 
 fn printIntegerForms(runtime: *Runtime, word: u16) error{WriteFailed}!void {
+    assert(!runtime.use_decoration);
     try runtime.writer.print(
         "x{X:04}  {:7}  {:6}   ",
         .{ word, @as(i16, @bitCast(word)), word },
@@ -460,6 +468,7 @@ fn printIntegerForms(runtime: *Runtime, word: u16) error{WriteFailed}!void {
 }
 
 fn printDisplayChar(runtime: *Runtime, word: u16) error{WriteFailed}!void {
+    assert(!runtime.use_decoration);
     const ascii = [0x80]*const [3]u8{
         "NUL", "SOH", "STX",  "ETX", "EOT", "ENQ", "ACK", "BEL", " BS", " HT", " LF", " VT", " FF",  " CR", " SO", " SI",
         "DLE", "DC1", "DC2",  "DC3", "DC4", "NAK", "SYN", "ETB", "CAN", " EM", "SUB", "ESC", " FS",  " GS", " RS", " US",
