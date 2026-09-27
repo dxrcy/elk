@@ -409,6 +409,15 @@ pub fn writeChar(runtime: *Runtime, char: u8) error{WriteFailed}!void {
 
 pub fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
     try runtime.ensureWriterNewline();
+
+    if (!runtime.use_decoration) {
+        for (runtime.state.registers, 0..8) |word, i|
+            try runtime.writer.print("R{} x{x:04}\n", .{ i, word });
+        try runtime.writer.print("PC x{x:04}\n", .{runtime.state.pc});
+        try runtime.writer.print("CC {b:03}\n", .{runtime.state.condition});
+        return;
+    }
+
     try runtime.writer.print("+----------------------------------+\n", .{});
     try runtime.writer.print("|       hex      int    uint   chr |\n", .{});
 
