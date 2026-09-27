@@ -164,6 +164,13 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
             try ctx.deepen().writeSourceNote("Token", .{}, info.found.span);
             try ctx.deepen().writeNote("Expected end of line", .{});
         },
+        .incorrect_argument_count => |info| {
+            try ctx.writeTitle(
+                "Incorrect number of arguments {} != {}",
+                .{ info.actual_count, info.expected_count },
+            );
+            try ctx.deepen().writeSourceNote("Token", .{}, info.found.span);
+        },
         .missing_operand_comma => |info| {
             try ctx.writeTitle("Missing comma `,` after operand", .{});
             try ctx.deepen().writeSourceNote("Operand", .{}, info.operand);
