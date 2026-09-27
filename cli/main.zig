@@ -54,7 +54,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
     reporter.options.strictness = cli.strictness;
     reporter.options.verbosity = cli.verbosity;
     reporter.options.policies = cli.policies;
-    sink.use_color = cli.tty_color;
+    sink.use_color = cli.use_color;
 
     const default_traps: elk.Traps = comptime .registerSets(&.{
         elk.Traps.Standard,
@@ -98,7 +98,8 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 &default_traps,
                 cli.policies,
                 &reporter,
-                cli.tty_color,
+                cli.use_color,
+                cli.use_decoration,
                 null,
                 cli.random_init,
             );
@@ -118,7 +119,8 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 &default_traps,
                 cli.policies,
                 &reporter,
-                cli.tty_color,
+                cli.use_color,
+                cli.use_decoration,
                 null,
                 cli.random_init,
             );
@@ -152,7 +154,8 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 &default_traps,
                 cli.policies,
                 &reporter,
-                cli.tty_color,
+                cli.use_color,
+                cli.use_decoration,
                 &assembler,
                 cli.random_init,
             );
@@ -400,6 +403,7 @@ fn emulate(
     policies: elk.Policies,
     reporter: *elk.reporting.Primary,
     use_color: bool,
+    use_decoration: bool,
     assembler: ?*elk.Assembler,
     random_init: ?u64,
 ) !void {
@@ -420,6 +424,7 @@ fn emulate(
         traps,
         reporter,
         use_color,
+        use_decoration,
         assembler,
         &reader.interface,
         &writer.interface,
@@ -440,6 +445,7 @@ fn emulate(
         .policies = policies,
         .debugger = if (debugger_opt) |*debugger| debugger else null,
         .random = if (prng_storage) |*prng| prng.random() else null,
+        .use_decoration = use_decoration,
     });
     defer runtime.deinit(gpa);
 
@@ -489,6 +495,7 @@ fn createDebugger(
     traps: *const elk.Traps,
     reporter: *elk.reporting.Primary,
     use_color: bool,
+    use_decoration: bool,
     assembler: ?*elk.Assembler,
     reader: *Io.Reader,
     writer: *Io.Writer,
@@ -535,6 +542,7 @@ fn createDebugger(
         .history_file = history_file,
         .initial_command_line = debug_input,
         .use_color = use_color,
+        .use_decoration = use_decoration,
     });
 }
 
