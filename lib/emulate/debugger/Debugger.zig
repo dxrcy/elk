@@ -626,7 +626,7 @@ fn runCommand(
     return null;
 }
 
-fn printListing(debugger: *Debugger, runtime: *Runtime, start: u16, end: u16) !void {
+fn printListing(debugger: *Debugger, runtime: *const Runtime, start: u16, end: u16) !void {
     try debugger.writer.enableColor();
 
     const line = "+-----------------------------------------------+\n";
@@ -829,7 +829,7 @@ fn getAssemblyLineIndexOptional(air: *const Air, address: u16) ?usize {
 
 fn resolveLocation(
     debugger: *Debugger,
-    runtime: *Runtime,
+    runtime: *const Runtime,
     location: Span.Spanned(Command.Location),
     source: Source,
 ) error{Reported}!union(enum) { register: u3, address: u16 } {
