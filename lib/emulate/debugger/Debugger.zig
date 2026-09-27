@@ -453,7 +453,7 @@ fn runCommand(
         .print => |arguments| {
             switch (try debugger.resolveLocation(runtime, arguments.location, source)) {
                 .register => |register| {
-                    try debugger.writer.printLine("Register R{}:", .{register});
+                    try debugger.writer.printLine("Register r{}:", .{register});
                     try debugger.writer.enableColor();
                     try runtime.printInteger(runtime.state.registers[register]);
                     try debugger.writer.disableColor();
@@ -490,7 +490,7 @@ fn runCommand(
                 .register => |register| {
                     runtime.state.registers[register] = arguments.value.value;
                     try debugger.writer.printLine(
-                        "Updated register R{} to x{X:04}.",
+                        "Updated register r{} to x{X:04}.",
                         .{ register, arguments.value.value },
                     );
                 },

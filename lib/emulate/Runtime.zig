@@ -413,7 +413,7 @@ pub fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
 
     if (!runtime.use_decoration) {
         for (runtime.state.registers, 0..8) |word, i|
-            try runtime.writer.print("R{} x{X:04}\n", .{ i, word });
+            try runtime.writer.print("r{} x{X:04}\n", .{ i, word });
         try runtime.writer.print("PC x{X:04}\n", .{runtime.state.pc});
         try runtime.writer.print("CC {b:03}\n", .{runtime.state.condition});
         return;
@@ -423,7 +423,7 @@ pub fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
     try runtime.writer.print("|       hex      int    uint   chr |\n", .{});
 
     for (runtime.state.registers, 0..8) |word, i| {
-        try runtime.writer.print("| R{}  ", .{i});
+        try runtime.writer.print("| r{}  ", .{i});
         try runtime.printIntegerForms(word);
         try runtime.writer.print(" |\n", .{});
     }
