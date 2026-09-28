@@ -49,8 +49,7 @@ pub fn new(
 }
 
 pub fn getIndex(tokenizer: *const Tokenizer) usize {
-    // We currently have no need to support 'getting index when token has been peeked'
-    assert(tokenizer.peeked == null);
+    // Note that token *may* be peeked at this point.
     return tokenizer.lexer.index;
 }
 
@@ -173,10 +172,7 @@ pub fn nextExcluding(
     comptime unreachable;
 }
 
-pub fn nextMatching(
-    tokenizer: *Tokenizer,
-    comptime match: TokenKind,
-) error{Reported}!?Token {
+pub fn nextMatching(tokenizer: *Tokenizer, comptime match: TokenKind) error{Reported}!?Token {
     const token = tokenizer.peekAny() catch |err| switch (err) {
         // These can be handled by next token request
         error.InvalidTokenPeeked, error.Eof => return null,
@@ -187,6 +183,14 @@ pub fn nextMatching(
     tokenizer.peeked = null;
     try tokenizer.ensureSupported(token, null);
     return token;
+}
+
+pub fn peekIs(tokenizer: *Tokenizer, comptime match: TokenKind) bool {
+    const token = tokenizer.peekAny() catch |err| switch (err) {
+        // These can be handled by next token request
+        error.InvalidTokenPeeked, error.Eof => return false,
+    };
+    return token.value == match;
 }
 
 pub fn discardRemainingLine(tokenizer: *Tokenizer) void {
@@ -205,17 +209,36 @@ pub fn discardRemainingLine(tokenizer: *Tokenizer) void {
     }
 }
 
-pub fn expectEol(tokenizer: *Tokenizer) error{Reported}!void {
-    const token = tokenizer.nextAfterComma() catch |err| switch (err) {
-        error.Reported => return error.Reported,
-        // These can be handled by next token request
-        error.Eof => return,
-    };
-    if (token.value != .newline) {
-        try tokenizer.reporter.report(.expected_eol, .{
-            .found = token,
-        }).abort();
+pub fn expectEndOfArguments(tokenizer: *Tokenizer, expected_count: usize) error{Reported}!void {
+    var extra_count: usize = 0;
+    var first_extra: ?Span = null;
+    while (true) {
+        const span = tokenizer.getNextSpan() catch |err| switch (err) {
+            error.Eof => break,
+        };
+        if (tokenizer.parseToken(span)) |token| switch (token.value) {
+            .newline => {
+                tokenizer.peeked = span;
+                break;
+            },
+            .comma => continue,
+            else => {},
+        } else |_| {}
+
+        extra_count += 1;
+        if (first_extra == null)
+            first_extra = span;
     }
+
+    const extra = first_extra orelse
+        return;
+    assert(extra_count > 0);
+
+    try tokenizer.reporter.report(.too_many_arguments, .{
+        .extra = extra,
+        .expected_count = expected_count,
+        .actual_count = expected_count + extra_count,
+    }).abort();
 }
 
 pub fn expectArgument(
@@ -229,16 +252,32 @@ pub fn expectArgument(
             .span = .endOf(tokenizer.source),
         },
     };
+
+    if (token.value == .newline) {
+        tokenizer.peeked = token.span;
+        try tokenizer.reporter.report(.not_enough_arguments, .{
+            .end = token.span,
+            .expected_count = argument.expected_count,
+            .actual_count = argument.current_count,
+        }).abort();
+    }
+
     const value = try argument.convert(token, tokenizer.reporter);
     try tokenizer.ensureSupported(token, argument);
     return .{ .span = token.span, .value = value };
 }
 
-pub const Argument = union(enum) {
-    operand: type,
-    unsigned_word,
-    word_or_label,
-    string,
+pub const Argument = struct {
+    type: Type,
+    expected_count: usize,
+    current_count: usize,
+
+    const Type = union(enum) {
+        operand: type,
+        unsigned_word,
+        word_or_label,
+        string,
+    };
 
     const WordOrLabel = union(enum) {
         word: SourceInt(16),
@@ -246,7 +285,7 @@ pub const Argument = union(enum) {
     };
 
     pub fn Value(comptime argument: Argument) type {
-        return switch (argument) {
+        return switch (argument.type) {
             .operand => |operand| operand,
             .unsigned_word => u16,
             .word_or_label => WordOrLabel,
@@ -259,7 +298,7 @@ pub const Argument = union(enum) {
         token: Token,
         reporter: *Reporter,
     ) error{Reported}!argument.Value() {
-        return switch (argument) {
+        return switch (argument.type) {
             .unsigned_word => return switch (token.value) {
                 .integer => |integer| try shrinkUnsigned(u16, integer, token.span, reporter),
                 else => try unexpected(token, &.{.integer}, reporter),
@@ -380,17 +419,11 @@ pub const Argument = union(enum) {
         expected: []const TokenKind,
         reporter: *Reporter,
     ) error{Reported}!noreturn {
-        if (token.value == .newline) {
-            try reporter.report(.unexpected_eol, .{
-                .eol = token.span,
-                .expected = expected,
-            }).abort();
-        } else {
-            try reporter.report(.unexpected_token_kind, .{
-                .found = token,
-                .expected = expected,
-            }).abort();
-        }
+        assert(token.value != .newline);
+        try reporter.report(.unexpected_token_kind, .{
+            .found = token,
+            .expected = expected,
+        }).abort();
     }
 };
 
@@ -480,7 +513,7 @@ fn ensureSupported(
                 }).collect(&result);
             }
 
-            if (argument_opt) |argument| switch (argument) {
+            if (argument_opt) |argument| switch (argument.type) {
                 .operand => |operand| switch (operand) {
                     Operand.value.PcOffset(9),
                     Operand.value.PcOffset(10),

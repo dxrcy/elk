@@ -21,6 +21,8 @@ pub const max_label_length = 20;
 
 tokenizer: Tokenizer,
 origin: ?Span,
+// TODO: There might be a better place to put this or a better name for it...
+reported_not_in_user_memory: bool = false,
 
 pub const parseInteger = @import("integers.zig").tryInteger;
 
@@ -144,7 +146,6 @@ fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
 
         .directive => |directive| {
             const control = try parser.parseDirective(gpa, air, directive, token.span);
-            try parser.tokenizer.expectEol();
             return control;
         },
 
@@ -154,7 +155,6 @@ fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
                 token.span.offset,
                 parser.tokenizer.getIndex(),
             );
-            try parser.tokenizer.expectEol();
 
             try parser.ensureCanAppendLines(air, 1, span);
             try air.lines.append(gpa, .{
@@ -164,6 +164,7 @@ fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
         },
 
         .trap_alias => |vect| {
+            try parser.tokenizer.expectEndOfArguments(0);
             const statement: Air.Statement = .{
                 .instruction = .{ .trap = .{
                     .vect = .{
@@ -172,7 +173,6 @@ fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
                     },
                 } },
             };
-            try parser.tokenizer.expectEol();
 
             try parser.ensureCanAppendLines(air, 1, token.span);
             try air.lines.append(gpa, .{
@@ -202,11 +202,11 @@ pub fn parseInstruction(parser: *Parser) error{Reported}!Instruction {
     switch (token.value) {
         .mnemonic => |mnemonic| {
             const instruction = try parser.parseInstructionOperands(mnemonic, token.span);
-            try parser.tokenizer.expectEol();
             return instruction;
         },
 
         .trap_alias => |vect| {
+            try parser.tokenizer.expectEndOfArguments(0);
             const instruction = Instruction{
                 .trap = .{
                     .vect = .{
@@ -217,7 +217,6 @@ pub fn parseInstruction(parser: *Parser) error{Reported}!Instruction {
                     },
                 },
             };
-            try parser.tokenizer.expectEol();
             return instruction;
         },
 
@@ -252,10 +251,19 @@ fn removeCurrentLabel(parser: *Parser, air: *Air) ?Span {
 
 fn ensureCanAppendLines(parser: *Parser, air: *Air, n: usize, span: Span) error{TooLong}!void {
     if (air.origin + air.lines.items.len + n >= elk.Runtime.memory_size) {
-        parser.reporter().report(.output_too_long, .{
+        parser.reporter().report(.output_not_in_memory, .{
             .statement = span,
         }).abort() catch
             return error.TooLong;
+    }
+    if (parser.reported_not_in_user_memory)
+        return;
+    if (air.origin + air.lines.items.len + n > elk.Runtime.user_memory_end) {
+        parser.reporter().report(.output_not_in_user_memory, .{
+            .statement = span,
+        }).handle() catch
+            return error.TooLong;
+        parser.reported_not_in_user_memory = true;
     }
 }
 
@@ -325,6 +333,7 @@ fn parseDirective(
 ) InnerError!Control {
     switch (directive) {
         .end => {
+            try parser.tokenizer.expectEndOfArguments(0);
             return .@"break";
         },
 
@@ -336,13 +345,26 @@ fn parseDirective(
                 }).handle();
             }
 
-            const origin = try parser.tokenizer.expectArgument(.unsigned_word);
+            const origin = try parser.tokenizer.expectArgument(.{
+                .type = .unsigned_word,
+                .expected_count = 1,
+                .current_count = 0,
+            });
+            try parser.tokenizer.expectEndOfArguments(1);
+
             if (parser.origin) |existing| {
                 try parser.reporter().report(.multiple_origins, .{
                     .existing = existing,
                     .new = origin.span,
                 }).abort();
             }
+            if (origin.value > elk.Runtime.user_memory_end) {
+                parser.reporter().report(.origin_not_in_user_memory, .{
+                    .statement = origin.span,
+                }).handle() catch
+                    return error.TooLong;
+            }
+
             air.origin = origin.value;
             parser.origin = origin.span;
 
@@ -355,9 +377,14 @@ fn parseDirective(
         },
 
         .fill => {
-            const argument = try parser.tokenizer.expectArgument(.word_or_label);
+            const argument = try parser.tokenizer.expectArgument(.{
+                .type = .word_or_label,
+                .expected_count = 1,
+                .current_count = 0,
+            });
+            try parser.tokenizer.expectEndOfArguments(1);
 
-            try parser.ensureCanAppendLines(air, 1, span);
+            try parser.ensureCanAppendLines(air, 1, span.join(argument.span));
             try air.lines.append(gpa, .{
                 .statement = switch (argument.value) {
                     .word => |word| .{ .raw_word = word.underlying },
@@ -368,10 +395,16 @@ fn parseDirective(
         },
 
         .blkw => {
-            const size = try parser.tokenizer.expectArgument(.unsigned_word);
+            const size = try parser.tokenizer.expectArgument(.{
+                .type = .unsigned_word,
+                .expected_count = 1,
+                .current_count = 0,
+            });
+            try parser.tokenizer.expectEndOfArguments(1);
+
             if (size.value == 0)
                 return .@"continue";
-            try parser.ensureCanAppendLines(air, size.value, span);
+            try parser.ensureCanAppendLines(air, size.value, span.join(size.span));
             try air.lines.appendNTimes(gpa, .{
                 .statement = .{ .raw_word = 0x0000 },
                 .span = size.span,
@@ -379,13 +412,19 @@ fn parseDirective(
         },
 
         .stringz => {
-            const string = try parser.tokenizer.expectArgument(.string);
+            const string = try parser.tokenizer.expectArgument(.{
+                .type = .string,
+                .expected_count = 1,
+                .current_count = 0,
+            });
+            try parser.tokenizer.expectEndOfArguments(1);
+
             const contents = string.value.in(string.span);
             const contents_string = contents.view(parser.source());
 
             // Check length and allocate lines before proper string iteration
             const length = Token.Escaped.validLength(.double, contents_string) + 1; // Include NUL
-            try parser.ensureCanAppendLines(air, length, span);
+            try parser.ensureCanAppendLines(air, length, span.join(string.span));
             try air.lines.ensureUnusedCapacity(gpa, length);
 
             var escaped: Token.Escaped = .new(.double, contents_string);
@@ -461,19 +500,25 @@ fn parseInstructionOperands(
 
             const fields = @typeInfo(Operands).@"struct".fields;
             inline for (fields, 0..) |field, i| {
-                const operand = try parser.tokenizer.expectArgument(
-                    .{ .operand = @FieldType(field.type, "value") },
-                );
+                const operand = try parser.tokenizer.expectArgument(.{
+                    .type = .{ .operand = @FieldType(field.type, "value") },
+                    .expected_count = fields.len,
+                    .current_count = i,
+                });
                 @field(operands, field.name) = operand;
 
-                if (i + 1 < fields.len)
-                    if (try parser.tokenizer.nextMatching(.comma) == null) {
+                if (i + 1 < fields.len) {
+                    if (try parser.tokenizer.nextMatching(.comma) == null and
+                        !parser.tokenizer.peekIs(.newline))
+                    {
                         try parser.reporter().report(.missing_operand_comma, .{
-                            .operand = operand.span,
+                            .position = .{ .offset = operand.span.end(), .len = 0 },
                         }).handle();
-                    };
+                    }
+                }
             }
 
+            try parser.tokenizer.expectEndOfArguments(fields.len);
             return @unionInit(Instruction, @tagName(regular), operands);
         },
 
@@ -490,7 +535,9 @@ fn parseInstructionOperands(
                 else => comptime unreachable,
             };
             const dest = try parser.tokenizer.expectArgument(.{
-                .operand = Operand.value.PcOffset(9),
+                .type = .{ .operand = Operand.value.PcOffset(9) },
+                .expected_count = 1,
+                .current_count = 0,
             });
             return .{ .br = .{
                 .condition = .{ .span = span, .value = condition },

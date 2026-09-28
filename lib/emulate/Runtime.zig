@@ -3,6 +3,7 @@ const Runtime = @This();
 const std = @import("std");
 const Io = std.Io;
 const Allocator = std.mem.Allocator;
+const assert = std.debug.assert;
 
 const elk = @import("../root.zig");
 const Policies = elk.Policies;
@@ -26,6 +27,7 @@ traps: *const Traps,
 hooks: Hooks,
 policies: Policies,
 debugger: ?*Debugger,
+use_decoration: bool,
 
 reader: *Io.Reader,
 writer: *Io.Writer,
@@ -114,6 +116,7 @@ pub fn init(params: struct {
     policies: Policies,
     debugger: ?*Debugger = null,
     random: ?std.Random = null,
+    use_decoration: bool = true,
 }) !Runtime {
     return .{
         .state = try .init(params.gpa, params.random),
@@ -121,6 +124,7 @@ pub fn init(params: struct {
         .hooks = params.hooks,
         .policies = params.policies,
         .debugger = params.debugger,
+        .use_decoration = params.use_decoration,
         .reader = params.reader,
         .writer = params.writer,
         .writer_is_newline = true,
@@ -171,7 +175,7 @@ pub fn patchLabelValue(
 
 pub fn run(runtime: *Runtime) Error!void {
     if (runtime.debugger) |debugger|
-        try debugger.startMessage();
+        try debugger.startMessage(runtime.use_decoration);
 
     while (true) {
         if (runtime.debugger) |debugger| {
@@ -406,11 +410,20 @@ pub fn writeChar(runtime: *Runtime, char: u8) error{WriteFailed}!void {
 
 pub fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
     try runtime.ensureWriterNewline();
+
+    if (!runtime.use_decoration) {
+        for (runtime.state.registers, 0..8) |word, i|
+            try runtime.writer.print("r{} x{X:04}\n", .{ i, word });
+        try runtime.writer.print("PC x{X:04}\n", .{runtime.state.pc});
+        try runtime.writer.print("CC {b:03}\n", .{runtime.state.condition});
+        return;
+    }
+
     try runtime.writer.print("+----------------------------------+\n", .{});
     try runtime.writer.print("|       hex      int    uint   chr |\n", .{});
 
     for (runtime.state.registers, 0..8) |word, i| {
-        try runtime.writer.print("| R{}  ", .{i});
+        try runtime.writer.print("| r{}  ", .{i});
         try runtime.printIntegerForms(word);
         try runtime.writer.print(" |\n", .{});
     }
@@ -429,6 +442,12 @@ pub fn printRegisters(runtime: *Runtime) error{WriteFailed}!void {
 
 pub fn printInteger(runtime: *Runtime, integer: u16) error{WriteFailed}!void {
     try runtime.ensureWriterNewline();
+
+    if (!runtime.use_decoration) {
+        try runtime.writer.print("x{X:04}\n", .{integer});
+        return;
+    }
+
     try runtime.writer.print("+------------------------------+\n", .{});
     try runtime.writer.print("|   hex      int    uint   chr |\n", .{});
 
@@ -440,6 +459,7 @@ pub fn printInteger(runtime: *Runtime, integer: u16) error{WriteFailed}!void {
 }
 
 fn printIntegerForms(runtime: *Runtime, word: u16) error{WriteFailed}!void {
+    assert(runtime.use_decoration);
     try runtime.writer.print(
         "x{X:04}  {:7}  {:6}   ",
         .{ word, @as(i16, @bitCast(word)), word },
@@ -448,6 +468,7 @@ fn printIntegerForms(runtime: *Runtime, word: u16) error{WriteFailed}!void {
 }
 
 fn printDisplayChar(runtime: *Runtime, word: u16) error{WriteFailed}!void {
+    assert(runtime.use_decoration);
     const ascii = [0x80]*const [3]u8{
         "NUL", "SOH", "STX",  "ETX", "EOT", "ENQ", "ACK", "BEL", " BS", " HT", " LF", " VT", " FF",  " CR", " SO", " SI",
         "DLE", "DC1", "DC2",  "DC3", "DC4", "NAK", "SYN", "ETB", "CAN", " EM", "SUB", "ESC", " FS",  " GS", " RS", " US",

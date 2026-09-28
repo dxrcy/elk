@@ -77,16 +77,19 @@ pub const Diagnostic = union(enum) {
 
     // Assembly file
     invalid_source_byte: struct { byte: usize },
-    output_too_long: struct { statement: Span },
+    output_not_in_memory: struct { statement: Span },
+    output_not_in_user_memory: struct { statement: Span },
+    origin_not_in_user_memory: struct { statement: Span },
     line_too_long: struct { overflow: Span },
 
     // Misc tokens, statements
     invalid_token: struct { token: Span, guess: ?TokenKinds.Kind },
     // TODO: Replace `[]const TokenKinds.Kind` with `TokenKinds`, and elsewhere
     unexpected_token_kind: struct { found: Token, expected: []const TokenKinds.Kind },
-    unexpected_eol: struct { eol: Span, expected: []const TokenKinds.Kind },
-    expected_eol: struct { found: Token },
-    missing_operand_comma: struct { operand: Span },
+    // TODO: Add extra information for these two: to differenciate 'arguments' and 'operands'
+    not_enough_arguments: struct { end: Span, expected_count: usize, actual_count: usize },
+    too_many_arguments: struct { extra: Span, expected_count: usize, actual_count: usize },
+    missing_operand_comma: struct { position: Span },
     whitespace_comma: struct { comma: Span },
     unconventional_case: struct { token: Span, kind: enum { directive, mnemonic, trap_alias, label, register, integer_prefix, integer_digits } },
 
@@ -166,11 +169,11 @@ pub const Diagnostic = union(enum) {
     pub fn getResponse(diag: Diagnostic, options: Options) Response {
         return switch (diag) {
             .invalid_source_byte,
-            .output_too_long,
+            .output_not_in_memory,
             .invalid_token,
             .unexpected_token_kind,
-            .unexpected_eol,
-            .expected_eol,
+            .not_enough_arguments,
+            .too_many_arguments,
             .unsupported_directive,
             .multiple_origins,
             .late_origin,
@@ -192,6 +195,8 @@ pub const Diagnostic = union(enum) {
 
             .breakpoint_label => .info,
 
+            .output_not_in_user_memory,
+            .origin_not_in_user_memory,
             .invalid_label_target,
             .invalid_string_escape,
             => strictnessResponse(options),
@@ -250,13 +255,15 @@ pub const Diagnostic = union(enum) {
     pub fn getPrimarySpan(diag: Diagnostic) ?Span {
         return switch (diag) {
             .invalid_source_byte => null,
-            .output_too_long => |info| info.statement,
+            .output_not_in_memory => |info| info.statement,
+            .output_not_in_user_memory => |info| info.statement,
+            .origin_not_in_user_memory => |info| info.statement,
             .line_too_long => |info| info.overflow,
             .invalid_token => |info| info.token,
             .unexpected_token_kind => |info| info.found.span,
-            .unexpected_eol => |info| info.eol,
-            .expected_eol => |info| info.found.span,
-            .missing_operand_comma => |info| info.operand,
+            .not_enough_arguments => |info| info.end,
+            .too_many_arguments => |info| info.extra,
+            .missing_operand_comma => |info| info.position,
             .whitespace_comma => |info| info.comma,
             .unconventional_case => |info| info.token,
             .unsupported_directive => |info| info.directive,

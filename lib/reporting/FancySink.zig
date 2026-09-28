@@ -111,10 +111,29 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
             try ctx.deepen().writeNote("Assembly file must only contain printable ASCII characters", .{});
             try ctx.deepen().writeNote("The assembler cannot read object files", .{});
         },
-        .output_too_long => |info| {
-            try ctx.writeTitle("Assembly file would emit too many words", .{});
+        .output_not_in_memory => |info| {
+            try ctx.writeTitle("Assembled file would contain data outside of program memory", .{});
             try ctx.deepen().writeSourceNote("Line", .{}, info.statement);
-            try ctx.deepen().writeNote("Object files cannot contain more than xFFFF words", .{});
+            try ctx.deepen().writeNote(
+                "Object files cannot contain words past address x{:04}",
+                .{elk.Runtime.memory_size},
+            );
+        },
+        .output_not_in_user_memory => |info| {
+            try ctx.writeTitle("Assembled file would contain data outside of user memory", .{});
+            try ctx.deepen().writeSourceNote("Line", .{}, info.statement);
+            try ctx.deepen().writeNote(
+                "Object files cannot be loaded which contain words outside of user memory: [x{:04}, x{:04}]",
+                .{ elk.Runtime.user_memory_start, elk.Runtime.user_memory_end },
+            );
+        },
+        .origin_not_in_user_memory => |info| {
+            try ctx.writeTitle("Origin is declared as outside of user memory", .{});
+            try ctx.deepen().writeSourceNote("Line", .{}, info.statement);
+            try ctx.deepen().writeNote(
+                "Object files cannot be loaded which contain words outside of user memory: [x{:04}, x{:04}]",
+                .{ elk.Runtime.user_memory_start, elk.Runtime.user_memory_end },
+            );
         },
         .line_too_long => |info| {
             try ctx.writeTitle("Line is longer than {} characters", .{Parser.max_line_width});
@@ -134,20 +153,23 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
             try ctx.deepen().writeSourceNote("Token", .{}, info.found.span);
             try ctx.deepen().writeNote("Expected {f}", .{TokenKinds{ .kinds = info.expected }});
         },
-        .unexpected_eol => |info| {
-            try ctx.writeTitle("Unexpected end of line", .{});
-            try ctx.deepen().writeSourceNote("Line ends too early", .{}, info.eol);
-            try ctx.deepen().writeNote("Expected {f}", .{TokenKinds{ .kinds = info.expected }});
-            try ctx.deepen().writeNote("Instructions cannot span multiple lines", .{});
+        .not_enough_arguments => |info| {
+            try ctx.writeTitle(
+                "Not enough arguments provided: {} < {}",
+                .{ info.actual_count, info.expected_count },
+            );
+            try ctx.deepen().writeSourceNote("Expected additional argument", .{}, info.end);
         },
-        .expected_eol => |info| {
-            try ctx.writeTitle("Unexpected {s}", .{TokenKinds.name(info.found.value)});
-            try ctx.deepen().writeSourceNote("Token", .{}, info.found.span);
-            try ctx.deepen().writeNote("Expected end of line", .{});
+        .too_many_arguments => |info| {
+            try ctx.writeTitle(
+                "Too many arguments provided: {} > {}",
+                .{ info.actual_count, info.expected_count },
+            );
+            try ctx.deepen().writeSourceNote("Unexpected extra argument", .{}, info.extra);
         },
         .missing_operand_comma => |info| {
-            try ctx.writeTitle("Missing comma `,` after operand", .{});
-            try ctx.deepen().writeSourceNote("Operand", .{}, info.operand);
+            try ctx.writeTitle("Missing comma `,` between operands", .{});
+            try ctx.deepen().writeSourceNote("Expected here", .{}, info.position);
             try ctx.deepen().writeNote("Operands should be separated with commas", .{});
         },
         .whitespace_comma => |info| {
