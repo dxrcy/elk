@@ -153,17 +153,6 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
             try ctx.deepen().writeSourceNote("Token", .{}, info.found.span);
             try ctx.deepen().writeNote("Expected {f}", .{TokenKinds{ .kinds = info.expected }});
         },
-        .unexpected_eol => |info| {
-            try ctx.writeTitle("Unexpected end of line", .{});
-            try ctx.deepen().writeSourceNote("Line ends too early", .{}, info.eol);
-            try ctx.deepen().writeNote("Expected {f}", .{TokenKinds{ .kinds = info.expected }});
-            try ctx.deepen().writeNote("Instructions cannot span multiple lines", .{});
-        },
-        .expected_eol => |info| {
-            try ctx.writeTitle("Unexpected {s}", .{TokenKinds.name(info.found.value)});
-            try ctx.deepen().writeSourceNote("Token", .{}, info.found.span);
-            try ctx.deepen().writeNote("Expected end of line", .{});
-        },
         .incorrect_argument_count => |info| {
             try ctx.writeTitle(
                 "Incorrect number of arguments {} != {}",
