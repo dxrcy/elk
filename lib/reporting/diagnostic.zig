@@ -86,8 +86,9 @@ pub const Diagnostic = union(enum) {
     invalid_token: struct { token: Span, guess: ?TokenKinds.Kind },
     // TODO: Replace `[]const TokenKinds.Kind` with `TokenKinds`, and elsewhere
     unexpected_token_kind: struct { found: Token, expected: []const TokenKinds.Kind },
-    // TODO: Split into < and >
-    incorrect_argument_count: struct { incorrect: Span, expected_count: usize, actual_count: usize },
+    // TODO: Add extra information for these two: to differenciate 'arguments' and 'operands'
+    not_enough_arguments: struct { end: Span, expected_count: usize, actual_count: usize },
+    too_many_arguments: struct { extra: Span, expected_count: usize, actual_count: usize },
     missing_operand_comma: struct { position: Span },
     whitespace_comma: struct { comma: Span },
     unconventional_case: struct { token: Span, kind: enum { directive, mnemonic, trap_alias, label, register, integer_prefix, integer_digits } },
@@ -171,7 +172,8 @@ pub const Diagnostic = union(enum) {
             .output_not_in_memory,
             .invalid_token,
             .unexpected_token_kind,
-            .incorrect_argument_count,
+            .not_enough_arguments,
+            .too_many_arguments,
             .unsupported_directive,
             .multiple_origins,
             .late_origin,
@@ -259,7 +261,8 @@ pub const Diagnostic = union(enum) {
             .line_too_long => |info| info.overflow,
             .invalid_token => |info| info.token,
             .unexpected_token_kind => |info| info.found.span,
-            .incorrect_argument_count => |info| info.incorrect,
+            .not_enough_arguments => |info| info.end,
+            .too_many_arguments => |info| info.extra,
             .missing_operand_comma => |info| info.position,
             .whitespace_comma => |info| info.comma,
             .unconventional_case => |info| info.token,

@@ -210,8 +210,8 @@ pub fn discardRemainingLine(tokenizer: *Tokenizer) void {
 }
 
 pub fn expectEndOfArguments(tokenizer: *Tokenizer, expected_count: usize) error{Reported}!void {
-    var incorrect_count: usize = 0;
-    var first_incorrect: ?Span = null;
+    var extra_count: usize = 0;
+    var first_extra: ?Span = null;
     while (true) {
         const span = tokenizer.getNextSpan() catch |err| switch (err) {
             error.Eof => break,
@@ -225,19 +225,19 @@ pub fn expectEndOfArguments(tokenizer: *Tokenizer, expected_count: usize) error{
             else => {},
         } else |_| {}
 
-        incorrect_count += 1;
-        if (first_incorrect == null)
-            first_incorrect = span;
+        extra_count += 1;
+        if (first_extra == null)
+            first_extra = span;
     }
 
-    const incorrect = first_incorrect orelse
+    const extra = first_extra orelse
         return;
-    assert(incorrect_count > 0);
+    assert(extra_count > 0);
 
-    try tokenizer.reporter.report(.incorrect_argument_count, .{
-        .incorrect = incorrect,
+    try tokenizer.reporter.report(.too_many_arguments, .{
+        .extra = extra,
         .expected_count = expected_count,
-        .actual_count = expected_count + incorrect_count,
+        .actual_count = expected_count + extra_count,
     }).abort();
 }
 
@@ -255,8 +255,8 @@ pub fn expectArgument(
 
     if (token.value == .newline) {
         tokenizer.peeked = token.span;
-        try tokenizer.reporter.report(.incorrect_argument_count, .{
-            .incorrect = token.span,
+        try tokenizer.reporter.report(.not_enough_arguments, .{
+            .end = token.span,
             .expected_count = argument.expected_count,
             .actual_count = argument.current_count,
         }).abort();

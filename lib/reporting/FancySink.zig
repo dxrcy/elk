@@ -153,12 +153,19 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
             try ctx.deepen().writeSourceNote("Token", .{}, info.found.span);
             try ctx.deepen().writeNote("Expected {f}", .{TokenKinds{ .kinds = info.expected }});
         },
-        .incorrect_argument_count => |info| {
+        .not_enough_arguments => |info| {
             try ctx.writeTitle(
-                "Incorrect number of arguments {} != {}",
+                "Not enough arguments provided: {} < {}",
                 .{ info.actual_count, info.expected_count },
             );
-            try ctx.deepen().writeSourceNote("Here", .{}, info.incorrect);
+            try ctx.deepen().writeSourceNote("Expected additional argument", .{}, info.end);
+        },
+        .too_many_arguments => |info| {
+            try ctx.writeTitle(
+                "Too many arguments provided: {} > {}",
+                .{ info.actual_count, info.expected_count },
+            );
+            try ctx.deepen().writeSourceNote("Unexpected extra argument", .{}, info.extra);
         },
         .missing_operand_comma => |info| {
             try ctx.writeTitle("Missing comma `,` between operands", .{});
