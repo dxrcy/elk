@@ -264,9 +264,8 @@ pub fn expectArgument(
 
 pub const Argument = struct {
     type: Type,
-    // TODO: Remove dummy values !!
-    expected_count: usize = 99,
-    current_count: usize = 33,
+    expected_count: usize,
+    current_count: usize,
 
     const Type = union(enum) {
         operand: type,

@@ -347,6 +347,8 @@ fn parseDirective(
 
             const origin = try parser.tokenizer.expectArgument(.{
                 .type = .unsigned_word,
+                .expected_count = 1,
+                .current_count = 0,
             });
             try parser.tokenizer.expectEndOfArguments(1);
 
@@ -377,6 +379,8 @@ fn parseDirective(
         .fill => {
             const argument = try parser.tokenizer.expectArgument(.{
                 .type = .word_or_label,
+                .expected_count = 1,
+                .current_count = 0,
             });
             try parser.tokenizer.expectEndOfArguments(1);
 
@@ -393,6 +397,8 @@ fn parseDirective(
         .blkw => {
             const size = try parser.tokenizer.expectArgument(.{
                 .type = .unsigned_word,
+                .expected_count = 1,
+                .current_count = 0,
             });
             try parser.tokenizer.expectEndOfArguments(1);
 
@@ -408,6 +414,8 @@ fn parseDirective(
         .stringz => {
             const string = try parser.tokenizer.expectArgument(.{
                 .type = .string,
+                .expected_count = 1,
+                .current_count = 0,
             });
             try parser.tokenizer.expectEndOfArguments(1);
 
@@ -527,6 +535,8 @@ fn parseInstructionOperands(
             };
             const dest = try parser.tokenizer.expectArgument(.{
                 .type = .{ .operand = Operand.value.PcOffset(9) },
+                .expected_count = 1,
+                .current_count = 0,
             });
             return .{ .br = .{
                 .condition = .{ .span = span, .value = condition },
