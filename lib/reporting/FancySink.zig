@@ -158,7 +158,7 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
                 "Incorrect number of arguments {} != {}",
                 .{ info.actual_count, info.expected_count },
             );
-            try ctx.deepen().writeSourceNote("Token", .{}, info.found.span);
+            try ctx.deepen().writeSourceNote("Here", .{}, info.incorrect);
         },
         .missing_operand_comma => |info| {
             try ctx.writeTitle("Missing comma `,` after operand", .{});

@@ -49,8 +49,7 @@ pub fn new(
 }
 
 pub fn getIndex(tokenizer: *const Tokenizer) usize {
-    // We currently have no need to support 'getting index when token has been peeked'
-    assert(tokenizer.peeked == null);
+    // Note that token *may* be peeked at this point.
     return tokenizer.lexer.index;
 }
 
@@ -206,22 +205,35 @@ pub fn discardRemainingLine(tokenizer: *Tokenizer) void {
 }
 
 pub fn expectEol(tokenizer: *Tokenizer, expected_count: usize) error{Reported}!void {
-    // TODO: Don't report for extra comma before extra argument
-    // eg. `lea r0, Foo, Bar` has an extra comma after `Foo`, but it is indeed between arguments!
-    const token = tokenizer.nextAfterComma() catch |err| switch (err) {
-        error.Reported => return error.Reported,
-        // These can be handled by next token request
-        error.Eof => return,
-    };
-    if (token.value != .newline) {
-        // TODO: Count all arguments until newline, use as actual_count
-        // TODO: Join span for all arguments, instead of just first
-        try tokenizer.reporter.report(.incorrect_argument_count, .{
-            .found = token,
-            .expected_count = expected_count,
-            .actual_count = expected_count + 1,
-        }).abort();
+    var incorrect_count: usize = 0;
+    var first_incorrect: ?Span = null;
+    while (true) {
+        const span = tokenizer.getNextSpan() catch |err| switch (err) {
+            error.Eof => break,
+        };
+        if (tokenizer.parseToken(span)) |token| switch (token.value) {
+            .newline => {
+                tokenizer.peeked = span;
+                break;
+            },
+            .comma => continue,
+            else => {},
+        } else |_| {}
+
+        incorrect_count += 1;
+        if (first_incorrect == null)
+            first_incorrect = span;
     }
+
+    const incorrect = first_incorrect orelse
+        return;
+    assert(incorrect_count > 0);
+
+    try tokenizer.reporter.report(.incorrect_argument_count, .{
+        .incorrect = incorrect,
+        .expected_count = expected_count,
+        .actual_count = expected_count + incorrect_count,
+    }).abort();
 }
 
 pub fn expectArgument(
@@ -239,7 +251,7 @@ pub fn expectArgument(
     if (token.value == .newline) {
         tokenizer.peeked = token.span;
         try tokenizer.reporter.report(.incorrect_argument_count, .{
-            .found = token,
+            .incorrect = token.span,
             .expected_count = argument.expected_count,
             .actual_count = argument.current_count,
         }).abort();
