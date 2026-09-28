@@ -172,10 +172,7 @@ pub fn nextExcluding(
     comptime unreachable;
 }
 
-pub fn nextMatching(
-    tokenizer: *Tokenizer,
-    comptime match: TokenKind,
-) error{Reported}!?Token {
+pub fn nextMatching(tokenizer: *Tokenizer, comptime match: TokenKind) error{Reported}!?Token {
     const token = tokenizer.peekAny() catch |err| switch (err) {
         // These can be handled by next token request
         error.InvalidTokenPeeked, error.Eof => return null,
@@ -186,6 +183,14 @@ pub fn nextMatching(
     tokenizer.peeked = null;
     try tokenizer.ensureSupported(token, null);
     return token;
+}
+
+pub fn peekIs(tokenizer: *Tokenizer, comptime match: TokenKind) bool {
+    const token = tokenizer.peekAny() catch |err| switch (err) {
+        // These can be handled by next token request
+        error.InvalidTokenPeeked, error.Eof => return false,
+    };
+    return token.value == match;
 }
 
 pub fn discardRemainingLine(tokenizer: *Tokenizer) void {

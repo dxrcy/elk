@@ -507,14 +507,15 @@ fn parseInstructionOperands(
                 });
                 @field(operands, field.name) = operand;
 
-                // TODO: Don't report for missing comma before missing argument
-                // eg. `lea r0` has a missing comma after `r0`, but it is not between arguments!
-                if (i + 1 < fields.len)
-                    if (try parser.tokenizer.nextMatching(.comma) == null) {
+                if (i + 1 < fields.len) {
+                    if (try parser.tokenizer.nextMatching(.comma) == null and
+                        !parser.tokenizer.peekIs(.newline))
+                    {
                         try parser.reporter().report(.missing_operand_comma, .{
                             .operand = operand.span,
                         }).handle();
-                    };
+                    }
+                }
             }
 
             try parser.tokenizer.expectEndOfArguments(fields.len);
