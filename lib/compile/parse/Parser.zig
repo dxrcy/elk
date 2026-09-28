@@ -164,7 +164,7 @@ fn parseLine(parser: *Parser, gpa: Allocator, air: *Air) InnerError!Control {
         },
 
         .trap_alias => |vect| {
-            try parser.tokenizer.expectEol(0);
+            try parser.tokenizer.expectEndOfArguments(0);
             const statement: Air.Statement = .{
                 .instruction = .{ .trap = .{
                     .vect = .{
@@ -206,7 +206,7 @@ pub fn parseInstruction(parser: *Parser) error{Reported}!Instruction {
         },
 
         .trap_alias => |vect| {
-            try parser.tokenizer.expectEol(0);
+            try parser.tokenizer.expectEndOfArguments(0);
             const instruction = Instruction{
                 .trap = .{
                     .vect = .{
@@ -333,7 +333,7 @@ fn parseDirective(
 ) InnerError!Control {
     switch (directive) {
         .end => {
-            try parser.tokenizer.expectEol(0);
+            try parser.tokenizer.expectEndOfArguments(0);
             return .@"break";
         },
 
@@ -348,7 +348,7 @@ fn parseDirective(
             const origin = try parser.tokenizer.expectArgument(.{
                 .type = .unsigned_word,
             });
-            try parser.tokenizer.expectEol(1);
+            try parser.tokenizer.expectEndOfArguments(1);
 
             if (parser.origin) |existing| {
                 try parser.reporter().report(.multiple_origins, .{
@@ -378,7 +378,7 @@ fn parseDirective(
             const argument = try parser.tokenizer.expectArgument(.{
                 .type = .word_or_label,
             });
-            try parser.tokenizer.expectEol(1);
+            try parser.tokenizer.expectEndOfArguments(1);
 
             try parser.ensureCanAppendLines(air, 1, span.join(argument.span));
             try air.lines.append(gpa, .{
@@ -394,7 +394,7 @@ fn parseDirective(
             const size = try parser.tokenizer.expectArgument(.{
                 .type = .unsigned_word,
             });
-            try parser.tokenizer.expectEol(1);
+            try parser.tokenizer.expectEndOfArguments(1);
 
             if (size.value == 0)
                 return .@"continue";
@@ -409,7 +409,7 @@ fn parseDirective(
             const string = try parser.tokenizer.expectArgument(.{
                 .type = .string,
             });
-            try parser.tokenizer.expectEol(1);
+            try parser.tokenizer.expectEndOfArguments(1);
 
             const contents = string.value.in(string.span);
             const contents_string = contents.view(parser.source());
@@ -509,7 +509,7 @@ fn parseInstructionOperands(
                     };
             }
 
-            try parser.tokenizer.expectEol(fields.len);
+            try parser.tokenizer.expectEndOfArguments(fields.len);
             return @unionInit(Instruction, @tagName(regular), operands);
         },
 

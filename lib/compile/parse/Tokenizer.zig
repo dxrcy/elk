@@ -204,7 +204,7 @@ pub fn discardRemainingLine(tokenizer: *Tokenizer) void {
     }
 }
 
-pub fn expectEol(tokenizer: *Tokenizer, expected_count: usize) error{Reported}!void {
+pub fn expectEndOfArguments(tokenizer: *Tokenizer, expected_count: usize) error{Reported}!void {
     var incorrect_count: usize = 0;
     var first_incorrect: ?Span = null;
     while (true) {
