@@ -161,8 +161,8 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
             try ctx.deepen().writeSourceNote("Here", .{}, info.incorrect);
         },
         .missing_operand_comma => |info| {
-            try ctx.writeTitle("Missing comma `,` after operand", .{});
-            try ctx.deepen().writeSourceNote("Operand", .{}, info.operand);
+            try ctx.writeTitle("Missing comma `,` between operands", .{});
+            try ctx.deepen().writeSourceNote("Expected here", .{}, info.position);
             try ctx.deepen().writeNote("Operands should be separated with commas", .{});
         },
         .whitespace_comma => |info| {

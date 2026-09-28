@@ -512,7 +512,7 @@ fn parseInstructionOperands(
                         !parser.tokenizer.peekIs(.newline))
                     {
                         try parser.reporter().report(.missing_operand_comma, .{
-                            .operand = operand.span,
+                            .position = .{ .offset = operand.span.end(), .len = 0 },
                         }).handle();
                     }
                 }

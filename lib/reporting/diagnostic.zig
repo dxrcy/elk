@@ -88,7 +88,7 @@ pub const Diagnostic = union(enum) {
     unexpected_token_kind: struct { found: Token, expected: []const TokenKinds.Kind },
     // TODO: Split into < and >
     incorrect_argument_count: struct { incorrect: Span, expected_count: usize, actual_count: usize },
-    missing_operand_comma: struct { operand: Span },
+    missing_operand_comma: struct { position: Span },
     whitespace_comma: struct { comma: Span },
     unconventional_case: struct { token: Span, kind: enum { directive, mnemonic, trap_alias, label, register, integer_prefix, integer_digits } },
 
@@ -260,7 +260,7 @@ pub const Diagnostic = union(enum) {
             .invalid_token => |info| info.token,
             .unexpected_token_kind => |info| info.found.span,
             .incorrect_argument_count => |info| info.incorrect,
-            .missing_operand_comma => |info| info.operand,
+            .missing_operand_comma => |info| info.position,
             .whitespace_comma => |info| info.comma,
             .unconventional_case => |info| info.token,
             .unsupported_directive => |info| info.directive,
