@@ -153,20 +153,23 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
             try ctx.deepen().writeSourceNote("Token", .{}, info.found.span);
             try ctx.deepen().writeNote("Expected {f}", .{TokenKinds{ .kinds = info.expected }});
         },
-        .unexpected_eol => |info| {
-            try ctx.writeTitle("Unexpected end of line", .{});
-            try ctx.deepen().writeSourceNote("Line ends too early", .{}, info.eol);
-            try ctx.deepen().writeNote("Expected {f}", .{TokenKinds{ .kinds = info.expected }});
-            try ctx.deepen().writeNote("Instructions cannot span multiple lines", .{});
+        .not_enough_arguments => |info| {
+            try ctx.writeTitle(
+                "Not enough arguments provided: {} < {}",
+                .{ info.actual_count, info.expected_count },
+            );
+            try ctx.deepen().writeSourceNote("Expected additional argument", .{}, info.end);
         },
-        .expected_eol => |info| {
-            try ctx.writeTitle("Unexpected {s}", .{TokenKinds.name(info.found.value)});
-            try ctx.deepen().writeSourceNote("Token", .{}, info.found.span);
-            try ctx.deepen().writeNote("Expected end of line", .{});
+        .too_many_arguments => |info| {
+            try ctx.writeTitle(
+                "Too many arguments provided: {} > {}",
+                .{ info.actual_count, info.expected_count },
+            );
+            try ctx.deepen().writeSourceNote("Unexpected extra argument", .{}, info.extra);
         },
         .missing_operand_comma => |info| {
-            try ctx.writeTitle("Missing comma `,` after operand", .{});
-            try ctx.deepen().writeSourceNote("Operand", .{}, info.operand);
+            try ctx.writeTitle("Missing comma `,` between operands", .{});
+            try ctx.deepen().writeSourceNote("Expected here", .{}, info.position);
             try ctx.deepen().writeNote("Operands should be separated with commas", .{});
         },
         .whitespace_comma => |info| {
