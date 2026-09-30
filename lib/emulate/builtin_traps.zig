@@ -74,8 +74,7 @@ pub fn putsp(runtime: *Runtime) Traps.Result {
 }
 
 pub fn putn(runtime: *Runtime) Traps.Result {
-    try runtime.ensureWriterNewline();
-    try runtime.writer.print("{}\n", .{runtime.state.registers[0]});
+    try runtime.writer.print("{}", .{runtime.state.registers[0]});
     try runtime.writer.flush();
 }
 
