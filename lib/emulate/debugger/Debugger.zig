@@ -208,6 +208,9 @@ pub fn startMessage(debugger: *Debugger, use_decoration: bool) !void {
 pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?enum { @"continue", @"break" } {
     assert(debugger.writer.use_decoration == runtime.use_decoration);
 
+    // Perhaps runtime threw an exception since last debugger was last invoked
+    debugger.reporter.flush();
+
     if (debugger.state.status == .inactive)
         return null;
 
@@ -382,6 +385,9 @@ fn tryNextAction(debugger: *Debugger, runtime: *Runtime) !?Action {
     assert(debugger.state.status == .get_action);
     assert(runtime.writer_is_newline);
 
+    // Defer is not great for this, but we will forget to flush otherwise :-)
+    defer debugger.reporter.flush();
+
     if (debugger.state.instruction_count > 0) {
         if (debugger.writer.use_decoration)
             try debugger.writer.printLine("Executed {} instruction{s}.", .{
@@ -416,10 +422,7 @@ fn tryNextAction(debugger: *Debugger, runtime: *Runtime) !?Action {
         return null; // No tokens lexed
 
     const action = debugger.runCommand(runtime, command, source) catch |err| switch (err) {
-        error.Reported => {
-            debugger.reporter.flush();
-            return null;
-        },
+        error.Reported => return null,
         else => |err2| return err2,
     };
     try runtime.writer.flush();
