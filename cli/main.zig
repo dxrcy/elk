@@ -493,6 +493,8 @@ fn emulate(
 
     try runtime.ensureWriterNewline();
     try runtime.writer.flush();
+
+    std.debug.print("{f}\n", .{runtime.analytics});
 }
 
 fn getHistoryPath(environ_map: *const EnvironMap, buffer: []u8) ![]const u8 {
