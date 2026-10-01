@@ -239,6 +239,41 @@ pub fn mainInner(init: std.process.Init) !u8 {
             });
         },
 
+        .disassemble => |operation| {
+            const single =
+                switch (operation.paths) {
+                    .single => |single| single,
+                    .many => {
+                        std.log.err("unimplemented: disassemble multiple files", .{});
+                        return error.Unimplemented;
+                    },
+                };
+
+            if (operation.trap_aliases) |_| {
+                std.log.err("unimplemented: disassemble with trap aliases", .{});
+                return error.Unimplemented;
+            }
+
+            const input = switch (single.input) {
+                .regular => |regular| regular,
+                .stdio => {
+                    std.log.err("unimplemented: disassemble with stdio input", .{});
+                    return error.Unimplemented;
+                },
+            };
+
+            var file = try Io.Dir.cwd().openFile(io, input, .{});
+            defer file.close(io);
+
+            var read_buffer: [256]u8 = undefined;
+            var write_buffer: [256]u8 = undefined;
+            var reader = file.reader(io, &read_buffer);
+            var writer = Io.File.stdout().writer(io, &write_buffer);
+
+            try disassembleFile(&reader.interface, &writer.interface);
+            try writer.flush();
+        },
+
         .format => |operation| {
             std.log.err("unimplemented feature: format", .{});
             switch (operation.paths) {
@@ -264,6 +299,49 @@ pub fn mainInner(init: std.process.Init) !u8 {
     }
 
     return 0;
+}
+
+fn disassembleFile(reader: *Io.Reader, writer: *Io.Writer) !void {
+    const origin = reader.takeInt(u16, .big) catch |err| switch (err) {
+        else => |e| return e,
+        error.EndOfStream => return error.FileTooSmall,
+    };
+
+    try writer.print(".ORIG x{x:04}\n", .{origin});
+
+    var i: usize = 0;
+    while (true) : (i += 1) {
+        const high = reader.takeByte() catch |err| switch (err) {
+            else => |e| return e,
+            error.EndOfStream => break,
+        };
+        const low = reader.takeByte() catch |err| switch (err) {
+            else => |e| return e,
+            error.EndOfStream => return error.FileNotAligned,
+        };
+        const word = (@as(u16, high) << 8) | low;
+
+        if (decodeWord(word)) |instruction| {
+            try writer.print("    {f}\n", .{instruction});
+        } else {
+            try writer.print("    .FILL x{x:04}\n", .{word});
+        }
+    }
+
+    try writer.print(".END\n", .{});
+}
+
+fn decodeWord(word: u16) ?elk.Runtime.Instruction {
+    const instruction = elk.Runtime.Instruction.decode(word) catch
+        return null;
+
+    switch (instruction) {
+        else => {},
+        .br => |br| if (br.mask == 0b000)
+            return null,
+    }
+
+    return instruction;
 }
 
 fn assembleFile(
