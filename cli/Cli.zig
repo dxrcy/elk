@@ -56,6 +56,10 @@ pub const Operation = union(enum) {
     clean: struct {
         paths: IoPaths,
     },
+    disassemble: struct {
+        paths: IoPaths,
+        trap_aliases: ?elk.Traps,
+    },
     format: struct {
         paths: IoPaths,
         trap_aliases: ?elk.Traps,
@@ -130,6 +134,10 @@ const template = .{
     },
     .clean = zilc.Flag{
         .long = "clean",
+    },
+    .disassemble = zilc.Flag{
+        .short = 'D',
+        .long = "disassemble",
     },
     .format = zilc.Flag{
         .long = "format",
@@ -354,14 +362,14 @@ pub fn parse(
 }
 
 fn checkDependencies(options: *const zilc.Options(template)) !void {
-    try zilc.checkGroup(.operation, enum { assemble, emulate, check, clean, format, lsp }, &options.flags);
+    try zilc.checkGroup(.operation, enum { assemble, emulate, check, clean, disassemble, format, lsp }, &options.flags);
     try zilc.checkGroup(.export_mode, enum { export_symbols, export_listing }, &options.flags);
     try zilc.checkGroup(.verbosity, enum { strict, relaxed }, &options.flags);
 
-    try zilc.checkDependencies(.output, enum { assemble, format }, enum {}, &options.flags);
+    try zilc.checkDependencies(.output, enum { assemble, disassemble, format }, enum {}, &options.flags);
     try zilc.checkDependencies(.export_symbols, enum { assemble }, enum {}, &options.flags);
     try zilc.checkDependencies(.export_listing, enum { assemble }, enum {}, &options.flags);
-    try zilc.checkDependencies(.trap_aliases, enum { assemble, check, format }, enum {}, &options.flags);
+    try zilc.checkDependencies(.trap_aliases, enum { assemble, check, disassemble, format }, enum {}, &options.flags);
     try zilc.checkDependencies(.debug, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
     try zilc.checkDependencies(.random_init, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
     try zilc.checkDependencies(.input_partial, enum { debug }, enum { input_full }, &options.flags);
@@ -431,6 +439,14 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
         const paths = try parseIoPaths(gpa, options, false);
         return .{ .clean = .{
             .paths = paths,
+        } };
+    }
+
+    if (options.flags.disassemble) {
+        const paths = try parseIoPaths(gpa, options, true);
+        return .{ .disassemble = .{
+            .paths = paths,
+            .trap_aliases = options.flags.trap_aliases,
         } };
     }
 
