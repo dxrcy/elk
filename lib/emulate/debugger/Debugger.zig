@@ -273,8 +273,9 @@ pub fn catchEvent(
 ) error{WriteFailed}!void {
     assert(debugger.state.status != .inactive);
 
-    // PC was incremented after decoding instruction; reverse that
-    runtime.state.pc -= 1;
+    // PC was probably incremented after decoding instruction; reverse that
+    // However, PC may be zero, such as if we caught UnpermittedMemoryAccess
+    runtime.state.pc -|= 1;
 
     switch (event) {
         error.Halt => {},
