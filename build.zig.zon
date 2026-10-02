@@ -1,6 +1,6 @@
 .{
     .name = .elk,
-    .version = "0.1.8",
+    .version = "0.1.10",
     .author = "darcy",
     .homepage = "https://codeberg.org/dxrcy/elk",
     .description = "Complete LC-3 toolchain.",
@@ -11,8 +11,8 @@
     .dependencies = .{
         .zilc = .{
             // Should use tagged release for ELK release
-            .url = "git+https://codeberg.org/dxrcy/zilc#v0.1.2",
-            .hash = "zilc-0.1.2-a-peQYdmAACUIZVce0XqJY7sHL-EM_2wFaNjT1TYR92V",
+            .url = "git+https://codeberg.org/dxrcy/zilc#v0.1.3",
+            .hash = "zilc-0.1.3-a-peQchmAAAHR7fhkYuc9-ZRO393kW-8vcwaQxZ_q5OL",
             .lazy = true,
         },
     },

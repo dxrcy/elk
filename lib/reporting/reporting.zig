@@ -138,6 +138,11 @@ pub fn Reporter(comptime Diag: type) type {
             return response;
         }
 
+        pub fn flush(reporter: *Self) void {
+            reporter.sink.flush() catch
+                writeFailed();
+        }
+
         pub fn summarize(reporter: *Self) void {
             reporter.sink.sendSummary(
                 &reporter.count,

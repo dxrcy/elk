@@ -22,7 +22,7 @@ OPTIONS:
     -d, --debug
             Run debugger while emulating. Requires --emulate or (default) operation.
             Omit input filename to debug an empty runtime.
-            Run `--debug` and enter the command `help` for more information.
+            Run --debug and enter the command `help` for more information.
     -i, --input <COMMANDS> OR
     -I, --input-full <COMMANDS>
             Specify commands that debugger shall run, delimited by semicolons.
@@ -44,6 +44,9 @@ OPTIONS:
         --patch <PATCHES>
             Override labelled values. Requires .asm input file or --import-symbols.
             PATCHES is a comma-separated list of label-value pairs, eg. 'Height=5,Char=x30'
+        --random-init <SEED>
+            Fill memory, registers, and condition codes with pseudo-random bits
+            generated from SEED, instead of zeros, to simulate undefined memory.
 
         --strict
             Treat all warnings as errors.
@@ -57,6 +60,12 @@ OPTIONS:
         --color [auto | always | never]
             Enable or disable color in stdout/stderr.
             'auto' will enable color only if stdout is a TTY (default).
+        --decoration [auto | always | never]
+            Enable or disable fancy output in stdout/stderr.
+            'auto' will enable fancy output only if stdout is a TTY (default).
+            Eg. If enabled, `reg` trap will print as a formatted table instead of a simple list.
+            Only affects emulator and debugger output;
+                does not affect diagnostics etc (see --quiet).
 
 EXAMPLES:
      elk hello.asm

@@ -11,6 +11,13 @@ const Cli = @import("Cli.zig");
 // TODO: Move buffer size definitions somewhere
 
 pub fn main(init: std.process.Init) !u8 {
+    return mainInner(init) catch |err| switch (err) {
+        else => |e| e,
+        error.Reported => 1,
+    };
+}
+
+pub fn mainInner(init: std.process.Init) !u8 {
     const io, const gpa = .{ init.io, init.gpa };
 
     const is_tty = try Io.File.stdout().isTty(io);
@@ -19,7 +26,11 @@ pub fn main(init: std.process.Init) !u8 {
     var reporter_buffer: [reporter_buffer_size]u8 = undefined;
     var reporter_writer = Io.File.stderr().writer(io, &reporter_buffer);
     var sink = elk.reporting.Sink.Fancy.new(&reporter_writer.interface, is_tty);
-    var reporter = elk.reporting.Primary.new(sink.interface());
+
+    var sink_collect = elk.reporting.Sink.Collect.init(gpa, sink.interface());
+    defer sink_collect.deinit();
+    var reporter = elk.reporting.Primary.new(sink_collect.interface());
+    defer reporter.flush(); // Should already be flushed by now, but just in case
 
     const args_allocator = init.arena.allocator();
     var args = try Cli.zilc.collectArgs(args_allocator, init.minimal.args);
@@ -43,7 +54,7 @@ pub fn main(init: std.process.Init) !u8 {
     reporter.options.strictness = cli.strictness;
     reporter.options.verbosity = cli.verbosity;
     reporter.options.policies = cli.policies;
-    sink.use_color = cli.tty_color;
+    sink.use_color = cli.use_color;
 
     const default_traps: elk.Traps = comptime .registerSets(&.{
         elk.Traps.Standard,
@@ -87,8 +98,10 @@ pub fn main(init: std.process.Init) !u8 {
                 &default_traps,
                 cli.policies,
                 &reporter,
-                cli.tty_color,
+                cli.use_color,
+                cli.use_decoration,
                 null,
+                cli.random_init,
             );
         },
 
@@ -106,8 +119,10 @@ pub fn main(init: std.process.Init) !u8 {
                 &default_traps,
                 cli.policies,
                 &reporter,
-                cli.tty_color,
+                cli.use_color,
+                cli.use_decoration,
                 null,
+                cli.random_init,
             );
         },
 
@@ -139,8 +154,10 @@ pub fn main(init: std.process.Init) !u8 {
                 &default_traps,
                 cli.policies,
                 &reporter,
-                cli.tty_color,
+                cli.use_color,
+                cli.use_decoration,
                 &assembler,
+                cli.random_init,
             );
         },
 
@@ -366,25 +383,29 @@ fn replacePathExtension(buffer: []u8, path: []const u8, extension: []const u8) [
     return buffer[0 .. index + 1 + extension.len];
 }
 
+const RuntimeSource = union(enum) {
+    object: struct {
+        file: Io.File,
+        symbols: ?elk.Provider.Symbols,
+    },
+    assembly: elk.Provider.Assembly,
+};
+
 fn emulate(
     io: Io,
     // NOTE: Currently must be same allocated used by `Assembler`
     gpa: Allocator,
     environ_map: *const EnvironMap,
-    runtime_source: union(enum) {
-        object: struct {
-            file: Io.File,
-            symbols: ?elk.Provider.Symbols,
-        },
-        assembly: elk.Provider.Assembly,
-    },
+    runtime_source: RuntimeSource,
     patch_symbols_opt: ?[]const struct { []const u8, u16 },
     debug_opt: ?Cli.Operation.Debug,
     traps: *const elk.Traps,
     policies: elk.Policies,
     reporter: *elk.reporting.Primary,
     use_color: bool,
+    use_decoration: bool,
     assembler: ?*elk.Assembler,
+    random_init: ?u64,
 ) !void {
     const write_buffer_size = 64;
     const debugger_buffer_size = 256;
@@ -393,50 +414,28 @@ fn emulate(
     var debugger_buffer: [debugger_buffer_size]u8 = undefined;
     var writer = Io.File.stdout().writer(io, &write_buffer);
     var reader = Io.File.stdin().reader(io, &.{});
-    var empty_reader: Io.Reader = .fixed(&.{});
 
-    // TODO: Extract to function
-    var debugger_opt: ?elk.Debugger = if (debug_opt) |debug| debugger: {
-        var history_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
-        const history_path = if (debug.history_file) |path|
-            path
-        else
-            try getHistoryPath(environ_map, &history_path_buffer);
-        const history_file = openHistoryFile(io, history_path) catch |err| file: {
-            std.log.err("failed to open/create history file: {t}", .{err});
-            break :file null;
-        };
-
-        const provider: elk.Provider = switch (runtime_source) {
-            .object => |object| if (object.symbols) |symbols| .{ .symbols = symbols } else .none,
-            .assembly => |assembly| .{ .assembly = assembly },
-        };
-
-        const debug_input = switch (debug.input) {
-            .none => "",
-            .partial, .full => |input| input,
-        };
-        const debug_reader = switch (debug.input) {
-            .none, .partial => &reader.interface,
-            .full => &empty_reader,
-        };
-
-        break :debugger try .init(.{
-            .io = io,
-            .gpa = gpa,
-            .reader = debug_reader,
-            .writer = &writer.interface,
-            .traps = traps,
-            .reporter = reporter,
-            .command_buffer = &debugger_buffer,
-            .provider = provider,
-            .assembler = assembler,
-            .history_file = history_file,
-            .initial_command_line = debug_input,
-            .use_color = use_color,
-        });
-    } else null;
+    var debugger_opt: ?elk.Debugger = if (debug_opt) |debug| try createDebugger(
+        io,
+        gpa,
+        environ_map,
+        runtime_source,
+        debug,
+        traps,
+        reporter,
+        use_color,
+        use_decoration,
+        assembler,
+        &reader.interface,
+        &writer.interface,
+        &debugger_buffer,
+    ) else null;
     defer if (debugger_opt) |*debugger| debugger.deinit(gpa);
+
+    var prng_storage: ?std.Random.DefaultPrng = null;
+    if (random_init) |seed| {
+        prng_storage = std.Random.DefaultPrng.init(seed);
+    }
 
     var runtime = try elk.Runtime.init(.{
         .io = io,
@@ -446,32 +445,22 @@ fn emulate(
         .traps = traps,
         .policies = policies,
         .debugger = if (debugger_opt) |*debugger| debugger else null,
+        .random = if (prng_storage) |*prng| prng.random() else null,
+        .use_decoration = use_decoration,
     });
     defer runtime.deinit(gpa);
 
-    // TODO: Extract to function
-    switch (runtime_source) {
-        .object => |object| {
-            const read_buffer_size = 1024;
-            var read_buffer: [read_buffer_size]u8 = undefined;
-            try runtime.readFromFile(io, object.file, &read_buffer);
+    loadRuntime(io, &runtime, runtime_source) catch |err| switch (err) {
+        else => |e| return e,
+        error.UnpermittedMemoryAccess => |exception| {
+            try reporter.report(.emulate_exception, .{
+                .code = exception,
+            }).abort();
         },
-        .assembly => |assembly| {
-            try assembly.air.copyToRuntime(&runtime);
-        },
-    }
+    };
 
-    // TODO: Extract to function
-    if (patch_symbols_opt) |patch_symbols| {
-        const symbols = switch (runtime_source) {
-            .object => |object| object.symbols orelse unreachable,
-            .assembly => unreachable,
-        };
-        for (patch_symbols) |item| {
-            const symbol, const word = item;
-            try runtime.patchLabelValue(symbol, word, symbols);
-        }
-    }
+    if (patch_symbols_opt) |patch_symbols|
+        try patchSymbols(&runtime, runtime_source, patch_symbols);
 
     const provider: elk.Provider = switch (runtime_source) {
         .object => |object| if (object.symbols) |symbols| .{ .symbols = symbols } else .none,
@@ -488,7 +477,7 @@ fn emulate(
         error.ReadFailed,
         error.EndOfStream,
         error.TermiosFailed,
-        => |err2| return err2,
+        => |e| return e,
 
         else => |exception| {
             reporter.report(.emulate_exception, .{
@@ -501,7 +490,99 @@ fn emulate(
     try runtime.ensureWriterNewline();
     try runtime.writer.flush();
 
+    reporter.flush();
     std.debug.print("{f}\n", .{runtime.analytics.data});
+}
+
+fn createDebugger(
+    // TODO: Use struct for all these params
+    io: Io,
+    gpa: Allocator,
+    environ_map: *const EnvironMap,
+    runtime_source: RuntimeSource,
+    debug: Cli.Operation.Debug,
+    traps: *const elk.Traps,
+    reporter: *elk.reporting.Primary,
+    use_color: bool,
+    use_decoration: bool,
+    assembler: ?*elk.Assembler,
+    reader: *Io.Reader,
+    writer: *Io.Writer,
+    debugger_buffer: []u8,
+) !elk.Debugger {
+    const empty_reader = &struct {
+        var empty_reader: Io.Reader = .fixed(&.{});
+    }.empty_reader;
+
+    var history_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
+    const history_path = if (debug.history_file) |path|
+        path
+    else
+        try getHistoryPath(environ_map, &history_path_buffer);
+    const history_file = openHistoryFile(io, history_path) catch |err| file: {
+        std.log.err("failed to open/create history file: {t}", .{err});
+        break :file null;
+    };
+
+    const provider: elk.Provider = switch (runtime_source) {
+        .object => |object| if (object.symbols) |symbols| .{ .symbols = symbols } else .none,
+        .assembly => |assembly| .{ .assembly = assembly },
+    };
+
+    const debug_input = switch (debug.input) {
+        .none => "",
+        .partial, .full => |input| input,
+    };
+    const debug_reader = switch (debug.input) {
+        .none, .partial => reader,
+        .full => empty_reader,
+    };
+
+    return try .init(.{
+        .io = io,
+        .gpa = gpa,
+        .reader = debug_reader,
+        .writer = writer,
+        .traps = traps,
+        .reporter = reporter,
+        .command_buffer = debugger_buffer,
+        .provider = provider,
+        .assembler = assembler,
+        .history_file = history_file,
+        .initial_command_line = debug_input,
+        .use_color = use_color,
+        .use_decoration = use_decoration,
+    });
+}
+
+fn loadRuntime(io: Io, runtime: *elk.Runtime, runtime_source: RuntimeSource) !void {
+    const read_buffer_size = 1024;
+
+    switch (runtime_source) {
+        .object => |object| {
+            var read_buffer: [read_buffer_size]u8 = undefined;
+            return runtime.readFromFile(io, object.file, &read_buffer);
+        },
+        .assembly => |assembly| {
+            return assembly.air.copyToRuntime(runtime);
+        },
+    }
+}
+
+fn patchSymbols(
+    runtime: *elk.Runtime,
+    runtime_source: RuntimeSource,
+    patch_symbols: []const struct { []const u8, u16 },
+) !void {
+    // TODO: Extract to function
+    const symbols = switch (runtime_source) {
+        .object => |object| object.symbols orelse unreachable,
+        .assembly => unreachable,
+    };
+    for (patch_symbols) |item| {
+        const symbol, const word = item;
+        try runtime.patchLabelValue(symbol, word, symbols);
+    }
 }
 
 fn getHistoryPath(environ_map: *const EnvironMap, buffer: []u8) ![]const u8 {
