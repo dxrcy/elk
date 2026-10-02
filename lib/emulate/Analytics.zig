@@ -83,8 +83,12 @@ const Data = struct {
     }
 
     pub fn format(data: *const Data, writer: *Io.Writer) error{WriteFailed}!void {
-        try writer.print("|-- time\n", .{});
-        try writer.print("|   |-- total {f}\n", .{data.time.get(.total)});
+        const user_time: Io.Duration = .{
+            .nanoseconds = data.time.get(.total).nanoseconds -
+                data.time.get(.supervisor).nanoseconds,
+        };
+        try writer.print("|-- time {f}\n", .{data.time.get(.total)});
+        try writer.print("|   |-- user {f}\n", .{user_time});
         try writer.print("|   |-- supervisor {f}\n", .{data.time.get(.supervisor)});
         try writer.print("|   |-- io {f}\n", .{data.time.get(.io)});
 
