@@ -32,12 +32,10 @@ const InstructionMap = struct {
 };
 
 const Data = struct {
-    time: struct {
-        total: Io.Duration,
-        supervisor: Io.Duration,
-        io: Io.Duration,
-        // TODO: Add 'debug' time, including debugger, runtime hooks, etc
-    },
+    // TODO: Add 'debug' time, including debugger, runtime hooks, etc
+    const Time = enum { total, supervisor, io };
+
+    time: std.EnumArray(Time, Io.Duration),
     labels: Map([]const u8, u16),
     instructions: InstructionMap,
     executes: Map(u16, usize),
@@ -57,11 +55,7 @@ const Data = struct {
 
     pub fn init(gpa: Allocator) Data {
         return .{
-            .time = .{
-                .total = .zero,
-                .supervisor = .zero,
-                .io = .zero,
-            },
+            .time = .initFill(.zero),
             .labels = .init(gpa),
             .instructions = .{},
             .executes = .init(gpa),
@@ -90,9 +84,9 @@ const Data = struct {
 
     pub fn format(data: *const Data, writer: *Io.Writer) error{WriteFailed}!void {
         try writer.print("|-- time\n", .{});
-        try writer.print("|   |-- total {f}\n", .{data.time.total});
-        try writer.print("|   |-- supervisor {f}\n", .{data.time.supervisor});
-        try writer.print("|   |-- io {f}\n", .{data.time.io});
+        try writer.print("|   |-- total {f}\n", .{data.time.get(.total)});
+        try writer.print("|   |-- supervisor {f}\n", .{data.time.get(.supervisor)});
+        try writer.print("|   |-- io {f}\n", .{data.time.get(.io)});
 
         try writer.print("|-- labels\n", .{});
         {
@@ -146,22 +140,13 @@ const Data = struct {
 
 data: Data,
 io: Io,
-time: struct {
-    total: ?Io.Timestamp,
-    supervisor: ?Io.Timestamp,
-    io: ?Io.Timestamp,
-    // TODO: Add 'debug' time, including debugger, runtime hooks, etc
-},
+time: std.EnumArray(Data.Time, ?Io.Timestamp),
 
 pub fn init(io: Io, gpa: Allocator) Analytics {
     return .{
         .data = .init(gpa),
         .io = io,
-        .time = .{
-            .total = null,
-            .supervisor = null,
-            .io = null,
-        },
+        .time = .initFill(null),
     };
 }
 
@@ -197,24 +182,18 @@ pub fn addIoWrite(analytics: *Analytics) void {
     analytics.data.io.write += 1;
 }
 
-const Mode = enum {
-    total,
-    supervisor,
-};
-
-pub fn startTime(analytics: *Analytics, comptime mode: Mode) void {
-    assert(@field(analytics.time, @tagName(mode)) == null);
-    @field(analytics.time, @tagName(mode)) = .now(analytics.io, .awake);
+pub fn startTime(analytics: *Analytics, comptime mode: Data.Time) void {
+    assert(analytics.time.get(mode) == null);
+    analytics.time.set(mode, .now(analytics.io, .awake));
 }
 
-pub fn endTime(analytics: *Analytics, comptime mode: Mode) void {
-    const then = @field(analytics.time, @tagName(mode)) orelse
+pub fn endTime(analytics: *Analytics, comptime mode: Data.Time) void {
+    const then = analytics.time.get(mode) orelse
         unreachable;
-    @field(analytics.time, @tagName(mode)) = null;
+    analytics.time.set(mode, null);
 
     const duration = then.untilNow(analytics.io, .awake);
-    @field(analytics.data.time, @tagName(mode)) = .{
-        .nanoseconds = @field(analytics.data.time, @tagName(mode)).nanoseconds +
-            duration.nanoseconds,
-    };
+    analytics.data.time.set(mode, .{
+        .nanoseconds = analytics.data.time.get(mode).nanoseconds + duration.nanoseconds,
+    });
 }
