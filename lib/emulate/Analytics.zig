@@ -197,16 +197,24 @@ pub fn addIoWrite(analytics: *Analytics) void {
     analytics.data.io.write += 1;
 }
 
-pub fn startSupervisorTime(analytics: *Analytics) void {
-    assert(analytics.time.supervisor == null);
-    analytics.time.supervisor = .now(analytics.io, .awake);
+const Mode = enum {
+    total,
+    supervisor,
+};
+
+pub fn startTime(analytics: *Analytics, comptime mode: Mode) void {
+    assert(@field(analytics.time, @tagName(mode)) == null);
+    @field(analytics.time, @tagName(mode)) = .now(analytics.io, .awake);
 }
 
-pub fn endSupervisorTime(analytics: *Analytics) void {
-    const then = analytics.time.supervisor orelse
+pub fn endTime(analytics: *Analytics, comptime mode: Mode) void {
+    const then = @field(analytics.time, @tagName(mode)) orelse
         unreachable;
-    analytics.time.supervisor = null;
+    @field(analytics.time, @tagName(mode)) = null;
+
     const duration = then.untilNow(analytics.io, .awake);
-    analytics.data.time.supervisor =
-        .{ .nanoseconds = analytics.data.time.supervisor.nanoseconds + duration.nanoseconds };
+    @field(analytics.data.time, @tagName(mode)) = .{
+        .nanoseconds = @field(analytics.data.time, @tagName(mode)).nanoseconds +
+            duration.nanoseconds,
+    };
 }

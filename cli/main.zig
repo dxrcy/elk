@@ -476,7 +476,7 @@ fn emulate(
     if (debugger_opt) |*debugger|
         try debugger.initState(gpa, &runtime);
 
-    runtime.run(io) catch |err| switch (err) {
+    runtime.run() catch |err| switch (err) {
         error.OutOfMemory,
         error.WriteFailed,
         error.ReadFailed,

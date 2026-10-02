@@ -173,8 +173,8 @@ pub fn patchLabelValue(
     try runtime.setMemory(address, raw_word);
 }
 
-pub fn run(runtime: *Runtime, io: Io) Error!void {
-    const start_time = std.Io.Clock.real.now(io);
+pub fn run(runtime: *Runtime) Error!void {
+    runtime.analytics.startTime(.total);
 
     if (runtime.debugger) |debugger|
         try debugger.startMessage();
@@ -210,7 +210,7 @@ pub fn run(runtime: *Runtime, io: Io) Error!void {
         };
     }
 
-    runtime.analytics.data.time.total = start_time.durationTo(std.Io.Clock.real.now(io));
+    runtime.analytics.endTime(.total);
 }
 
 fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
@@ -311,8 +311,8 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
                 // No trap callback declared
                 // Either trap was never registered, or only registered for alias
                 return error.UnhandledTrap;
-            runtime.analytics.startSupervisorTime();
-            defer runtime.analytics.endSupervisorTime();
+            runtime.analytics.startTime(.supervisor);
+            defer runtime.analytics.endTime(.supervisor);
             try callback.call(.{runtime});
         },
 
