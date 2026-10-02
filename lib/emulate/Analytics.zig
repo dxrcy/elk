@@ -99,6 +99,14 @@ pub fn addInstruction(analytics: *Analytics, instruction: Instruction) void {
     }
 }
 
+pub fn addRegisterRead(analytics: *Analytics, register: u3) void {
+    analytics.registers.read[register] += 1;
+}
+
+pub fn addRegisterWrite(analytics: *Analytics, register: u3) void {
+    analytics.registers.write[register] += 1;
+}
+
 pub fn format(analytics: *const Analytics, writer: *Io.Writer) error{WriteFailed}!void {
     try writer.print("|-- time\n", .{});
     try writer.print("|   |-- user {}\n", .{analytics.time.user_ns});

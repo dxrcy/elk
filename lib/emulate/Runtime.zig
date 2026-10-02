@@ -337,12 +337,12 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
 }
 
 fn getRegister(runtime: *Runtime, register: u3) u16 {
+    runtime.analytics.addRegisterRead(register);
     return runtime.state.registers[register];
 }
 
 fn setRegister(runtime: *Runtime, register: u3, value: u16) void {
     runtime.setRegisterNoCc(register, value);
-
     runtime.state.condition =
         if (@as(i16, @bitCast(value)) < 0)
             .negative
@@ -353,6 +353,7 @@ fn setRegister(runtime: *Runtime, register: u3, value: u16) void {
 }
 
 fn setRegisterNoCc(runtime: *Runtime, register: u3, value: u16) void {
+    runtime.analytics.addRegisterWrite(register);
     runtime.state.registers[register] = value;
 }
 
