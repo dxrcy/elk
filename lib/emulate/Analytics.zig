@@ -8,7 +8,7 @@ const assert = std.debug.assert;
 
 const elk = @import("../root.zig");
 const Provider = elk.Provider;
-const Instruction = std.meta.Tag(@import("decode.zig").Instruction);
+const Instruction = @import("decode.zig").Instruction;
 
 const Data = struct {
     // TODO: Add 'debug' time, including debugger, runtime hooks, etc
@@ -19,22 +19,33 @@ const Data = struct {
     // Eg. add is struct{ reg: usize, immediate: usize }
     // Eg. Split pop_push_rets_call
     const Instructions = struct {
-        add: usize = 0,
-        @"and": usize = 0,
-        not: usize = 0,
-        br: usize = 0,
-        jmp_ret: usize = 0,
-        jsr_jsrr: usize = 0,
-        lea: usize = 0,
-        ld: usize = 0,
-        ldi: usize = 0,
-        ldr: usize = 0,
-        st: usize = 0,
-        sti: usize = 0,
-        str: usize = 0,
-        trap: usize = 0,
-        rti: usize = 0,
-        pop_push_rets_call: usize = 0,
+        regular: struct {
+            add: usize = 0,
+            @"and": usize = 0,
+            not: usize = 0,
+            jmp_ret: usize = 0,
+            jsr_jsrr: usize = 0,
+            lea: usize = 0,
+            ld: usize = 0,
+            ldi: usize = 0,
+            ldr: usize = 0,
+            st: usize = 0,
+            sti: usize = 0,
+            str: usize = 0,
+            trap: usize = 0,
+            rti: usize = 0,
+            pop_push_rets_call: usize = 0,
+            noop: usize = 0,
+        } = .{},
+        br: struct {
+            n: usize = 0,
+            z: usize = 0,
+            p: usize = 0,
+            nz: usize = 0,
+            zp: usize = 0,
+            np: usize = 0,
+            nzp: usize = 0,
+        } = .{},
     };
 
     time: std.EnumArray(Time, Io.Duration),
@@ -102,11 +113,24 @@ const Data = struct {
         }
 
         try writer.print("|-- instruction\n", .{});
-        inline for (std.meta.fields(Instruction)) |field|
-            try writer.print(
-                "|   |-- {s} {}\n",
-                .{ field.name, @field(data.instructions, field.name) },
-            );
+        inline for (std.meta.fields(@TypeOf(data.instructions.regular))) |field| {
+            const count = @field(data.instructions.regular, field.name);
+            if (count > 0)
+                try writer.print(
+                    "|   |-- {s} {}\n",
+                    .{ field.name, count },
+                );
+        }
+
+        try writer.print("|   |-- br\n", .{});
+        inline for (std.meta.fields(@TypeOf(data.instructions.br))) |field| {
+            const count = @field(data.instructions.br, field.name);
+            if (count > 0)
+                try writer.print(
+                    "|       |-- {s} {}\n",
+                    .{ field.name, @field(data.instructions.br, field.name) },
+                );
+        }
 
         try writer.print("|-- address\n", .{});
         {
@@ -198,8 +222,18 @@ pub fn addSymbols(analytics: *Analytics, provider: Provider) error{OutOfMemory}!
 
 pub fn addInstruction(analytics: *Analytics, instruction: Instruction) void {
     switch (instruction) {
-        inline else => |tag| {
-            @field(analytics.data.instructions, @tagName(tag)) += 1;
+        inline else => |_, tag| {
+            @field(analytics.data.instructions.regular, @tagName(tag)) += 1;
+        },
+        .br => |br| switch (br.mask) {
+            0b000 => analytics.data.instructions.regular.noop += 1,
+            0b100 => analytics.data.instructions.br.n += 1,
+            0b010 => analytics.data.instructions.br.z += 1,
+            0b001 => analytics.data.instructions.br.p += 1,
+            0b110 => analytics.data.instructions.br.nz += 1,
+            0b011 => analytics.data.instructions.br.zp += 1,
+            0b101 => analytics.data.instructions.br.np += 1,
+            0b111 => analytics.data.instructions.br.nzp += 1,
         },
     }
 }
