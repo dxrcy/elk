@@ -31,8 +31,12 @@ const InstructionMap = struct {
     pop_push_rets_call: usize = 0,
 };
 
-// TODO: Separate user/supervisor/io time
-time: Duration,
+time: struct {
+    total: Duration,
+    supervisor: Duration,
+    io: Duration,
+    // TODO: Add 'debug' time, including debugger, runtime hooks, etc
+},
 
 labels: Map([]const u8, u16),
 
@@ -58,7 +62,11 @@ io: struct {
 
 pub fn init(gpa: Allocator) Analytics {
     return .{
-        .time = .zero,
+        .time = .{
+            .total = .zero,
+            .supervisor = .zero,
+            .io = .zero,
+        },
         .labels = .init(gpa),
         .instructions = .{},
         .executes = .init(gpa),
@@ -110,7 +118,10 @@ pub fn addIoWrite(analytics: *Analytics) void {
 }
 
 pub fn format(analytics: *const Analytics, writer: *Io.Writer) error{WriteFailed}!void {
-    try writer.print("|-- time {}\n", .{analytics.time.nanoseconds});
+    try writer.print("|-- time\n", .{});
+    try writer.print("|   |-- total {f}\n", .{analytics.time.total});
+    try writer.print("|   |-- supervisor {f}\n", .{analytics.time.supervisor});
+    try writer.print("|   |-- io {f}\n", .{analytics.time.io});
 
     try writer.print("|-- labels\n", .{});
     {
