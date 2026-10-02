@@ -473,6 +473,12 @@ fn emulate(
         }
     }
 
+    const provider: elk.Provider = switch (runtime_source) {
+        .object => |object| if (object.symbols) |symbols| .{ .symbols = symbols } else .none,
+        .assembly => |assembly| .{ .assembly = assembly },
+    };
+    try runtime.analytics.addSymbols(provider);
+
     if (debugger_opt) |*debugger|
         try debugger.initState(gpa, &runtime);
 

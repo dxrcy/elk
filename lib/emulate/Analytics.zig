@@ -6,6 +6,8 @@ const Allocator = std.mem.Allocator;
 const Map = std.AutoHashMap;
 const assert = std.debug.assert;
 
+const elk = @import("../root.zig");
+const Provider = elk.Provider;
 const Instruction = std.meta.Tag(@import("decode.zig").Instruction);
 
 const Data = struct {
@@ -36,7 +38,7 @@ const Data = struct {
     };
 
     time: std.EnumArray(Time, Io.Duration),
-    symbols: Map([]const u8, u16),
+    symbols: std.StringHashMap(u16),
     instructions: Instructions,
     addresses: Map(u16, usize),
     registers: struct {
@@ -158,6 +160,42 @@ pub fn deinit(analytics: *Analytics) void {
     analytics.data.deinit();
 }
 
+pub fn startTime(analytics: *Analytics, comptime mode: Data.Time) void {
+    assert(analytics.time.get(mode) == null);
+    analytics.time.set(mode, .now(analytics.io, .awake));
+}
+
+pub fn endTime(analytics: *Analytics, comptime mode: Data.Time) void {
+    const then = analytics.time.get(mode) orelse
+        unreachable;
+    analytics.time.set(mode, null);
+
+    const duration = then.untilNow(analytics.io, .awake);
+    analytics.data.time.set(mode, .{
+        .nanoseconds = analytics.data.time.get(mode).nanoseconds + duration.nanoseconds,
+    });
+}
+
+pub fn addSymbols(analytics: *Analytics, provider: Provider) error{OutOfMemory}!void {
+    switch (provider) {
+        .none => {},
+        .assembly => |assembly| {
+            for (assembly.air.labels.items) |label|
+                try analytics.data.symbols.putNoClobber(
+                    label.span.view(assembly.source), // FIXME: UAF possibility???
+                    label.index + assembly.air.origin,
+                );
+        },
+        .symbols => |symbols| {
+            for (symbols.items) |symbol|
+                try analytics.data.symbols.putNoClobber(
+                    symbol.name, // FIXME: UAF possibility???
+                    symbol.address,
+                );
+        },
+    }
+}
+
 pub fn addInstruction(analytics: *Analytics, instruction: Instruction) void {
     switch (instruction) {
         inline else => |tag| {
@@ -191,20 +229,4 @@ pub fn addIoRead(analytics: *Analytics) void {
 
 pub fn addIoWrite(analytics: *Analytics) void {
     analytics.data.io.write += 1;
-}
-
-pub fn startTime(analytics: *Analytics, comptime mode: Data.Time) void {
-    assert(analytics.time.get(mode) == null);
-    analytics.time.set(mode, .now(analytics.io, .awake));
-}
-
-pub fn endTime(analytics: *Analytics, comptime mode: Data.Time) void {
-    const then = analytics.time.get(mode) orelse
-        unreachable;
-    analytics.time.set(mode, null);
-
-    const duration = then.untilNow(analytics.io, .awake);
-    analytics.data.time.set(mode, .{
-        .nanoseconds = analytics.data.time.get(mode).nanoseconds + duration.nanoseconds,
-    });
 }
