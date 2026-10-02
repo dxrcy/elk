@@ -91,6 +91,14 @@ pub fn deinit(analytics: *Analytics) void {
     analytics.memory.write.deinit();
 }
 
+pub fn addInstruction(analytics: *Analytics, instruction: Instruction) void {
+    switch (instruction) {
+        inline else => |tag| {
+            @field(analytics.instructions, @tagName(tag)) += 1;
+        },
+    }
+}
+
 pub fn format(analytics: *const Analytics, writer: *Io.Writer) error{WriteFailed}!void {
     try writer.print("|-- time\n", .{});
     try writer.print("|   |-- user {}\n", .{analytics.time.user_ns});

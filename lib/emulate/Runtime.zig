@@ -216,6 +216,8 @@ fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
 }
 
 pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || error{Halt})!void {
+    runtime.analytics.addInstruction(instruction);
+
     switch (instruction) {
         inline .add, .@"and" => |operands, subset| {
             const lhs = runtime.state.registers[operands.src_a];
