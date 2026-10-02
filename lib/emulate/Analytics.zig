@@ -10,6 +10,120 @@ const elk = @import("../root.zig");
 const Provider = elk.Provider;
 const Instruction = @import("decode.zig").Instruction;
 
+data: Data,
+io: Io,
+time: std.EnumArray(Data.Time, ?Io.Timestamp),
+
+pub fn init(io: Io, gpa: Allocator) Analytics {
+    return .{
+        .data = .init(gpa),
+        .io = io,
+        .time = .initFill(null),
+    };
+}
+
+pub fn deinit(analytics: *Analytics) void {
+    analytics.data.deinit();
+}
+
+pub fn startTime(analytics: *Analytics, comptime mode: Data.Time) void {
+    assert(analytics.time.get(mode) == null);
+    analytics.time.set(mode, .now(analytics.io, .awake));
+}
+
+pub fn endTime(analytics: *Analytics, comptime mode: Data.Time) void {
+    const then = analytics.time.get(mode) orelse
+        unreachable;
+    analytics.time.set(mode, null);
+
+    const duration = then.untilNow(analytics.io, .awake);
+    analytics.data.time.set(mode, .{
+        .nanoseconds = analytics.data.time.get(mode).nanoseconds + duration.nanoseconds,
+    });
+}
+
+pub fn addSymbols(analytics: *Analytics, provider: Provider) error{OutOfMemory}!void {
+    switch (provider) {
+        .none => {},
+        .assembly => |assembly| {
+            for (assembly.air.labels.items) |label|
+                try analytics.data.symbols.putNoClobber(
+                    label.span.view(assembly.source), // FIXME: UAF possibility???
+                    label.index + assembly.air.origin,
+                );
+        },
+        .symbols => |symbols| {
+            for (symbols.items) |symbol|
+                try analytics.data.symbols.putNoClobber(
+                    symbol.name, // FIXME: UAF possibility???
+                    symbol.address,
+                );
+        },
+    }
+}
+
+pub fn addInstruction(analytics: *Analytics, instruction: Instruction) void {
+    switch (instruction) {
+        inline else => |_, tag| {
+            @field(analytics.data.instructions.regular, @tagName(tag)) += 1;
+        },
+        .br => |br| switch (br.mask) {
+            0b000 => analytics.data.instructions.regular.noop += 1,
+            0b100 => analytics.data.instructions.br.n += 1,
+            0b010 => analytics.data.instructions.br.z += 1,
+            0b001 => analytics.data.instructions.br.p += 1,
+            0b110 => analytics.data.instructions.br.nz += 1,
+            0b011 => analytics.data.instructions.br.zp += 1,
+            0b101 => analytics.data.instructions.br.np += 1,
+            0b111 => analytics.data.instructions.br.nzp += 1,
+        },
+        .trap => |trap| {
+            analytics.data.instructions.trap[trap.vect] += 1;
+        },
+    }
+}
+
+pub fn addAddress(analytics: *Analytics, address: u16) error{OutOfMemory}!void {
+    try analytics.data.addresses.put(
+        address,
+        (analytics.data.addresses.get(address) orelse 0) + 1,
+    );
+}
+
+pub fn addRegisterRead(analytics: *Analytics, register: u3) void {
+    analytics.data.registers.read[register] += 1;
+}
+
+pub fn addRegisterWrite(analytics: *Analytics, register: u3) void {
+    analytics.data.registers.write[register] += 1;
+}
+
+pub fn setMemorySize(analytics: *Analytics, size: u16) void {
+    analytics.data.memory.size = size;
+}
+
+pub fn addMemoryRead(analytics: *Analytics, address: u16) error{OutOfMemory}!void {
+    try analytics.data.memory.read.put(
+        address,
+        (analytics.data.memory.read.get(address) orelse 0) + 1,
+    );
+}
+
+pub fn addMemoryWrite(analytics: *Analytics, address: u16) error{OutOfMemory}!void {
+    try analytics.data.memory.write.put(
+        address,
+        (analytics.data.memory.write.get(address) orelse 0) + 1,
+    );
+}
+
+pub fn addIoRead(analytics: *Analytics) void {
+    analytics.data.io.read += 1;
+}
+
+pub fn addIoWrite(analytics: *Analytics) void {
+    analytics.data.io.write += 1;
+}
+
 const Data = struct {
     // TODO: Add 'debug' time, including debugger, runtime hooks, etc
     const Time = enum { total, supervisor, io };
@@ -219,117 +333,3 @@ const Data = struct {
         try writer.print("    |-- write {}\n", .{data.io.write});
     }
 };
-
-data: Data,
-io: Io,
-time: std.EnumArray(Data.Time, ?Io.Timestamp),
-
-pub fn init(io: Io, gpa: Allocator) Analytics {
-    return .{
-        .data = .init(gpa),
-        .io = io,
-        .time = .initFill(null),
-    };
-}
-
-pub fn deinit(analytics: *Analytics) void {
-    analytics.data.deinit();
-}
-
-pub fn startTime(analytics: *Analytics, comptime mode: Data.Time) void {
-    assert(analytics.time.get(mode) == null);
-    analytics.time.set(mode, .now(analytics.io, .awake));
-}
-
-pub fn endTime(analytics: *Analytics, comptime mode: Data.Time) void {
-    const then = analytics.time.get(mode) orelse
-        unreachable;
-    analytics.time.set(mode, null);
-
-    const duration = then.untilNow(analytics.io, .awake);
-    analytics.data.time.set(mode, .{
-        .nanoseconds = analytics.data.time.get(mode).nanoseconds + duration.nanoseconds,
-    });
-}
-
-pub fn addSymbols(analytics: *Analytics, provider: Provider) error{OutOfMemory}!void {
-    switch (provider) {
-        .none => {},
-        .assembly => |assembly| {
-            for (assembly.air.labels.items) |label|
-                try analytics.data.symbols.putNoClobber(
-                    label.span.view(assembly.source), // FIXME: UAF possibility???
-                    label.index + assembly.air.origin,
-                );
-        },
-        .symbols => |symbols| {
-            for (symbols.items) |symbol|
-                try analytics.data.symbols.putNoClobber(
-                    symbol.name, // FIXME: UAF possibility???
-                    symbol.address,
-                );
-        },
-    }
-}
-
-pub fn addInstruction(analytics: *Analytics, instruction: Instruction) void {
-    switch (instruction) {
-        inline else => |_, tag| {
-            @field(analytics.data.instructions.regular, @tagName(tag)) += 1;
-        },
-        .br => |br| switch (br.mask) {
-            0b000 => analytics.data.instructions.regular.noop += 1,
-            0b100 => analytics.data.instructions.br.n += 1,
-            0b010 => analytics.data.instructions.br.z += 1,
-            0b001 => analytics.data.instructions.br.p += 1,
-            0b110 => analytics.data.instructions.br.nz += 1,
-            0b011 => analytics.data.instructions.br.zp += 1,
-            0b101 => analytics.data.instructions.br.np += 1,
-            0b111 => analytics.data.instructions.br.nzp += 1,
-        },
-        .trap => |trap| {
-            analytics.data.instructions.trap[trap.vect] += 1;
-        },
-    }
-}
-
-pub fn addAddress(analytics: *Analytics, address: u16) error{OutOfMemory}!void {
-    try analytics.data.addresses.put(
-        address,
-        (analytics.data.addresses.get(address) orelse 0) + 1,
-    );
-}
-
-pub fn addRegisterRead(analytics: *Analytics, register: u3) void {
-    analytics.data.registers.read[register] += 1;
-}
-
-pub fn addRegisterWrite(analytics: *Analytics, register: u3) void {
-    analytics.data.registers.write[register] += 1;
-}
-
-pub fn setMemorySize(analytics: *Analytics, size: u16) void {
-    analytics.data.memory.size = size;
-}
-
-pub fn addMemoryRead(analytics: *Analytics, address: u16) error{OutOfMemory}!void {
-    try analytics.data.memory.read.put(
-        address,
-        (analytics.data.memory.read.get(address) orelse 0) + 1,
-    );
-}
-
-pub fn addMemoryWrite(analytics: *Analytics, address: u16) error{OutOfMemory}!void {
-    try analytics.data.memory.write.put(
-        address,
-        (analytics.data.memory.write.get(address) orelse 0) + 1,
-    );
-}
-
-pub fn addIoRead(analytics: *Analytics) void {
-    analytics.data.io.read += 1;
-}
-
-pub fn addIoWrite(analytics: *Analytics) void {
-    analytics.data.io.write += 1;
-}
