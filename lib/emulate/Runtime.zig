@@ -158,7 +158,7 @@ pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !voi
         try runtime.setMemory(addr, word);
     }
 
-    runtime.analytics.memory.size = i;
+    runtime.analytics.setMemorySize(i);
 }
 
 pub fn patchLabelValue(
@@ -209,7 +209,7 @@ pub fn run(runtime: *Runtime, io: Io) Error!void {
         };
     }
 
-    runtime.analytics.time = start_time.durationTo(std.Io.Clock.real.now(io));
+    runtime.analytics.data.time.total = start_time.durationTo(std.Io.Clock.real.now(io));
 }
 
 fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
