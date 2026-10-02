@@ -2,6 +2,7 @@ const Analytics = @This();
 
 const std = @import("std");
 const Io = std.Io;
+const Duration = std.Io.Duration;
 const Allocator = std.mem.Allocator;
 
 const Instruction = std.meta.Tag(@import("decode.zig").Instruction);
@@ -30,11 +31,8 @@ const InstructionMap = struct {
     pop_push_rets_call: usize = 0,
 };
 
-time: struct {
-    user_ns: u64,
-    supervisor_ns: u64,
-    io_ns: u64,
-},
+// TODO: Separate user/supervisor/io time
+time: Duration,
 
 labels: Map([]const u8, u16),
 
@@ -60,11 +58,7 @@ io: struct {
 
 pub fn init(gpa: Allocator) Analytics {
     return .{
-        .time = .{
-            .user_ns = 0,
-            .supervisor_ns = 0,
-            .io_ns = 0,
-        },
+        .time = .zero,
         .labels = .init(gpa),
         .instructions = .{},
         .executes = .init(gpa),
@@ -108,10 +102,7 @@ pub fn addRegisterWrite(analytics: *Analytics, register: u3) void {
 }
 
 pub fn format(analytics: *const Analytics, writer: *Io.Writer) error{WriteFailed}!void {
-    try writer.print("|-- time\n", .{});
-    try writer.print("|   |-- user {}\n", .{analytics.time.user_ns});
-    try writer.print("|   |-- supervisor {}\n", .{analytics.time.supervisor_ns});
-    try writer.print("|   |-- io {}\n", .{analytics.time.io_ns});
+    try writer.print("|-- time {}\n", .{analytics.time.nanoseconds});
 
     try writer.print("|-- labels\n", .{});
     {
