@@ -46,7 +46,7 @@ registers: struct {
 },
 
 memory: struct {
-    size: ?u16,
+    size: u16,
     read: Map(u16, usize),
     write: Map(u16, usize),
 },
@@ -63,7 +63,7 @@ pub fn init(gpa: Allocator) Analytics {
         .instructions = .{},
         .executes = .init(gpa),
         .memory = .{
-            .size = null,
+            .size = 0,
             .read = .init(gpa),
             .write = .init(gpa),
         },
@@ -134,7 +134,7 @@ pub fn format(analytics: *const Analytics, writer: *Io.Writer) error{WriteFailed
         try writer.print("|       |-- r{} {}\n", .{ i, register });
 
     try writer.print("|-- memory\n", .{});
-    try writer.print("|   |-- size {?}\n", .{analytics.memory.size});
+    try writer.print("|   |-- size {}\n", .{analytics.memory.size});
     try writer.print("|   |-- read\n", .{});
     {
         var it = analytics.memory.read.iterator();
