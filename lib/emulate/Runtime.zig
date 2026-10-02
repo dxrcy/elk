@@ -169,7 +169,9 @@ pub fn patchLabelValue(
     try runtime.setMemory(address, raw_word);
 }
 
-pub fn run(runtime: *Runtime) Error!void {
+pub fn run(runtime: *Runtime, io: Io) Error!void {
+    const start_time = std.Io.Clock.real.now(io);
+
     if (runtime.debugger) |debugger|
         try debugger.startMessage();
 
@@ -203,6 +205,8 @@ pub fn run(runtime: *Runtime) Error!void {
             },
         };
     }
+
+    runtime.analytics.time = start_time.durationTo(std.Io.Clock.real.now(io));
 }
 
 fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
