@@ -141,7 +141,7 @@ pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !voi
     };
     runtime.state.pc = origin;
 
-    var i: usize = 0;
+    var i: u16 = 0;
     while (true) : (i += 1) {
         const high = reader.interface.takeByte() catch |err| switch (err) {
             else => |e| return e,
@@ -154,8 +154,11 @@ pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !voi
         const word = (@as(u16, high) << 8) | low;
         const addr = std.math.cast(u16, origin + i) orelse
             return error.FileTooLarge;
+        // TODO: Make sure this doesnt update analytics!
         try runtime.setMemory(addr, word);
     }
+
+    runtime.analytics.memory.size = i;
 }
 
 pub fn patchLabelValue(
