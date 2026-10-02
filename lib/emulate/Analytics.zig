@@ -8,37 +8,37 @@ const assert = std.debug.assert;
 
 const Instruction = std.meta.Tag(@import("decode.zig").Instruction);
 
-// TODO: Add more instruction-specific variants
-// Eg. br is struct{ n: usize, nz: usize, ... }
-// Eg. add is struct{ reg: usize, immediate: usize }
-// Eg. Split pop_push_rets_call
-const InstructionMap = struct {
-    add: usize = 0,
-    @"and": usize = 0,
-    not: usize = 0,
-    br: usize = 0,
-    jmp_ret: usize = 0,
-    jsr_jsrr: usize = 0,
-    lea: usize = 0,
-    ld: usize = 0,
-    ldi: usize = 0,
-    ldr: usize = 0,
-    st: usize = 0,
-    sti: usize = 0,
-    str: usize = 0,
-    trap: usize = 0,
-    rti: usize = 0,
-    pop_push_rets_call: usize = 0,
-};
-
 const Data = struct {
     // TODO: Add 'debug' time, including debugger, runtime hooks, etc
     const Time = enum { total, supervisor, io };
 
+    // TODO: Add more instruction-specific variants
+    // Eg. br is struct{ n: usize, nz: usize, ... }
+    // Eg. add is struct{ reg: usize, immediate: usize }
+    // Eg. Split pop_push_rets_call
+    const Instructions = struct {
+        add: usize = 0,
+        @"and": usize = 0,
+        not: usize = 0,
+        br: usize = 0,
+        jmp_ret: usize = 0,
+        jsr_jsrr: usize = 0,
+        lea: usize = 0,
+        ld: usize = 0,
+        ldi: usize = 0,
+        ldr: usize = 0,
+        st: usize = 0,
+        sti: usize = 0,
+        str: usize = 0,
+        trap: usize = 0,
+        rti: usize = 0,
+        pop_push_rets_call: usize = 0,
+    };
+
     time: std.EnumArray(Time, Io.Duration),
-    labels: Map([]const u8, u16),
-    instructions: InstructionMap,
-    executes: Map(u16, usize),
+    symbols: Map([]const u8, u16),
+    instructions: Instructions,
+    addresses: Map(u16, usize),
     registers: struct {
         read: [8]usize,
         write: [8]usize,
@@ -56,9 +56,9 @@ const Data = struct {
     pub fn init(gpa: Allocator) Data {
         return .{
             .time = .initFill(.zero),
-            .labels = .init(gpa),
+            .symbols = .init(gpa),
             .instructions = .{},
-            .executes = .init(gpa),
+            .addresses = .init(gpa),
             .memory = .{
                 .size = 0,
                 .read = .init(gpa),
@@ -76,8 +76,8 @@ const Data = struct {
     }
 
     pub fn deinit(data: *Data) void {
-        data.labels.deinit();
-        data.executes.deinit();
+        data.symbols.deinit();
+        data.addresses.deinit();
         data.memory.read.deinit();
         data.memory.write.deinit();
     }
@@ -92,28 +92,28 @@ const Data = struct {
         try writer.print("|   |-- supervisor {f}\n", .{data.time.get(.supervisor)});
         try writer.print("|   |-- io {f}\n", .{data.time.get(.io)});
 
-        try writer.print("|-- labels\n", .{});
+        try writer.print("|-- symbol\n", .{});
         {
-            var it = data.labels.iterator();
-            while (it.next()) |label|
-                try writer.print("|   |-- {s} x{x:04}\n", .{ label.key_ptr.*, label.value_ptr.* });
+            var it = data.symbols.iterator();
+            while (it.next()) |symbol|
+                try writer.print("|   |-- {s} x{x:04}\n", .{ symbol.key_ptr.*, symbol.value_ptr.* });
         }
 
-        try writer.print("|-- instructions\n", .{});
+        try writer.print("|-- instruction\n", .{});
         inline for (std.meta.fields(Instruction)) |field|
             try writer.print(
                 "|   |-- {s} {}\n",
                 .{ field.name, @field(data.instructions, field.name) },
             );
 
-        try writer.print("|-- execute\n", .{});
+        try writer.print("|-- address\n", .{});
         {
-            var it = data.executes.iterator();
-            while (it.next()) |execute|
-                try writer.print("|   |-- x{x:04} {}\n", .{ execute.key_ptr.*, execute.value_ptr.* });
+            var it = data.addresses.iterator();
+            while (it.next()) |address|
+                try writer.print("|   |-- x{x:04} {}\n", .{ address.key_ptr.*, address.value_ptr.* });
         }
 
-        try writer.print("|-- registers\n", .{});
+        try writer.print("|-- register\n", .{});
         try writer.print("|   |-- read\n", .{});
         for (data.registers.read, 0..8) |register, i|
             try writer.print("|   |   |-- r{} {}\n", .{ i, register });
@@ -166,10 +166,10 @@ pub fn addInstruction(analytics: *Analytics, instruction: Instruction) void {
     }
 }
 
-pub fn addExecute(analytics: *Analytics, address: u16) error{OutOfMemory}!void {
-    try analytics.data.executes.put(
+pub fn addAddress(analytics: *Analytics, address: u16) error{OutOfMemory}!void {
+    try analytics.data.addresses.put(
         address,
-        (analytics.data.executes.get(address) orelse 0) + 1,
+        (analytics.data.addresses.get(address) orelse 0) + 1,
     );
 }
 
