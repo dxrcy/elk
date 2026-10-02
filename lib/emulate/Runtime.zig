@@ -21,6 +21,11 @@ pub const user_memory_end = 0xFDFF;
 const memory_init_user = 0x0000;
 const memory_init_privileged = 0xdead;
 
+// Avoid directly reading/modifying state from within runtime base (ie. from within this file).
+// Use helpers such as `runtime.setRegister[NoCc]`.
+// So that analytics are tracked properly.
+// State may be modified OUTSIDE of runtime base (eg. by debugger or runtime callsite), since
+// analytics should not track this.
 state: State,
 
 traps: *const Traps,
@@ -256,7 +261,7 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
                     runtime.state.pc = runtime.state.registers[operands.base];
                 },
             }
-            runtime.state.registers[7] = previous_pc;
+            runtime.setRegisterNoCc(7, previous_pc);
         },
 
         .lea => |operands| {
@@ -313,7 +318,7 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
             switch (variant) {
                 .pop => |operands| {
                     const value = try runtime.stackPop();
-                    runtime.state.registers[operands.dest] = value;
+                    runtime.setRegisterNoCc(operands.dest, value);
                 },
                 .push => |operands| {
                     const value = runtime.state.registers[operands.src];
@@ -332,7 +337,7 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
 }
 
 fn setRegister(runtime: *Runtime, register: u3, value: u16) void {
-    runtime.state.registers[register] = value;
+    runtime.setRegisterNoCc(register, value);
 
     runtime.state.condition =
         if (@as(i16, @bitCast(value)) < 0)
@@ -365,7 +370,7 @@ fn checkMemoryAccess(address: u16) error{UnpermittedMemoryAccess}!void {
 }
 
 fn stackPush(runtime: *Runtime, value: u16) error{UnpermittedMemoryAccess}!void {
-    runtime.state.registers[7] -%= 1;
+    runtime.setRegisterNoCc(7, runtime.state.registers[7] -% 1);
     const stack_ptr = runtime.state.registers[7];
     try runtime.setMemory(stack_ptr, value);
 }
@@ -373,7 +378,7 @@ fn stackPush(runtime: *Runtime, value: u16) error{UnpermittedMemoryAccess}!void 
 fn stackPop(runtime: *Runtime) error{UnpermittedMemoryAccess}!u16 {
     const stack_ptr = runtime.state.registers[7];
     const value = try runtime.getMemory(stack_ptr);
-    runtime.state.registers[7] +%= 1;
+    runtime.setRegisterNoCc(7, runtime.state.registers[7] +% 1);
     return value;
 }
 
