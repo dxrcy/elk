@@ -52,8 +52,8 @@ memory: struct {
 },
 
 io: struct {
-    input: usize,
-    output: usize,
+    read: usize,
+    write: usize,
 },
 
 pub fn init(gpa: Allocator) Analytics {
@@ -72,8 +72,8 @@ pub fn init(gpa: Allocator) Analytics {
             .write = @splat(0),
         },
         .io = .{
-            .input = 0,
-            .output = 0,
+            .read = 0,
+            .write = 0,
         },
     };
 }
@@ -99,6 +99,14 @@ pub fn addRegisterRead(analytics: *Analytics, register: u3) void {
 
 pub fn addRegisterWrite(analytics: *Analytics, register: u3) void {
     analytics.registers.write[register] += 1;
+}
+
+pub fn addIoRead(analytics: *Analytics) void {
+    analytics.io.read += 1;
+}
+
+pub fn addIoWrite(analytics: *Analytics) void {
+    analytics.io.write += 1;
 }
 
 pub fn format(analytics: *const Analytics, writer: *Io.Writer) error{WriteFailed}!void {
@@ -149,6 +157,6 @@ pub fn format(analytics: *const Analytics, writer: *Io.Writer) error{WriteFailed
     }
 
     try writer.print("|-- io\n", .{});
-    try writer.print("    |-- input {}\n", .{analytics.io.input});
-    try writer.print("    |-- output {}\n", .{analytics.io.output});
+    try writer.print("    |-- read {}\n", .{analytics.io.read});
+    try writer.print("    |-- write {}\n", .{analytics.io.write});
 }
