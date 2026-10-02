@@ -257,6 +257,20 @@ pub fn setMemorySize(analytics: *Analytics, size: u16) void {
     analytics.data.memory.size = size;
 }
 
+pub fn addMemoryRead(analytics: *Analytics, address: u16) error{OutOfMemory}!void {
+    try analytics.data.memory.read.put(
+        address,
+        (analytics.data.memory.read.get(address) orelse 0) + 1,
+    );
+}
+
+pub fn addMemoryWrite(analytics: *Analytics, address: u16) error{OutOfMemory}!void {
+    try analytics.data.memory.write.put(
+        address,
+        (analytics.data.memory.write.get(address) orelse 0) + 1,
+    );
+}
+
 pub fn addIoRead(analytics: *Analytics) void {
     analytics.data.io.read += 1;
 }

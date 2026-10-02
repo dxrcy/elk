@@ -170,7 +170,9 @@ pub fn patchLabelValue(
 ) error{ SymbolNotFound, UnpermittedMemoryAccess }!void {
     const address = symbols.getAddress(name) orelse
         return error.SymbolNotFound;
-    try runtime.setMemory(address, raw_word);
+    // Do not use wrapper method: avoid analytics
+    try checkMemoryAccess(address);
+    runtime.state.memory[address] = raw_word;
 }
 
 pub fn run(runtime: *Runtime) Error!void {
@@ -368,13 +370,22 @@ fn setRegisterNoCc(runtime: *Runtime, register: u3, value: u16) void {
     runtime.state.registers[register] = value;
 }
 
-pub fn getMemory(runtime: *const Runtime, address: u16) error{UnpermittedMemoryAccess}!u16 {
+pub fn getMemory(
+    runtime: *Runtime,
+    address: u16,
+) error{ UnpermittedMemoryAccess, OutOfMemory }!u16 {
     try checkMemoryAccess(address);
+    try runtime.analytics.addMemoryRead(address);
     return runtime.state.memory[address];
 }
 
-pub fn setMemory(runtime: *Runtime, address: u16, value: u16) error{UnpermittedMemoryAccess}!void {
+pub fn setMemory(
+    runtime: *Runtime,
+    address: u16,
+    value: u16,
+) error{ UnpermittedMemoryAccess, OutOfMemory }!void {
     try checkMemoryAccess(address);
+    try runtime.analytics.addMemoryWrite(address);
     runtime.state.memory[address] = value;
 }
 
@@ -385,13 +396,13 @@ fn checkMemoryAccess(address: u16) error{UnpermittedMemoryAccess}!void {
     }
 }
 
-fn stackPush(runtime: *Runtime, value: u16) error{UnpermittedMemoryAccess}!void {
+fn stackPush(runtime: *Runtime, value: u16) error{ UnpermittedMemoryAccess, OutOfMemory }!void {
     runtime.setRegisterNoCc(7, runtime.getRegister(7) -% 1);
     const stack_ptr = runtime.getRegister(7);
     try runtime.setMemory(stack_ptr, value);
 }
 
-fn stackPop(runtime: *Runtime) error{UnpermittedMemoryAccess}!u16 {
+fn stackPop(runtime: *Runtime) error{ UnpermittedMemoryAccess, OutOfMemory }!u16 {
     const stack_ptr = runtime.getRegister(7);
     const value = try runtime.getMemory(stack_ptr);
     runtime.setRegisterNoCc(7, runtime.getRegister(7) +% 1);
@@ -480,7 +491,7 @@ fn printDisplayChar(runtime: *Runtime, word: u16) error{WriteFailed}!void {
     try runtime.writer.print("{s}", .{display});
 }
 
-pub fn stringzAt(runtime: *const Runtime, address: u16) Stringz {
+pub fn stringzAt(runtime: *Runtime, address: u16) Stringz {
     return .{
         .runtime = runtime,
         .address = address,
@@ -489,11 +500,11 @@ pub fn stringzAt(runtime: *const Runtime, address: u16) Stringz {
 }
 
 pub const Stringz = struct {
-    runtime: *const Runtime,
+    runtime: *Runtime,
     address: u16,
     end: bool,
 
-    pub fn next(stringz: *Stringz) error{UnpermittedMemoryAccess}!?u16 {
+    pub fn next(stringz: *Stringz) error{ UnpermittedMemoryAccess, OutOfMemory }!?u16 {
         if (stringz.end)
             return null;
         const word = try stringz.runtime.getMemory(stringz.address);
