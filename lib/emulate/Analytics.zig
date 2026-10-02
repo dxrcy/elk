@@ -15,9 +15,8 @@ const Data = struct {
     const Time = enum { total, supervisor, io };
 
     // TODO: Add more instruction-specific variants
-    // Eg. br is struct{ n: usize, nz: usize, ... }
     // Eg. add is struct{ reg: usize, immediate: usize }
-    // Eg. Split pop_push_rets_call
+    // Leave pop_push_rets_call as is; this instruction will likely get deprecated
     const Instructions = struct {
         regular: struct {
             add: usize = 0,
@@ -32,7 +31,6 @@ const Data = struct {
             st: usize = 0,
             sti: usize = 0,
             str: usize = 0,
-            trap: usize = 0,
             rti: usize = 0,
             pop_push_rets_call: usize = 0,
             noop: usize = 0,
@@ -46,6 +44,7 @@ const Data = struct {
             np: usize = 0,
             nzp: usize = 0,
         } = .{},
+        trap: [256]usize = @splat(0),
     };
 
     time: std.EnumArray(Time, Io.Duration),
@@ -141,8 +140,21 @@ const Data = struct {
             const count = @field(data.instructions.br, field.name);
             if (count > 0)
                 try writer.print(
-                    "|       |-- {s} {}\n",
+                    "|   |   |-- {s} {}\n",
                     .{ field.name, @field(data.instructions.br, field.name) },
+                );
+        }
+        {
+            var count: usize = 0;
+            for (data.instructions.trap) |trap|
+                count += trap;
+            try writer.print("|   |-- trap {}\n", .{count});
+        }
+        for (data.instructions.trap, 0..256) |trap, i| {
+            if (trap > 0)
+                try writer.print(
+                    "|       |-- x{x:02} {}\n",
+                    .{ i, trap },
                 );
         }
 
@@ -274,6 +286,9 @@ pub fn addInstruction(analytics: *Analytics, instruction: Instruction) void {
             0b011 => analytics.data.instructions.br.zp += 1,
             0b101 => analytics.data.instructions.br.np += 1,
             0b111 => analytics.data.instructions.br.nzp += 1,
+        },
+        .trap => |trap| {
+            analytics.data.instructions.trap[trap.vect] += 1;
         },
     }
 }
