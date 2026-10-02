@@ -225,9 +225,9 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
 
     switch (instruction) {
         inline .add, .@"and" => |operands, subset| {
-            const lhs = runtime.state.registers[operands.src_a];
+            const lhs = runtime.getRegister(operands.src_a);
             const rhs: u16 = switch (operands.src_b) {
-                .register => |register| runtime.state.registers[register],
+                .register => |register| runtime.getRegister(register),
                 .immediate => |immediate| signExtend(immediate),
             };
             runtime.setRegister(operands.dest, switch (subset) {
@@ -237,7 +237,7 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
             });
         },
         .not => |operands| {
-            runtime.setRegister(operands.dest, ~runtime.state.registers[operands.src]);
+            runtime.setRegister(operands.dest, ~runtime.getRegister(operands.src));
         },
 
         .br => |operands| {
@@ -249,7 +249,7 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
         },
 
         .jmp_ret => |operands| {
-            runtime.state.pc = runtime.state.registers[operands.base];
+            runtime.state.pc = runtime.getRegister(operands.base);
         },
         .jsr_jsrr => |variant| {
             const previous_pc = runtime.state.pc;
@@ -258,7 +258,7 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
                     runtime.state.pc +%= signExtend(operands.pc_offset);
                 },
                 .jsrr => |operands| {
-                    runtime.state.pc = runtime.state.registers[operands.base];
+                    runtime.state.pc = runtime.getRegister(operands.base);
                 },
             }
             runtime.setRegisterNoCc(7, previous_pc);
@@ -280,22 +280,22 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
             runtime.setRegister(operands.dest, value);
         },
         .ldr => |operands| {
-            const address = runtime.state.registers[operands.base] +% signExtend(operands.offset);
+            const address = runtime.getRegister(operands.base) +% signExtend(operands.offset);
             const value = try runtime.getMemory(address);
             runtime.setRegister(operands.dest, value);
         },
         .st => |operands| {
             const address = runtime.state.pc +% signExtend(operands.pc_offset);
-            try runtime.setMemory(address, runtime.state.registers[operands.src]);
+            try runtime.setMemory(address, runtime.getRegister(operands.src));
         },
         .sti => |operands| {
             const indirect = runtime.state.pc +% signExtend(operands.pc_offset);
             const address = try runtime.getMemory(indirect);
-            try runtime.setMemory(address, runtime.state.registers[operands.src]);
+            try runtime.setMemory(address, runtime.getRegister(operands.src));
         },
         .str => |operands| {
-            const address = runtime.state.registers[operands.base] +% signExtend(operands.offset);
-            try runtime.setMemory(address, runtime.state.registers[operands.src]);
+            const address = runtime.getRegister(operands.base) +% signExtend(operands.offset);
+            try runtime.setMemory(address, runtime.getRegister(operands.src));
         },
 
         .trap => |operands| {
@@ -321,7 +321,7 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
                     runtime.setRegisterNoCc(operands.dest, value);
                 },
                 .push => |operands| {
-                    const value = runtime.state.registers[operands.src];
+                    const value = runtime.getRegister(operands.src);
                     try runtime.stackPush(value);
                 },
                 .rets => {
@@ -334,6 +334,10 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
             }
         },
     }
+}
+
+fn getRegister(runtime: *Runtime, register: u3) u16 {
+    return runtime.state.registers[register];
 }
 
 fn setRegister(runtime: *Runtime, register: u3, value: u16) void {
@@ -370,15 +374,15 @@ fn checkMemoryAccess(address: u16) error{UnpermittedMemoryAccess}!void {
 }
 
 fn stackPush(runtime: *Runtime, value: u16) error{UnpermittedMemoryAccess}!void {
-    runtime.setRegisterNoCc(7, runtime.state.registers[7] -% 1);
-    const stack_ptr = runtime.state.registers[7];
+    runtime.setRegisterNoCc(7, runtime.getRegister(7) -% 1);
+    const stack_ptr = runtime.getRegister(7);
     try runtime.setMemory(stack_ptr, value);
 }
 
 fn stackPop(runtime: *Runtime) error{UnpermittedMemoryAccess}!u16 {
-    const stack_ptr = runtime.state.registers[7];
+    const stack_ptr = runtime.getRegister(7);
     const value = try runtime.getMemory(stack_ptr);
-    runtime.setRegisterNoCc(7, runtime.state.registers[7] +% 1);
+    runtime.setRegisterNoCc(7, runtime.getRegister(7) +% 1);
     return value;
 }
 
