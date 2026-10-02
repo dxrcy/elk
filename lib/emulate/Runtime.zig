@@ -214,6 +214,7 @@ pub fn run(runtime: *Runtime) Error!void {
 }
 
 fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
+    try runtime.analytics.addExecute(runtime.state.pc);
     const word = try runtime.getMemory(runtime.state.pc);
     runtime.state.pc += 1;
 

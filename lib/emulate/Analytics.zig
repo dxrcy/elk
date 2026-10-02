@@ -166,6 +166,13 @@ pub fn addInstruction(analytics: *Analytics, instruction: Instruction) void {
     }
 }
 
+pub fn addExecute(analytics: *Analytics, address: u16) error{OutOfMemory}!void {
+    try analytics.data.executes.put(
+        address,
+        (analytics.data.executes.get(address) orelse 0) + 1,
+    );
+}
+
 pub fn addRegisterRead(analytics: *Analytics, register: u3) void {
     analytics.data.registers.read[register] += 1;
 }
