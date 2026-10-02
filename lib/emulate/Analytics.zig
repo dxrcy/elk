@@ -7,6 +7,29 @@ const Allocator = std.mem.Allocator;
 const Instruction = std.meta.Tag(@import("decode.zig").Instruction);
 const Map = std.AutoHashMap;
 
+// TODO: Add more instruction-specific variants
+// Eg. br is struct{ n: usize, nz: usize, ... }
+// Eg. add is struct{ reg: usize, immediate: usize }
+// Eg. Split pop_push_rets_call
+const InstructionMap = struct {
+    add: usize = 0,
+    @"and": usize = 0,
+    not: usize = 0,
+    br: usize = 0,
+    jmp_ret: usize = 0,
+    jsr_jsrr: usize = 0,
+    lea: usize = 0,
+    ld: usize = 0,
+    ldi: usize = 0,
+    ldr: usize = 0,
+    st: usize = 0,
+    sti: usize = 0,
+    str: usize = 0,
+    trap: usize = 0,
+    rti: usize = 0,
+    pop_push_rets_call: usize = 0,
+};
+
 time: struct {
     user_ns: u64,
     supervisor_ns: u64,
@@ -15,9 +38,7 @@ time: struct {
 
 labels: Map([]const u8, u16),
 
-instructions: std.EnumMap(Instruction, usize),
-instructions_branch: [8]usize,
-instructions_trap: [256]usize,
+instructions: InstructionMap,
 
 executes: Map(u16, usize),
 
@@ -45,9 +66,7 @@ pub fn init(gpa: Allocator) Analytics {
             .io_ns = 0,
         },
         .labels = .init(gpa),
-        .instructions = .initFull(0),
-        .instructions_branch = @splat(0),
-        .instructions_trap = @splat(0),
+        .instructions = .{},
         .executes = .init(gpa),
         .memory = .{
             .size = null,
@@ -86,16 +105,11 @@ pub fn format(analytics: *const Analytics, writer: *Io.Writer) error{WriteFailed
     }
 
     try writer.print("|-- instructions\n", .{});
-    {
-        for (std.meta.tags(Instruction)) |instruction| {
-            const count = analytics.instructions.get(instruction) orelse 0;
-            if (count > 0)
-                try writer.print("|   |-- {} {}\n", .{ instruction, count });
-        }
-    }
-
-    try writer.print("|   |-- br TODO\n", .{});
-    try writer.print("|   |-- trap TODO\n", .{});
+    inline for (std.meta.fields(Instruction)) |field|
+        try writer.print(
+            "|   |-- {s} {}\n",
+            .{ field.name, @field(analytics.instructions, field.name) },
+        );
 
     try writer.print("|-- execute\n", .{});
     {
