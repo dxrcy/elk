@@ -439,6 +439,7 @@ fn emulate(
     defer if (debugger_opt) |*debugger| debugger.deinit(gpa);
 
     var runtime = try elk.Runtime.init(.{
+        .io = io,
         .gpa = gpa,
         .reader = &reader.interface,
         .writer = &writer.interface,

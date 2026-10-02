@@ -105,6 +105,7 @@ pub const Hooks = struct {
 };
 
 pub fn init(params: struct {
+    io: Io,
     gpa: Allocator,
     reader: *Io.Reader,
     writer: *Io.Writer,
@@ -116,7 +117,7 @@ pub fn init(params: struct {
     return .{
         .state = try .init(params.gpa),
         .traps = params.traps,
-        .analytics = .init(params.gpa),
+        .analytics = .init(params.io, params.gpa),
         .hooks = params.hooks,
         .policies = params.policies,
         .debugger = params.debugger,
@@ -310,6 +311,8 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
                 // No trap callback declared
                 // Either trap was never registered, or only registered for alias
                 return error.UnhandledTrap;
+            runtime.analytics.startSupervisorTime();
+            defer runtime.analytics.endSupervisorTime();
             try callback.call(.{runtime});
         },
 

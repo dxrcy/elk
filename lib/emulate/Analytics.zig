@@ -2,11 +2,11 @@ const Analytics = @This();
 
 const std = @import("std");
 const Io = std.Io;
-const Duration = std.Io.Duration;
 const Allocator = std.mem.Allocator;
+const Map = std.AutoHashMap;
+const assert = std.debug.assert;
 
 const Instruction = std.meta.Tag(@import("decode.zig").Instruction);
-const Map = std.AutoHashMap;
 
 // TODO: Add more instruction-specific variants
 // Eg. br is struct{ n: usize, nz: usize, ... }
@@ -33,9 +33,9 @@ const InstructionMap = struct {
 
 const Data = struct {
     time: struct {
-        total: Duration,
-        supervisor: Duration,
-        io: Duration,
+        total: Io.Duration,
+        supervisor: Io.Duration,
+        io: Io.Duration,
         // TODO: Add 'debug' time, including debugger, runtime hooks, etc
     },
     labels: Map([]const u8, u16),
@@ -145,9 +145,24 @@ const Data = struct {
 };
 
 data: Data,
+io: Io,
+time: struct {
+    total: ?Io.Timestamp,
+    supervisor: ?Io.Timestamp,
+    io: ?Io.Timestamp,
+    // TODO: Add 'debug' time, including debugger, runtime hooks, etc
+},
 
-pub fn init(gpa: Allocator) Analytics {
-    return .{ .data = .init(gpa) };
+pub fn init(io: Io, gpa: Allocator) Analytics {
+    return .{
+        .data = .init(gpa),
+        .io = io,
+        .time = .{
+            .total = null,
+            .supervisor = null,
+            .io = null,
+        },
+    };
 }
 
 pub fn deinit(analytics: *Analytics) void {
@@ -180,4 +195,18 @@ pub fn addIoRead(analytics: *Analytics) void {
 
 pub fn addIoWrite(analytics: *Analytics) void {
     analytics.data.io.write += 1;
+}
+
+pub fn startSupervisorTime(analytics: *Analytics) void {
+    assert(analytics.time.supervisor == null);
+    analytics.time.supervisor = .now(analytics.io, .awake);
+}
+
+pub fn endSupervisorTime(analytics: *Analytics) void {
+    const then = analytics.time.supervisor orelse
+        unreachable;
+    analytics.time.supervisor = null;
+    const duration = then.untilNow(analytics.io, .awake);
+    analytics.data.time.supervisor =
+        .{ .nanoseconds = analytics.data.time.supervisor.nanoseconds + duration.nanoseconds };
 }
