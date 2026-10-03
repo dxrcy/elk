@@ -102,6 +102,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 cli.use_decoration,
                 null,
                 cli.random_init,
+                operation.analytics,
             );
         },
 
@@ -123,6 +124,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 cli.use_decoration,
                 null,
                 cli.random_init,
+                null,
             );
         },
 
@@ -158,6 +160,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 cli.use_decoration,
                 &assembler,
                 cli.random_init,
+                operation.analytics,
             );
         },
 
@@ -406,6 +409,7 @@ fn emulate(
     use_decoration: bool,
     assembler: ?*elk.Assembler,
     random_init: ?u64,
+    analytics_opt: ?Cli.Analytics,
 ) !void {
     const write_buffer_size = 64;
     const debugger_buffer_size = 256;
@@ -438,6 +442,7 @@ fn emulate(
     }
 
     var runtime = try elk.Runtime.init(.{
+        .io = io,
         .gpa = gpa,
         .reader = &reader.interface,
         .writer = &writer.interface,
@@ -461,6 +466,12 @@ fn emulate(
     if (patch_symbols_opt) |patch_symbols|
         try patchSymbols(&runtime, runtime_source, patch_symbols);
 
+    const provider: elk.Provider = switch (runtime_source) {
+        .object => |object| if (object.symbols) |symbols| .{ .symbols = symbols } else .none,
+        .assembly => |assembly| .{ .assembly = assembly },
+    };
+    try runtime.analytics.addSymbols(provider);
+
     if (debugger_opt) |*debugger|
         try debugger.initState(gpa, &runtime);
 
@@ -482,7 +493,49 @@ fn emulate(
 
     try runtime.ensureWriterNewline();
     try runtime.writer.flush();
+
     reporter.flush();
+
+    if (analytics_opt) |analytics|
+        try writeAnalytics(io, analytics, &runtime, use_decoration);
+}
+
+fn writeAnalytics(
+    io: Io,
+    analytics: Cli.Analytics,
+    runtime: *const elk.Runtime,
+    use_decoration: bool,
+) !void {
+    const write_buffer_size = 64;
+
+    switch (analytics.format) {
+        .json => {
+            std.log.err("unimplemented: json analytics format", .{});
+            return error.Unimplemented;
+        },
+        .txt => {},
+    }
+
+    const file = switch (analytics.path) {
+        .stdio => Io.File.stdout(),
+        .regular => |regular| try Io.Dir.cwd().createFile(io, regular, .{}),
+    };
+
+    var write_buffer: [write_buffer_size]u8 = undefined;
+    var writer = file.writer(io, &write_buffer);
+
+    switch (analytics.format) {
+        .json => {
+            unreachable;
+        },
+        .txt => {
+            try writer.interface.print("{f}\n", .{
+                runtime.analytics.data.format(use_decoration),
+            });
+        },
+    }
+
+    try writer.interface.flush();
 }
 
 fn createDebugger(

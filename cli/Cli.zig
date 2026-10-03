@@ -1,3 +1,4 @@
+// TODO: Split this file into multiple
 const Cli = @This();
 
 const std = @import("std");
@@ -30,6 +31,7 @@ const info = struct {
 
 operation: Operation,
 policies: elk.Policies,
+// TODO: This should be under `Operation`
 random_init: ?u64,
 strictness: elk.reporting.Options.Strictness,
 verbosity: elk.reporting.Options.Verbosity,
@@ -41,12 +43,14 @@ pub const Operation = union(enum) {
         input: Path,
         debug: ?Debug,
         patch_symbols: ?[]const struct { []const u8, u16 },
+        analytics: ?Analytics,
     },
     emulate: struct {
         input: Path,
         debug: ?Debug,
         import_symbols: ?[]const u8,
         patch_symbols: ?[]const struct { []const u8, u16 },
+        analytics: ?Analytics,
     },
     assemble: struct {
         paths: IoPaths,
@@ -55,6 +59,7 @@ pub const Operation = union(enum) {
     debug_empty: Debug,
     clean: struct {
         paths: IoPaths,
+        // TODO: Add `analytics` ?
     },
     format: struct {
         paths: IoPaths,
@@ -167,6 +172,10 @@ const template = .{
         .long = "patch",
         .value = .{ .type = []const struct { []const u8, u16 }, .parser = parsePatches },
     },
+    .analytics = zilc.Flag{
+        .long = "analytics",
+        .value = .{ .type = Analytics, .parser = Analytics.parse },
+    },
 
     .input_partial = zilc.Flag{
         .short = 'i',
@@ -212,6 +221,41 @@ const template = .{
     },
 };
 
+pub const Analytics = struct {
+    path: zilc.types.Path,
+    format: Format,
+
+    pub const Format = enum {
+        txt,
+        json,
+
+        pub fn fromPath(path: []const u8) ?Format {
+            const index = std.mem.findScalarLast(u8, path, '.') orelse 0;
+            const extension = if (path.len > 0) path[index + 1 ..] else "";
+
+            if (std.mem.eql(u8, extension, "txt"))
+                return .txt;
+            if (std.mem.eql(u8, extension, "json"))
+                return .json;
+            return null;
+        }
+    };
+
+    fn parse(dest: *anyopaque, src: []const u8, _: Allocator) !void {
+        const analytics: *?Analytics = @ptrCast(@alignCast(dest));
+
+        const path: zilc.types.Path = .new(src);
+        const format = switch (path) {
+            .stdio => .txt,
+            .regular => Format.fromPath(src) orelse
+                return error.InvalidValue,
+        };
+
+        analytics.* = .{ .path = path, .format = format };
+    }
+};
+
+// TODO: Should be `pub`
 const Condition = enum {
     auto,
     always,
@@ -226,6 +270,7 @@ const Condition = enum {
     }
 };
 
+// TODO: Move to `Condition`
 fn parseCondition(dest: *anyopaque, src: []const u8, _: Allocator) !void {
     const mode: *?Condition = @ptrCast(@alignCast(dest));
     if (std.mem.eql(u8, src, "auto")) {
@@ -364,6 +409,7 @@ fn checkDependencies(options: *const zilc.Options(template)) !void {
     try zilc.checkDependencies(.trap_aliases, enum { assemble, check, format }, enum {}, &options.flags);
     try zilc.checkDependencies(.debug, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
     try zilc.checkDependencies(.random_init, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
+    try zilc.checkDependencies(.analytics, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
     try zilc.checkDependencies(.input_partial, enum { debug }, enum { input_full }, &options.flags);
     try zilc.checkDependencies(.input_full, enum { debug }, enum { input_partial }, &options.flags);
     try zilc.checkDependencies(.history_file, enum { debug }, enum {}, &options.flags);
@@ -455,6 +501,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
             } else null,
             .import_symbols = options.flags.import_symbols,
             .patch_symbols = options.flags.patch_symbols,
+            .analytics = options.flags.analytics,
         } };
     }
 
@@ -467,6 +514,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
                 .history_file = options.flags.history_file,
             } else null,
             .patch_symbols = options.flags.patch_symbols,
+            .analytics = options.flags.analytics,
         },
     };
 }

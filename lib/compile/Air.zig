@@ -91,9 +91,13 @@ pub fn copyToRuntime(air: *const Air, runtime: *elk.Runtime) !void {
 
     runtime.state.pc = air.origin;
     for (air.lines.items, 0..) |line, i| {
-        const raw = line.statement.encode();
-        try runtime.setMemory(@intCast(air.origin + i), raw);
+        const address: u16 = @intCast(air.origin + i);
+        const word = line.statement.encode();
+        // Do not use wrapper method: avoid analytics
+        try elk.Runtime.checkMemoryAccess(address);
+        runtime.state.memory[address] = word;
     }
+    runtime.analytics.setMemorySize(@intCast(air.lines.items.len));
 }
 
 pub fn writeAssembly(air: *const Air, writer: *Io.Writer) !void {
