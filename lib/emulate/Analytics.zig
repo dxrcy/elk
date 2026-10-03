@@ -349,15 +349,8 @@ const Data = struct {
             );
         }
         {
-            var addresses = try arena.alloc(u16, data.addresses.count());
+            const addresses = try sortedAddressKeys(arena, &data.addresses);
             defer arena.free(addresses);
-            {
-                var i: usize = 0;
-                var it = data.addresses.iterator();
-                while (it.next()) |entry| : (i += 1)
-                    addresses[i] = entry.key_ptr.*;
-            }
-            std.mem.sort(u16, addresses, {}, std.sort.asc(u16));
             for (addresses, 0..) |address, i|
                 try writer.print("{s}{s}x{x:04}........... {}\n", .{
                     c_v,
@@ -417,15 +410,8 @@ const Data = struct {
             );
         }
         {
-            var addresses = try arena.alloc(u16, data.memory.read.count());
+            const addresses = try sortedAddressKeys(arena, &data.memory.read);
             defer arena.free(addresses);
-            {
-                var i: usize = 0;
-                var it = data.memory.read.iterator();
-                while (it.next()) |entry| : (i += 1)
-                    addresses[i] = entry.key_ptr.*;
-            }
-            std.mem.sort(u16, addresses, {}, std.sort.asc(u16));
             for (addresses, 0..) |address, i|
                 try writer.print("{s}{s}{s}x{x:04}....... {}\n", .{
                     c_v,
@@ -446,15 +432,8 @@ const Data = struct {
             );
         }
         {
-            var addresses = try arena.alloc(u16, data.memory.write.count());
+            const addresses = try sortedAddressKeys(arena, &data.memory.write);
             defer arena.free(addresses);
-            {
-                var i: usize = 0;
-                var it = data.memory.write.iterator();
-                while (it.next()) |entry| : (i += 1)
-                    addresses[i] = entry.key_ptr.*;
-            }
-            std.mem.sort(u16, addresses, {}, std.sort.asc(u16));
             for (addresses, 0..) |address, i|
                 try writer.print("{s}{s}{s}x{x:04}....... {}\n", .{
                     c_v,
@@ -478,6 +457,17 @@ const Data = struct {
             .{ c_e, c_r, data.io.write },
         );
     }
+
+    fn sortedAddressKeys(arena: Allocator, map: *const Map(u16, usize)) error{OutOfMemory}![]u16 {
+        var addresses = try arena.alloc(u16, map.count());
+        var i: usize = 0;
+        var it = map.iterator();
+        while (it.next()) |entry| : (i += 1)
+            addresses[i] = entry.key_ptr.*;
+        std.mem.sort(u16, addresses, {}, std.sort.asc(u16));
+        return addresses;
+    }
+
     pub fn json(
         data: *const Data,
         arena: Allocator,
