@@ -209,7 +209,7 @@ const Data = struct {
     }
 
     pub fn format(data: *const Data, writer: *Io.Writer) error{WriteFailed}!void {
-        // TODO: This whole function is quite ugly -- clean it up!
+        // TODO: This whole function is VERY ugly -- clean it up!
 
         const user_time: Io.Duration = .{
             .nanoseconds = data.time.get(.total).nanoseconds -
@@ -218,13 +218,18 @@ const Data = struct {
         try writer.print("|-- time................ {f}\n", .{data.time.get(.total)});
         try writer.print("|   |-- user............ {f}\n", .{user_time});
         try writer.print("|   |-- super........... {f}\n", .{data.time.get(.supervisor)});
-        try writer.print("|   |-- io.............. {f}\n", .{data.time.get(.io)});
+        try writer.print("|   +-- io.............. {f}\n", .{data.time.get(.io)});
 
         try writer.print("|-- symbol.............. {}\n", .{data.symbols.count()});
         {
+            var i: usize = 0;
             var it = data.symbols.iterator();
-            while (it.next()) |symbol|
-                try writer.print("|   |-- {s:.<16} x{x:04}\n", .{ symbol.key_ptr.*, symbol.value_ptr.* });
+            while (it.next()) |symbol| : (i += 1)
+                try writer.print("|   {c}-- {s:.<16} x{x:04}\n", .{
+                    @as(u8, if (i + 1 >= data.symbols.count()) '+' else '|'),
+                    symbol.key_ptr.*,
+                    symbol.value_ptr.*,
+                });
         }
 
         {
@@ -250,39 +255,60 @@ const Data = struct {
                 count += @field(data.instructions.br, field.name);
             try writer.print("|   |-- br.............. {}\n", .{count});
         }
-        inline for (std.meta.fields(@TypeOf(data.instructions.br))) |field| {
+        inline for (std.meta.fields(@TypeOf(data.instructions.br)), 0..) |field, i| {
             const count = @field(data.instructions.br, field.name);
             if (count > 0)
-                try writer.print(
-                    "|   |   |-- {s:.<12} {}\n",
-                    .{ field.name, @field(data.instructions.br, field.name) },
-                );
-        }
-        {
-            var count: usize = 0;
-            for (data.instructions.trap) |trap|
-                count += trap;
-            try writer.print("|   |-- trap............ {}\n", .{count});
-        }
-        for (data.instructions.trap, 0..256) |trap, i| {
-            if (trap > 0)
-                try writer.print(
-                    "|       |-- x{x:02}......... {}\n",
-                    .{ i, trap },
-                );
+                try writer.print("|   |   {c}-- {s:.<12} {}\n", .{
+                    @as(u8, if (i + 1 >= std.meta.fields(@TypeOf(data.instructions.br)).len) '+' else '|'),
+                    field.name,
+                    @field(data.instructions.br, field.name),
+                });
         }
 
+        var trap_lines: usize = 0;
+        {
+            var count: usize = 0;
+            for (data.instructions.trap) |trap| {
+                count += trap;
+                if (trap > 0)
+                    trap_lines += 1;
+            }
+            try writer.print("|   +-- trap............ {}\n", .{count});
+        }
+        {
+            var i: usize = 0;
+            for (data.instructions.trap, 0..256) |trap, vect| {
+                if (trap > 0) {
+                    try writer.print("|       {c}-- x{x:02}......... {}\n", .{
+                        @as(u8, if (i + 1 >= trap_lines) '+' else '|'),
+                        vect,
+                        trap,
+                    });
+                    i += 1;
+                }
+            }
+        }
+
+        var address_lines: usize = 0;
         {
             var count: usize = 0;
             var it = data.addresses.iterator();
-            while (it.next()) |address|
+            while (it.next()) |address| {
                 count += address.value_ptr.*;
+                if (address.value_ptr.* > 0)
+                    address_lines += 1;
+            }
             try writer.print("|-- address............. {}\n", .{count});
         }
         {
+            var i: usize = 0;
             var it = data.addresses.iterator();
-            while (it.next()) |address|
-                try writer.print("|   |-- x{x:04}........... {}\n", .{ address.key_ptr.*, address.value_ptr.* });
+            while (it.next()) |address| : (i += 1)
+                try writer.print("|   {c}-- x{x:04}........... {}\n", .{
+                    @as(u8, if (i + 1 >= address_lines) '+' else '|'),
+                    address.key_ptr.*,
+                    address.value_ptr.*,
+                });
         }
 
         try writer.print("|-- register............\n", .{});
@@ -291,15 +317,23 @@ const Data = struct {
             for (data.registers.read) |register| count += register;
             try writer.print("|   |-- read............ {}\n", .{count});
         }
-        for (data.registers.read, 0..8) |register, i|
-            try writer.print("|   |   |-- r{}.......... {}\n", .{ i, register });
+        for (data.registers.read, 0..8) |register, n|
+            try writer.print("|   |   {c}-- r{}.......... {}\n", .{
+                @as(u8, if (n >= 7) '+' else '|'),
+                n,
+                register,
+            });
         {
             var count: usize = 0;
             for (data.registers.write) |register| count += register;
-            try writer.print("|   |-- write........... {}\n", .{count});
+            try writer.print("|   +-- write........... {}\n", .{count});
         }
-        for (data.registers.write, 0..8) |register, i|
-            try writer.print("|       |-- r{}.......... {}\n", .{ i, register });
+        for (data.registers.write, 0..8) |register, n|
+            try writer.print("|       {c}-- r{}.......... {}\n", .{
+                @as(u8, if (n >= 7) '+' else '|'),
+                n,
+                register,
+            });
 
         try writer.print("|-- memory..............\n", .{});
         try writer.print("|   |-- size............ {}\n", .{data.memory.size});
@@ -311,25 +345,35 @@ const Data = struct {
             try writer.print("|   |-- read............ {}\n", .{count});
         }
         {
+            var i: usize = 0;
             var it = data.memory.read.iterator();
-            while (it.next()) |memory|
-                try writer.print("|   |   |-- x{x:04}....... {}\n", .{ memory.key_ptr.*, memory.value_ptr.* });
+            while (it.next()) |memory| : (i += 1)
+                try writer.print("|   |   {c}-- x{x:04}....... {}\n", .{
+                    @as(u8, if (i + 1 >= data.memory.read.count()) '+' else '|'),
+                    memory.key_ptr.*,
+                    memory.value_ptr.*,
+                });
         }
         {
             var count: usize = 0;
             var it = data.memory.write.iterator();
             while (it.next()) |memory|
                 count += memory.value_ptr.*;
-            try writer.print("|   |-- write........... {}\n", .{count});
+            try writer.print("|   +-- write........... {}\n", .{count});
         }
         {
+            var i: usize = 0;
             var it = data.memory.write.iterator();
-            while (it.next()) |memory|
-                try writer.print("|       |-- x{x:04}....... {}\n", .{ memory.key_ptr.*, memory.value_ptr.* });
+            while (it.next()) |memory| : (i += 1)
+                try writer.print("|       {c}-- x{x:04}....... {}\n", .{
+                    @as(u8, if (i + 1 >= data.memory.write.count()) '+' else '|'),
+                    memory.key_ptr.*,
+                    memory.value_ptr.*,
+                });
         }
 
-        try writer.print("|-- io.................. {}\n", .{data.io.read + data.io.write});
+        try writer.print("+-- io.................. {}\n", .{data.io.read + data.io.write});
         try writer.print("    |-- read............ {}\n", .{data.io.read});
-        try writer.print("    |-- write........... {}\n", .{data.io.write});
+        try writer.print("    +-- write........... {}\n", .{data.io.write});
     }
 };
