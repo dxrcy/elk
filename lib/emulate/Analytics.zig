@@ -247,14 +247,8 @@ const Data = struct {
             .{ c_vr, data.symbols.count() },
         );
         {
-            var addresses = try arena.alloc(u16, data.symbols.count());
+            const addresses = try sortedAddressKeys([]const u8, arena, &data.symbols);
             defer arena.free(addresses);
-            {
-                var i: usize = 0;
-                var it = data.symbols.iterator();
-                while (it.next()) |entry| : (i += 1)
-                    addresses[i] = entry.key_ptr.*;
-            }
             for (addresses, 0..) |address, i|
                 try writer.print("{s}{s}x{x:04}........... {s}\n", .{
                     c_v,
@@ -349,7 +343,7 @@ const Data = struct {
             );
         }
         {
-            const addresses = try sortedAddressKeys(arena, &data.addresses);
+            const addresses = try sortedAddressKeys(usize, arena, &data.addresses);
             defer arena.free(addresses);
             for (addresses, 0..) |address, i|
                 try writer.print("{s}{s}x{x:04}........... {}\n", .{
@@ -410,7 +404,7 @@ const Data = struct {
             );
         }
         {
-            const addresses = try sortedAddressKeys(arena, &data.memory.read);
+            const addresses = try sortedAddressKeys(usize, arena, &data.memory.read);
             defer arena.free(addresses);
             for (addresses, 0..) |address, i|
                 try writer.print("{s}{s}{s}x{x:04}....... {}\n", .{
@@ -432,7 +426,7 @@ const Data = struct {
             );
         }
         {
-            const addresses = try sortedAddressKeys(arena, &data.memory.write);
+            const addresses = try sortedAddressKeys(usize, arena, &data.memory.write);
             defer arena.free(addresses);
             for (addresses, 0..) |address, i|
                 try writer.print("{s}{s}{s}x{x:04}....... {}\n", .{
@@ -458,7 +452,11 @@ const Data = struct {
         );
     }
 
-    fn sortedAddressKeys(arena: Allocator, map: *const Map(u16, usize)) error{OutOfMemory}![]u16 {
+    fn sortedAddressKeys(
+        V: type,
+        arena: Allocator,
+        map: *const Map(u16, V),
+    ) error{OutOfMemory}![]u16 {
         var addresses = try arena.alloc(u16, map.count());
         var i: usize = 0;
         var it = map.iterator();
