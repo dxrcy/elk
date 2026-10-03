@@ -211,22 +211,43 @@ const Data = struct {
     pub fn format(data: *const Data, writer: *Io.Writer) error{WriteFailed}!void {
         // TODO: This whole function is VERY ugly -- clean it up!
 
+        const c_v = "│   ";
+        const c_vr = "├── ";
+        const c_e = "    ";
+        const c_r = "└── ";
+
         const user_time: Io.Duration = .{
             .nanoseconds = data.time.get(.total).nanoseconds -
                 data.time.get(.supervisor).nanoseconds,
         };
-        try writer.print("|-- time................ {f}\n", .{data.time.get(.total)});
-        try writer.print("|   |-- user............ {f}\n", .{user_time});
-        try writer.print("|   |-- super........... {f}\n", .{data.time.get(.supervisor)});
-        try writer.print("|   +-- io.............. {f}\n", .{data.time.get(.io)});
+        try writer.print(
+            "{s}time................ {f}\n",
+            .{ c_vr, data.time.get(.total) },
+        );
+        try writer.print(
+            "{s}{s}user............ {f}\n",
+            .{ c_v, c_vr, user_time },
+        );
+        try writer.print(
+            "{s}{s}super........... {f}\n",
+            .{ c_v, c_vr, data.time.get(.supervisor) },
+        );
+        try writer.print(
+            "{s}{s}io.............. {f}\n",
+            .{ c_v, c_r, data.time.get(.io) },
+        );
 
-        try writer.print("|-- symbol.............. {}\n", .{data.symbols.count()});
+        try writer.print(
+            "{s}symbol.............. {}\n",
+            .{ c_vr, data.symbols.count() },
+        );
         {
             var i: usize = 0;
             var it = data.symbols.iterator();
             while (it.next()) |symbol| : (i += 1)
-                try writer.print("|   {c}-- {s:.<16} x{x:04}\n", .{
-                    @as(u8, if (i + 1 >= data.symbols.count()) '+' else '|'),
+                try writer.print("{s}{s}{s:.<16} x{x:04}\n", .{
+                    c_v,
+                    if (i + 1 >= data.symbols.count()) c_r else c_vr,
                     symbol.key_ptr.*,
                     symbol.value_ptr.*,
                 });
@@ -238,14 +259,17 @@ const Data = struct {
                 count += @field(data.instructions.regular, field.name);
             inline for (std.meta.fields(@TypeOf(data.instructions.br))) |field|
                 count += @field(data.instructions.br, field.name);
-            try writer.print("|-- instruction......... {}\n", .{count});
+            try writer.print(
+                "{s}instruction......... {}\n",
+                .{ c_vr, count },
+            );
         }
         inline for (std.meta.fields(@TypeOf(data.instructions.regular))) |field| {
             const count = @field(data.instructions.regular, field.name);
             if (count > 0)
                 try writer.print(
-                    "|   |-- {s:.<16} {}\n",
-                    .{ field.name, count },
+                    "{s}{s}{s:.<16} {}\n",
+                    .{ c_v, c_vr, field.name, count },
                 );
         }
 
@@ -253,13 +277,18 @@ const Data = struct {
             var count: usize = 0;
             inline for (std.meta.fields(@TypeOf(data.instructions.br))) |field|
                 count += @field(data.instructions.br, field.name);
-            try writer.print("|   |-- br.............. {}\n", .{count});
+            try writer.print(
+                "{s}{s}br.............. {}\n",
+                .{ c_v, c_vr, count },
+            );
         }
         inline for (std.meta.fields(@TypeOf(data.instructions.br)), 0..) |field, i| {
             const count = @field(data.instructions.br, field.name);
             if (count > 0)
-                try writer.print("|   |   {c}-- {s:.<12} {}\n", .{
-                    @as(u8, if (i + 1 >= std.meta.fields(@TypeOf(data.instructions.br)).len) '+' else '|'),
+                try writer.print("{s}{s}{s}{s:.<12} {}\n", .{
+                    c_v,
+                    c_v,
+                    if (i + 1 >= std.meta.fields(@TypeOf(data.instructions.br)).len) c_r else c_vr,
                     field.name,
                     @field(data.instructions.br, field.name),
                 });
@@ -273,14 +302,19 @@ const Data = struct {
                 if (trap > 0)
                     trap_lines += 1;
             }
-            try writer.print("|   +-- trap............ {}\n", .{count});
+            try writer.print(
+                "{s}{s}trap............ {}\n",
+                .{ c_v, c_r, count },
+            );
         }
         {
             var i: usize = 0;
             for (data.instructions.trap, 0..256) |trap, vect| {
                 if (trap > 0) {
-                    try writer.print("|       {c}-- x{x:02}......... {}\n", .{
-                        @as(u8, if (i + 1 >= trap_lines) '+' else '|'),
+                    try writer.print("{s}{s}{s}x{x:02}......... {}\n", .{
+                        c_v,
+                        c_e,
+                        if (i + 1 >= trap_lines) c_r else c_vr,
                         vect,
                         trap,
                     });
@@ -298,58 +332,80 @@ const Data = struct {
                 if (address.value_ptr.* > 0)
                     address_lines += 1;
             }
-            try writer.print("|-- address............. {}\n", .{count});
+            try writer.print(
+                "{s}address............. {}\n",
+                .{ c_vr, count },
+            );
         }
         {
             var i: usize = 0;
             var it = data.addresses.iterator();
             while (it.next()) |address| : (i += 1)
-                try writer.print("|   {c}-- x{x:04}........... {}\n", .{
-                    @as(u8, if (i + 1 >= address_lines) '+' else '|'),
+                try writer.print("{s}{s}x{x:04}........... {}\n", .{
+                    c_v,
+                    if (i + 1 >= address_lines) c_r else c_vr,
                     address.key_ptr.*,
                     address.value_ptr.*,
                 });
         }
 
-        try writer.print("|-- register............\n", .{});
+        try writer.print("{s}register............\n", .{c_vr});
         {
             var count: usize = 0;
             for (data.registers.read) |register| count += register;
-            try writer.print("|   |-- read............ {}\n", .{count});
+            try writer.print(
+                "{s}{s}read............ {}\n",
+                .{ c_v, c_vr, count },
+            );
         }
         for (data.registers.read, 0..8) |register, n|
-            try writer.print("|   |   {c}-- r{}.......... {}\n", .{
-                @as(u8, if (n >= 7) '+' else '|'),
+            try writer.print("{s}{s}{s}r{}.......... {}\n", .{
+                c_v,
+                c_v,
+                if (n >= 7) c_r else c_vr,
                 n,
                 register,
             });
         {
             var count: usize = 0;
             for (data.registers.write) |register| count += register;
-            try writer.print("|   +-- write........... {}\n", .{count});
+            try writer.print(
+                "{s}{s}write........... {}\n",
+                .{ c_v, c_r, count },
+            );
         }
         for (data.registers.write, 0..8) |register, n|
-            try writer.print("|       {c}-- r{}.......... {}\n", .{
-                @as(u8, if (n >= 7) '+' else '|'),
+            try writer.print("{s}{s}{s}r{}.......... {}\n", .{
+                c_v,
+                c_e,
+                if (n >= 7) c_r else c_vr,
                 n,
                 register,
             });
 
-        try writer.print("|-- memory..............\n", .{});
-        try writer.print("|   |-- size............ {}\n", .{data.memory.size});
+        try writer.print("{s}memory..............\n", .{c_vr});
+        try writer.print(
+            "{s}{s}size............ {}\n",
+            .{ c_v, c_vr, data.memory.size },
+        );
         {
             var count: usize = 0;
             var it = data.memory.read.iterator();
             while (it.next()) |memory|
                 count += memory.value_ptr.*;
-            try writer.print("|   |-- read............ {}\n", .{count});
+            try writer.print(
+                "{s}{s}read............ {}\n",
+                .{ c_v, c_vr, count },
+            );
         }
         {
             var i: usize = 0;
             var it = data.memory.read.iterator();
             while (it.next()) |memory| : (i += 1)
-                try writer.print("|   |   {c}-- x{x:04}....... {}\n", .{
-                    @as(u8, if (i + 1 >= data.memory.read.count()) '+' else '|'),
+                try writer.print("{s}{s}{s}x{x:04}....... {}\n", .{
+                    c_v,
+                    c_v,
+                    if (i + 1 >= data.memory.read.count()) c_r else c_vr,
                     memory.key_ptr.*,
                     memory.value_ptr.*,
                 });
@@ -359,21 +415,35 @@ const Data = struct {
             var it = data.memory.write.iterator();
             while (it.next()) |memory|
                 count += memory.value_ptr.*;
-            try writer.print("|   +-- write........... {}\n", .{count});
+            try writer.print(
+                "{s}{s}write........... {}\n",
+                .{ c_v, c_r, count },
+            );
         }
         {
             var i: usize = 0;
             var it = data.memory.write.iterator();
             while (it.next()) |memory| : (i += 1)
-                try writer.print("|       {c}-- x{x:04}....... {}\n", .{
-                    @as(u8, if (i + 1 >= data.memory.write.count()) '+' else '|'),
+                try writer.print("{s}{s}{s}x{x:04}....... {}\n", .{
+                    c_v,
+                    c_e,
+                    if (i + 1 >= data.memory.write.count()) c_r else c_vr,
                     memory.key_ptr.*,
                     memory.value_ptr.*,
                 });
         }
 
-        try writer.print("+-- io.................. {}\n", .{data.io.read + data.io.write});
-        try writer.print("    |-- read............ {}\n", .{data.io.read});
-        try writer.print("    +-- write........... {}\n", .{data.io.write});
+        try writer.print(
+            "{s}io.................. {}\n",
+            .{ c_r, data.io.read + data.io.write },
+        );
+        try writer.print(
+            "{s}{s}read............ {}\n",
+            .{ c_e, c_vr, data.io.read },
+        );
+        try writer.print(
+            "{s}{s}write........... {}\n",
+            .{ c_e, c_r, data.io.write },
+        );
     }
 };
