@@ -512,7 +512,7 @@ fn writeAnalytics(io: Io, analytics: Cli.Analytics, runtime: *const elk.Runtime)
     }
 
     const file = switch (analytics.path) {
-        .stdio => Io.File.stdin(),
+        .stdio => Io.File.stdout(),
         .regular => |regular| try Io.Dir.cwd().createFile(io, regular, .{}),
     };
 
