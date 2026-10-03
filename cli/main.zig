@@ -496,10 +496,23 @@ fn emulate(
 
     reporter.flush();
 
-    if (analytics_opt) |analytics_path| {
-        _ = analytics_path;
-        std.debug.print("{f}\n", .{runtime.analytics.data});
-    }
+    if (analytics_opt) |analytics|
+        try writeAnalytics(io, analytics, &runtime);
+}
+
+fn writeAnalytics(io: Io, analytics: Cli.Analytics, runtime: *const elk.Runtime) !void {
+    const write_buffer_size = 64;
+
+    const file = switch (analytics.path) {
+        .stdio => Io.File.stdin(),
+        .regular => |regular| try Io.Dir.cwd().createFile(io, regular, .{}),
+    };
+
+    var write_buffer: [write_buffer_size]u8 = undefined;
+    var writer = file.writer(io, &write_buffer);
+
+    try writer.interface.print("{f}\n", .{runtime.analytics.data});
+    try writer.interface.flush();
 }
 
 fn createDebugger(
