@@ -503,6 +503,14 @@ fn emulate(
 fn writeAnalytics(io: Io, analytics: Cli.Analytics, runtime: *const elk.Runtime) !void {
     const write_buffer_size = 64;
 
+    switch (analytics.format) {
+        .json => {
+            std.log.err("unimplemented: json analytics format", .{});
+            return error.Unimplemented;
+        },
+        .txt => {},
+    }
+
     const file = switch (analytics.path) {
         .stdio => Io.File.stdin(),
         .regular => |regular| try Io.Dir.cwd().createFile(io, regular, .{}),
@@ -511,7 +519,15 @@ fn writeAnalytics(io: Io, analytics: Cli.Analytics, runtime: *const elk.Runtime)
     var write_buffer: [write_buffer_size]u8 = undefined;
     var writer = file.writer(io, &write_buffer);
 
-    try writer.interface.print("{f}\n", .{runtime.analytics.data});
+    switch (analytics.format) {
+        .json => {
+            unreachable;
+        },
+        .txt => {
+            try writer.interface.print("{f}\n", .{runtime.analytics.data});
+        },
+    }
+
     try writer.interface.flush();
 }
 

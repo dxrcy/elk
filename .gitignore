@@ -9,4 +9,8 @@
 **/*.lst
 **/*.bin
 **/*.hex
+**/an.txt
+**/an.json
+**/*.an.txt
+**/*.an.json
 
