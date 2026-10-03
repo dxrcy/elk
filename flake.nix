@@ -75,6 +75,7 @@
           default = pkgs.mkShellNoCC {
             packages = [
               pkgs.zig_0_16
+              pkgs.zls
               zon2nix.packages.${system}.zon2nix
             ];
           };
