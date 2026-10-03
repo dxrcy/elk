@@ -450,4 +450,183 @@ const Data = struct {
             .{ c_e, c_r, data.io.write },
         );
     }
+
+    pub fn json(data: *const Data, gpa: Allocator) Json {
+        return .{ .data = data, .gpa = gpa };
+    }
+};
+
+pub const Json = struct {
+    data: *const Data,
+    gpa: Allocator,
+
+    const Symbol = struct {
+        name: []const u8,
+        address: u16,
+    };
+
+    pub const Error = Io.Writer.Error || error{OutOfMemory};
+
+    pub fn write(json: Json, writer: *Io.Writer) Error!void {
+        const data = json.data;
+
+        var stringify: std.json.Stringify = .{
+            .writer = writer,
+            .options = .{ .whitespace = .indent_2 },
+        };
+
+        try stringify.beginObject();
+
+        // time: { total, user, supervisor, io }
+        try stringify.objectField("time");
+        try stringify.beginObject();
+        {
+            const total = data.time.get(.total).nanoseconds;
+            const supervisor = data.time.get(.supervisor).nanoseconds;
+            const io = data.time.get(.io).nanoseconds;
+
+            try stringify.objectField("total_ns");
+            try stringify.write(total);
+
+            try stringify.objectField("user_ns");
+            try stringify.write(total - supervisor);
+
+            try stringify.objectField("supervisor_ns");
+            try stringify.write(supervisor);
+
+            try stringify.objectField("io_ns");
+            try stringify.write(io);
+        }
+        try stringify.endObject();
+
+        // symbols
+        try stringify.objectField("symbols");
+        try stringify.beginObject();
+        {
+            const symbols = try json.gpa.alloc(Symbol, data.symbols.count());
+            defer json.gpa.free(symbols);
+
+            var i: usize = 0;
+            var it = data.symbols.iterator();
+            while (it.next()) |symbol| : (i += 1)
+                symbols[i] = .{
+                    .name = symbol.key_ptr.*,
+                    .address = symbol.value_ptr.*,
+                };
+            std.mem.sort(Symbol, symbols, {}, byAddress);
+
+            for (symbols) |symbol| {
+                try stringify.objectField(symbol.name);
+                try stringify.write(symbol.address);
+            }
+        }
+        try stringify.endObject();
+
+        // instructions: { regular, br, trap }
+        try stringify.objectField("instructions");
+        try stringify.beginObject();
+        {
+            try stringify.objectField("regular");
+            try stringify.write(data.instructions.regular);
+
+            try stringify.objectField("br");
+            try stringify.write(data.instructions.br);
+
+            try stringify.objectField("trap");
+            try stringify.beginObject();
+            for (data.instructions.trap, 0..256) |trap, vect| {
+                if (trap == 0) continue;
+
+                var key_buffer: [4]u8 = undefined;
+                try stringify.objectField(
+                    std.fmt.bufPrint(&key_buffer, "x{x:0>2}", .{@as(u8, @intCast(vect))}) catch unreachable,
+                );
+                try stringify.write(trap);
+            }
+            try stringify.endObject();
+        }
+        try stringify.endObject();
+
+        // addresses
+        try stringify.objectField("addresses");
+        try json.writeCounts(&stringify, data.addresses);
+
+        // registers: { read, write }
+        try stringify.objectField("registers");
+        try stringify.beginObject();
+        {
+            try stringify.objectField("read");
+            try writeRegisters(&stringify, data.registers.read);
+
+            try stringify.objectField("write");
+            try writeRegisters(&stringify, data.registers.write);
+        }
+        try stringify.endObject();
+
+        // memory: { size, read, write }
+        try stringify.objectField("memory");
+        try stringify.beginObject();
+        {
+            try stringify.objectField("size");
+            try stringify.write(data.memory.size);
+
+            try stringify.objectField("read");
+            try json.writeCounts(&stringify, data.memory.read);
+
+            try stringify.objectField("write");
+            try json.writeCounts(&stringify, data.memory.write);
+        }
+        try stringify.endObject();
+
+        // io: { read, write }
+        try stringify.objectField("io");
+        try stringify.beginObject();
+        {
+            try stringify.objectField("read");
+            try stringify.write(data.io.read);
+
+            try stringify.objectField("write");
+            try stringify.write(data.io.write);
+        }
+        try stringify.endObject();
+
+        try stringify.endObject();
+        try writer.writeByte('\n');
+    }
+
+    fn writeCounts(json: Json, stringify: *std.json.Stringify, map: Map(u16, usize)) Error!void {
+        const addresses = try json.gpa.alloc(u16, map.count());
+        defer json.gpa.free(addresses);
+
+        var i: usize = 0;
+        var it = map.iterator();
+        while (it.next()) |entry| : (i += 1) {
+            addresses[i] = entry.key_ptr.*;
+        }
+        std.mem.sort(u16, addresses, {}, std.sort.asc(u16));
+
+        try stringify.beginObject();
+        for (addresses) |address| {
+            var key_buffer: [6]u8 = undefined;
+            try stringify.objectField(
+                std.fmt.bufPrint(&key_buffer, "x{x:0>4}", .{address}) catch unreachable,
+            );
+            try stringify.write(map.get(address) orelse unreachable);
+        }
+        try stringify.endObject();
+    }
+
+    fn writeRegisters(stringify: *std.json.Stringify, registers: [8]usize) Error!void {
+        try stringify.beginObject();
+        inline for (0..8) |n| {
+            var key_buffer: [2]u8 = .{ 'r', '0' + @as(u8, @intCast(n)) };
+            try stringify.objectField(&key_buffer);
+            try stringify.write(registers[n]);
+        }
+        try stringify.endObject();
+    }
+
+    fn byAddress(_: void, lhs: Symbol, rhs: Symbol) bool {
+        return lhs.address < rhs.address;
+    }
 };
