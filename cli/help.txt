@@ -47,6 +47,10 @@ OPTIONS:
         --random-init <SEED>
             Fill memory, registers, and condition codes with pseudo-random bits
             generated from SEED, instead of zeros, to simulate undefined memory.
+        --mock-world
+            Simulate a Minecraft world in memory instead of connecting to an
+            ELCI server. getb, setb, and geth operate on a superflat world,
+            getp and setp on a fake player position, and chat prints to stdout.
 
         --strict
             Treat all warnings as errors.
