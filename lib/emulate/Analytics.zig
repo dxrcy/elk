@@ -328,27 +328,17 @@ const Data = struct {
             }
         }
 
-        var address_lines: usize = 0;
-        {
-            var count: usize = 0;
-            var it = data.addresses.iterator();
-            while (it.next()) |address| {
-                count += address.value_ptr.*;
-                if (address.value_ptr.* > 0)
-                    address_lines += 1;
-            }
-            try writer.print(
-                "{s}address............. {}\n",
-                .{ c_vr, count },
-            );
-        }
+        try writer.print(
+            "{s}address............. {}\n",
+            .{ c_vr, getValueSum(&data.addresses) },
+        );
         {
             const addresses = try sortedAddressKeys(usize, arena, &data.addresses);
             defer arena.free(addresses);
             for (addresses, 0..) |address, i|
                 try writer.print("{s}{s}x{x:04}........... {}\n", .{
                     c_v,
-                    if (i + 1 >= address_lines) c_r else c_vr,
+                    if (i + 1 >= addresses.len) c_r else c_vr,
                     address,
                     data.addresses.get(address) orelse unreachable,
                 });
@@ -393,16 +383,10 @@ const Data = struct {
             "{s}{s}size............ {}\n",
             .{ c_v, c_vr, data.memory.size },
         );
-        {
-            var count: usize = 0;
-            var it = data.memory.read.iterator();
-            while (it.next()) |memory|
-                count += memory.value_ptr.*;
-            try writer.print(
-                "{s}{s}read............ {}\n",
-                .{ c_v, c_vr, count },
-            );
-        }
+        try writer.print(
+            "{s}{s}read............ {}\n",
+            .{ c_v, c_vr, getValueSum(&data.memory.read) },
+        );
         {
             const addresses = try sortedAddressKeys(usize, arena, &data.memory.read);
             defer arena.free(addresses);
@@ -415,16 +399,10 @@ const Data = struct {
                     data.memory.read.get(address) orelse unreachable,
                 });
         }
-        {
-            var count: usize = 0;
-            var it = data.memory.write.iterator();
-            while (it.next()) |memory|
-                count += memory.value_ptr.*;
-            try writer.print(
-                "{s}{s}write........... {}\n",
-                .{ c_v, c_r, count },
-            );
-        }
+        try writer.print(
+            "{s}{s}write........... {}\n",
+            .{ c_v, c_r, getValueSum(&data.memory.write) },
+        );
         {
             const addresses = try sortedAddressKeys(usize, arena, &data.memory.write);
             defer arena.free(addresses);
@@ -464,6 +442,14 @@ const Data = struct {
             addresses[i] = entry.key_ptr.*;
         std.mem.sort(u16, addresses, {}, std.sort.asc(u16));
         return addresses;
+    }
+
+    fn getValueSum(map: *const Map(u16, usize)) usize {
+        var sum: usize = 0;
+        var it = map.iterator();
+        while (it.next()) |entry|
+            sum += entry.value_ptr.*;
+        return sum;
     }
 
     pub fn json(
