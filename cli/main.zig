@@ -529,9 +529,7 @@ fn writeAnalytics(
             unreachable;
         },
         .txt => {
-            try writer.interface.print("{f}\n", .{
-                runtime.analytics.data.format(use_decoration),
-            });
+            try runtime.analytics.data.format(&writer.interface, use_decoration);
         },
     }
 

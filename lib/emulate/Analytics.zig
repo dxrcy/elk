@@ -208,24 +208,17 @@ const Data = struct {
         data.memory.write.deinit();
     }
 
-    pub fn format(data: *const Data, use_decoration: bool) Fmt {
-        return .{ .data = data, .use_decoration = use_decoration };
-    }
-};
-
-pub const Fmt = struct {
-    data: *const Data,
-    use_decoration: bool,
-
-    pub fn format(fmt: *const Fmt, writer: *Io.Writer) error{WriteFailed}!void {
+    pub fn format(
+        data: *const Data,
+        writer: *Io.Writer,
+        use_decoration: bool,
+    ) error{WriteFailed}!void {
         // TODO: This whole function is VERY ugly -- clean it up!
 
-        const data = fmt.data;
-
-        const c_v = if (fmt.use_decoration) "│   " else "|   ";
-        const c_vr = if (fmt.use_decoration) "├── " else "|-- ";
-        const c_e = if (fmt.use_decoration) "    " else "    ";
-        const c_r = if (fmt.use_decoration) "└── " else "+-- ";
+        const c_v = if (use_decoration) "│   " else "|   ";
+        const c_vr = if (use_decoration) "├── " else "|-- ";
+        const c_e = if (use_decoration) "    " else "    ";
+        const c_r = if (use_decoration) "└── " else "+-- ";
 
         const user_time: Io.Duration = .{
             .nanoseconds = data.time.get(.total).nanoseconds -
