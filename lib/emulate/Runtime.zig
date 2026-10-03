@@ -44,7 +44,19 @@ writer_is_newline: bool,
 tty: Tty,
 
 /// Whether to track an action via analytics.
-const Track = enum { tracked, untracked };
+const Track = enum {
+    tracked,
+    untracked,
+
+    /// Includes `OutOfMemory` in error set `E`, if `.tracked`.
+    pub fn ErrorSet(comptime track: Track, E: type) type {
+        _ = @typeInfo(E).error_set;
+        return switch (track) {
+            .tracked => return E || error{OutOfMemory},
+            .untracked => return E,
+        };
+    }
+};
 
 pub const State = struct {
     memory: *[memory_size]u16,
@@ -173,9 +185,7 @@ pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !voi
         const word = (@as(u16, high) << 8) | low;
         const address = std.math.cast(u16, origin + i) orelse
             return error.FileTooLarge;
-        // Do not use wrapper method: avoid analytics
-        try checkMemoryAccess(address);
-        runtime.state.memory[address] = word;
+        try runtime.setMemory(address, word, .untracked);
     }
 
     runtime.analytics.setMemorySize(i);
@@ -189,9 +199,7 @@ pub fn patchLabelValue(
 ) error{ SymbolNotFound, UnpermittedMemoryAccess }!void {
     const address = symbols.getAddress(name) orelse
         return error.SymbolNotFound;
-    // Do not use wrapper method: avoid analytics
-    try checkMemoryAccess(address);
-    runtime.state.memory[address] = raw_word;
+    try runtime.setMemory(address, raw_word, .untracked);
 }
 
 pub fn run(runtime: *Runtime) Error!void {
@@ -393,8 +401,8 @@ fn setRegisterNoCc(runtime: *Runtime, register: u3, value: u16, comptime track: 
 pub fn getMemory(
     runtime: *Runtime,
     address: u16,
-) error{ UnpermittedMemoryAccess, OutOfMemory }!u16 {
     comptime track: Track,
+) track.ErrorSet(error{UnpermittedMemoryAccess})!u16 {
     try checkMemoryAccess(address);
     if (track == .tracked)
         try runtime.analytics.addMemoryRead(address);
@@ -405,8 +413,8 @@ pub fn setMemory(
     runtime: *Runtime,
     address: u16,
     value: u16,
-) error{ UnpermittedMemoryAccess, OutOfMemory }!void {
     comptime track: Track,
+) track.ErrorSet(error{UnpermittedMemoryAccess})!void {
     try checkMemoryAccess(address);
     if (track == .tracked)
         try runtime.analytics.addMemoryWrite(address);
