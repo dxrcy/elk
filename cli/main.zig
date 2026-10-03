@@ -497,36 +497,32 @@ fn emulate(
     reporter.flush();
 
     if (analytics_opt) |analytics|
-        try writeAnalytics(io, analytics, &runtime, use_decoration);
+        try writeAnalytics(io, gpa, analytics, &runtime, use_decoration);
 }
 
 fn writeAnalytics(
     io: Io,
+    gpa: Allocator,
     analytics: Cli.Analytics,
     runtime: *const elk.Runtime,
     use_decoration: bool,
 ) !void {
     const write_buffer_size = 64;
 
-    switch (analytics.format) {
-        .json => {
-            std.log.err("unimplemented: json analytics format", .{});
-            return error.Unimplemented;
-        },
-        .txt => {},
-    }
-
     const file = switch (analytics.path) {
         .stdio => Io.File.stdout(),
         .regular => |regular| try Io.Dir.cwd().createFile(io, regular, .{}),
     };
+    defer if (analytics.path == .regular) file.close(io);
 
     var write_buffer: [write_buffer_size]u8 = undefined;
     var writer = file.writer(io, &write_buffer);
 
     switch (analytics.format) {
         .json => {
-            unreachable;
+            var json_arena = std.heap.ArenaAllocator.init(gpa);
+            defer json_arena.deinit();
+            try runtime.analytics.data.json(json_arena.allocator(), &writer.interface);
         },
         .txt => {
             try runtime.analytics.data.format(&writer.interface, use_decoration);
