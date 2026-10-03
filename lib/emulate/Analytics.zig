@@ -48,15 +48,15 @@ pub fn addSymbols(analytics: *Analytics, provider: Provider) error{OutOfMemory}!
         .assembly => |assembly| {
             for (assembly.air.labels.items) |label|
                 try analytics.data.symbols.putNoClobber(
-                    label.span.view(assembly.source), // FIXME: UAF possibility???
                     label.index + assembly.air.origin,
+                    label.span.view(assembly.source), // FIXME: UAF possibility???
                 );
         },
         .symbols => |symbols| {
             for (symbols.items) |symbol|
                 try analytics.data.symbols.putNoClobber(
-                    symbol.name, // FIXME: UAF possibility???
                     symbol.address,
+                    symbol.name, // FIXME: UAF possibility???
                 );
         },
     }
@@ -162,7 +162,7 @@ const Data = struct {
     };
 
     time: std.EnumArray(Time, Io.Duration),
-    symbols: std.StringHashMap(u16),
+    symbols: Map(u16, []const u8),
     instructions: Instructions,
     addresses: Map(u16, usize),
     registers: struct {
@@ -249,7 +249,7 @@ const Data = struct {
             var i: usize = 0;
             var it = data.symbols.iterator();
             while (it.next()) |symbol| : (i += 1)
-                try writer.print("{s}{s}{s:.<16} x{x:04}\n", .{
+                try writer.print("{s}{s}x{x:04}........... {s}\n", .{
                     c_v,
                     if (i + 1 >= data.symbols.count()) c_r else c_vr,
                     symbol.key_ptr.*,
@@ -503,8 +503,8 @@ pub const json = struct {
             var it = data.symbols.iterator();
             while (it.next()) |symbol| : (i += 1)
                 symbols[i] = .{
-                    .name = symbol.key_ptr.*,
-                    .address = symbol.value_ptr.*,
+                    .address = symbol.key_ptr.*,
+                    .name = symbol.value_ptr.*,
                 };
             std.mem.sort(Provider.Symbols.Entry, symbols, {}, byAddress);
 
