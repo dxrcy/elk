@@ -191,6 +191,7 @@ pub fn patchLabelValue(
 
 pub fn run(runtime: *Runtime) Error!void {
     runtime.analytics.startTime(.total);
+    defer runtime.analytics.endTime(.total);
 
     if (runtime.debugger) |debugger|
         try debugger.startMessage(runtime.use_decoration);
@@ -225,8 +226,6 @@ pub fn run(runtime: *Runtime) Error!void {
             },
         };
     }
-
-    runtime.analytics.endTime(.total);
 }
 
 fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
