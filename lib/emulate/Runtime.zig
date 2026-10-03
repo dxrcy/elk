@@ -166,10 +166,11 @@ pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !voi
             error.EndOfStream => return error.FileNotAligned,
         };
         const word = (@as(u16, high) << 8) | low;
-        const addr = std.math.cast(u16, origin + i) orelse
+        const address = std.math.cast(u16, origin + i) orelse
             return error.FileTooLarge;
-        // TODO: Make sure this doesnt update analytics!
-        try runtime.setMemory(addr, word);
+        // Do not use wrapper method: avoid analytics
+        try checkMemoryAccess(address);
+        runtime.state.memory[address] = word;
     }
 
     runtime.analytics.setMemorySize(i);
@@ -402,7 +403,7 @@ pub fn setMemory(
     runtime.state.memory[address] = value;
 }
 
-fn checkMemoryAccess(address: u16) error{UnpermittedMemoryAccess}!void {
+pub fn checkMemoryAccess(address: u16) error{UnpermittedMemoryAccess}!void {
     switch (address) {
         user_memory_start...user_memory_end => {},
         else => return error.UnpermittedMemoryAccess,
