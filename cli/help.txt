@@ -47,6 +47,10 @@ OPTIONS:
         --random-init <SEED>
             Fill memory, registers, and condition codes with pseudo-random bits
             generated from SEED, instead of zeros, to simulate undefined memory.
+        --analytics <FILE>
+            Write execution analytics to FILE after emulation.
+            The format is inferred from the file extension: .txt or .json.
+            Requires --emulate or (default) operation.
 
         --strict
             Treat all warnings as errors.
@@ -73,4 +77,5 @@ EXAMPLES:
      elk hello.asm --assemble --output hello.obj --strict --quiet
      elk hello.asm --assemble --export-listing
      elk hello.obj --emulate --permit +laser,case.*,extension.stack_instructions
+     elk hello.asm --analytics hello.json
      elk --check *.asm
