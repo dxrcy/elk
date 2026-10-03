@@ -497,10 +497,15 @@ fn emulate(
     reporter.flush();
 
     if (analytics_opt) |analytics|
-        try writeAnalytics(io, analytics, &runtime);
+        try writeAnalytics(io, analytics, &runtime, use_decoration);
 }
 
-fn writeAnalytics(io: Io, analytics: Cli.Analytics, runtime: *const elk.Runtime) !void {
+fn writeAnalytics(
+    io: Io,
+    analytics: Cli.Analytics,
+    runtime: *const elk.Runtime,
+    use_decoration: bool,
+) !void {
     const write_buffer_size = 64;
 
     switch (analytics.format) {
@@ -524,7 +529,9 @@ fn writeAnalytics(io: Io, analytics: Cli.Analytics, runtime: *const elk.Runtime)
             unreachable;
         },
         .txt => {
-            try writer.interface.print("{f}\n", .{runtime.analytics.data.format()});
+            try writer.interface.print("{f}\n", .{
+                runtime.analytics.data.format(use_decoration),
+            });
         },
     }
 
