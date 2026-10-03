@@ -226,31 +226,31 @@ const Data = struct {
                 data.time.get(.supervisor).nanoseconds,
         };
         try writer.print(
-            "{s}time................ {f}\n",
+            "{s}time............{f}\n",
             .{ c_vr, data.time.get(.total) },
         );
         try writer.print(
-            "{s}{s}user............ {f}\n",
+            "{s}{s}user........{f}\n",
             .{ c_v, c_vr, user_time },
         );
         try writer.print(
-            "{s}{s}super........... {f}\n",
+            "{s}{s}super.......{f}\n",
             .{ c_v, c_vr, data.time.get(.supervisor) },
         );
         try writer.print(
-            "{s}{s}io.............. {f}\n",
+            "{s}{s}io..........{f}\n",
             .{ c_v, c_r, data.time.get(.io) },
         );
 
         try writer.print(
-            "{s}symbol.............. {}\n",
+            "{s}symbol..........{}\n",
             .{ c_vr, data.symbols.count() },
         );
         {
             const addresses = try sortedAddressKeys([]const u8, arena, &data.symbols);
             defer arena.free(addresses);
             for (addresses, 0..) |address, i|
-                try writer.print("{s}{s}x{x:04}........... {s}\n", .{
+                try writer.print("{s}{s}x{x:04}.......{s}\n", .{
                     c_v,
                     if (i + 1 >= data.symbols.count()) c_r else c_vr,
                     address,
@@ -265,7 +265,7 @@ const Data = struct {
             inline for (std.meta.fields(@TypeOf(data.instructions.br))) |field|
                 count += @field(data.instructions.br, field.name);
             try writer.print(
-                "{s}instruction......... {}\n",
+                "{s}instruction.....{}\n",
                 .{ c_vr, count },
             );
         }
@@ -273,7 +273,7 @@ const Data = struct {
             const count = @field(data.instructions.regular, field.name);
             if (count > 0)
                 try writer.print(
-                    "{s}{s}{s:.<16} {}\n",
+                    "{s}{s}{s:.<12}{}\n",
                     .{ c_v, c_vr, field.name, count },
                 );
         }
@@ -283,14 +283,14 @@ const Data = struct {
             inline for (std.meta.fields(@TypeOf(data.instructions.br))) |field|
                 count += @field(data.instructions.br, field.name);
             try writer.print(
-                "{s}{s}br.............. {}\n",
+                "{s}{s}br..........{}\n",
                 .{ c_v, c_vr, count },
             );
         }
         inline for (std.meta.fields(@TypeOf(data.instructions.br)), 0..) |field, i| {
             const count = @field(data.instructions.br, field.name);
             if (count > 0)
-                try writer.print("{s}{s}{s}{s:.<12} {}\n", .{
+                try writer.print("{s}{s}{s}{s:.<8}{}\n", .{
                     c_v,
                     c_v,
                     if (i + 1 >= std.meta.fields(@TypeOf(data.instructions.br)).len) c_r else c_vr,
@@ -308,7 +308,7 @@ const Data = struct {
                     trap_lines += 1;
             }
             try writer.print(
-                "{s}{s}trap............ {}\n",
+                "{s}{s}trap........{}\n",
                 .{ c_v, c_r, count },
             );
         }
@@ -316,7 +316,7 @@ const Data = struct {
             var i: usize = 0;
             for (data.instructions.trap, 0..256) |trap, vect| {
                 if (trap > 0) {
-                    try writer.print("{s}{s}{s}x{x:02}......... {}\n", .{
+                    try writer.print("{s}{s}{s}x{x:02}.....{}\n", .{
                         c_v,
                         c_e,
                         if (i + 1 >= trap_lines) c_r else c_vr,
@@ -329,14 +329,14 @@ const Data = struct {
         }
 
         try writer.print(
-            "{s}address............. {}\n",
+            "{s}address.........{}\n",
             .{ c_vr, getValueSum(&data.addresses) },
         );
         {
             const addresses = try sortedAddressKeys(usize, arena, &data.addresses);
             defer arena.free(addresses);
             for (addresses, 0..) |address, i|
-                try writer.print("{s}{s}x{x:04}........... {}\n", .{
+                try writer.print("{s}{s}x{x:04}.......{}\n", .{
                     c_v,
                     if (i + 1 >= addresses.len) c_r else c_vr,
                     address,
@@ -344,17 +344,17 @@ const Data = struct {
                 });
         }
 
-        try writer.print("{s}register............\n", .{c_vr});
+        try writer.print("{s}register........\n", .{c_vr});
         {
             var count: usize = 0;
             for (data.registers.read) |register| count += register;
             try writer.print(
-                "{s}{s}read............ {}\n",
+                "{s}{s}read........{}\n",
                 .{ c_v, c_vr, count },
             );
         }
         for (data.registers.read, 0..8) |register, n|
-            try writer.print("{s}{s}{s}r{}.......... {}\n", .{
+            try writer.print("{s}{s}{s}r{}......{}\n", .{
                 c_v,
                 c_v,
                 if (n >= 7) c_r else c_vr,
@@ -365,12 +365,12 @@ const Data = struct {
             var count: usize = 0;
             for (data.registers.write) |register| count += register;
             try writer.print(
-                "{s}{s}write........... {}\n",
+                "{s}{s}write.......{}\n",
                 .{ c_v, c_r, count },
             );
         }
         for (data.registers.write, 0..8) |register, n|
-            try writer.print("{s}{s}{s}r{}.......... {}\n", .{
+            try writer.print("{s}{s}{s}r{}......{}\n", .{
                 c_v,
                 c_e,
                 if (n >= 7) c_r else c_vr,
@@ -378,20 +378,20 @@ const Data = struct {
                 register,
             });
 
-        try writer.print("{s}memory..............\n", .{c_vr});
+        try writer.print("{s}memory..........\n", .{c_vr});
         try writer.print(
-            "{s}{s}size............ {}\n",
+            "{s}{s}size........{}\n",
             .{ c_v, c_vr, data.memory.size },
         );
         try writer.print(
-            "{s}{s}read............ {}\n",
+            "{s}{s}read........{}\n",
             .{ c_v, c_vr, getValueSum(&data.memory.read) },
         );
         {
             const addresses = try sortedAddressKeys(usize, arena, &data.memory.read);
             defer arena.free(addresses);
             for (addresses, 0..) |address, i|
-                try writer.print("{s}{s}{s}x{x:04}....... {}\n", .{
+                try writer.print("{s}{s}{s}x{x:04}...{}\n", .{
                     c_v,
                     c_v,
                     if (i + 1 >= data.memory.read.count()) c_r else c_vr,
@@ -400,14 +400,14 @@ const Data = struct {
                 });
         }
         try writer.print(
-            "{s}{s}write........... {}\n",
+            "{s}{s}write.......{}\n",
             .{ c_v, c_r, getValueSum(&data.memory.write) },
         );
         {
             const addresses = try sortedAddressKeys(usize, arena, &data.memory.write);
             defer arena.free(addresses);
             for (addresses, 0..) |address, i|
-                try writer.print("{s}{s}{s}x{x:04}....... {}\n", .{
+                try writer.print("{s}{s}{s}x{x:04}...{}\n", .{
                     c_v,
                     c_e,
                     if (i + 1 >= data.memory.write.count()) c_r else c_vr,
@@ -417,15 +417,15 @@ const Data = struct {
         }
 
         try writer.print(
-            "{s}io.................. {}\n",
+            "{s}io..............{}\n",
             .{ c_r, data.io.read + data.io.write },
         );
         try writer.print(
-            "{s}{s}read............ {}\n",
+            "{s}{s}read........{}\n",
             .{ c_e, c_vr, data.io.read },
         );
         try writer.print(
-            "{s}{s}write........... {}\n",
+            "{s}{s}write.......{}\n",
             .{ c_e, c_r, data.io.write },
         );
     }
