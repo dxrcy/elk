@@ -520,7 +520,9 @@ fn writeAnalytics(
 
     switch (analytics.format) {
         .json => {
-            try runtime.analytics.data.json(gpa).write(&writer.interface);
+            var json_arena = std.heap.ArenaAllocator.init(gpa);
+            defer json_arena.deinit();
+            try runtime.analytics.data.json(json_arena.allocator(), &writer.interface);
         },
         .txt => {
             try runtime.analytics.data.format(&writer.interface, use_decoration);

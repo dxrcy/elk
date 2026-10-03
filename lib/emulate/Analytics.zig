@@ -450,29 +450,22 @@ const Data = struct {
             .{ c_e, c_r, data.io.write },
         );
     }
-
-    pub fn json(data: *const Data, gpa: Allocator) Json {
-        return .{ .data = data, .gpa = gpa };
+    pub fn json(
+        data: *const Data,
+        arena: Allocator,
+        writer: *Io.Writer,
+    ) Analytics.json.Error!void {
+        return Analytics.json.write(arena, data, writer);
     }
 };
 
-pub const Json = struct {
-    data: *const Data,
-    gpa: Allocator,
-
-    const Symbol = struct {
-        name: []const u8,
-        address: u16,
-    };
-
+pub const json = struct {
     pub const Error = Io.Writer.Error || error{OutOfMemory};
 
-    pub fn write(json: Json, writer: *Io.Writer) Error!void {
-        const data = json.data;
-
+    pub fn write(arena: Allocator, data: *const Data, writer: *Io.Writer) Error!void {
         var stringify: std.json.Stringify = .{
             .writer = writer,
-            .options = .{ .whitespace = .indent_2 },
+            .options = .{ .whitespace = .indent_4 },
         };
 
         try stringify.beginObject();
@@ -503,8 +496,8 @@ pub const Json = struct {
         try stringify.objectField("symbols");
         try stringify.beginObject();
         {
-            const symbols = try json.gpa.alloc(Symbol, data.symbols.count());
-            defer json.gpa.free(symbols);
+            const symbols = try arena.alloc(Provider.Symbols.Entry, data.symbols.count());
+            defer arena.free(symbols);
 
             var i: usize = 0;
             var it = data.symbols.iterator();
@@ -513,7 +506,7 @@ pub const Json = struct {
                     .name = symbol.key_ptr.*,
                     .address = symbol.value_ptr.*,
                 };
-            std.mem.sort(Symbol, symbols, {}, byAddress);
+            std.mem.sort(Provider.Symbols.Entry, symbols, {}, byAddress);
 
             for (symbols) |symbol| {
                 try stringify.objectField(symbol.name);
@@ -535,7 +528,8 @@ pub const Json = struct {
             try stringify.objectField("trap");
             try stringify.beginObject();
             for (data.instructions.trap, 0..256) |trap, vect| {
-                if (trap == 0) continue;
+                if (trap == 0)
+                    continue;
 
                 var key_buffer: [4]u8 = undefined;
                 try stringify.objectField(
@@ -549,7 +543,7 @@ pub const Json = struct {
 
         // addresses
         try stringify.objectField("addresses");
-        try json.writeCounts(&stringify, data.addresses);
+        try writeCounts(arena, &stringify, data.addresses);
 
         // registers: { read, write }
         try stringify.objectField("registers");
@@ -571,10 +565,10 @@ pub const Json = struct {
             try stringify.write(data.memory.size);
 
             try stringify.objectField("read");
-            try json.writeCounts(&stringify, data.memory.read);
+            try writeCounts(arena, &stringify, data.memory.read);
 
             try stringify.objectField("write");
-            try json.writeCounts(&stringify, data.memory.write);
+            try writeCounts(arena, &stringify, data.memory.write);
         }
         try stringify.endObject();
 
@@ -594,9 +588,9 @@ pub const Json = struct {
         try writer.writeByte('\n');
     }
 
-    fn writeCounts(json: Json, stringify: *std.json.Stringify, map: Map(u16, usize)) Error!void {
-        const addresses = try json.gpa.alloc(u16, map.count());
-        defer json.gpa.free(addresses);
+    fn writeCounts(arena: Allocator, stringify: *std.json.Stringify, map: Map(u16, usize)) Error!void {
+        const addresses = try arena.alloc(u16, map.count());
+        defer arena.free(addresses);
 
         var i: usize = 0;
         var it = map.iterator();
@@ -626,7 +620,7 @@ pub const Json = struct {
         try stringify.endObject();
     }
 
-    fn byAddress(_: void, lhs: Symbol, rhs: Symbol) bool {
+    fn byAddress(_: void, lhs: Provider.Symbols.Entry, rhs: Provider.Symbols.Entry) bool {
         return lhs.address < rhs.address;
     }
 };
