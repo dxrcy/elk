@@ -524,7 +524,7 @@ fn writeAnalytics(io: Io, analytics: Cli.Analytics, runtime: *const elk.Runtime)
             unreachable;
         },
         .txt => {
-            try writer.interface.print("{f}\n", .{runtime.analytics.data});
+            try writer.interface.print("{f}\n", .{runtime.analytics.data.format()});
         },
     }
 
