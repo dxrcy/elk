@@ -210,9 +210,10 @@ const Data = struct {
 
     pub fn format(
         data: *const Data,
+        arena: Allocator,
         writer: *Io.Writer,
         use_decoration: bool,
-    ) error{WriteFailed}!void {
+    ) error{ WriteFailed, OutOfMemory }!void {
         // TODO: This whole function is VERY ugly -- clean it up!
 
         const c_v = if (use_decoration) "│   " else "|   ";
@@ -246,14 +247,20 @@ const Data = struct {
             .{ c_vr, data.symbols.count() },
         );
         {
-            var i: usize = 0;
-            var it = data.symbols.iterator();
-            while (it.next()) |symbol| : (i += 1)
+            var addresses = try arena.alloc(u16, data.symbols.count());
+            defer arena.free(addresses);
+            {
+                var i: usize = 0;
+                var it = data.symbols.iterator();
+                while (it.next()) |entry| : (i += 1)
+                    addresses[i] = entry.key_ptr.*;
+            }
+            for (addresses, 0..) |address, i|
                 try writer.print("{s}{s}x{x:04}........... {s}\n", .{
                     c_v,
                     if (i + 1 >= data.symbols.count()) c_r else c_vr,
-                    symbol.key_ptr.*,
-                    symbol.value_ptr.*,
+                    address,
+                    data.symbols.get(address) orelse unreachable,
                 });
         }
 
@@ -342,14 +349,21 @@ const Data = struct {
             );
         }
         {
-            var i: usize = 0;
-            var it = data.addresses.iterator();
-            while (it.next()) |address| : (i += 1)
+            var addresses = try arena.alloc(u16, data.addresses.count());
+            defer arena.free(addresses);
+            {
+                var i: usize = 0;
+                var it = data.addresses.iterator();
+                while (it.next()) |entry| : (i += 1)
+                    addresses[i] = entry.key_ptr.*;
+            }
+            std.mem.sort(u16, addresses, {}, std.sort.asc(u16));
+            for (addresses, 0..) |address, i|
                 try writer.print("{s}{s}x{x:04}........... {}\n", .{
                     c_v,
                     if (i + 1 >= address_lines) c_r else c_vr,
-                    address.key_ptr.*,
-                    address.value_ptr.*,
+                    address,
+                    data.addresses.get(address) orelse unreachable,
                 });
         }
 
@@ -403,15 +417,22 @@ const Data = struct {
             );
         }
         {
-            var i: usize = 0;
-            var it = data.memory.read.iterator();
-            while (it.next()) |memory| : (i += 1)
+            var addresses = try arena.alloc(u16, data.memory.read.count());
+            defer arena.free(addresses);
+            {
+                var i: usize = 0;
+                var it = data.memory.read.iterator();
+                while (it.next()) |entry| : (i += 1)
+                    addresses[i] = entry.key_ptr.*;
+            }
+            std.mem.sort(u16, addresses, {}, std.sort.asc(u16));
+            for (addresses, 0..) |address, i|
                 try writer.print("{s}{s}{s}x{x:04}....... {}\n", .{
                     c_v,
                     c_v,
                     if (i + 1 >= data.memory.read.count()) c_r else c_vr,
-                    memory.key_ptr.*,
-                    memory.value_ptr.*,
+                    address,
+                    data.memory.read.get(address) orelse unreachable,
                 });
         }
         {
@@ -425,15 +446,22 @@ const Data = struct {
             );
         }
         {
-            var i: usize = 0;
-            var it = data.memory.write.iterator();
-            while (it.next()) |memory| : (i += 1)
+            var addresses = try arena.alloc(u16, data.memory.write.count());
+            defer arena.free(addresses);
+            {
+                var i: usize = 0;
+                var it = data.memory.write.iterator();
+                while (it.next()) |entry| : (i += 1)
+                    addresses[i] = entry.key_ptr.*;
+            }
+            std.mem.sort(u16, addresses, {}, std.sort.asc(u16));
+            for (addresses, 0..) |address, i|
                 try writer.print("{s}{s}{s}x{x:04}....... {}\n", .{
                     c_v,
                     c_e,
                     if (i + 1 >= data.memory.write.count()) c_r else c_vr,
-                    memory.key_ptr.*,
-                    memory.value_ptr.*,
+                    address,
+                    data.memory.write.get(address) orelse unreachable,
                 });
         }
 
