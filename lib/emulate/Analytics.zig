@@ -215,16 +215,16 @@ const Data = struct {
             .nanoseconds = data.time.get(.total).nanoseconds -
                 data.time.get(.supervisor).nanoseconds,
         };
-        try writer.print("|-- time {f}\n", .{data.time.get(.total)});
-        try writer.print("|   |-- user {f}\n", .{user_time});
-        try writer.print("|   |-- supervisor {f}\n", .{data.time.get(.supervisor)});
-        try writer.print("|   |-- io {f}\n", .{data.time.get(.io)});
+        try writer.print("|-- time..... {f}\n", .{data.time.get(.total)});
+        try writer.print("|   |-- user. {f}\n", .{user_time});
+        try writer.print("|   |-- super {f}\n", .{data.time.get(.supervisor)});
+        try writer.print("|   |-- io... {f}\n", .{data.time.get(.io)});
 
         try writer.print("|-- symbol {}\n", .{data.symbols.count()});
         {
             var it = data.symbols.iterator();
             while (it.next()) |symbol|
-                try writer.print("|   |-- {s} x{x:04}\n", .{ symbol.key_ptr.*, symbol.value_ptr.* });
+                try writer.print("|   |-- {s:.<20} x{x:04}\n", .{ symbol.key_ptr.*, symbol.value_ptr.* });
         }
 
         {
@@ -233,13 +233,13 @@ const Data = struct {
                 count += @field(data.instructions.regular, field.name);
             inline for (std.meta.fields(@TypeOf(data.instructions.br))) |field|
                 count += @field(data.instructions.br, field.name);
-            try writer.print("|-- instruction {}\n", .{count});
+            try writer.print("|-- instruction. {}\n", .{count});
         }
         inline for (std.meta.fields(@TypeOf(data.instructions.regular))) |field| {
             const count = @field(data.instructions.regular, field.name);
             if (count > 0)
                 try writer.print(
-                    "|   |-- {s} {}\n",
+                    "|   |-- {s:.<8} {}\n",
                     .{ field.name, count },
                 );
         }
@@ -248,13 +248,13 @@ const Data = struct {
             var count: usize = 0;
             inline for (std.meta.fields(@TypeOf(data.instructions.br))) |field|
                 count += @field(data.instructions.br, field.name);
-            try writer.print("|   |-- br {}\n", .{count});
+            try writer.print("|   |-- br...... {}\n", .{count});
         }
         inline for (std.meta.fields(@TypeOf(data.instructions.br))) |field| {
             const count = @field(data.instructions.br, field.name);
             if (count > 0)
                 try writer.print(
-                    "|   |   |-- {s} {}\n",
+                    "|   |   |-- {s:.<4} {}\n",
                     .{ field.name, @field(data.instructions.br, field.name) },
                 );
         }
@@ -262,12 +262,12 @@ const Data = struct {
             var count: usize = 0;
             for (data.instructions.trap) |trap|
                 count += trap;
-            try writer.print("|   |-- trap {}\n", .{count});
+            try writer.print("|   |-- trap.... {}\n", .{count});
         }
         for (data.instructions.trap, 0..256) |trap, i| {
             if (trap > 0)
                 try writer.print(
-                    "|       |-- x{x:02} {}\n",
+                    "|       |-- x{x:02}. {}\n",
                     .{ i, trap },
                 );
         }
@@ -277,7 +277,7 @@ const Data = struct {
             var it = data.addresses.iterator();
             while (it.next()) |address|
                 count += address.value_ptr.*;
-            try writer.print("|-- address {}\n", .{count});
+            try writer.print("|-- address.. {}\n", .{count});
         }
         {
             var it = data.addresses.iterator();
@@ -289,14 +289,14 @@ const Data = struct {
         {
             var count: usize = 0;
             for (data.registers.read) |register| count += register;
-            try writer.print("|   |-- read {}\n", .{count});
+            try writer.print("|   |-- read.. {}\n", .{count});
         }
         for (data.registers.read, 0..8) |register, i|
             try writer.print("|   |   |-- r{} {}\n", .{ i, register });
         {
             var count: usize = 0;
             for (data.registers.write) |register| count += register;
-            try writer.print("|   |-- write {}\n", .{count});
+            try writer.print("|   |-- write. {}\n", .{count});
         }
         for (data.registers.write, 0..8) |register, i|
             try writer.print("|       |-- r{} {}\n", .{ i, register });
@@ -308,7 +308,7 @@ const Data = struct {
             var it = data.memory.read.iterator();
             while (it.next()) |memory|
                 count += memory.value_ptr.*;
-            try writer.print("|   |-- read {}\n", .{count});
+            try writer.print("|   |-- read..... {}\n", .{count});
         }
         {
             var it = data.memory.read.iterator();
@@ -320,7 +320,7 @@ const Data = struct {
             var it = data.memory.write.iterator();
             while (it.next()) |memory|
                 count += memory.value_ptr.*;
-            try writer.print("|   |-- write {}\n", .{count});
+            try writer.print("|   |-- write.... {}\n", .{count});
         }
         {
             var it = data.memory.write.iterator();
@@ -328,8 +328,8 @@ const Data = struct {
                 try writer.print("|       |-- x{x:04} {}\n", .{ memory.key_ptr.*, memory.value_ptr.* });
         }
 
-        try writer.print("|-- io {}\n", .{data.io.read + data.io.write});
-        try writer.print("    |-- read {}\n", .{data.io.read});
+        try writer.print("|-- io....... {}\n", .{data.io.read + data.io.write});
+        try writer.print("    |-- read. {}\n", .{data.io.read});
         try writer.print("    |-- write {}\n", .{data.io.write});
     }
 };
