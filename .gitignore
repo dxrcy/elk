@@ -10,3 +10,7 @@
 **/*.bin
 **/*.hex
 
+
+# Nix
+result
+result-*
