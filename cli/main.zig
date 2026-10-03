@@ -102,6 +102,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 cli.use_decoration,
                 null,
                 cli.random_init,
+                operation.analytics,
             );
         },
 
@@ -123,6 +124,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 cli.use_decoration,
                 null,
                 cli.random_init,
+                null,
             );
         },
 
@@ -158,6 +160,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 cli.use_decoration,
                 &assembler,
                 cli.random_init,
+                operation.analytics,
             );
         },
 
@@ -406,6 +409,7 @@ fn emulate(
     use_decoration: bool,
     assembler: ?*elk.Assembler,
     random_init: ?u64,
+    analytics_opt: ?Cli.zilc.types.Path,
 ) !void {
     const write_buffer_size = 64;
     const debugger_buffer_size = 256;
@@ -491,7 +495,11 @@ fn emulate(
     try runtime.writer.flush();
 
     reporter.flush();
-    std.debug.print("{f}\n", .{runtime.analytics.data});
+
+    if (analytics_opt) |analytics_path| {
+        _ = analytics_path;
+        std.debug.print("{f}\n", .{runtime.analytics.data});
+    }
 }
 
 fn createDebugger(

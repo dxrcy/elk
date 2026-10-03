@@ -30,6 +30,7 @@ const info = struct {
 
 operation: Operation,
 policies: elk.Policies,
+// TODO: This should be under `Operation`
 random_init: ?u64,
 strictness: elk.reporting.Options.Strictness,
 verbosity: elk.reporting.Options.Verbosity,
@@ -41,12 +42,14 @@ pub const Operation = union(enum) {
         input: Path,
         debug: ?Debug,
         patch_symbols: ?[]const struct { []const u8, u16 },
+        analytics: ?Path,
     },
     emulate: struct {
         input: Path,
         debug: ?Debug,
         import_symbols: ?[]const u8,
         patch_symbols: ?[]const struct { []const u8, u16 },
+        analytics: ?Path,
     },
     assemble: struct {
         paths: IoPaths,
@@ -55,6 +58,7 @@ pub const Operation = union(enum) {
     debug_empty: Debug,
     clean: struct {
         paths: IoPaths,
+        // TODO: Add `analytics` ?
     },
     format: struct {
         paths: IoPaths,
@@ -166,6 +170,10 @@ const template = .{
     .patch_symbols = zilc.Flag{
         .long = "patch",
         .value = .{ .type = []const struct { []const u8, u16 }, .parser = parsePatches },
+    },
+    .analytics = zilc.Flag{
+        .long = "analytics",
+        .value = zilc.types.path,
     },
 
     .input_partial = zilc.Flag{
@@ -364,6 +372,7 @@ fn checkDependencies(options: *const zilc.Options(template)) !void {
     try zilc.checkDependencies(.trap_aliases, enum { assemble, check, format }, enum {}, &options.flags);
     try zilc.checkDependencies(.debug, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
     try zilc.checkDependencies(.random_init, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
+    try zilc.checkDependencies(.analytics, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
     try zilc.checkDependencies(.input_partial, enum { debug }, enum { input_full }, &options.flags);
     try zilc.checkDependencies(.input_full, enum { debug }, enum { input_partial }, &options.flags);
     try zilc.checkDependencies(.history_file, enum { debug }, enum {}, &options.flags);
@@ -455,6 +464,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
             } else null,
             .import_symbols = options.flags.import_symbols,
             .patch_symbols = options.flags.patch_symbols,
+            .analytics = options.flags.analytics,
         } };
     }
 
@@ -467,6 +477,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
                 .history_file = options.flags.history_file,
             } else null,
             .patch_symbols = options.flags.patch_symbols,
+            .analytics = options.flags.analytics,
         },
     };
 }
