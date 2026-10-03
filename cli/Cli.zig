@@ -1,3 +1,4 @@
+// TODO: Split this file into multiple
 const Cli = @This();
 
 const std = @import("std");
@@ -42,14 +43,14 @@ pub const Operation = union(enum) {
         input: Path,
         debug: ?Debug,
         patch_symbols: ?[]const struct { []const u8, u16 },
-        analytics: ?Path,
+        analytics: ?Analytics,
     },
     emulate: struct {
         input: Path,
         debug: ?Debug,
         import_symbols: ?[]const u8,
         patch_symbols: ?[]const struct { []const u8, u16 },
-        analytics: ?Path,
+        analytics: ?Analytics,
     },
     assemble: struct {
         paths: IoPaths,
@@ -173,7 +174,7 @@ const template = .{
     },
     .analytics = zilc.Flag{
         .long = "analytics",
-        .value = zilc.types.path,
+        .value = .{ .type = Analytics, .parser = Analytics.parse },
     },
 
     .input_partial = zilc.Flag{
@@ -220,6 +221,41 @@ const template = .{
     },
 };
 
+pub const Analytics = struct {
+    path: zilc.types.Path,
+    format: Format,
+
+    pub const Format = enum {
+        txt,
+        json,
+
+        pub fn fromPath(path: []const u8) ?Format {
+            const index = std.mem.findScalarLast(u8, path, '.') orelse 0;
+            const extension = if (path.len > 0) path[index + 1 ..] else "";
+
+            if (std.mem.eql(u8, extension, "txt"))
+                return .txt;
+            if (std.mem.eql(u8, extension, "json"))
+                return .json;
+            return null;
+        }
+    };
+
+    fn parse(dest: *anyopaque, src: []const u8, _: Allocator) !void {
+        const analytics: *?Analytics = @ptrCast(@alignCast(dest));
+
+        const path: zilc.types.Path = .new(src);
+        const format = switch (path) {
+            .stdio => .txt,
+            .regular => Format.fromPath(src) orelse
+                return error.InvalidValue,
+        };
+
+        analytics.* = .{ .path = path, .format = format };
+    }
+};
+
+// TODO: Should be `pub`
 const Condition = enum {
     auto,
     always,
@@ -234,6 +270,7 @@ const Condition = enum {
     }
 };
 
+// TODO: Move to `Condition`
 fn parseCondition(dest: *anyopaque, src: []const u8, _: Allocator) !void {
     const mode: *?Condition = @ptrCast(@alignCast(dest));
     if (std.mem.eql(u8, src, "auto")) {

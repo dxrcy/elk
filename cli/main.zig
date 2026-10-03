@@ -409,7 +409,7 @@ fn emulate(
     use_decoration: bool,
     assembler: ?*elk.Assembler,
     random_init: ?u64,
-    analytics_opt: ?Cli.zilc.types.Path,
+    analytics_opt: ?Cli.Analytics,
 ) !void {
     const write_buffer_size = 64;
     const debugger_buffer_size = 256;
