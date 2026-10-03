@@ -230,7 +230,7 @@ pub fn run(runtime: *Runtime) Error!void {
 
 fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
     try runtime.analytics.addAddress(runtime.state.pc);
-    const word = try runtime.getMemory(runtime.state.pc);
+    const word = try runtime.fetchMemory(runtime.state.pc);
     runtime.state.pc += 1;
 
     if (runtime.hooks.pre_decode) |pre_decode|
@@ -389,6 +389,12 @@ pub fn getMemory(
 ) error{ UnpermittedMemoryAccess, OutOfMemory }!u16 {
     try checkMemoryAccess(address);
     try runtime.analytics.addMemoryRead(address);
+    return runtime.state.memory[address];
+}
+
+/// getMemory but without `analytics.addMemoryRead`
+fn fetchMemory(runtime: *Runtime, address: u16) error{UnpermittedMemoryAccess}!u16 {
+    try checkMemoryAccess(address);
     return runtime.state.memory[address];
 }
 
