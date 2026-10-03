@@ -556,7 +556,7 @@ pub const Stringz = struct {
     pub fn next(stringz: *Stringz) error{ UnpermittedMemoryAccess, OutOfMemory }!?u16 {
         if (stringz.end)
             return null;
-        const word = try stringz.runtime.getMemory(stringz.address, .tracked);
+        const word = try stringz.runtime.getMemory(stringz.address, .untracked);
         if (word == 0x0000) {
             stringz.end = true;
             return null;
