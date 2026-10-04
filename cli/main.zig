@@ -101,13 +101,13 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 cli.use_color,
                 cli.use_decoration,
                 null,
-                cli.random_init,
+                operation.random_init,
                 operation.instruction_limit,
                 operation.analytics,
             );
         },
 
-        .debug_empty => |debug| {
+        .debug_empty => |operation| {
             var air: elk.Air = .init();
             defer air.deinit(gpa);
 
@@ -117,14 +117,14 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 init.environ_map,
                 .{ .assembly = .{ .air = &air, .source = .empty } },
                 null,
-                debug,
+                operation.debug,
                 &default_traps,
                 cli.policies,
                 &reporter,
                 cli.use_color,
                 cli.use_decoration,
                 null,
-                cli.random_init,
+                operation.random_init,
                 null,
                 null,
             );
@@ -161,7 +161,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 cli.use_color,
                 cli.use_decoration,
                 &assembler,
-                cli.random_init,
+                operation.random_init,
                 operation.instruction_limit,
                 operation.analytics,
             );
