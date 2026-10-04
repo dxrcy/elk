@@ -522,7 +522,12 @@ fn writeAnalytics(
             try runtime.analytics.data.json(json_arena.allocator(), &writer.interface);
         },
         .txt => {
-            try runtime.analytics.data.format(gpa, &writer.interface, use_decoration);
+            try runtime.analytics.data.format(
+                gpa,
+                &writer.interface,
+                // Never use decorations when writing to file
+                use_decoration and analytics.path == .stdio,
+            );
         },
     }
 
