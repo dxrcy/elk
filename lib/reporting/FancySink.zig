@@ -410,10 +410,6 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
             try ctx.deepen().writeSourceNote("String", .{}, info.string);
         },
 
-        .stack_instruction => |info| {
-            try ctx.writeTitle("Use of non-standard stack instruction `{t}`", .{info.kind});
-            try ctx.deepen().writeSourceNote("Instruction is an ISA extension", .{}, info.mnemonic);
-        },
         .literal_pc_offset => |info| {
             try ctx.writeTitle("Address operand is a literal offset", .{});
             try ctx.deepen().writeSourceNote("Integer", .{}, info.integer);
