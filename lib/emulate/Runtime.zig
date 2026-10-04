@@ -14,6 +14,7 @@ const Tty = @import("Tty.zig");
 
 pub const Callback = @import("../callback.zig").Callback;
 pub const Instruction = @import("decode.zig").Instruction;
+pub const Analytics = @import("Analytics.zig");
 
 pub const memory_size = 0x1_0000;
 pub const user_memory_start = 0x3000;
@@ -21,18 +22,43 @@ pub const user_memory_end = 0xFDFF;
 const memory_init_user = 0x0000;
 const memory_init_privileged = 0xdead;
 
+// Avoid directly read OR modify **memory or general-purpose registers** *from within runtime base*
+// (ie. from within this file).
+// ALWAYS use helpers such as `runtime.setMemory`, and pass `.untracked` to opt-out of analytics.
+// This ensures that analytics are tracked properly.
+// These values may be read/modified OUTSIDE of runtime base (eg. by debugger or runtime callsite),
+// and for other uses (such as `printRegisters`), since analytics should not track this.
+// Note that this requirement does NOT (currently) include PC or condition code.
 state: State,
 
 traps: *const Traps,
 hooks: Hooks,
+analytics: Analytics,
 policies: Policies,
 debugger: ?*Debugger,
 use_decoration: bool,
+instruction_limit: ?usize,
+instruction_count: usize,
 
 reader: *Io.Reader,
 writer: *Io.Writer,
 writer_is_newline: bool,
 tty: Tty,
+
+/// Whether to track an action via analytics.
+const Track = enum {
+    tracked,
+    untracked,
+
+    /// Includes `OutOfMemory` in error set `E`, if `.tracked`.
+    pub fn ErrorSet(comptime track: Track, E: type) type {
+        _ = @typeInfo(E).error_set;
+        return switch (track) {
+            .tracked => return E || error{OutOfMemory},
+            .untracked => return E,
+        };
+    }
+};
 
 pub const State = struct {
     memory: *[memory_size]u16,
@@ -87,6 +113,7 @@ pub const Exception = error{
     UnpermittedOpcode,
     UnpermittedMemoryAccess,
     TrapFailed,
+    InstructionLimitReached,
 };
 
 /// Stdio or terminal failure.
@@ -108,6 +135,7 @@ pub const Hooks = struct {
 };
 
 pub fn init(params: struct {
+    io: Io,
     gpa: Allocator,
     reader: *Io.Reader,
     writer: *Io.Writer,
@@ -117,10 +145,12 @@ pub fn init(params: struct {
     debugger: ?*Debugger = null,
     random: ?std.Random = null,
     use_decoration: bool = true,
+    instruction_limit: ?usize = null,
 }) !Runtime {
     return .{
         .state = try .init(params.gpa, params.random),
         .traps = params.traps,
+        .analytics = .init(params.io, params.gpa),
         .hooks = params.hooks,
         .policies = params.policies,
         .debugger = params.debugger,
@@ -129,11 +159,14 @@ pub fn init(params: struct {
         .writer = params.writer,
         .writer_is_newline = true,
         .tty = .uninit,
+        .instruction_limit = params.instruction_limit,
+        .instruction_count = 0,
     };
 }
 
-pub fn deinit(runtime: Runtime, gpa: Allocator) void {
+pub fn deinit(runtime: *Runtime, gpa: Allocator) void {
     runtime.state.deinit(gpa);
+    runtime.analytics.deinit();
 }
 
 pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !void {
@@ -145,7 +178,7 @@ pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !voi
     };
     runtime.state.pc = origin;
 
-    var i: usize = 0;
+    var i: u16 = 0;
     while (true) : (i += 1) {
         const high = reader.interface.takeByte() catch |err| switch (err) {
             else => |e| return e,
@@ -156,10 +189,12 @@ pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !voi
             error.EndOfStream => return error.FileNotAligned,
         };
         const word = (@as(u16, high) << 8) | low;
-        const addr = std.math.cast(u16, origin + i) orelse
+        const address = std.math.cast(u16, origin + i) orelse
             return error.FileTooLarge;
-        try runtime.setMemory(addr, word);
+        try runtime.setMemory(address, word, .untracked);
     }
+
+    runtime.analytics.setMemorySize(i);
 }
 
 pub fn patchLabelValue(
@@ -170,10 +205,13 @@ pub fn patchLabelValue(
 ) error{ SymbolNotFound, UnpermittedMemoryAccess }!void {
     const address = symbols.getAddress(name) orelse
         return error.SymbolNotFound;
-    try runtime.setMemory(address, raw_word);
+    try runtime.setMemory(address, raw_word, .untracked);
 }
 
 pub fn run(runtime: *Runtime) Error!void {
+    runtime.analytics.startTime(.total);
+    defer runtime.analytics.endTime(.total);
+
     if (runtime.debugger) |debugger|
         try debugger.startMessage(runtime.use_decoration);
 
@@ -210,7 +248,8 @@ pub fn run(runtime: *Runtime) Error!void {
 }
 
 fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
-    const word = try runtime.getMemory(runtime.state.pc);
+    try runtime.analytics.addAddress(runtime.state.pc);
+    const word = try runtime.getMemory(runtime.state.pc, .untracked);
     runtime.state.pc += 1;
 
     if (runtime.hooks.pre_decode) |pre_decode|
@@ -225,21 +264,29 @@ fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
 }
 
 pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || error{Halt})!void {
+    if (runtime.instruction_limit) |limit| {
+        if (runtime.instruction_count >= limit)
+            return error.InstructionLimitReached;
+        runtime.instruction_count += 1;
+    }
+
+    runtime.analytics.addInstruction(instruction);
+
     switch (instruction) {
         inline .add, .@"and" => |operands, subset| {
-            const lhs = runtime.state.registers[operands.src_a];
+            const lhs = runtime.getRegister(operands.src_a, .tracked);
             const rhs: u16 = switch (operands.src_b) {
-                .register => |register| runtime.state.registers[register],
+                .register => |register| runtime.getRegister(register, .tracked),
                 .immediate => |immediate| signExtend(immediate),
             };
             runtime.setRegister(operands.dest, switch (subset) {
                 .add => lhs +% rhs,
                 .@"and" => lhs & rhs,
                 else => comptime unreachable,
-            });
+            }, .tracked);
         },
         .not => |operands| {
-            runtime.setRegister(operands.dest, ~runtime.state.registers[operands.src]);
+            runtime.setRegister(operands.dest, ~runtime.getRegister(operands.src, .tracked), .tracked);
         },
 
         .br => |operands| {
@@ -251,7 +298,7 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
         },
 
         .jmp_ret => |operands| {
-            runtime.state.pc = runtime.state.registers[operands.base];
+            runtime.state.pc = runtime.getRegister(operands.base, .tracked);
         },
         .jsr_jsrr => |variant| {
             const previous_pc = runtime.state.pc;
@@ -260,44 +307,44 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
                     runtime.state.pc +%= signExtend(operands.pc_offset);
                 },
                 .jsrr => |operands| {
-                    runtime.state.pc = runtime.state.registers[operands.base];
+                    runtime.state.pc = runtime.getRegister(operands.base, .tracked);
                 },
             }
-            runtime.state.registers[7] = previous_pc;
+            runtime.setRegisterNoCc(7, previous_pc, .tracked);
         },
 
         .lea => |operands| {
             const address = runtime.state.pc +% signExtend(operands.pc_offset);
-            runtime.setRegisterNoCc(operands.dest, address);
+            runtime.setRegisterNoCc(operands.dest, address, .tracked);
         },
         .ld => |operands| {
             const address = runtime.state.pc +% signExtend(operands.pc_offset);
-            const value = try runtime.getMemory(address);
-            runtime.setRegister(operands.dest, value);
+            const value = try runtime.getMemory(address, .tracked);
+            runtime.setRegister(operands.dest, value, .tracked);
         },
         .ldi => |operands| {
             const indirect = runtime.state.pc +% signExtend(operands.pc_offset);
-            const address = try runtime.getMemory(indirect);
-            const value = try runtime.getMemory(address);
-            runtime.setRegister(operands.dest, value);
+            const address = try runtime.getMemory(indirect, .tracked);
+            const value = try runtime.getMemory(address, .tracked);
+            runtime.setRegister(operands.dest, value, .tracked);
         },
         .ldr => |operands| {
-            const address = runtime.state.registers[operands.base] +% signExtend(operands.offset);
-            const value = try runtime.getMemory(address);
-            runtime.setRegister(operands.dest, value);
+            const address = runtime.getRegister(operands.base, .tracked) +% signExtend(operands.offset);
+            const value = try runtime.getMemory(address, .tracked);
+            runtime.setRegister(operands.dest, value, .tracked);
         },
         .st => |operands| {
             const address = runtime.state.pc +% signExtend(operands.pc_offset);
-            try runtime.setMemory(address, runtime.state.registers[operands.src]);
+            try runtime.setMemory(address, runtime.getRegister(operands.src, .tracked), .tracked);
         },
         .sti => |operands| {
             const indirect = runtime.state.pc +% signExtend(operands.pc_offset);
-            const address = try runtime.getMemory(indirect);
-            try runtime.setMemory(address, runtime.state.registers[operands.src]);
+            const address = try runtime.getMemory(indirect, .tracked);
+            try runtime.setMemory(address, runtime.getRegister(operands.src, .tracked), .tracked);
         },
         .str => |operands| {
-            const address = runtime.state.registers[operands.base] +% signExtend(operands.offset);
-            try runtime.setMemory(address, runtime.state.registers[operands.src]);
+            const address = runtime.getRegister(operands.base, .tracked) +% signExtend(operands.offset);
+            try runtime.setMemory(address, runtime.getRegister(operands.src, .tracked), .tracked);
         },
 
         .trap => |operands| {
@@ -305,6 +352,8 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
                 // No trap callback declared
                 // Either trap was never registered, or only registered for alias
                 return error.UnhandledTrap;
+            runtime.analytics.startTime(.supervisor);
+            defer runtime.analytics.endTime(.supervisor);
             try callback.call(.{runtime});
         },
 
@@ -320,10 +369,10 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
             switch (variant) {
                 .pop => |operands| {
                     const value = try runtime.stackPop();
-                    runtime.state.registers[operands.dest] = value;
+                    runtime.setRegisterNoCc(operands.dest, value, .tracked);
                 },
                 .push => |operands| {
-                    const value = runtime.state.registers[operands.src];
+                    const value = runtime.getRegister(operands.src, .tracked);
                     try runtime.stackPush(value);
                 },
                 .rets => {
@@ -338,9 +387,14 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
     }
 }
 
-fn setRegister(runtime: *Runtime, register: u3, value: u16) void {
-    runtime.state.registers[register] = value;
+fn getRegister(runtime: *Runtime, register: u3, comptime track: Track) u16 {
+    if (track == .tracked)
+        runtime.analytics.addRegisterRead(register);
+    return runtime.state.registers[register];
+}
 
+fn setRegister(runtime: *Runtime, register: u3, value: u16, comptime track: Track) void {
+    runtime.setRegisterNoCc(register, value, track);
     runtime.state.condition =
         if (@as(i16, @bitCast(value)) < 0)
             .negative
@@ -350,37 +404,52 @@ fn setRegister(runtime: *Runtime, register: u3, value: u16) void {
             .positive;
 }
 
-fn setRegisterNoCc(runtime: *Runtime, register: u3, value: u16) void {
+fn setRegisterNoCc(runtime: *Runtime, register: u3, value: u16, comptime track: Track) void {
+    if (track == .tracked)
+        runtime.analytics.addRegisterWrite(register);
     runtime.state.registers[register] = value;
 }
 
-pub fn getMemory(runtime: *const Runtime, address: u16) error{UnpermittedMemoryAccess}!u16 {
+pub fn getMemory(
+    runtime: *Runtime,
+    address: u16,
+    comptime track: Track,
+) track.ErrorSet(error{UnpermittedMemoryAccess})!u16 {
     try checkMemoryAccess(address);
+    if (track == .tracked)
+        try runtime.analytics.addMemoryRead(address);
     return runtime.state.memory[address];
 }
 
-pub fn setMemory(runtime: *Runtime, address: u16, value: u16) error{UnpermittedMemoryAccess}!void {
+pub fn setMemory(
+    runtime: *Runtime,
+    address: u16,
+    value: u16,
+    comptime track: Track,
+) track.ErrorSet(error{UnpermittedMemoryAccess})!void {
     try checkMemoryAccess(address);
+    if (track == .tracked)
+        try runtime.analytics.addMemoryWrite(address);
     runtime.state.memory[address] = value;
 }
 
-fn checkMemoryAccess(address: u16) error{UnpermittedMemoryAccess}!void {
+pub fn checkMemoryAccess(address: u16) error{UnpermittedMemoryAccess}!void {
     switch (address) {
         user_memory_start...user_memory_end => {},
         else => return error.UnpermittedMemoryAccess,
     }
 }
 
-fn stackPush(runtime: *Runtime, value: u16) error{UnpermittedMemoryAccess}!void {
-    runtime.state.registers[7] -%= 1;
-    const stack_ptr = runtime.state.registers[7];
-    try runtime.setMemory(stack_ptr, value);
+fn stackPush(runtime: *Runtime, value: u16) error{ UnpermittedMemoryAccess, OutOfMemory }!void {
+    runtime.setRegisterNoCc(7, runtime.getRegister(7, .tracked) -% 1, .tracked);
+    const stack_ptr = runtime.getRegister(7, .tracked);
+    try runtime.setMemory(stack_ptr, value, .tracked);
 }
 
-fn stackPop(runtime: *Runtime) error{UnpermittedMemoryAccess}!u16 {
-    const stack_ptr = runtime.state.registers[7];
-    const value = try runtime.getMemory(stack_ptr);
-    runtime.state.registers[7] +%= 1;
+fn stackPop(runtime: *Runtime) error{ UnpermittedMemoryAccess, OutOfMemory }!u16 {
+    const stack_ptr = runtime.getRegister(7, .tracked);
+    const value = try runtime.getMemory(stack_ptr, .tracked);
+    runtime.setRegisterNoCc(7, runtime.getRegister(7, .tracked) +% 1, .tracked);
     return value;
 }
 
@@ -483,7 +552,7 @@ fn printDisplayChar(runtime: *Runtime, word: u16) error{WriteFailed}!void {
     try runtime.writer.print("{s}", .{display});
 }
 
-pub fn stringzAt(runtime: *const Runtime, address: u16) Stringz {
+pub fn stringzAt(runtime: *Runtime, address: u16) Stringz {
     return .{
         .runtime = runtime,
         .address = address,
@@ -492,14 +561,14 @@ pub fn stringzAt(runtime: *const Runtime, address: u16) Stringz {
 }
 
 pub const Stringz = struct {
-    runtime: *const Runtime,
+    runtime: *Runtime,
     address: u16,
     end: bool,
 
-    pub fn next(stringz: *Stringz) error{UnpermittedMemoryAccess}!?u16 {
+    pub fn next(stringz: *Stringz) error{ UnpermittedMemoryAccess, OutOfMemory }!?u16 {
         if (stringz.end)
             return null;
-        const word = try stringz.runtime.getMemory(stringz.address);
+        const word = try stringz.runtime.getMemory(stringz.address, .untracked);
         if (word == 0x0000) {
             stringz.end = true;
             return null;

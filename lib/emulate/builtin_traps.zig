@@ -10,10 +10,18 @@ pub fn halt(_: *Runtime) Traps.Result {
 }
 
 pub fn getc(runtime: *Runtime) Traps.Result {
+    runtime.analytics.addIoRead();
+    runtime.analytics.startTime(.io);
+    defer runtime.analytics.endTime(.io);
+
     return readChar(runtime, .getc);
 }
 
 pub fn in(runtime: *Runtime) Traps.Result {
+    runtime.analytics.addIoRead();
+    runtime.analytics.startTime(.io);
+    defer runtime.analytics.endTime(.io);
+
     return readChar(runtime, .in);
 }
 
@@ -45,12 +53,20 @@ fn readChar(runtime: *Runtime, comptime vect: enum { in, getc }) Traps.Result {
 }
 
 pub fn out(runtime: *Runtime) Traps.Result {
+    runtime.analytics.addIoWrite();
+    runtime.analytics.startTime(.io);
+    defer runtime.analytics.endTime(.io);
+
     const word: u8 = @truncate(runtime.state.registers[0]);
     try runtime.writeChar(word);
     try runtime.writer.flush();
 }
 
 pub fn puts(runtime: *Runtime) Traps.Result {
+    runtime.analytics.addIoWrite();
+    runtime.analytics.startTime(.io);
+    defer runtime.analytics.endTime(.io);
+
     var stringz = runtime.stringzAt(runtime.state.registers[0]);
     while (stringz.next() catch
         return error.TrapFailed) |word|
@@ -62,6 +78,10 @@ pub fn puts(runtime: *Runtime) Traps.Result {
 }
 
 pub fn putsp(runtime: *Runtime) Traps.Result {
+    runtime.analytics.addIoWrite();
+    runtime.analytics.startTime(.io);
+    defer runtime.analytics.endTime(.io);
+
     var stringz = runtime.stringzAt(runtime.state.registers[0]);
     while (stringz.next() catch
         return error.TrapFailed) |word|
@@ -74,12 +94,19 @@ pub fn putsp(runtime: *Runtime) Traps.Result {
 }
 
 pub fn putn(runtime: *Runtime) Traps.Result {
-    try runtime.ensureWriterNewline();
-    try runtime.writer.print("{}\n", .{runtime.state.registers[0]});
+    runtime.analytics.addIoWrite();
+    runtime.analytics.startTime(.io);
+    defer runtime.analytics.endTime(.io);
+
+    try runtime.writer.print("{}", .{runtime.state.registers[0]});
     try runtime.writer.flush();
 }
 
 pub fn reg(runtime: *Runtime) Traps.Result {
+    runtime.analytics.addIoWrite();
+    runtime.analytics.startTime(.io);
+    defer runtime.analytics.endTime(.io);
+
     try runtime.printRegisters();
     try runtime.writer.flush();
 }

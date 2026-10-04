@@ -1,3 +1,4 @@
+// TODO: Split this file into multiple
 const Cli = @This();
 
 const std = @import("std");
@@ -31,7 +32,6 @@ const info = struct {
 
 operation: Operation,
 policies: elk.Policies,
-random_init: ?u64,
 strictness: elk.reporting.Options.Strictness,
 verbosity: elk.reporting.Options.Verbosity,
 use_color: bool,
@@ -43,6 +43,7 @@ pub const Operation = union(enum) {
         debug: ?Debug,
         patch_symbols: ?[]const struct { []const u8, u16 },
         mock_world: bool,
+        options: Emulate,
     },
     emulate: struct {
         input: Path,
@@ -50,6 +51,7 @@ pub const Operation = union(enum) {
         import_symbols: ?[]const u8,
         patch_symbols: ?[]const struct { []const u8, u16 },
         mock_world: bool,
+        options: Emulate,
     },
     assemble: struct {
         paths: IoPaths,
@@ -58,6 +60,7 @@ pub const Operation = union(enum) {
     debug_empty: struct {
         debug: Debug,
         mock_world: bool,
+        options: Emulate,
     },
     clean: struct {
         paths: IoPaths,
@@ -83,6 +86,12 @@ pub const Operation = union(enum) {
                 .many => |many| many.inputs.len,
             };
         }
+    };
+
+    pub const Emulate = struct {
+        random_init: ?u64,
+        analytics: ?Analytics,
+        instruction_limit: ?usize,
     };
 
     pub const Assemble = struct {
@@ -169,12 +178,20 @@ const template = .{
         .long = "random-init",
         .value = zilc.types.integer(u64),
     },
-    .mock_world = zilc.Flag{
-        .long = "mock-world",
+    .instruction_limit = zilc.Flag{
+        .long = "instruction-limit",
+        .value = zilc.types.integer(usize),
     },
     .patch_symbols = zilc.Flag{
         .long = "patch",
         .value = .{ .type = []const struct { []const u8, u16 }, .parser = parsePatches },
+    },
+    .analytics = zilc.Flag{
+        .long = "analytics",
+        .value = .{ .type = Analytics, .parser = Analytics.parse },
+    },
+    .mock_world = zilc.Flag{
+        .long = "mock-world",
     },
 
     .input_partial = zilc.Flag{
@@ -213,15 +230,49 @@ const template = .{
     },
     .color_condition = zilc.Flag{
         .long = "color",
-        .value = .{ .type = Condition, .parser = parseCondition },
+        .value = .{ .type = Condition, .parser = Condition.parse },
     },
     .decoration_condition = zilc.Flag{
         .long = "decoration",
-        .value = .{ .type = Condition, .parser = parseCondition },
+        .value = .{ .type = Condition, .parser = Condition.parse },
     },
 };
 
-const Condition = enum {
+pub const Analytics = struct {
+    path: zilc.types.Path,
+    format: Format,
+
+    pub const Format = enum {
+        txt,
+        json,
+
+        pub fn fromPath(path: []const u8) ?Format {
+            const index = std.mem.findScalarLast(u8, path, '.') orelse 0;
+            const extension = if (path.len > 0) path[index + 1 ..] else "";
+
+            if (std.mem.eql(u8, extension, "txt"))
+                return .txt;
+            if (std.mem.eql(u8, extension, "json"))
+                return .json;
+            return null;
+        }
+    };
+
+    fn parse(dest: *anyopaque, src: []const u8, _: Allocator) !void {
+        const analytics: *?Analytics = @ptrCast(@alignCast(dest));
+
+        const path: zilc.types.Path = .new(src);
+        const format = switch (path) {
+            .stdio => .txt,
+            .regular => Format.fromPath(src) orelse
+                return error.InvalidValue,
+        };
+
+        analytics.* = .{ .path = path, .format = format };
+    }
+};
+
+pub const Condition = enum {
     auto,
     always,
     never,
@@ -233,24 +284,24 @@ const Condition = enum {
             .never => false,
         };
     }
-};
 
-fn parseCondition(dest: *anyopaque, src: []const u8, _: Allocator) !void {
-    const mode: *?Condition = @ptrCast(@alignCast(dest));
-    if (std.mem.eql(u8, src, "auto")) {
-        mode.* = .auto;
-        return;
+    fn parse(dest: *anyopaque, src: []const u8, _: Allocator) !void {
+        const mode: *?Condition = @ptrCast(@alignCast(dest));
+        if (std.mem.eql(u8, src, "auto")) {
+            mode.* = .auto;
+            return;
+        }
+        if (std.mem.eql(u8, src, "always")) {
+            mode.* = .always;
+            return;
+        }
+        if (std.mem.eql(u8, src, "never")) {
+            mode.* = .never;
+            return;
+        }
+        return error.InvalidValue;
     }
-    if (std.mem.eql(u8, src, "always")) {
-        mode.* = .always;
-        return;
-    }
-    if (std.mem.eql(u8, src, "never")) {
-        mode.* = .never;
-        return;
-    }
-    return error.InvalidValue;
-}
+};
 
 fn parsePolicies(dest: *anyopaque, src: []const u8, _: Allocator) !void {
     const policies: *?elk.Policies = @ptrCast(@alignCast(dest));
@@ -349,7 +400,6 @@ pub fn parse(
     return .{
         .operation = operation,
         .policies = if (options.flags.permit) |policies| policies else .none,
-        .random_init = options.flags.random_init,
         .strictness = if (options.flags.strict)
             .strict
         else if (options.flags.relaxed)
@@ -367,13 +417,17 @@ fn checkDependencies(options: *const zilc.Options(template)) !void {
     try zilc.checkGroup(.export_mode, enum { export_symbols, export_listing }, &options.flags);
     try zilc.checkGroup(.verbosity, enum { strict, relaxed }, &options.flags);
 
+    const non_emulate = enum { assemble, check, clean, format, lsp };
+
     try zilc.checkDependencies(.output, enum { assemble, format }, enum {}, &options.flags);
     try zilc.checkDependencies(.export_symbols, enum { assemble }, enum {}, &options.flags);
     try zilc.checkDependencies(.export_listing, enum { assemble }, enum {}, &options.flags);
     try zilc.checkDependencies(.trap_aliases, enum { assemble, check, format }, enum {}, &options.flags);
-    try zilc.checkDependencies(.debug, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
-    try zilc.checkDependencies(.random_init, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
-    try zilc.checkDependencies(.mock_world, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
+    try zilc.checkDependencies(.debug, enum {}, non_emulate, &options.flags);
+    try zilc.checkDependencies(.random_init, enum {}, non_emulate, &options.flags);
+    try zilc.checkDependencies(.instruction_limit, enum {}, non_emulate, &options.flags);
+    try zilc.checkDependencies(.analytics, enum {}, non_emulate, &options.flags);
+    try zilc.checkDependencies(.mock_world, enum {}, non_emulate, &options.flags);
     try zilc.checkDependencies(.input_partial, enum { debug }, enum { input_full }, &options.flags);
     try zilc.checkDependencies(.input_full, enum { debug }, enum { input_partial }, &options.flags);
     try zilc.checkDependencies(.history_file, enum { debug }, enum {}, &options.flags);
@@ -406,6 +460,11 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
                 .history_file = options.flags.history_file,
             },
             .mock_world = options.flags.mock_world,
+            .options = .{
+                .random_init = options.flags.random_init,
+                .analytics = options.flags.analytics,
+                .instruction_limit = options.flags.instruction_limit,
+            },
         } };
     }
 
@@ -469,6 +528,11 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
             .import_symbols = options.flags.import_symbols,
             .patch_symbols = options.flags.patch_symbols,
             .mock_world = options.flags.mock_world,
+            .options = .{
+                .random_init = options.flags.random_init,
+                .analytics = options.flags.analytics,
+                .instruction_limit = options.flags.instruction_limit,
+            },
         } };
     }
 
@@ -482,6 +546,11 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
             } else null,
             .patch_symbols = options.flags.patch_symbols,
             .mock_world = options.flags.mock_world,
+            .options = .{
+                .random_init = options.flags.random_init,
+                .analytics = options.flags.analytics,
+                .instruction_limit = options.flags.instruction_limit,
+            },
         },
     };
 }

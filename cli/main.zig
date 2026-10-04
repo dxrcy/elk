@@ -132,7 +132,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 cli.use_color,
                 cli.use_decoration,
                 null,
-                cli.random_init,
+                operation.options,
                 operation.mock_world,
             );
         },
@@ -154,7 +154,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 cli.use_color,
                 cli.use_decoration,
                 null,
-                cli.random_init,
+                operation.options,
                 operation.mock_world,
             );
         },
@@ -190,7 +190,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 cli.use_color,
                 cli.use_decoration,
                 &assembler,
-                cli.random_init,
+                operation.options,
                 operation.mock_world,
             );
         },
@@ -439,7 +439,7 @@ fn emulate(
     use_color: bool,
     use_decoration: bool,
     assembler: ?*elk.Assembler,
-    random_init: ?u64,
+    options: Cli.Operation.Emulate,
     mock_world: bool,
 ) !void {
     const write_buffer_size = 64;
@@ -490,11 +490,12 @@ fn emulate(
     defer if (debugger_opt) |*debugger| debugger.deinit(gpa);
 
     var prng_storage: ?std.Random.DefaultPrng = null;
-    if (random_init) |seed| {
+    if (options.random_init) |seed| {
         prng_storage = std.Random.DefaultPrng.init(seed);
     }
 
     var runtime = try elk.Runtime.init(.{
+        .io = io,
         .gpa = gpa,
         .reader = &reader.interface,
         .writer = &writer.interface,
@@ -503,6 +504,7 @@ fn emulate(
         .debugger = if (debugger_opt) |*debugger| debugger else null,
         .random = if (prng_storage) |*prng| prng.random() else null,
         .use_decoration = use_decoration,
+        .instruction_limit = options.instruction_limit,
     });
     defer runtime.deinit(gpa);
 
@@ -517,6 +519,12 @@ fn emulate(
 
     if (patch_symbols_opt) |patch_symbols|
         try patchSymbols(&runtime, runtime_source, patch_symbols);
+
+    const provider: elk.Provider = switch (runtime_source) {
+        .object => |object| if (object.symbols) |symbols| .{ .symbols = symbols } else .none,
+        .assembly => |assembly| .{ .assembly = assembly },
+    };
+    try runtime.analytics.addSymbols(provider);
 
     if (debugger_opt) |*debugger|
         try debugger.initState(gpa, &runtime);
@@ -539,7 +547,43 @@ fn emulate(
 
     try runtime.ensureWriterNewline();
     try runtime.writer.flush();
+
     reporter.flush();
+
+    if (options.analytics) |analytics|
+        try writeAnalytics(io, gpa, analytics, &runtime, use_decoration);
+}
+
+fn writeAnalytics(
+    io: Io,
+    gpa: Allocator,
+    analytics: Cli.Analytics,
+    runtime: *const elk.Runtime,
+    use_decoration: bool,
+) !void {
+    const write_buffer_size = 64;
+
+    const file = switch (analytics.path) {
+        .stdio => Io.File.stdout(),
+        .regular => |regular| try Io.Dir.cwd().createFile(io, regular, .{}),
+    };
+    defer if (analytics.path == .regular) file.close(io);
+
+    var write_buffer: [write_buffer_size]u8 = undefined;
+    var writer = file.writer(io, &write_buffer);
+
+    switch (analytics.format) {
+        .json => {
+            var json_arena = std.heap.ArenaAllocator.init(gpa);
+            defer json_arena.deinit();
+            try runtime.analytics.data.json(json_arena.allocator(), &writer.interface);
+        },
+        .txt => {
+            try runtime.analytics.data.format(gpa, &writer.interface, use_decoration);
+        },
+    }
+
+    try writer.interface.flush();
 }
 
 fn createDebugger(

@@ -9,6 +9,7 @@ pub const Air = @import("compile/Air.zig");
 pub const Parser = @import("compile/parse/Parser.zig");
 pub const Runtime = @import("emulate/Runtime.zig");
 pub const Debugger = @import("emulate/debugger/Debugger.zig");
+pub const Analytics = @import("emulate/Analytics.zig");
 
 test {
     const refAllDecls = @import("std").testing.refAllDecls;
