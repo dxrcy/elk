@@ -102,6 +102,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 cli.use_decoration,
                 null,
                 cli.random_init,
+                operation.instruction_limit,
                 operation.analytics,
             );
         },
@@ -124,6 +125,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 cli.use_decoration,
                 null,
                 cli.random_init,
+                null,
                 null,
             );
         },
@@ -160,6 +162,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 cli.use_decoration,
                 &assembler,
                 cli.random_init,
+                operation.instruction_limit,
                 operation.analytics,
             );
         },
@@ -409,6 +412,7 @@ fn emulate(
     use_decoration: bool,
     assembler: ?*elk.Assembler,
     random_init: ?u64,
+    instruction_limit: ?usize,
     analytics_opt: ?Cli.Analytics,
 ) !void {
     const write_buffer_size = 64;
@@ -451,6 +455,7 @@ fn emulate(
         .debugger = if (debugger_opt) |*debugger| debugger else null,
         .random = if (prng_storage) |*prng| prng.random() else null,
         .use_decoration = use_decoration,
+        .instruction_limit = instruction_limit,
     });
     defer runtime.deinit(gpa);
 

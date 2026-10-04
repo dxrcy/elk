@@ -44,6 +44,7 @@ pub const Operation = union(enum) {
         debug: ?Debug,
         patch_symbols: ?[]const struct { []const u8, u16 },
         analytics: ?Analytics,
+        instruction_limit: ?usize,
     },
     emulate: struct {
         input: Path,
@@ -51,6 +52,7 @@ pub const Operation = union(enum) {
         import_symbols: ?[]const u8,
         patch_symbols: ?[]const struct { []const u8, u16 },
         analytics: ?Analytics,
+        instruction_limit: ?usize,
     },
     assemble: struct {
         paths: IoPaths,
@@ -167,6 +169,10 @@ const template = .{
     .random_init = zilc.Flag{
         .long = "random-init",
         .value = zilc.types.integer(u64),
+    },
+    .instruction_limit = zilc.Flag{
+        .long = "instruction-limit",
+        .value = zilc.types.integer(usize),
     },
     .patch_symbols = zilc.Flag{
         .long = "patch",
@@ -409,6 +415,7 @@ fn checkDependencies(options: *const zilc.Options(template)) !void {
     try zilc.checkDependencies(.trap_aliases, enum { assemble, check, format }, enum {}, &options.flags);
     try zilc.checkDependencies(.debug, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
     try zilc.checkDependencies(.random_init, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
+    try zilc.checkDependencies(.instruction_limit, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
     try zilc.checkDependencies(.analytics, enum {}, enum { assemble, check, clean, format, lsp }, &options.flags);
     try zilc.checkDependencies(.input_partial, enum { debug }, enum { input_full }, &options.flags);
     try zilc.checkDependencies(.input_full, enum { debug }, enum { input_partial }, &options.flags);
@@ -502,6 +509,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
             .import_symbols = options.flags.import_symbols,
             .patch_symbols = options.flags.patch_symbols,
             .analytics = options.flags.analytics,
+            .instruction_limit = options.flags.instruction_limit,
         } };
     }
 
@@ -515,6 +523,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
             } else null,
             .patch_symbols = options.flags.patch_symbols,
             .analytics = options.flags.analytics,
+            .instruction_limit = options.flags.instruction_limit,
         },
     };
 }

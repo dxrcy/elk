@@ -439,6 +439,7 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
                 error.UnpermittedOpcode => "The executed instruction is not supported in this mode",
                 error.UnpermittedMemoryAccess => "The emulator tried to access supervisor-only memory while in user mode",
                 error.TrapFailed => "The trap routine failed due to an internal problem",
+                error.InstructionLimitReached => "The emulator executed too many instructions",
             }});
         },
 

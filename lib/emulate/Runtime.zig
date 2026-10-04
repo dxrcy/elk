@@ -37,6 +37,8 @@ analytics: Analytics,
 policies: Policies,
 debugger: ?*Debugger,
 use_decoration: bool,
+instruction_limit: ?usize,
+instruction_count: usize,
 
 reader: *Io.Reader,
 writer: *Io.Writer,
@@ -111,6 +113,7 @@ pub const Exception = error{
     UnpermittedOpcode,
     UnpermittedMemoryAccess,
     TrapFailed,
+    InstructionLimitReached,
 };
 
 /// Stdio or terminal failure.
@@ -142,6 +145,7 @@ pub fn init(params: struct {
     debugger: ?*Debugger = null,
     random: ?std.Random = null,
     use_decoration: bool = true,
+    instruction_limit: ?usize = null,
 }) !Runtime {
     return .{
         .state = try .init(params.gpa, params.random),
@@ -155,6 +159,8 @@ pub fn init(params: struct {
         .writer = params.writer,
         .writer_is_newline = true,
         .tty = .uninit,
+        .instruction_limit = params.instruction_limit,
+        .instruction_count = 0,
     };
 }
 
@@ -258,6 +264,12 @@ fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
 }
 
 pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || error{Halt})!void {
+    if (runtime.instruction_limit) |limit| {
+        if (runtime.instruction_count >= limit)
+            return error.InstructionLimitReached;
+        runtime.instruction_count += 1;
+    }
+
     runtime.analytics.addInstruction(instruction);
 
     switch (instruction) {

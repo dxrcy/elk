@@ -51,6 +51,8 @@ OPTIONS:
             Write execution analytics to FILE after emulation.
             The format is inferred from the file extension: .txt or .json.
             Requires --emulate or (default) operation.
+        --instruction-limit <COUNT>
+            Abort emulation after COUNT instructions have executed. Requires --emulate.
 
         --strict
             Treat all warnings as errors.
