@@ -122,11 +122,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 cli.use_color,
                 cli.use_decoration,
                 null,
-                .{
-                    .random_init = operation.random_init,
-                    .instruction_limit = null,
-                    .analytics = null,
-                },
+                operation.options,
             );
         },
 

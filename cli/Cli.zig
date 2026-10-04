@@ -56,8 +56,7 @@ pub const Operation = union(enum) {
     },
     debug_empty: struct {
         debug: Debug,
-        random_init: ?u64,
-        // TODO: Add `analytics` ?
+        options: Emulate,
     },
     clean: struct {
         paths: IoPaths,
@@ -452,7 +451,11 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
                 .input = debug_input,
                 .history_file = options.flags.history_file,
             },
-            .random_init = options.flags.random_init,
+            .options = .{
+                .random_init = options.flags.random_init,
+                .analytics = options.flags.analytics,
+                .instruction_limit = options.flags.instruction_limit,
+            },
         } };
     }
 
