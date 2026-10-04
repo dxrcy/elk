@@ -8,6 +8,7 @@ const elk = @import("elk");
 const mcz = @import("mcz");
 
 const Cli = @import("Cli.zig");
+const MockWorld = @import("MockWorld.zig");
 
 // TODO: Move buffer size definitions somewhere
 
@@ -62,14 +63,33 @@ pub fn mainInner(init: std.process.Init) !u8 {
         elk.Traps.Debug,
     });
 
-    inline for (@typeInfo(McTrap).@"enum".fields) |field| {
-        default_traps.register(field.value, .{
-            .alias = field.name,
-            .callback = .withDataDeferInit(
-                *LazyConnection,
-                @field(mc_traps, field.name),
-            ),
-        });
+    const mock_world = switch (cli.operation) {
+        .emulate => |operation| operation.mock_world,
+        .assemble_emulate => |operation| operation.mock_world,
+        .debug_empty => |operation| operation.mock_world,
+        else => false,
+    };
+
+    if (mock_world) {
+        inline for (@typeInfo(McTrap).@"enum".fields) |field| {
+            default_traps.register(field.value, .{
+                .alias = field.name,
+                .callback = .withDataDeferInit(
+                    *MockWorld,
+                    @field(MockWorld, field.name),
+                ),
+            });
+        }
+    } else {
+        inline for (@typeInfo(McTrap).@"enum".fields) |field| {
+            default_traps.register(field.value, .{
+                .alias = field.name,
+                .callback = .withDataDeferInit(
+                    *LazyConnection,
+                    @field(mc_traps, field.name),
+                ),
+            });
+        }
     }
 
     switch (cli.operation) {
@@ -113,10 +133,11 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 cli.use_decoration,
                 null,
                 cli.random_init,
+                operation.mock_world,
             );
         },
 
-        .debug_empty => |debug| {
+        .debug_empty => |operation| {
             var air: elk.Air = .init();
             defer air.deinit(gpa);
 
@@ -126,7 +147,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 init.environ_map,
                 .{ .assembly = .{ .air = &air, .source = .empty } },
                 null,
-                debug,
+                operation.debug,
                 &default_traps,
                 cli.policies,
                 &reporter,
@@ -134,6 +155,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 cli.use_decoration,
                 null,
                 cli.random_init,
+                operation.mock_world,
             );
         },
 
@@ -169,6 +191,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 cli.use_decoration,
                 &assembler,
                 cli.random_init,
+                operation.mock_world,
             );
         },
 
@@ -417,6 +440,7 @@ fn emulate(
     use_decoration: bool,
     assembler: ?*elk.Assembler,
     random_init: ?u64,
+    mock_world: bool,
 ) !void {
     const write_buffer_size = 64;
     const debugger_buffer_size = 256;
@@ -430,9 +454,17 @@ fn emulate(
         .write_buffer = &conn_write_buffer,
         .io = io,
     } };
+    var mock: MockWorld = .init(gpa);
+    defer mock.deinit();
 
-    inline for (@typeInfo(McTrap).@"enum".fields) |field| {
-        traps.initData(field.value, *LazyConnection, &conn);
+    if (mock_world) {
+        inline for (@typeInfo(McTrap).@"enum".fields) |field| {
+            traps.initData(field.value, *MockWorld, &mock);
+        }
+    } else {
+        inline for (@typeInfo(McTrap).@"enum".fields) |field| {
+            traps.initData(field.value, *LazyConnection, &conn);
+        }
     }
 
     var write_buffer: [write_buffer_size]u8 = undefined;
