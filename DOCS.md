@@ -46,7 +46,6 @@
     - Labels Types
     - Runtime Hooks
 - ELK Extensions to LC-3
-    - Stack Instructions
     - Permissive Syntax
         - Implicit `.ORIG` / `.END`
         - Multi-line strings
@@ -354,12 +353,12 @@ By default, ELK does not enable any policies, thus `--permit ""` is equivalent
 to ommitting the `--permit` option.
 Additionally, leading, trailing, and duplicate commas are ignored.
 
-**Example:** Enable the [stack ISA extension]:
+**Example:** Enable the multi-line strings extension:
 ```sh
-elk example.asm -p extension.stack_instructions
+elk example.asm -p extension.multiline_strings
 ```
-> By default, ELK will warn (or error if `--strict`) when stack instructions
-> (`push`, `pop`, `call`, `rets`) are assembled or emulated.
+> By default, ELK will warn (or error if `--strict`) when strings span multiple lines of assembly
+> code.
 > By specifying that we "permit" this policy, it silences the error.
 
 **Example:** Opt-out of a handful of lints:
@@ -381,7 +380,7 @@ You may opt-into a policy by setting it to `.permit`:
 
 ```zig
 var policies: elk.Policies = .none;
-policies.extension.stack_instructions = .permit;
+policies.extension.multiline_strings = .permit;
 ```
 
 Policies are used throughout ELK, and for both assembly and emulation.
@@ -402,7 +401,6 @@ There are 4 policy categories:
 The policies in each category are as follows:
 
 - `extension`:
-    - `stack_instructions`: Enable [stack instructions] ISA extension.
     - `implicit_origin`: Enable [implicit orig].
     - `implicit_end`: Enable [implicit end].
     - `multiline_strings`: Enable [multiline strings].
@@ -437,7 +435,6 @@ set. These sets are typically used for compatibility with other toolchains.
 
 - `laser`: Compatiblity with [Lace](https://github.com/rozukke/lace), including
     all extensions.
-    - `extension.stack_instructions`
     - `extension.implicit_origin`
     - `extension.implicit_end`
     - `extension.label_definition_colons`
@@ -467,8 +464,6 @@ set. These sets are typically used for compatibility with other toolchains.
 - See also: [custom traps]
 - See also: [runtime hooks]
 
-## Stack Instructions
-- ...
 ## Permissive Syntax
 - ...
 ### Implicit `.ORIG` / `.END`
