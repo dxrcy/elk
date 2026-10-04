@@ -11,7 +11,7 @@
 
 - [Why ELK?](#why-elk)
 - [About LC-3](#about-lc-3)
-    - [Assembly Overview](#assembly-overview])
+    - [Assembly Overview](#assembly-overview)
     - [Runtime Overview](#runtime-overview)
     - [Available Traps](#available-traps)
 - ELK Command-Line Interface
@@ -31,7 +31,6 @@
         - Change history filepath
     - Example
     - Output filepath
-    - Other Flags
     - Other Flags
         - Importing a symbol table
         - [Overriding available trap aliases](#overriding-available-trap-aliases)
@@ -69,7 +68,7 @@
         - [Diagnostics](#diagnostics)
         - [Syntax Highlighting](#syntax-highlighting)
 
-See also: [ELK Style Guide](#STYLE.md).
+See also: [ELK Style Guide](STYLE.md).
 
 # Why ELK?
 
