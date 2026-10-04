@@ -351,14 +351,6 @@ pub const Argument = struct {
                     else => try unexpected(token, &.{ .label, .integer }, reporter),
                 },
 
-                Operand.value.PcOffset(10) => switch (token.value) {
-                    .integer => |integer| .{
-                        .resolved = try shrink(i10, integer, token.span, reporter),
-                    },
-                    .label => .unresolved,
-                    else => try unexpected(token, &.{ .label, .integer }, reporter),
-                },
-
                 Operand.value.PcOffset(11) => switch (token.value) {
                     .integer => |integer| .{
                         .resolved = try shrink(i11, integer, token.span, reporter),
@@ -516,7 +508,6 @@ fn ensureSupported(
             if (argument_opt) |argument| switch (argument.type) {
                 .operand => |operand| switch (operand) {
                     Operand.value.PcOffset(9),
-                    Operand.value.PcOffset(10),
                     Operand.value.PcOffset(11),
                     => {
                         tokenizer.reporter.report(.literal_pc_offset, .{

@@ -88,11 +88,6 @@ pub const Value = union(enum) {
         str,
         // Trap *aliases* are handled separatly
         trap,
-        // Extension instructions
-        push,
-        pop,
-        call,
-        rets,
         // Only used in 'supervisor' mode
         rti,
     };
