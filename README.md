@@ -52,6 +52,86 @@ elk hello.obj --emulate
 install <filename> ~/.local/bin/elk
 ```
 
+## Nix
+
+Requires [Nix](https://nixos.org/download/) with the `nix-command` and
+`flakes` experimental features enabled. To enable them, add the following
+line to `~/.config/nix/nix.conf`:
+
+```ini
+experimental-features = nix-command flakes
+```
+
+The flake provides packages for x86-64 and ARM64 Linux and macOS.
+
+### User-profile installation
+
+Install ELK for the current user:
+
+```sh
+nix profile add 'git+https://codeberg.org/dxrcy/elk.git#elk'
+elk --help
+```
+
+On older Nix versions, use `nix profile install` instead of
+`nix profile add`. This installation persists across shell sessions and
+does not modify your NixOS or Home Manager configuration.
+
+### Temporary shell
+
+Start a shell with ELK available until you exit it:
+
+```sh
+nix shell 'git+https://codeberg.org/dxrcy/elk.git#elk'
+elk --help
+```
+
+### NixOS configuration
+
+Add ELK to the inputs in your existing `flake.nix`:
+
+```nix
+inputs.elk.url = "git+https://codeberg.org/dxrcy/elk.git";
+```
+
+Pass the flake inputs to your NixOS modules using `specialArgs`. For example,
+adapt your existing outputs definition as follows, replacing `my-host` and
+`system` with your hostname and architecture:
+
+```nix
+outputs = inputs@{ nixpkgs, ... }: {
+  nixosConfigurations.my-host = nixpkgs.lib.nixosSystem {
+    system = "x86_64-linux";
+    specialArgs = { inherit inputs; };
+    modules = [ ./configuration.nix ];
+  };
+};
+```
+
+In `configuration.nix`, add `inputs` to the module arguments and ELK to
+your system packages:
+
+```nix
+{ inputs, pkgs, ... }:
+
+{
+  environment.systemPackages = [
+    inputs.elk.packages.${pkgs.stdenv.hostPlatform.system}.default
+  ];
+}
+```
+
+Apply the configuration and check that ELK is available:
+
+```sh
+sudo nixos-rebuild switch --flake .#my-host
+elk --help
+```
+
+Optionally, set `inputs.elk.inputs.nixpkgs.follows = "nixpkgs"` in
+`flake.nix` to share your configuration's nixpkgs with ELK. Your nixpkgs
+must provide `zig_0_16`; otherwise, keep ELK's own pinned nixpkgs.
+
 # Learn More
 
 - [Why ELK?](DOCS.md#why-elk)
@@ -90,4 +170,3 @@ Additional thanks to:
 
 > *Some useful diagnostics whilst compiling a faulty assembly program*
 ![Example assembler usage](images/example1.svg)
-
