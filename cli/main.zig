@@ -101,9 +101,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 cli.use_color,
                 cli.use_decoration,
                 null,
-                operation.random_init,
-                operation.instruction_limit,
-                operation.analytics,
+                operation.options,
             );
         },
 
@@ -124,9 +122,11 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 cli.use_color,
                 cli.use_decoration,
                 null,
-                operation.random_init,
-                null,
-                null,
+                .{
+                    .random_init = operation.random_init,
+                    .instruction_limit = null,
+                    .analytics = null,
+                },
             );
         },
 
@@ -161,9 +161,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 cli.use_color,
                 cli.use_decoration,
                 &assembler,
-                operation.random_init,
-                operation.instruction_limit,
-                operation.analytics,
+                operation.options,
             );
         },
 
@@ -411,9 +409,7 @@ fn emulate(
     use_color: bool,
     use_decoration: bool,
     assembler: ?*elk.Assembler,
-    random_init: ?u64,
-    instruction_limit: ?usize,
-    analytics_opt: ?Cli.Analytics,
+    options: Cli.Operation.Emulate,
 ) !void {
     const write_buffer_size = 64;
     const debugger_buffer_size = 256;
@@ -441,7 +437,7 @@ fn emulate(
     defer if (debugger_opt) |*debugger| debugger.deinit(gpa);
 
     var prng_storage: ?std.Random.DefaultPrng = null;
-    if (random_init) |seed| {
+    if (options.random_init) |seed| {
         prng_storage = std.Random.DefaultPrng.init(seed);
     }
 
@@ -455,7 +451,7 @@ fn emulate(
         .debugger = if (debugger_opt) |*debugger| debugger else null,
         .random = if (prng_storage) |*prng| prng.random() else null,
         .use_decoration = use_decoration,
-        .instruction_limit = instruction_limit,
+        .instruction_limit = options.instruction_limit,
     });
     defer runtime.deinit(gpa);
 
@@ -501,7 +497,7 @@ fn emulate(
 
     reporter.flush();
 
-    if (analytics_opt) |analytics|
+    if (options.analytics) |analytics|
         try writeAnalytics(io, gpa, analytics, &runtime, use_decoration);
 }
 

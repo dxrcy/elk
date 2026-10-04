@@ -41,18 +41,14 @@ pub const Operation = union(enum) {
         input: Path,
         debug: ?Debug,
         patch_symbols: ?[]const struct { []const u8, u16 },
-        random_init: ?u64,
-        analytics: ?Analytics,
-        instruction_limit: ?usize,
+        options: Emulate,
     },
     emulate: struct {
         input: Path,
         debug: ?Debug,
         import_symbols: ?[]const u8,
         patch_symbols: ?[]const struct { []const u8, u16 },
-        random_init: ?u64,
-        analytics: ?Analytics,
-        instruction_limit: ?usize,
+        options: Emulate,
     },
     assemble: struct {
         paths: IoPaths,
@@ -87,6 +83,12 @@ pub const Operation = union(enum) {
                 .many => |many| many.inputs.len,
             };
         }
+    };
+
+    pub const Emulate = struct {
+        random_init: ?u64,
+        analytics: ?Analytics,
+        instruction_limit: ?usize,
     };
 
     pub const Assemble = struct {
@@ -513,9 +515,11 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
             } else null,
             .import_symbols = options.flags.import_symbols,
             .patch_symbols = options.flags.patch_symbols,
-            .random_init = options.flags.random_init,
-            .analytics = options.flags.analytics,
-            .instruction_limit = options.flags.instruction_limit,
+            .options = .{
+                .random_init = options.flags.random_init,
+                .analytics = options.flags.analytics,
+                .instruction_limit = options.flags.instruction_limit,
+            },
         } };
     }
 
@@ -528,9 +532,11 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
                 .history_file = options.flags.history_file,
             } else null,
             .patch_symbols = options.flags.patch_symbols,
-            .random_init = options.flags.random_init,
-            .analytics = options.flags.analytics,
-            .instruction_limit = options.flags.instruction_limit,
+            .options = .{
+                .random_init = options.flags.random_init,
+                .analytics = options.flags.analytics,
+                .instruction_limit = options.flags.instruction_limit,
+            },
         },
     };
 }
