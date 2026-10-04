@@ -357,33 +357,8 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
             try callback.call(.{runtime});
         },
 
-        .rti => {
-            return error.UnsupportedRti;
-        },
-
-        .pop_push_rets_call => |variant| {
-            if (runtime.policies.extension.stack_instructions != .permit)
-                return error.UnpermittedOpcode;
-
-            // Do not set condition for any operation
-            switch (variant) {
-                .pop => |operands| {
-                    const value = try runtime.stackPop();
-                    runtime.setRegisterNoCc(operands.dest, value, .tracked);
-                },
-                .push => |operands| {
-                    const value = runtime.getRegister(operands.src, .tracked);
-                    try runtime.stackPush(value);
-                },
-                .rets => {
-                    runtime.state.pc = try runtime.stackPop();
-                },
-                .call => |operands| {
-                    try runtime.stackPush(runtime.state.pc);
-                    runtime.state.pc +%= signExtend(operands.pc_offset);
-                },
-            }
-        },
+        .rti => return error.UnsupportedRti,
+        .reserved => return error.UnpermittedOpcode,
     }
 }
 
@@ -438,19 +413,6 @@ pub fn checkMemoryAccess(address: u16) error{UnpermittedMemoryAccess}!void {
         user_memory_start...user_memory_end => {},
         else => return error.UnpermittedMemoryAccess,
     }
-}
-
-fn stackPush(runtime: *Runtime, value: u16) error{ UnpermittedMemoryAccess, OutOfMemory }!void {
-    runtime.setRegisterNoCc(7, runtime.getRegister(7, .tracked) -% 1, .tracked);
-    const stack_ptr = runtime.getRegister(7, .tracked);
-    try runtime.setMemory(stack_ptr, value, .tracked);
-}
-
-fn stackPop(runtime: *Runtime) error{ UnpermittedMemoryAccess, OutOfMemory }!u16 {
-    const stack_ptr = runtime.getRegister(7, .tracked);
-    const value = try runtime.getMemory(stack_ptr, .tracked);
-    runtime.setRegisterNoCc(7, runtime.getRegister(7, .tracked) +% 1, .tracked);
-    return value;
 }
 
 pub fn readByte(runtime: *const Runtime) error{ EndOfStream, EndOfText, ReadFailed }!u8 {

@@ -350,7 +350,7 @@ fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
             },
             .step_out => {
                 const instruction = getNextInstruction(runtime);
-                if (instruction == .ret_rets) {
+                if (instruction == .ret) {
                     try runtime.ensureWriterNewline();
                     if (debugger.writer.use_decoration)
                         try debugger.writer.printLine("Reached end of subroutine.", .{})
@@ -368,15 +368,14 @@ fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
     }
 }
 
-fn getNextInstruction(runtime: *const Runtime) ?enum { ret_rets } {
+// TODO: Return `true` if next instruction is `ret`
+fn getNextInstruction(runtime: *const Runtime) ?enum { ret } {
     const word = runtime.state.memory[runtime.state.pc];
     const instruction = Runtime.Instruction.decode(word) catch
         return null;
     switch (instruction) {
         .jmp_ret => |operands| if (operands.base == 7)
-            return .ret_rets,
-        .pop_push_rets_call => |variant| if (variant == .rets)
-            return .ret_rets,
+            return .ret,
         else => {},
     }
     return null;

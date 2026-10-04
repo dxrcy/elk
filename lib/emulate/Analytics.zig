@@ -130,7 +130,6 @@ const Data = struct {
 
     // TODO: Add more instruction-specific variants
     // Eg. add is struct{ reg: usize, immediate: usize }
-    // Leave pop_push_rets_call as is; this instruction will likely get deprecated
     const Instructions = struct {
         regular: struct {
             add: usize = 0,
@@ -146,7 +145,7 @@ const Data = struct {
             sti: usize = 0,
             str: usize = 0,
             rti: usize = 0,
-            pop_push_rets_call: usize = 0,
+            reserved: usize = 0,
             noop: usize = 0,
         } = .{},
         br: struct {
