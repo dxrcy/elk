@@ -58,7 +58,6 @@ pub const Provider = union(enum) {
             .lea => |*operands| provider.resolveField(&operands.src, address, source, reporter),
             .st => |*operands| provider.resolveField(&operands.dest, address, source, reporter),
             .sti => |*operands| provider.resolveField(&operands.dest, address, source, reporter),
-            .call => |*operands| provider.resolveField(&operands.dest, address, source, reporter),
             else => {},
         };
     }

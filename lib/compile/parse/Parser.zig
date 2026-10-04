@@ -479,22 +479,8 @@ fn parseInstructionOperands(
         .sti,
         .str,
         .trap,
-        .push,
-        .pop,
-        .call,
-        .rets,
         .rti,
         => |regular| {
-            switch (regular) {
-                .push, .pop, .call, .rets => {
-                    try parser.reporter().report(.stack_instruction, .{
-                        .mnemonic = span,
-                        .kind = mnemonic,
-                    }).handle();
-                },
-                else => {},
-            }
-
             const Operands = @FieldType(Instruction, @tagName(regular));
             var operands: Operands = undefined;
 

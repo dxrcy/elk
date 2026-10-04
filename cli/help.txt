@@ -62,7 +62,7 @@ OPTIONS:
             Show less output when assembling.
     -p, --permit <POLICIES>
             Specify permitted policies or predefined policy sets.
-            Eg. --permit +laser,extension.stack_instructions
+            Eg. --permit +laser,extension.multiline_strings
         --color [auto | always | never]
             Enable or disable color in stdout/stderr.
             'auto' will enable color only if stdout is a TTY (default).
@@ -78,6 +78,6 @@ EXAMPLES:
      elk hello.asm --debug
      elk hello.asm --assemble --output hello.obj --strict --quiet
      elk hello.asm --assemble --export-listing
-     elk hello.obj --emulate --permit +laser,case.*,extension.stack_instructions
+     elk hello.obj --emulate --permit +laser,case.*,extension.multiline_strings
      elk hello.asm --analytics hello.json
      elk --check *.asm

@@ -19,7 +19,6 @@ pub const Policies = packed struct {
         };
         pub const lace: Policies = blk: {
             var policies: Policies = .none;
-            policies.extension.stack_instructions = .permit;
             policies.extension.implicit_origin = .permit;
             policies.extension.implicit_end = .permit;
             policies.extension.label_definition_colons = .permit;
@@ -30,7 +29,6 @@ pub const Policies = packed struct {
     };
 
     extension: packed struct {
-        stack_instructions: Policy,
         implicit_origin: Policy,
         implicit_end: Policy,
         multiline_strings: Policy,
