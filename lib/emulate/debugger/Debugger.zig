@@ -349,8 +349,7 @@ fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
                 return .proceed;
             },
             .step_out => {
-                const instruction = getNextInstruction(runtime);
-                if (instruction == .ret) {
+                if (isNextInstructionRet(runtime)) {
                     try runtime.ensureWriterNewline();
                     if (debugger.writer.use_decoration)
                         try debugger.writer.printLine("Reached end of subroutine.", .{})
@@ -368,17 +367,16 @@ fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
     }
 }
 
-// TODO: Return `true` if next instruction is `ret`
-fn getNextInstruction(runtime: *const Runtime) ?enum { ret } {
+fn isNextInstructionRet(runtime: *const Runtime) bool {
     const word = runtime.state.memory[runtime.state.pc];
     const instruction = Runtime.Instruction.decode(word) catch
-        return null;
+        return false;
     switch (instruction) {
         .jmp_ret => |operands| if (operands.base == 7)
-            return .ret,
+            return true,
         else => {},
     }
-    return null;
+    return false;
 }
 
 fn tryNextAction(debugger: *Debugger, runtime: *Runtime) !?Action {
