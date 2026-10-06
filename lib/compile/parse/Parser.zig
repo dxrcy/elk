@@ -451,6 +451,10 @@ fn parseDirective(
         },
 
         .stringzp => {
+            try parser.reporter().report(.packed_string_directive, .{
+                .directive = span,
+            }).handle();
+
             const string = try parser.tokenizer.expectArgument(.{
                 .type = .string,
                 .expected_count = 1,

@@ -38,6 +38,7 @@ pub const Policies = packed struct {
         multiple_labels: Policy,
         longer_labels: Policy,
         character_literals: Policy,
+        packed_string_directives: Policy,
 
         pub const forbid_all = fillFields(@This(), .forbid);
         pub const permit_all = fillFields(@This(), .permit);
