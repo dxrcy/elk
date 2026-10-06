@@ -251,6 +251,10 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
                     null,
             );
         },
+        .packed_string_directive => |info| {
+            try ctx.writeTitle("Use of non-standard 'packed string' directive", .{});
+            try ctx.deepen().writeSourceNote("Directive", .{}, info.directive);
+        },
 
         .existing_label_left => |info| {
             try ctx.writeTitle("Multiple labels cannot be declared on the same line", .{});

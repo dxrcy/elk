@@ -99,6 +99,7 @@ pub const Diagnostic = union(enum) {
     late_origin: struct { origin: Span, first_token: ?Span },
     missing_origin: struct { first_token: ?Span },
     missing_end: struct { last_token: ?Span },
+    packed_string_directive: struct { directive: Span },
 
     // Label syntax and resolution
     existing_label_left: struct { existing: Span, new: Span },
@@ -211,6 +212,7 @@ pub const Diagnostic = union(enum) {
             => policyResponse(options, .extension, .more_integer_forms),
             .multiline_string => policyResponse(options, .extension, .multiline_strings),
             .character_integer => policyResponse(options, .extension, .character_literals),
+            .packed_string_directive => policyResponse(options, .extension, .packed_string_directives),
 
             .literal_pc_offset => policyResponse(options, .smell, .pc_offset_literals),
             .explicit_trap_vect => policyResponse(options, .smell, .explicit_trap_instructions),
@@ -269,6 +271,7 @@ pub const Diagnostic = union(enum) {
             .late_origin => |info| info.origin,
             .missing_origin => |info| info.first_token,
             .missing_end => |info| info.last_token,
+            .packed_string_directive => |info| info.directive,
             .existing_label_left => |info| info.existing,
             .existing_label_above => |info| info.existing,
             .invalid_label_target => |info| info.label,
