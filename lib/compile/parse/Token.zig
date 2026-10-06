@@ -57,6 +57,7 @@ pub const Value = union(enum) {
         fill,
         blkw,
         stringz,
+        stringzp,
     };
 
     pub const Mnemonic = enum {
