@@ -99,6 +99,7 @@ pub fn putn(runtime: *Runtime) Traps.Result {
     defer runtime.analytics.endTime(.io);
 
     try runtime.writer.print("{}", .{runtime.state.registers[0]});
+    runtime.writer_is_newline = false;
     try runtime.writer.flush();
 }
 
