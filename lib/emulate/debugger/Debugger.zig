@@ -249,6 +249,34 @@ pub fn printInspectInstruction(
         else => {
             try writer.print("?", .{});
         },
+        inline .add, .@"and" => |operands, subset| {
+            const lhs = runtime.state.registers[operands.src_a];
+            const rhs: u16 = switch (operands.src_b) {
+                .register => |register| runtime.state.registers[register],
+                .immediate => |immediate| Runtime.signExtend(immediate),
+            };
+            const value = switch (subset) {
+                .add => lhs +% rhs,
+                .@"and" => lhs & rhs,
+                else => comptime unreachable,
+            };
+
+            try writer.print("r{} <- r{} + ", .{ operands.dest, operands.src_a });
+            switch (operands.src_b) {
+                .register => |register| try writer.print("r{}", .{register}),
+                .immediate => |immediate| try writer.print("{f}", .{Operand(immediate)}),
+            }
+            try writer.print(" = {f} {c} {f} = {f}", .{
+                Operand(lhs),
+                switch (subset) {
+                    .add => '+',
+                    .@"and" => '&',
+                    else => comptime unreachable,
+                },
+                Operand(rhs),
+                Operand(value),
+            });
+        },
     }
 }
 
