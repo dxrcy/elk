@@ -39,6 +39,9 @@ Available Commands:
     assembly(a) LOCATION?
         Show assembly source code corresponding to address.
           - LOCATION: Address (default: PC)
+    inspect (i) ENABLE?
+        When enabled, instructions will be printed before execution.
+          - ENABLE: on | off (default: toggles)
     eval(e) INSTRUCTION
         Emulate an assembly instruction.
           - INSTRUCTION: Mnemonic, Operands...
