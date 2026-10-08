@@ -88,11 +88,14 @@ pub const Writer = struct {
         try writer.print("\x1b[0m", .{});
     }
 
-    pub fn writePrompt(writer: *Writer, string: []const u8, cursor_opt: ?usize) !void {
-        const trimmed = if (cursor_opt == null)
-            std.mem.trim(u8, string, &std.ascii.whitespace)
-        else
-            string;
+    pub fn writePrompt(
+        writer: *Writer,
+        string: []const u8,
+        cursor_opt: ?usize,
+        final: bool,
+    ) !void {
+        const trimmed =
+            if (cursor_opt == null) std.mem.trim(u8, string, &std.ascii.whitespace) else string;
         const start = std.mem.findNone(u8, trimmed, " ;") orelse 0;
         const end = std.mem.findScalarPos(u8, trimmed, start, ';') orelse trimmed.len;
 
@@ -101,9 +104,7 @@ pub const Writer = struct {
         const after = trimmed[end..];
 
         if (writer.use_decoration)
-            try writer.print("\r\x1b[K", .{})
-        else if (command.len == 0)
-            return;
+            try writer.print("\r\x1b[K", .{});
 
         try writer.enableColor();
         try writer.print(prompt, .{});
@@ -130,7 +131,8 @@ pub const Writer = struct {
         if (cursor_opt) |cursor|
             try writer.print("\x1b[{}G", .{cursor + prompt.len + 1});
 
-        try writer.print("\n", .{});
+        if (final or !writer.use_decoration)
+            try writer.print("\n", .{});
     }
 };
 
@@ -1154,7 +1156,7 @@ fn readCommand(debugger: *Debugger, runtime: *Runtime) ![]const u8 {
         error.EndOfText => "exit",
     };
 
-    try debugger.writer.writePrompt(line, null);
+    try debugger.writer.writePrompt(line, null, true);
     try debugger.writer.flush();
 
     var rest = line;
