@@ -37,7 +37,7 @@ pub const Value = union(enum) {
         context: Spanned(u16),
     },
     inspect: struct {
-        enable: Spanned(bool),
+        enable: Spanned(?bool),
     },
     eval: struct {
         instruction: Span,

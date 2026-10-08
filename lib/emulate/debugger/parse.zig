@@ -108,7 +108,7 @@ const Parser = struct {
             } },
 
             .inspect => .{ .inspect = .{
-                .enable = try parser.nextBoolean(),
+                .enable = try parser.nextOptionalBoolean(),
             } },
 
             .eval => .{ .eval = .{
@@ -159,11 +159,9 @@ const Parser = struct {
         return .fromBounds(start, end);
     }
 
-    fn nextBoolean(parser: *Parser) error{Reported}!Spanned(bool) {
+    fn nextOptionalBoolean(parser: *Parser) error{Reported}!Spanned(?bool) {
         const argument = parser.next() catch |err| switch (err) {
-            error.Eof => try parser.reporter.report(.debugger_unexpected_eol, .{
-                .eol = .endOf(parser.source),
-            }).abort(),
+            error.Eof => return .{ .span = .endOf(parser.source), .value = null },
         };
         const string = argument.view(parser.source);
 

@@ -665,17 +665,19 @@ fn runCommand(
         },
 
         .inspect => |arguments| {
+            const enable = if (arguments.enable.value) |enable| enable else !debugger.inspect;
+
             if (debugger.writer.use_decoration)
                 try debugger.writer.printLine(
                     "Inspect set to {s}.",
-                    .{if (arguments.enable.value) "on" else "off"},
+                    .{if (enable) "on" else "off"},
                 )
             else
                 try debugger.writer.printLine(
                     "set inspect {s}",
-                    .{if (arguments.enable.value) "on" else "off"},
+                    .{if (enable) "on" else "off"},
                 );
-            debugger.inspect = arguments.enable.value;
+            debugger.inspect = enable;
         },
 
         .eval => |arguments| {
