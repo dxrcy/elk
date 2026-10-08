@@ -542,7 +542,7 @@ pub const Stringz = struct {
     }
 };
 
-fn signExtend(value: anytype) u16 {
+pub fn signExtend(value: anytype) u16 {
     const bits = @typeInfo(@TypeOf(value)).int.bits;
     const Signed = @Int(.signed, bits);
     return @bitCast(@as(i16, @as(Signed, @bitCast(value))));

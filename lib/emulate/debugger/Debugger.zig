@@ -58,6 +58,7 @@ const Action = enum {
 pub const Writer = struct {
     pub const color = 34;
     const prompt = "> ";
+    const prefix = "| ";
 
     inner: *Io.Writer,
     use_color: bool,
@@ -73,7 +74,7 @@ pub const Writer = struct {
 
     pub fn printLine(writer: *Writer, comptime fmt: []const u8, args: anytype) !void {
         try writer.enableColor();
-        try writer.print("| " ++ fmt ++ "\n", args);
+        try writer.print(prefix ++ fmt ++ "\n", args);
         try writer.disableColor();
     }
 
@@ -218,11 +219,37 @@ pub fn preExecute(debugger: *Debugger, runtime: *Runtime, instruction: Runtime.I
         return;
 
     try runtime.ensureWriterNewline();
+    try debugger.writer.enableColor();
     if (debugger.writer.use_decoration)
-        try debugger.writer.printLine("Executing: {f}", .{instruction})
+        try debugger.writer.print(Writer.prefix ++ "Executing: ", .{})
     else
-        try debugger.writer.printLine("execute {f}", .{instruction});
+        try debugger.writer.printLine(Writer.prefix ++ "execute ", .{});
+
+    const width = 16;
+    var buffer: [width]u8 = undefined;
+    const string = std.fmt.bufPrint(&buffer, "{f}", .{instruction}) catch unreachable;
+    try debugger.writer.print("{s:<[1]}", .{ string, width });
+
+    try debugger.writer.print(" : ", .{});
+    try printInspectInstruction(debugger.writer.inner, runtime, instruction);
+
+    try debugger.writer.print("\n", .{});
+    try debugger.writer.disableColor();
     runtime.writer_is_newline = true;
+}
+
+pub fn printInspectInstruction(
+    writer: *Io.Writer,
+    runtime: *const Runtime,
+    instruction: Runtime.Instruction,
+) !void {
+    const Operand = @import("../decode.zig").Operand;
+
+    switch (instruction) {
+        else => {
+            try writer.print("?", .{});
+        },
+    }
 }
 
 pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?enum { @"continue", @"break" } {
