@@ -89,17 +89,10 @@ pub const Writer = struct {
     }
 
     pub fn writePrompt(writer: *Writer, string: []const u8, cursor_opt: ?usize) !void {
-        try writer.print("\r\x1b[K", .{});
-
-        try writer.enableColor();
-        try writer.print(prompt, .{});
-        try writer.disableColor();
-
         const trimmed = if (cursor_opt == null)
             std.mem.trim(u8, string, &std.ascii.whitespace)
         else
             string;
-
         const start = std.mem.findNone(u8, trimmed, " ;") orelse 0;
         const end = std.mem.findScalarPos(u8, trimmed, start, ';') orelse trimmed.len;
 
@@ -107,7 +100,16 @@ pub const Writer = struct {
         const command = trimmed[start..end];
         const after = trimmed[end..];
 
-        if (before.len > 0) {
+        if (writer.use_decoration)
+            try writer.print("\r\x1b[K", .{})
+        else if (command.len == 0)
+            return;
+
+        try writer.enableColor();
+        try writer.print(prompt, .{});
+        try writer.disableColor();
+
+        if (before.len > 0 and writer.use_decoration) {
             if (writer.use_color)
                 try writer.print("\x1b[2m", .{});
             try writer.print("{s}", .{before});
@@ -117,7 +119,7 @@ pub const Writer = struct {
 
         try writer.print("{s}", .{command});
 
-        if (after.len > 0) {
+        if (after.len > 0 and writer.use_decoration) {
             if (writer.use_color)
                 try writer.print("\x1b[2m", .{});
             try writer.print("{s}", .{after});
@@ -127,6 +129,8 @@ pub const Writer = struct {
 
         if (cursor_opt) |cursor|
             try writer.print("\x1b[{}G", .{cursor + prompt.len + 1});
+
+        try writer.print("\n", .{});
     }
 };
 
@@ -1151,7 +1155,6 @@ fn readCommand(debugger: *Debugger, runtime: *Runtime) ![]const u8 {
     };
 
     try debugger.writer.writePrompt(line, null);
-    try debugger.writer.print("\n", .{});
     try debugger.writer.flush();
 
     var rest = line;
