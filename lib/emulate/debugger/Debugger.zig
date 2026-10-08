@@ -285,6 +285,20 @@ pub fn printInspectInstruction(
                 Operand(~runtime.state.registers[operands.src]),
             });
         },
+        .br => |operands| {
+            const pc_offset = Runtime.signExtend(operands.pc_offset);
+            try writer.print("pc <- pc + {f} = {f} + {f} = {f}", .{
+                Operand(pc_offset),
+                Operand(runtime.state.pc),
+                Operand(pc_offset),
+                Operand(runtime.state.pc +% pc_offset),
+            });
+            try writer.print(", if {b:03} & {b:03} = {b:03} != 000", .{
+                runtime.state.condition,
+                operands.mask,
+                @intFromEnum(runtime.state.condition) & operands.mask,
+            });
+        },
     }
 }
 
