@@ -107,6 +107,10 @@ const Parser = struct {
                 .location = try parser.nextMemoryLocation(),
             } },
 
+            .inspect => .{ .inspect = .{
+                .enable = try parser.nextOptionalBoolean(),
+            } },
+
             .eval => .{ .eval = .{
                 .instruction = try parser.remainingString(),
             } },
@@ -155,6 +159,22 @@ const Parser = struct {
         return .fromBounds(start, end);
     }
 
+    fn nextOptionalBoolean(parser: *Parser) error{Reported}!Spanned(?bool) {
+        const argument = parser.next() catch |err| switch (err) {
+            error.Eof => return .{ .span = .endOf(parser.source), .value = null },
+        };
+        const string = argument.view(parser.source);
+
+        if (std.ascii.eqlIgnoreCase(string, "on"))
+            return .{ .span = argument, .value = true };
+        if (std.ascii.eqlIgnoreCase(string, "off"))
+            return .{ .span = argument, .value = false };
+
+        try parser.reporter.report(.debugger_invalid_argument_kind, .{
+            .found = argument,
+        }).abort();
+    }
+
     fn nextInteger(parser: *Parser) error{Reported}!Spanned(u16) {
         const argument = parser.next() catch |err| switch (err) {
             error.Eof => try parser.reporter.report(.debugger_unexpected_eol, .{
@@ -163,7 +183,6 @@ const Parser = struct {
         };
 
         const integer = try parser.parseInteger(argument);
-
         return .{ .span = argument, .value = integer.underlying };
     }
 

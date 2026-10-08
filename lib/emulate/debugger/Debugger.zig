@@ -32,6 +32,7 @@ breakpoints: Breakpoints,
 initial_state: ?Runtime.State,
 provider: Provider,
 assembler: ?*Assembler,
+inspect: bool,
 
 current_line: []const u8,
 input: Input,
@@ -172,6 +173,7 @@ pub fn init(
         .initial_state = null,
         .provider = params.provider,
         .assembler = params.assembler,
+        .inspect = false,
         .current_line = params.initial_command_line,
         .input = input,
         .writer = .{
@@ -209,6 +211,18 @@ pub fn startMessage(debugger: *Debugger, use_decoration: bool) !void {
     } else {
         try debugger.writer.printLine("welcome", .{});
     }
+}
+
+pub fn preExecute(debugger: *Debugger, runtime: *Runtime, instruction: Runtime.Instruction) !void {
+    if (!debugger.inspect)
+        return;
+
+    try runtime.ensureWriterNewline();
+    if (debugger.writer.use_decoration)
+        try debugger.writer.printLine("Executing: {f}", .{instruction})
+    else
+        try debugger.writer.printLine("execute {f}", .{instruction});
+    runtime.writer_is_newline = true;
 }
 
 pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?enum { @"continue", @"break" } {
@@ -648,6 +662,22 @@ fn runCommand(
                         );
                 }
             }
+        },
+
+        .inspect => |arguments| {
+            const enable = if (arguments.enable.value) |enable| enable else !debugger.inspect;
+
+            if (debugger.writer.use_decoration)
+                try debugger.writer.printLine(
+                    "Inspect set to {s}.",
+                    .{if (enable) "on" else "off"},
+                )
+            else
+                try debugger.writer.printLine(
+                    "set inspect {s}",
+                    .{if (enable) "on" else "off"},
+                );
+            debugger.inspect = enable;
         },
 
         .eval => |arguments| {
