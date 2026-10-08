@@ -256,17 +256,16 @@ fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
         try pre_decode.call(.{ runtime, word });
 
     const instruction: Instruction = try .decode(word);
+    try runtime.runInstruction(instruction);
+}
 
+pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || error{Halt})!void {
     if (runtime.hooks.pre_execute) |pre_execute|
         try pre_execute.call(.{ runtime, instruction });
 
     if (runtime.debugger) |debugger|
         try debugger.preExecute(runtime, instruction);
 
-    try runtime.runInstruction(instruction);
-}
-
-pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || error{Halt})!void {
     if (runtime.instruction_limit) |limit| {
         if (runtime.instruction_count >= limit)
             return error.InstructionLimitReached;
