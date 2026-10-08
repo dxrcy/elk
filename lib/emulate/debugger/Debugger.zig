@@ -299,6 +299,12 @@ pub fn printInspectInstruction(
                 @intFromEnum(runtime.state.condition) & operands.mask,
             });
         },
+        .jmp_ret => |operands| {
+            try writer.print("pc <- r{} = {f}", .{
+                operands.base,
+                Operand(runtime.state.registers[operands.base]),
+            });
+        },
     }
 }
 
