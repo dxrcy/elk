@@ -277,6 +277,14 @@ pub fn printInspectInstruction(
                 Operand(value),
             });
         },
+        .not => |operands| {
+            try writer.print("r{} <- ~r{} = ~{f} = {f}", .{
+                operands.dest,
+                operands.src,
+                Operand(runtime.state.registers[operands.src]),
+                Operand(~runtime.state.registers[operands.src]),
+            });
+        },
     }
 }
 
