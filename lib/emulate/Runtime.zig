@@ -260,6 +260,9 @@ fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
     if (runtime.hooks.pre_execute) |pre_execute|
         try pre_execute.call(.{ runtime, instruction });
 
+    if (runtime.debugger) |debugger|
+        try debugger.preExecute(runtime, instruction);
+
     try runtime.runInstruction(instruction);
 }
 
