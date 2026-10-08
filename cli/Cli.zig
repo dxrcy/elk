@@ -33,8 +33,8 @@ operation: Operation,
 policies: elk.Policies,
 strictness: elk.reporting.Options.Strictness,
 verbosity: elk.reporting.Options.Verbosity,
-use_color: bool,
-use_decoration: bool,
+use_color: Condition,
+use_decoration: Condition,
 
 pub const Operation = union(enum) {
     assemble_emulate: struct {
@@ -270,8 +270,8 @@ pub const Condition = enum {
     always,
     never,
 
-    pub fn resolve(mode: ?Condition, default: bool) bool {
-        return switch (mode orelse .auto) {
+    pub fn resolve(condition: Condition, default: bool) bool {
+        return switch (condition) {
             .auto => default,
             .always => true,
             .never => false,
@@ -356,7 +356,6 @@ pub fn parse(
     arena: Allocator,
     writer: *std.Io.Writer,
     args: []const []const u8,
-    is_tty: bool,
 ) !Cli {
     if (zilc.getMetaArg(args, .help)) |meta| {
         switch (meta) {
@@ -400,8 +399,8 @@ pub fn parse(
         else
             .normal,
         .verbosity = if (options.flags.quiet) .quiet else .normal,
-        .use_color = Condition.resolve(options.flags.color_condition, is_tty),
-        .use_decoration = Condition.resolve(options.flags.decoration_condition, is_tty),
+        .use_color = options.flags.color_condition orelse .auto,
+        .use_decoration = options.flags.decoration_condition orelse .auto,
     };
 }
 

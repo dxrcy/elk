@@ -19,6 +19,7 @@ pub const writeSpanContext = Ctx.writeSpanContext;
 writer: *Io.Writer,
 use_color: bool,
 
+// TODO: Use default value for `use_color`
 pub fn new(writer: *Io.Writer, use_color: bool) FancySink {
     return .{ .writer = writer, .use_color = use_color };
 }

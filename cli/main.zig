@@ -20,12 +20,13 @@ pub fn main(init: std.process.Init) !u8 {
 pub fn mainInner(init: std.process.Init) !u8 {
     const io, const gpa = .{ init.io, init.gpa };
 
-    const is_tty = try Io.File.stdout().isTty(io);
+    const stdout_is_tty = try Io.File.stdout().isTty(io);
+    const stderr_is_tty = try Io.File.stderr().isTty(io);
 
     const reporter_buffer_size = 1024;
     var reporter_buffer: [reporter_buffer_size]u8 = undefined;
     var reporter_writer = Io.File.stderr().writer(io, &reporter_buffer);
-    var sink = elk.reporting.Sink.Fancy.new(&reporter_writer.interface, is_tty);
+    var sink = elk.reporting.Sink.Fancy.new(&reporter_writer.interface, stderr_is_tty);
 
     var sink_collect = elk.reporting.Sink.Collect.init(gpa, sink.interface());
     defer sink_collect.deinit();
@@ -44,7 +45,6 @@ pub fn mainInner(init: std.process.Init) !u8 {
             temp_arena.allocator(),
             &reporter_writer.interface,
             args.items,
-            is_tty,
         ) catch |err| switch (err) {
             else => return err,
             error.DisplayMetadata => return 0,
@@ -54,7 +54,7 @@ pub fn mainInner(init: std.process.Init) !u8 {
     reporter.options.strictness = cli.strictness;
     reporter.options.verbosity = cli.verbosity;
     reporter.options.policies = cli.policies;
-    sink.use_color = cli.use_color;
+    sink.use_color = cli.use_color.resolve(stderr_is_tty);
 
     const default_traps: elk.Traps = comptime .registerSets(&.{
         elk.Traps.Standard,
@@ -98,8 +98,8 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 &default_traps,
                 cli.policies,
                 &reporter,
-                cli.use_color,
-                cli.use_decoration,
+                cli.use_color.resolve(stdout_is_tty),
+                cli.use_decoration.resolve(stdout_is_tty),
                 null,
                 operation.options,
             );
@@ -119,8 +119,8 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 &default_traps,
                 cli.policies,
                 &reporter,
-                cli.use_color,
-                cli.use_decoration,
+                cli.use_color.resolve(stdout_is_tty),
+                cli.use_decoration.resolve(stdout_is_tty),
                 null,
                 operation.options,
             );
@@ -154,8 +154,8 @@ pub fn mainInner(init: std.process.Init) !u8 {
                 &default_traps,
                 cli.policies,
                 &reporter,
-                cli.use_color,
-                cli.use_decoration,
+                cli.use_color.resolve(stdout_is_tty),
+                cli.use_decoration.resolve(stdout_is_tty),
                 &assembler,
                 operation.options,
             );
