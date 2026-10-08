@@ -664,6 +664,20 @@ fn runCommand(
             }
         },
 
+        .inspect => |arguments| {
+            if (debugger.writer.use_decoration)
+                try debugger.writer.printLine(
+                    "Inspect set to {s}.",
+                    .{if (arguments.enable.value) "on" else "off"},
+                )
+            else
+                try debugger.writer.printLine(
+                    "set inspect {s}",
+                    .{if (arguments.enable.value) "on" else "off"},
+                );
+            debugger.inspect = arguments.enable.value;
+        },
+
         .eval => |arguments| {
             try debugger.evalCommand(runtime, arguments.instruction, source);
         },

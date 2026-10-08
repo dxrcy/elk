@@ -36,6 +36,9 @@ pub const Value = union(enum) {
         location: Spanned(Location.Memory),
         context: Spanned(u16),
     },
+    inspect: struct {
+        enable: Spanned(bool),
+    },
     eval: struct {
         instruction: Span,
     },
@@ -113,6 +116,7 @@ pub fn tagString(command: Tag) [:0]const u8 {
         .move => "move",
         .goto => "goto",
         .assembly => "assembly",
+        .inspect => "inspect",
         .eval => "eval",
         .echo => "echo",
         .step_over => "step over",

@@ -64,6 +64,9 @@ pub const single: SingleMap = .init(.{
         .aliases = &.{ "assembly", "a", "asm" },
         .suggestions = &.{ "source", "src", "ass", "inspect" },
     },
+    .inspect = .{
+        .aliases = &.{"inspect", "i"},
+    },
     .eval = .{
         .aliases = &.{ "eval", "e", "evil", "evaluate" },
         .suggestions = &.{ "run", "exec", "execute", "sim", "simulate", "instruction", "instr" },
