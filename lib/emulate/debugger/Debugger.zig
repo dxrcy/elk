@@ -367,10 +367,9 @@ pub fn printInspectInstruction(
         .ldr => |operands| {
             const offset = Runtime.signExtend(operands.offset);
             const value = runtime.state.memory[runtime.state.registers[operands.base] +% offset];
-            try writer.print("r{} <- mem[r{} + {f}] = mem[{f} + {f}] = mem[{f}] = {f}", .{
+            try writer.print("r{} <- mem[r{}:{f} + {f}] = mem[{f}] = {f}", .{
                 operands.dest,
                 operands.base,
-                Operand(offset),
                 Operand(runtime.state.registers[operands.base]),
                 Operand(offset),
                 Operand(runtime.state.registers[operands.base] +% offset),
@@ -405,9 +404,8 @@ pub fn printInspectInstruction(
         .str => |operands| {
             const offset = Runtime.signExtend(operands.offset);
             const value = runtime.state.registers[operands.src];
-            try writer.print("mem[r{} + {f}] = mem[{f} + {f}] = mem[{f}] <- r{} = {f}", .{
+            try writer.print("mem[r{}:{f} + {f}] = mem[{f}] <- r{} = {f}", .{
                 operands.base,
-                Operand(offset),
                 Operand(runtime.state.registers[operands.base]),
                 Operand(offset),
                 Operand(runtime.state.registers[operands.base] +% offset),
