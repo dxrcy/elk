@@ -305,6 +305,29 @@ pub fn printInspectInstruction(
                 Operand(runtime.state.registers[operands.base]),
             });
         },
+        .jsr_jsrr => |variant| {
+            const previous_pc = runtime.state.pc;
+            switch (variant) {
+                .jsr => |operands| {
+                    const pc_offset = Runtime.signExtend(operands.pc_offset);
+                    try writer.print("pc <- pc + {f} = {f} + {f} = {f}", .{
+                        Operand(pc_offset),
+                        Operand(runtime.state.pc),
+                        Operand(pc_offset),
+                        Operand(runtime.state.pc +% pc_offset),
+                    });
+                },
+                .jsrr => |operands| {
+                    try writer.print("pc <- pc + r{} = {f} + {f} = {f}", .{
+                        operands.base,
+                        Operand(runtime.state.pc),
+                        Operand(runtime.state.registers[operands.base]),
+                        Operand(runtime.state.pc +% runtime.state.registers[operands.base]),
+                    });
+                },
+            }
+            try writer.print(", r7 <- pc = {f}", .{Operand(previous_pc)});
+        },
     }
 }
 
