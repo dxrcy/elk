@@ -223,15 +223,17 @@ pub fn preExecute(debugger: *Debugger, runtime: *Runtime, instruction: Runtime.I
     if (debugger.writer.use_decoration)
         try debugger.writer.print(Writer.prefix ++ "Executing: ", .{})
     else
-        try debugger.writer.printLine(Writer.prefix ++ "execute ", .{});
+        try debugger.writer.print(Writer.prefix ++ "execute ", .{});
 
     const width = 16;
     var buffer: [width]u8 = undefined;
     const string = std.fmt.bufPrint(&buffer, "{f}", .{instruction}) catch unreachable;
     try debugger.writer.print("{s:<[1]}", .{ string, width });
 
-    try debugger.writer.print(" : ", .{});
-    try printInspectInstruction(debugger.writer.inner, runtime, instruction);
+    if (debugger.writer.use_decoration) {
+        try debugger.writer.print(" : ", .{});
+        try printInspectInstruction(debugger.writer.inner, runtime, instruction);
+    }
 
     try debugger.writer.print("\n", .{});
     try debugger.writer.disableColor();
