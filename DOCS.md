@@ -510,10 +510,6 @@ ELK is available on [Homebrew](https://brew.sh) through the tap
 brew install dxrcy/elk/elk
 ```
 
-```sh
-brew tap dxrcy/elk
-```
-
 > Note: To install the **ELCI** build, use `brew install dxrcy/elk/elk-mc`
 
 ## Install from official binary release
