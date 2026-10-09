@@ -331,6 +331,16 @@ pub fn printInspectInstruction(
             }
             try writer.print(", r7 <- pc = {f}", .{Operand(previous_pc)});
         },
+        .lea => |operands| {
+            const pc_offset = Runtime.signExtend(operands.pc_offset);
+            try writer.print("r{} <- pc + {f} = {f} + {f} = {f}", .{
+                operands.dest,
+                Operand(pc_offset),
+                Operand(runtime.state.pc),
+                Operand(pc_offset),
+                Operand(runtime.state.pc +% pc_offset),
+            });
+        },
     }
 }
 
