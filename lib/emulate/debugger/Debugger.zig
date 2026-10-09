@@ -246,9 +246,6 @@ pub fn printInspectInstruction(
     const Operand = @import("../decode.zig").Operand;
 
     switch (instruction) {
-        else => {
-            try writer.print("?", .{});
-        },
         inline .add, .@"and" => |operands, subset| {
             const lhs = runtime.state.registers[operands.src_a];
             const rhs: u16 = switch (operands.src_b) {
@@ -412,6 +409,15 @@ pub fn printInspectInstruction(
                 operands.src,
                 Operand(value),
             });
+        },
+        .trap => |operands| {
+            try writer.print("trap x{x:02}", .{operands.vect});
+        },
+        .rti => {
+            try writer.print("unsupported rti", .{});
+        },
+        .reserved => {
+            try writer.print("unpermitted reserved opcode", .{});
         },
     }
 }
