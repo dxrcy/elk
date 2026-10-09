@@ -242,6 +242,11 @@ const Data = struct {
         );
 
         try writer.print(
+            "{s}size............{}\n",
+            .{ c_vr, data.size },
+        );
+
+        try writer.print(
             "{s}symbol..........{}\n",
             .{ c_vr, data.symbols.count() },
         );
@@ -327,22 +332,6 @@ const Data = struct {
             }
         }
 
-        try writer.print(
-            "{s}address.........{}\n",
-            .{ c_vr, getValueSum(&data.memory.execute) },
-        );
-        {
-            const addresses = try sortedAddressKeys(usize, arena, &data.memory.execute);
-            defer arena.free(addresses);
-            for (addresses, 0..) |address, i|
-                try writer.print("{s}{s}x{x:04}.......{}\n", .{
-                    c_v,
-                    if (i + 1 >= addresses.len) c_r else c_vr,
-                    address,
-                    data.memory.execute.get(address) orelse unreachable,
-                });
-        }
-
         try writer.print("{s}register........\n", .{c_vr});
         {
             var count: usize = 0;
@@ -379,10 +368,6 @@ const Data = struct {
 
         try writer.print("{s}memory..........\n", .{c_vr});
         try writer.print(
-            "{s}{s}size........{}\n",
-            .{ c_v, c_vr, data.size },
-        );
-        try writer.print(
             "{s}{s}read........{}\n",
             .{ c_v, c_vr, getValueSum(&data.memory.read) },
         );
@@ -400,7 +385,7 @@ const Data = struct {
         }
         try writer.print(
             "{s}{s}write.......{}\n",
-            .{ c_v, c_r, getValueSum(&data.memory.write) },
+            .{ c_v, c_vr, getValueSum(&data.memory.write) },
         );
         {
             const addresses = try sortedAddressKeys(usize, arena, &data.memory.write);
@@ -408,10 +393,26 @@ const Data = struct {
             for (addresses, 0..) |address, i|
                 try writer.print("{s}{s}{s}x{x:04}...{}\n", .{
                     c_v,
-                    c_e,
+                    c_v,
                     if (i + 1 >= data.memory.write.count()) c_r else c_vr,
                     address,
                     data.memory.write.get(address) orelse unreachable,
+                });
+        }
+        try writer.print(
+            "{s}{s}execute.....{}\n",
+            .{ c_v, c_r, getValueSum(&data.memory.execute) },
+        );
+        {
+            const addresses = try sortedAddressKeys(usize, arena, &data.memory.execute);
+            defer arena.free(addresses);
+            for (addresses, 0..) |address, i|
+                try writer.print("{s}{s}{s}x{x:04}...{}\n", .{
+                    c_v,
+                    c_e,
+                    if (i + 1 >= addresses.len) c_r else c_vr,
+                    address,
+                    data.memory.execute.get(address) orelse unreachable,
                 });
         }
 
