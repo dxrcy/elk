@@ -494,6 +494,10 @@ pub const json = struct {
         }
         try stringify.endObject();
 
+        // size
+        try stringify.objectField("size");
+        try stringify.write(data.size);
+
         // symbols
         try stringify.objectField("symbols");
         try stringify.beginObject();
@@ -543,10 +547,6 @@ pub const json = struct {
         }
         try stringify.endObject();
 
-        // addresses
-        try stringify.objectField("addresses");
-        try writeCounts(arena, &stringify, data.memory.execute);
-
         // registers: { read, write }
         try stringify.objectField("registers");
         try stringify.beginObject();
@@ -559,18 +559,18 @@ pub const json = struct {
         }
         try stringify.endObject();
 
-        // memory: { size, read, write }
+        // memory: { read, write, execute }
         try stringify.objectField("memory");
         try stringify.beginObject();
         {
-            try stringify.objectField("size");
-            try stringify.write(data.size);
-
             try stringify.objectField("read");
             try writeCounts(arena, &stringify, data.memory.read);
 
             try stringify.objectField("write");
             try writeCounts(arena, &stringify, data.memory.write);
+
+            try stringify.objectField("execute");
+            try writeCounts(arena, &stringify, data.memory.execute);
         }
         try stringify.endObject();
 
