@@ -379,6 +379,41 @@ pub fn printInspectInstruction(
             });
             try writer.print(", cc <- {b:03}", .{@intFromEnum(Runtime.asConditionCode(value))});
         },
+        .st => |operands| {
+            const pc_offset = Runtime.signExtend(operands.pc_offset);
+            const value = runtime.state.registers[operands.src];
+            try writer.print("mem[pc + {f}] = mem[{f}] <- r{} = {f}", .{
+                Operand(pc_offset),
+                Operand(runtime.state.pc +% pc_offset),
+                operands.src,
+                Operand(value),
+            });
+        },
+        .sti => |operands| {
+            const pc_offset = Runtime.signExtend(operands.pc_offset);
+            const address = runtime.state.memory[runtime.state.pc +% pc_offset];
+            const value = runtime.state.registers[operands.src];
+            try writer.print("mem[mem[pc + {f}]] = mem[mem[{f}]] = mem[{f}] <- r{} = {f}", .{
+                Operand(pc_offset),
+                Operand(runtime.state.pc +% pc_offset),
+                Operand(address),
+                operands.src,
+                Operand(value),
+            });
+        },
+        .str => |operands| {
+            const offset = Runtime.signExtend(operands.offset);
+            const value = runtime.state.registers[operands.src];
+            try writer.print("mem[r{} + {f}] = mem[{f} + {f}] = mem[{f}] <- r{} = {f}", .{
+                operands.base,
+                Operand(offset),
+                Operand(runtime.state.registers[operands.base]),
+                Operand(offset),
+                Operand(runtime.state.registers[operands.base] +% offset),
+                operands.src,
+                Operand(value),
+            });
+        },
     }
 }
 
