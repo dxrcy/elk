@@ -194,7 +194,7 @@ pub fn readFromFile(runtime: *Runtime, io: Io, file: Io.File, buffer: []u8) !voi
         try runtime.setMemory(address, word, .untracked);
     }
 
-    runtime.analytics.setMemorySize(i);
+    runtime.analytics.setSize(i);
 }
 
 pub fn patchLabelValue(
@@ -248,7 +248,8 @@ pub fn run(runtime: *Runtime) Error!void {
 }
 
 fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
-    try runtime.analytics.addAddress(runtime.state.pc);
+    // Track execution before fetching, this is more helpful.
+    try runtime.analytics.addMemoryExecute(runtime.state.pc);
     const word = try runtime.getMemory(runtime.state.pc, .untracked);
     runtime.state.pc += 1;
 

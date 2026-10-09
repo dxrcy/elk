@@ -42,6 +42,10 @@ pub fn endTime(analytics: *Analytics, comptime mode: Data.Time) void {
     });
 }
 
+pub fn setSize(analytics: *Analytics, size: u16) void {
+    analytics.data.size = size;
+}
+
 pub fn addSymbols(analytics: *Analytics, provider: Provider) error{OutOfMemory}!void {
     switch (provider) {
         .none => {},
@@ -83,23 +87,12 @@ pub fn addInstruction(analytics: *Analytics, instruction: Instruction) void {
     }
 }
 
-pub fn addAddress(analytics: *Analytics, address: u16) error{OutOfMemory}!void {
-    try analytics.data.addresses.put(
-        address,
-        (analytics.data.addresses.get(address) orelse 0) + 1,
-    );
-}
-
 pub fn addRegisterRead(analytics: *Analytics, register: u3) void {
     analytics.data.registers.read[register] += 1;
 }
 
 pub fn addRegisterWrite(analytics: *Analytics, register: u3) void {
     analytics.data.registers.write[register] += 1;
-}
-
-pub fn setMemorySize(analytics: *Analytics, size: u16) void {
-    analytics.data.memory.size = size;
 }
 
 pub fn addMemoryRead(analytics: *Analytics, address: u16) error{OutOfMemory}!void {
@@ -113,6 +106,13 @@ pub fn addMemoryWrite(analytics: *Analytics, address: u16) error{OutOfMemory}!vo
     try analytics.data.memory.write.put(
         address,
         (analytics.data.memory.write.get(address) orelse 0) + 1,
+    );
+}
+
+pub fn addMemoryExecute(analytics: *Analytics, address: u16) error{OutOfMemory}!void {
+    try analytics.data.memory.execute.put(
+        address,
+        (analytics.data.memory.execute.get(address) orelse 0) + 1,
     );
 }
 
@@ -161,17 +161,17 @@ const Data = struct {
     };
 
     time: std.EnumArray(Time, Io.Duration),
+    size: u16,
     symbols: Map(u16, []const u8),
     instructions: Instructions,
-    addresses: Map(u16, usize),
     registers: struct {
         read: [8]usize,
         write: [8]usize,
     },
     memory: struct {
-        size: u16,
         read: Map(u16, usize),
         write: Map(u16, usize),
+        execute: Map(u16, usize),
     },
     io: struct {
         read: usize,
@@ -181,17 +181,17 @@ const Data = struct {
     pub fn init(gpa: Allocator) Data {
         return .{
             .time = .initFill(.zero),
+            .size = 0,
             .symbols = .init(gpa),
             .instructions = .{},
-            .addresses = .init(gpa),
-            .memory = .{
-                .size = 0,
-                .read = .init(gpa),
-                .write = .init(gpa),
-            },
             .registers = .{
                 .read = @splat(0),
                 .write = @splat(0),
+            },
+            .memory = .{
+                .read = .init(gpa),
+                .write = .init(gpa),
+                .execute = .init(gpa),
             },
             .io = .{
                 .read = 0,
@@ -202,9 +202,9 @@ const Data = struct {
 
     pub fn deinit(data: *Data) void {
         data.symbols.deinit();
-        data.addresses.deinit();
         data.memory.read.deinit();
         data.memory.write.deinit();
+        data.memory.execute.deinit();
     }
 
     pub fn format(
@@ -329,17 +329,17 @@ const Data = struct {
 
         try writer.print(
             "{s}address.........{}\n",
-            .{ c_vr, getValueSum(&data.addresses) },
+            .{ c_vr, getValueSum(&data.memory.execute) },
         );
         {
-            const addresses = try sortedAddressKeys(usize, arena, &data.addresses);
+            const addresses = try sortedAddressKeys(usize, arena, &data.memory.execute);
             defer arena.free(addresses);
             for (addresses, 0..) |address, i|
                 try writer.print("{s}{s}x{x:04}.......{}\n", .{
                     c_v,
                     if (i + 1 >= addresses.len) c_r else c_vr,
                     address,
-                    data.addresses.get(address) orelse unreachable,
+                    data.memory.execute.get(address) orelse unreachable,
                 });
         }
 
@@ -380,7 +380,7 @@ const Data = struct {
         try writer.print("{s}memory..........\n", .{c_vr});
         try writer.print(
             "{s}{s}size........{}\n",
-            .{ c_v, c_vr, data.memory.size },
+            .{ c_v, c_vr, data.size },
         );
         try writer.print(
             "{s}{s}read........{}\n",
@@ -544,7 +544,7 @@ pub const json = struct {
 
         // addresses
         try stringify.objectField("addresses");
-        try writeCounts(arena, &stringify, data.addresses);
+        try writeCounts(arena, &stringify, data.memory.execute);
 
         // registers: { read, write }
         try stringify.objectField("registers");
@@ -563,7 +563,7 @@ pub const json = struct {
         try stringify.beginObject();
         {
             try stringify.objectField("size");
-            try stringify.write(data.memory.size);
+            try stringify.write(data.size);
 
             try stringify.objectField("read");
             try writeCounts(arena, &stringify, data.memory.read);

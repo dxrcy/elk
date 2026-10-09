@@ -97,7 +97,7 @@ pub fn copyToRuntime(air: *const Air, runtime: *elk.Runtime) !void {
         try elk.Runtime.checkMemoryAccess(address);
         runtime.state.memory[address] = word;
     }
-    runtime.analytics.setMemorySize(@intCast(air.lines.items.len));
+    runtime.analytics.setSize(@intCast(air.lines.items.len));
 }
 
 pub fn writeAssembly(air: *const Air, writer: *Io.Writer) !void {
