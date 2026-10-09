@@ -215,29 +215,8 @@ pub fn startMessage(debugger: *Debugger, use_decoration: bool) !void {
 }
 
 pub fn preExecute(debugger: *Debugger, runtime: *Runtime, instruction: Runtime.Instruction) !void {
-    if (!debugger.inspect)
-        return;
-
-    try runtime.ensureWriterNewline();
-    try debugger.writer.enableColor();
-    if (debugger.writer.use_decoration)
-        try debugger.writer.print(Writer.prefix ++ "Executing: ", .{})
-    else
-        try debugger.writer.print(Writer.prefix ++ "execute ", .{});
-
-    const width = 16;
-    var buffer: [width]u8 = undefined;
-    const string = std.fmt.bufPrint(&buffer, "{f}", .{instruction}) catch unreachable;
-    try debugger.writer.print("{s:<[1]}", .{ string, width });
-
-    if (debugger.writer.use_decoration) {
-        try debugger.writer.print(" : ", .{});
-        try printInspectInstruction(debugger.writer.inner, runtime, instruction);
-    }
-
-    try debugger.writer.print("\n", .{});
-    try debugger.writer.disableColor();
-    runtime.writer_is_newline = true;
+    if (debugger.inspect)
+        try debugger.inspectInstruction(runtime, instruction);
 }
 
 pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?enum { @"continue", @"break" } {
@@ -680,19 +659,35 @@ fn runCommand(
         },
 
         .inspect => |arguments| {
-            const enable = if (arguments.enable.value) |enable| enable else !debugger.inspect;
-
-            if (debugger.writer.use_decoration)
-                try debugger.writer.printLine(
-                    "Inspect set to {s}.",
-                    .{if (enable) "on" else "off"},
-                )
-            else
-                try debugger.writer.printLine(
-                    "set inspect {s}",
-                    .{if (enable) "on" else "off"},
-                );
-            debugger.inspect = enable;
+            if (arguments.enable.value) |enable| {
+                if (debugger.writer.use_decoration)
+                    try debugger.writer.printLine(
+                        "Inspect set to {s}.",
+                        .{if (enable) "on" else "off"},
+                    )
+                else
+                    try debugger.writer.printLine(
+                        "set inspect {s}",
+                        .{if (enable) "on" else "off"},
+                    );
+                debugger.inspect = enable;
+            } else {
+                const word = runtime.state.memory[runtime.state.pc];
+                if (Runtime.Instruction.decode(word)) |instruction| {
+                    try debugger.inspectInstruction(runtime, instruction);
+                } else |_| {
+                    if (debugger.writer.use_decoration)
+                        try debugger.writer.printLine(
+                            "Unable to inspect malformed instruction: x{x:04}.",
+                            .{word},
+                        )
+                    else
+                        try debugger.writer.printLine(
+                            "inspect fail x{x:04}",
+                            .{word},
+                        );
+                }
+            }
         },
 
         .eval => |arguments| {
@@ -1226,6 +1221,33 @@ fn readInputLine(debugger: *Debugger, runtime: *Runtime) ![]const u8 {
     const line = debugger.input.readLine(&debugger.writer);
     try runtime.tty.disableRawMode();
     return line;
+}
+
+fn inspectInstruction(
+    debugger: *Debugger,
+    runtime: *Runtime,
+    instruction: Runtime.Instruction,
+) !void {
+    try runtime.ensureWriterNewline();
+    try debugger.writer.enableColor();
+    if (debugger.writer.use_decoration)
+        try debugger.writer.print(Writer.prefix ++ "Inspect: ", .{})
+    else
+        try debugger.writer.print(Writer.prefix ++ "inspect ", .{});
+
+    const width = 16;
+    var buffer: [width]u8 = undefined;
+    const string = std.fmt.bufPrint(&buffer, "{f}", .{instruction}) catch unreachable;
+    try debugger.writer.print("{s:<[1]}", .{ string, width });
+
+    if (debugger.writer.use_decoration) {
+        try debugger.writer.print(" : ", .{});
+        try printInspectInstruction(debugger.writer.inner, runtime, instruction);
+    }
+
+    try debugger.writer.print("\n", .{});
+    try debugger.writer.disableColor();
+    runtime.writer_is_newline = true;
 }
 
 pub fn printInspectInstruction(
