@@ -41,7 +41,8 @@ Available Commands:
           - LOCATION: Address (default: PC)
     inspect (i) ENABLE?
         When enabled, instructions will be printed before execution.
-          - ENABLE: on | off (default: toggles)
+        If ENABLE is not provided, next argument will be inspected immediately.
+          - ENABLE: on | off (default: inspect next instruction)
     eval(e) INSTRUCTION
         Emulate an assembly instruction.
           - INSTRUCTION: Mnemonic, Operands...
