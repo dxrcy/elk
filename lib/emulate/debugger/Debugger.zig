@@ -276,14 +276,17 @@ pub fn printInspectInstruction(
                 Operand(rhs),
                 Operand(value),
             });
+            try writer.print(", cc <- {b:03}", .{@intFromEnum(Runtime.asConditionCode(value))});
         },
         .not => |operands| {
+            const value = ~runtime.state.registers[operands.src];
             try writer.print("r{} <- ~r{} = ~{f} = {f}", .{
                 operands.dest,
                 operands.src,
                 Operand(runtime.state.registers[operands.src]),
-                Operand(~runtime.state.registers[operands.src]),
+                Operand(value),
             });
+            try writer.print(", cc <- {b:03}", .{@intFromEnum(Runtime.asConditionCode(value))});
         },
         .br => |operands| {
             const pc_offset = Runtime.signExtend(operands.pc_offset);

@@ -372,19 +372,23 @@ fn getRegister(runtime: *Runtime, register: u3, comptime track: Track) u16 {
 
 fn setRegister(runtime: *Runtime, register: u3, value: u16, comptime track: Track) void {
     runtime.setRegisterNoCc(register, value, track);
-    runtime.state.condition =
-        if (@as(i16, @bitCast(value)) < 0)
-            .negative
-        else if (value == 0)
-            .zero
-        else
-            .positive;
+    runtime.state.condition = asConditionCode(value);
 }
 
+// TODO: Rename from "cc" to "condition (code)"
 fn setRegisterNoCc(runtime: *Runtime, register: u3, value: u16, comptime track: Track) void {
     if (track == .tracked)
         runtime.analytics.addRegisterWrite(register);
     runtime.state.registers[register] = value;
+}
+
+pub fn asConditionCode(value: u16) Condition {
+    return if (@as(i16, @bitCast(value)) < 0)
+        .negative
+    else if (value == 0)
+        .zero
+    else
+        .positive;
 }
 
 pub fn getMemory(
