@@ -341,6 +341,44 @@ pub fn printInspectInstruction(
                 Operand(runtime.state.pc +% pc_offset),
             });
         },
+        .ld => |operands| {
+            const pc_offset = Runtime.signExtend(operands.pc_offset);
+            const value = runtime.state.memory[runtime.state.pc +% pc_offset];
+            try writer.print("r{} <- mem[pc + {f}] = mem[{f}] = {f}", .{
+                operands.dest,
+                Operand(pc_offset),
+                Operand(runtime.state.pc +% pc_offset),
+                Operand(value),
+            });
+            try writer.print(", cc <- {b:03}", .{@intFromEnum(Runtime.asConditionCode(value))});
+        },
+        .ldi => |operands| {
+            const pc_offset = Runtime.signExtend(operands.pc_offset);
+            const address = runtime.state.memory[runtime.state.pc +% pc_offset];
+            const value = runtime.state.memory[address];
+            try writer.print("r{} <- mem[mem[pc + {f}]] = mem[mem[{f}]] = mem[{f}] = {f}", .{
+                operands.dest,
+                Operand(pc_offset),
+                Operand(runtime.state.pc +% pc_offset),
+                Operand(address),
+                Operand(value),
+            });
+            try writer.print(", cc <- {b:03}", .{@intFromEnum(Runtime.asConditionCode(value))});
+        },
+        .ldr => |operands| {
+            const offset = Runtime.signExtend(operands.offset);
+            const value = runtime.state.memory[runtime.state.registers[operands.base] +% offset];
+            try writer.print("r{} <- mem[r{} + {f}] = mem[{f} + {f}] = mem[{f}] = {f}", .{
+                operands.dest,
+                operands.base,
+                Operand(offset),
+                Operand(runtime.state.registers[operands.base]),
+                Operand(offset),
+                Operand(runtime.state.registers[operands.base] +% offset),
+                Operand(value),
+            });
+            try writer.print(", cc <- {b:03}", .{@intFromEnum(Runtime.asConditionCode(value))});
+        },
     }
 }
 
