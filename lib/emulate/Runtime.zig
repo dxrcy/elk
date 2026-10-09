@@ -256,14 +256,16 @@ fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
         try pre_decode.call(.{ runtime, word });
 
     const instruction: Instruction = try .decode(word);
-
-    if (runtime.hooks.pre_execute) |pre_execute|
-        try pre_execute.call(.{ runtime, instruction });
-
     try runtime.runInstruction(instruction);
 }
 
 pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || error{Halt})!void {
+    if (runtime.hooks.pre_execute) |pre_execute|
+        try pre_execute.call(.{ runtime, instruction });
+
+    if (runtime.debugger) |debugger|
+        try debugger.preExecute(runtime, instruction);
+
     if (runtime.instruction_limit) |limit| {
         if (runtime.instruction_count >= limit)
             return error.InstructionLimitReached;
@@ -357,33 +359,8 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
             try callback.call(.{runtime});
         },
 
-        .rti => {
-            return error.UnsupportedRti;
-        },
-
-        .pop_push_rets_call => |variant| {
-            if (runtime.policies.extension.stack_instructions != .permit)
-                return error.UnpermittedOpcode;
-
-            // Do not set condition for any operation
-            switch (variant) {
-                .pop => |operands| {
-                    const value = try runtime.stackPop();
-                    runtime.setRegisterNoCc(operands.dest, value, .tracked);
-                },
-                .push => |operands| {
-                    const value = runtime.getRegister(operands.src, .tracked);
-                    try runtime.stackPush(value);
-                },
-                .rets => {
-                    runtime.state.pc = try runtime.stackPop();
-                },
-                .call => |operands| {
-                    try runtime.stackPush(runtime.state.pc);
-                    runtime.state.pc +%= signExtend(operands.pc_offset);
-                },
-            }
-        },
+        .rti => return error.UnsupportedRti,
+        .reserved => return error.UnpermittedOpcode,
     }
 }
 
@@ -395,19 +372,23 @@ fn getRegister(runtime: *Runtime, register: u3, comptime track: Track) u16 {
 
 fn setRegister(runtime: *Runtime, register: u3, value: u16, comptime track: Track) void {
     runtime.setRegisterNoCc(register, value, track);
-    runtime.state.condition =
-        if (@as(i16, @bitCast(value)) < 0)
-            .negative
-        else if (value == 0)
-            .zero
-        else
-            .positive;
+    runtime.state.condition = asConditionCode(value);
 }
 
+// TODO: Rename from "cc" to "condition (code)"
 fn setRegisterNoCc(runtime: *Runtime, register: u3, value: u16, comptime track: Track) void {
     if (track == .tracked)
         runtime.analytics.addRegisterWrite(register);
     runtime.state.registers[register] = value;
+}
+
+pub fn asConditionCode(value: u16) Condition {
+    return if (@as(i16, @bitCast(value)) < 0)
+        .negative
+    else if (value == 0)
+        .zero
+    else
+        .positive;
 }
 
 pub fn getMemory(
@@ -438,19 +419,6 @@ pub fn checkMemoryAccess(address: u16) error{UnpermittedMemoryAccess}!void {
         user_memory_start...user_memory_end => {},
         else => return error.UnpermittedMemoryAccess,
     }
-}
-
-fn stackPush(runtime: *Runtime, value: u16) error{ UnpermittedMemoryAccess, OutOfMemory }!void {
-    runtime.setRegisterNoCc(7, runtime.getRegister(7, .tracked) -% 1, .tracked);
-    const stack_ptr = runtime.getRegister(7, .tracked);
-    try runtime.setMemory(stack_ptr, value, .tracked);
-}
-
-fn stackPop(runtime: *Runtime) error{ UnpermittedMemoryAccess, OutOfMemory }!u16 {
-    const stack_ptr = runtime.getRegister(7, .tracked);
-    const value = try runtime.getMemory(stack_ptr, .tracked);
-    runtime.setRegisterNoCc(7, runtime.getRegister(7, .tracked) +% 1, .tracked);
-    return value;
 }
 
 pub fn readByte(runtime: *const Runtime) error{ EndOfStream, EndOfText, ReadFailed }!u8 {
@@ -578,7 +546,7 @@ pub const Stringz = struct {
     }
 };
 
-fn signExtend(value: anytype) u16 {
+pub fn signExtend(value: anytype) u16 {
     const bits = @typeInfo(@TypeOf(value)).int.bits;
     const Signed = @Int(.signed, bits);
     return @bitCast(@as(i16, @as(Signed, @bitCast(value))));

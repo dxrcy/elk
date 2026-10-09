@@ -99,6 +99,7 @@ pub const Diagnostic = union(enum) {
     late_origin: struct { origin: Span, first_token: ?Span },
     missing_origin: struct { first_token: ?Span },
     missing_end: struct { last_token: ?Span },
+    packed_string_directive: struct { directive: Span },
 
     // Label syntax and resolution
     existing_label_left: struct { existing: Span, new: Span },
@@ -134,7 +135,6 @@ pub const Diagnostic = union(enum) {
     multiline_string: struct { string: Span },
 
     // Instruction-specific
-    stack_instruction: struct { mnemonic: Span, kind: Token.Value.Mnemonic },
     literal_pc_offset: struct { integer: Span },
     explicit_trap_vect: struct { vect: Span, value: u8, alias: []const u8 },
     undeclared_trap_vect: struct { vect: Span, value: u8 },
@@ -211,8 +211,8 @@ pub const Diagnostic = union(enum) {
             .nonstandard_integer_form,
             => policyResponse(options, .extension, .more_integer_forms),
             .multiline_string => policyResponse(options, .extension, .multiline_strings),
-            .stack_instruction => policyResponse(options, .extension, .stack_instructions),
             .character_integer => policyResponse(options, .extension, .character_literals),
+            .packed_string_directive => policyResponse(options, .extension, .packed_string_directives),
 
             .literal_pc_offset => policyResponse(options, .smell, .pc_offset_literals),
             .explicit_trap_vect => policyResponse(options, .smell, .explicit_trap_instructions),
@@ -271,6 +271,7 @@ pub const Diagnostic = union(enum) {
             .late_origin => |info| info.origin,
             .missing_origin => |info| info.first_token,
             .missing_end => |info| info.last_token,
+            .packed_string_directive => |info| info.directive,
             .existing_label_left => |info| info.existing,
             .existing_label_above => |info| info.existing,
             .invalid_label_target => |info| info.label,
@@ -296,7 +297,6 @@ pub const Diagnostic = union(enum) {
             .unmatched_quote => |info| info.string,
             .invalid_string_escape => |info| info.string,
             .multiline_string => |info| info.string,
-            .stack_instruction => |info| info.mnemonic,
             .literal_pc_offset => |info| info.integer,
             .explicit_trap_vect => |info| info.vect,
             .undeclared_trap_vect => |info| info.vect,

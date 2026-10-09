@@ -9,7 +9,7 @@ Available Commands:
           - COUNT: Integer (default: 1)
     step out(so)
         Continue execution until HALT, breakpoint, or end of current subroutine.
-        Note: Only supports 'well-formed' functions using RET or RETS.
+        Note: Only supports 'well-formed' functions using RET.
     continue(c)
         Continue execution until HALT or breakpoint.
     registers(r)
@@ -39,6 +39,10 @@ Available Commands:
     assembly(a) LOCATION?
         Show assembly source code corresponding to address.
           - LOCATION: Address (default: PC)
+    inspect (i) ENABLE?
+        When enabled, instructions will be printed before execution.
+        If ENABLE is not provided, next argument will be inspected immediately.
+          - ENABLE: on | off (default: inspect next instruction)
     eval(e) INSTRUCTION
         Emulate an assembly instruction.
           - INSTRUCTION: Mnemonic, Operands...

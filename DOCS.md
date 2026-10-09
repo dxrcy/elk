@@ -11,7 +11,7 @@
 
 - [Why ELK?](#why-elk)
 - [About LC-3](#about-lc-3)
-    - [Assembly Overview](#assembly-overview])
+    - [Assembly Overview](#assembly-overview)
     - [Runtime Overview](#runtime-overview)
     - [Available Traps](#available-traps)
 - ELK Command-Line Interface
@@ -32,7 +32,6 @@
     - Example
     - Output filepath
     - Other Flags
-    - Other Flags
         - Importing a symbol table
         - [Overriding available trap aliases](#overriding-available-trap-aliases)
         - Changing diagnostic strictness
@@ -46,7 +45,6 @@
     - Labels Types
     - Runtime Hooks
 - ELK Extensions to LC-3
-    - Stack Instructions
     - Permissive Syntax
         - Implicit `.ORIG` / `.END`
         - Multi-line strings
@@ -59,13 +57,17 @@
     - [Install with Homebrew](#install-with-homebrew)
     - [Install from official binary release](#install-from-official-binary-release)
     - [Install from source](#install-from-source)
+    - [Install with Nix](#install-with-nix)
+        - [User-profile installation](#user-profile-installation)
+        - [Temporary shell](#temporary-shell)
+        - [NixOS configuration](#nixos-configuration)
 - [Editor Integration](#editor-integration)
     - [VSCode](#vscode)
     - [Neovim](#neovim)
         - [Diagnostics](#diagnostics)
         - [Syntax Highlighting](#syntax-highlighting)
 
-See also: [ELK Style Guide](#STYLE.md).
+See also: [ELK Style Guide](STYLE.md).
 
 # Why ELK?
 
@@ -354,12 +356,12 @@ By default, ELK does not enable any policies, thus `--permit ""` is equivalent
 to ommitting the `--permit` option.
 Additionally, leading, trailing, and duplicate commas are ignored.
 
-**Example:** Enable the [stack ISA extension]:
+**Example:** Enable the multi-line strings extension:
 ```sh
-elk example.asm -p extension.stack_instructions
+elk example.asm -p extension.multiline_strings
 ```
-> By default, ELK will warn (or error if `--strict`) when stack instructions
-> (`push`, `pop`, `call`, `rets`) are assembled or emulated.
+> By default, ELK will warn (or error if `--strict`) when strings span multiple lines of assembly
+> code.
 > By specifying that we "permit" this policy, it silences the error.
 
 **Example:** Opt-out of a handful of lints:
@@ -381,7 +383,7 @@ You may opt-into a policy by setting it to `.permit`:
 
 ```zig
 var policies: elk.Policies = .none;
-policies.extension.stack_instructions = .permit;
+policies.extension.multiline_strings = .permit;
 ```
 
 Policies are used throughout ELK, and for both assembly and emulation.
@@ -402,7 +404,6 @@ There are 4 policy categories:
 The policies in each category are as follows:
 
 - `extension`:
-    - `stack_instructions`: Enable [stack instructions] ISA extension.
     - `implicit_origin`: Enable [implicit orig].
     - `implicit_end`: Enable [implicit end].
     - `multiline_strings`: Enable [multiline strings].
@@ -437,7 +438,6 @@ set. These sets are typically used for compatibility with other toolchains.
 
 - `laser`: Compatiblity with [Lace](https://github.com/rozukke/lace), including
     all extensions.
-    - `extension.stack_instructions`
     - `extension.implicit_origin`
     - `extension.implicit_end`
     - `extension.label_definition_colons`
@@ -467,8 +467,6 @@ set. These sets are typically used for compatibility with other toolchains.
 - See also: [custom traps]
 - See also: [runtime hooks]
 
-## Stack Instructions
-- ...
 ## Permissive Syntax
 - ...
 ### Implicit `.ORIG` / `.END`
@@ -560,6 +558,89 @@ zig build install -Doptimize=ReleaseSafe --prefix ~/.local/
 ```
 
 > This will install ELK at `$HOME/.local/bin/elk`.
+
+
+## Install with Nix
+
+Requires [Nix](https://nixos.org/download/) with the `nix-command` and
+`flakes` experimental features enabled. To enable them, add the following
+line to `~/.config/nix/nix.conf`:
+
+```ini
+experimental-features = nix-command flakes
+```
+
+The flake provides packages for x86-64 and ARM64 Linux and macOS.
+
+> Note: Currently doesn't support ELCI integration when using it with nix
+
+### User-profile installation
+
+Install ELK for the current user:
+
+```sh
+nix profile add 'git+https://codeberg.org/dxrcy/elk.git#elk'
+elk --help
+```
+
+On older Nix versions, use `nix profile install` instead of
+`nix profile add`. This installation persists across shell sessions and
+does not modify your NixOS or Home Manager configuration.
+
+### Temporary shell
+
+Start a shell with ELK available until you exit it:
+
+```sh
+nix shell 'git+https://codeberg.org/dxrcy/elk.git#elk'
+elk --help
+```
+
+### NixOS configuration
+
+Add ELK to the inputs in your existing `flake.nix`:
+
+```nix
+inputs.elk.url = "git+https://codeberg.org/dxrcy/elk.git";
+```
+
+Pass the flake inputs to your NixOS modules using `specialArgs`. For example,
+adapt your existing outputs definition as follows, replacing `my-host` and
+`system` with your hostname and architecture:
+
+```nix
+outputs = inputs@{ nixpkgs, ... }: {
+  nixosConfigurations.my-host = nixpkgs.lib.nixosSystem {
+    system = "x86_64-linux";
+    specialArgs = { inherit inputs; };
+    modules = [ ./configuration.nix ];
+  };
+};
+```
+
+In `configuration.nix`, add `inputs` to the module arguments and ELK to
+your system packages:
+
+```nix
+{ inputs, pkgs, ... }:
+
+{
+  environment.systemPackages = [
+    inputs.elk.packages.${pkgs.stdenv.hostPlatform.system}.default
+  ];
+}
+```
+
+Apply the configuration and check that ELK is available:
+
+```sh
+sudo nixos-rebuild switch --flake .#my-host
+elk --help
+```
+
+Optionally, set `inputs.elk.inputs.nixpkgs.follows = "nixpkgs"` in
+`flake.nix` to share your configuration's nixpkgs with ELK. Your nixpkgs
+must provide `zig_0_16`; otherwise, keep ELK's own pinned nixpkgs.
 
 # Editor Integration
 
@@ -695,4 +776,3 @@ return {
 > Want to contribute? Check out the
 > [open issues](https://codeberg.org/dxrcy/elk/issues?q=&sort=recentupdate&labels=1354878),
 > or share your own ideas! 😀
-

@@ -64,7 +64,7 @@ pub fn readLine(
     var eof = false;
 
     while (true) {
-        try writer.writePrompt(input.editor.getString(), input.editor.cursor);
+        try writer.writePrompt(input.editor.getString(), input.editor.cursor, false);
         try writer.flush();
 
         const key = input.readKey() catch |err| switch (err) {

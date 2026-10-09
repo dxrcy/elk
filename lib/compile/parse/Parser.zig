@@ -432,10 +432,7 @@ fn parseDirective(
                 const char = result catch {
                     try parser.reporter().report(.invalid_string_escape, .{
                         .string = string.span,
-                        .sequence = .{
-                            .offset = contents.offset + escaped.index - 2,
-                            .len = 2,
-                        },
+                        .sequence = .{ .offset = contents.offset + escaped.index - 2, .len = 2 },
                     }).handle();
                     continue;
                 };
@@ -447,6 +444,59 @@ fn parseDirective(
             }
 
             // Null terminator
+            air.lines.appendAssumeCapacity(.{
+                .statement = .{ .raw_word = 0x0000 },
+                .span = string.span,
+            });
+        },
+
+        .stringzp => {
+            try parser.reporter().report(.packed_string_directive, .{
+                .directive = span,
+            }).handle();
+
+            const string = try parser.tokenizer.expectArgument(.{
+                .type = .string,
+                .expected_count = 1,
+                .current_count = 0,
+            });
+            try parser.tokenizer.expectEndOfArguments(1);
+
+            const contents = string.value.in(string.span);
+            const contents_string = contents.view(parser.source());
+
+            // Check length and allocate lines before proper string iteration
+            const length = Token.Escaped.validLength(.double, contents_string) + 1; // Include NUL
+            try parser.ensureCanAppendLines(air, length, span.join(string.span));
+            try air.lines.ensureUnusedCapacity(gpa, length);
+
+            var escaped: Token.Escaped = .new(.double, contents_string);
+            while (escaped.next()) |result_first| {
+                const char_first = result_first catch {
+                    try parser.reporter().report(.invalid_string_escape, .{
+                        .string = string.span,
+                        .sequence = .{ .offset = contents.offset + escaped.index - 2, .len = 2 },
+                    }).handle();
+                    continue;
+                };
+
+                const char_second = escaped.next() orelse 0 catch {
+                    try parser.reporter().report(.invalid_string_escape, .{
+                        .string = string.span,
+                        .sequence = .{ .offset = contents.offset + escaped.index - 2, .len = 2 },
+                    }).handle();
+                    continue;
+                };
+
+                const word = @as(u16, char_second) << 8 | char_first;
+
+                air.lines.appendAssumeCapacity(.{
+                    .statement = .{ .raw_word = word },
+                    .span = string.span,
+                });
+            }
+
+            // Null terminator - even if last byte (of last word) was null.
             air.lines.appendAssumeCapacity(.{
                 .statement = .{ .raw_word = 0x0000 },
                 .span = string.span,
@@ -479,22 +529,8 @@ fn parseInstructionOperands(
         .sti,
         .str,
         .trap,
-        .push,
-        .pop,
-        .call,
-        .rets,
         .rti,
         => |regular| {
-            switch (regular) {
-                .push, .pop, .call, .rets => {
-                    try parser.reporter().report(.stack_instruction, .{
-                        .mnemonic = span,
-                        .kind = mnemonic,
-                    }).handle();
-                },
-                else => {},
-            }
-
             const Operands = @FieldType(Instruction, @tagName(regular));
             var operands: Operands = undefined;
 

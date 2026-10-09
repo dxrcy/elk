@@ -90,4 +90,3 @@ Additional thanks to:
 
 > *Some useful diagnostics whilst compiling a faulty assembly program*
 ![Example assembler usage](images/example1.svg)
-

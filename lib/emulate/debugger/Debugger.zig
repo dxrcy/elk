@@ -32,6 +32,7 @@ breakpoints: Breakpoints,
 initial_state: ?Runtime.State,
 provider: Provider,
 assembler: ?*Assembler,
+inspect: bool,
 
 current_line: []const u8,
 input: Input,
@@ -57,6 +58,7 @@ const Action = enum {
 pub const Writer = struct {
     pub const color = 34;
     const prompt = "> ";
+    const prefix = "| ";
 
     inner: *Io.Writer,
     use_color: bool,
@@ -72,7 +74,7 @@ pub const Writer = struct {
 
     pub fn printLine(writer: *Writer, comptime fmt: []const u8, args: anytype) !void {
         try writer.enableColor();
-        try writer.print("| " ++ fmt ++ "\n", args);
+        try writer.print(prefix ++ fmt ++ "\n", args);
         try writer.disableColor();
     }
 
@@ -88,18 +90,14 @@ pub const Writer = struct {
         try writer.print("\x1b[0m", .{});
     }
 
-    pub fn writePrompt(writer: *Writer, string: []const u8, cursor_opt: ?usize) !void {
-        try writer.print("\r\x1b[K", .{});
-
-        try writer.enableColor();
-        try writer.print(prompt, .{});
-        try writer.disableColor();
-
-        const trimmed = if (cursor_opt == null)
-            std.mem.trim(u8, string, &std.ascii.whitespace)
-        else
-            string;
-
+    pub fn writePrompt(
+        writer: *Writer,
+        string: []const u8,
+        cursor_opt: ?usize,
+        final: bool,
+    ) !void {
+        const trimmed =
+            if (cursor_opt == null) std.mem.trim(u8, string, &std.ascii.whitespace) else string;
         const start = std.mem.findNone(u8, trimmed, " ;") orelse 0;
         const end = std.mem.findScalarPos(u8, trimmed, start, ';') orelse trimmed.len;
 
@@ -107,7 +105,14 @@ pub const Writer = struct {
         const command = trimmed[start..end];
         const after = trimmed[end..];
 
-        if (before.len > 0) {
+        if (writer.use_decoration)
+            try writer.print("\r\x1b[K", .{});
+
+        try writer.enableColor();
+        try writer.print(prompt, .{});
+        try writer.disableColor();
+
+        if (before.len > 0 and writer.use_decoration) {
             if (writer.use_color)
                 try writer.print("\x1b[2m", .{});
             try writer.print("{s}", .{before});
@@ -117,7 +122,7 @@ pub const Writer = struct {
 
         try writer.print("{s}", .{command});
 
-        if (after.len > 0) {
+        if (after.len > 0 and writer.use_decoration) {
             if (writer.use_color)
                 try writer.print("\x1b[2m", .{});
             try writer.print("{s}", .{after});
@@ -127,6 +132,9 @@ pub const Writer = struct {
 
         if (cursor_opt) |cursor|
             try writer.print("\x1b[{}G", .{cursor + prompt.len + 1});
+
+        if (final or !writer.use_decoration)
+            try writer.print("\n", .{});
     }
 };
 
@@ -166,6 +174,7 @@ pub fn init(
         .initial_state = null,
         .provider = params.provider,
         .assembler = params.assembler,
+        .inspect = false,
         .current_line = params.initial_command_line,
         .input = input,
         .writer = .{
@@ -203,6 +212,11 @@ pub fn startMessage(debugger: *Debugger, use_decoration: bool) !void {
     } else {
         try debugger.writer.printLine("welcome", .{});
     }
+}
+
+pub fn preExecute(debugger: *Debugger, runtime: *Runtime, instruction: Runtime.Instruction) !void {
+    if (debugger.inspect)
+        try debugger.inspectInstruction(runtime, instruction);
 }
 
 pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?enum { @"continue", @"break" } {
@@ -349,8 +363,7 @@ fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
                 return .proceed;
             },
             .step_out => {
-                const instruction = getNextInstruction(runtime);
-                if (instruction == .ret_rets) {
+                if (isNextInstructionRet(runtime)) {
                     try runtime.ensureWriterNewline();
                     if (debugger.writer.use_decoration)
                         try debugger.writer.printLine("Reached end of subroutine.", .{})
@@ -368,18 +381,16 @@ fn nextAction(debugger: *Debugger, runtime: *Runtime) !Action {
     }
 }
 
-fn getNextInstruction(runtime: *const Runtime) ?enum { ret_rets } {
+fn isNextInstructionRet(runtime: *const Runtime) bool {
     const word = runtime.state.memory[runtime.state.pc];
     const instruction = Runtime.Instruction.decode(word) catch
-        return null;
+        return false;
     switch (instruction) {
         .jmp_ret => |operands| if (operands.base == 7)
-            return .ret_rets,
-        .pop_push_rets_call => |variant| if (variant == .rets)
-            return .ret_rets,
+            return true,
         else => {},
     }
-    return null;
+    return false;
 }
 
 fn tryNextAction(debugger: *Debugger, runtime: *Runtime) !?Action {
@@ -642,6 +653,38 @@ fn runCommand(
                         try debugger.writer.printLine(
                             "assembly may be modified",
                             .{},
+                        );
+                }
+            }
+        },
+
+        .inspect => |arguments| {
+            if (arguments.enable.value) |enable| {
+                if (debugger.writer.use_decoration)
+                    try debugger.writer.printLine(
+                        "Inspect set to {s}.",
+                        .{if (enable) "on" else "off"},
+                    )
+                else
+                    try debugger.writer.printLine(
+                        "set inspect {s}",
+                        .{if (enable) "on" else "off"},
+                    );
+                debugger.inspect = enable;
+            } else {
+                const word = runtime.state.memory[runtime.state.pc];
+                if (Runtime.Instruction.decode(word)) |instruction| {
+                    try debugger.inspectInstruction(runtime, instruction);
+                } else |_| {
+                    if (debugger.writer.use_decoration)
+                        try debugger.writer.printLine(
+                            "Unable to inspect malformed instruction: x{x:04}.",
+                            .{word},
+                        )
+                    else
+                        try debugger.writer.printLine(
+                            "inspect fail x{x:04}",
+                            .{word},
                         );
                 }
             }
@@ -1153,8 +1196,7 @@ fn readCommand(debugger: *Debugger, runtime: *Runtime) ![]const u8 {
         error.EndOfText => "exit",
     };
 
-    try debugger.writer.writePrompt(line, null);
-    try debugger.writer.print("\n", .{});
+    try debugger.writer.writePrompt(line, null, true);
     try debugger.writer.flush();
 
     var rest = line;
@@ -1179,4 +1221,215 @@ fn readInputLine(debugger: *Debugger, runtime: *Runtime) ![]const u8 {
     const line = debugger.input.readLine(&debugger.writer);
     try runtime.tty.disableRawMode();
     return line;
+}
+
+fn inspectInstruction(
+    debugger: *Debugger,
+    runtime: *Runtime,
+    instruction: Runtime.Instruction,
+) !void {
+    try runtime.ensureWriterNewline();
+    try debugger.writer.enableColor();
+    if (debugger.writer.use_decoration)
+        try debugger.writer.print(Writer.prefix ++ "Inspect: ", .{})
+    else
+        try debugger.writer.print(Writer.prefix ++ "inspect ", .{});
+
+    const width = 16;
+    var buffer: [width]u8 = undefined;
+    const string = std.fmt.bufPrint(&buffer, "{f}", .{instruction}) catch unreachable;
+    try debugger.writer.print("{s:<[1]}", .{ string, width });
+
+    if (debugger.writer.use_decoration) {
+        try debugger.writer.print(" : ", .{});
+        try printInspectInstruction(debugger.writer.inner, runtime, instruction);
+    }
+
+    try debugger.writer.print("\n", .{});
+    try debugger.writer.disableColor();
+    runtime.writer_is_newline = true;
+}
+
+pub fn printInspectInstruction(
+    writer: *Io.Writer,
+    runtime: *const Runtime,
+    instruction: Runtime.Instruction,
+) !void {
+    const Operand = @import("../decode.zig").Operand;
+
+    switch (instruction) {
+        inline .add, .@"and" => |operands, subset| {
+            const lhs = runtime.state.registers[operands.src_a];
+            const rhs: u16 = switch (operands.src_b) {
+                .register => |register| runtime.state.registers[register],
+                .immediate => |immediate| Runtime.signExtend(immediate),
+            };
+            const value = switch (subset) {
+                .add => lhs +% rhs,
+                .@"and" => lhs & rhs,
+                else => comptime unreachable,
+            };
+
+            try writer.print("r{} <- r{} + ", .{ operands.dest, operands.src_a });
+            switch (operands.src_b) {
+                .register => |register| try writer.print("r{}", .{register}),
+                .immediate => |immediate| try writer.print("{f}", .{Operand(immediate)}),
+            }
+            try writer.print(" = {f} {c} {f} = {f}", .{
+                Operand(lhs),
+                switch (subset) {
+                    .add => '+',
+                    .@"and" => '&',
+                    else => comptime unreachable,
+                },
+                Operand(rhs),
+                Operand(value),
+            });
+            try writer.print(", cc <- {b:03}", .{@intFromEnum(Runtime.asConditionCode(value))});
+        },
+        .not => |operands| {
+            const value = ~runtime.state.registers[operands.src];
+            try writer.print("r{} <- ~r{} = ~{f} = {f}", .{
+                operands.dest,
+                operands.src,
+                Operand(runtime.state.registers[operands.src]),
+                Operand(value),
+            });
+            try writer.print(", cc <- {b:03}", .{@intFromEnum(Runtime.asConditionCode(value))});
+        },
+        .br => |operands| {
+            const pc_offset = Runtime.signExtend(operands.pc_offset);
+            try writer.print("pc <- pc:{f} + {f} = {f}", .{
+                Operand(runtime.state.pc),
+                Operand(pc_offset),
+                Operand(runtime.state.pc +% pc_offset),
+            });
+            try writer.print(", if {b:03} & {b:03} = {b:03} != 000", .{
+                runtime.state.condition,
+                operands.mask,
+                @intFromEnum(runtime.state.condition) & operands.mask,
+            });
+        },
+        .jmp_ret => |operands| {
+            try writer.print("pc <- r{} = {f}", .{
+                operands.base,
+                Operand(runtime.state.registers[operands.base]),
+            });
+        },
+        .jsr_jsrr => |variant| {
+            const previous_pc = runtime.state.pc;
+            switch (variant) {
+                .jsr => |operands| {
+                    const pc_offset = Runtime.signExtend(operands.pc_offset);
+                    try writer.print("pc <- pc:{f} + {f} = {f}", .{
+                        Operand(runtime.state.pc),
+                        Operand(pc_offset),
+                        Operand(runtime.state.pc +% pc_offset),
+                    });
+                },
+                .jsrr => |operands| {
+                    try writer.print("pc <- pc + r{} = {f} + {f} = {f}", .{
+                        operands.base,
+                        Operand(runtime.state.pc),
+                        Operand(runtime.state.registers[operands.base]),
+                        Operand(runtime.state.pc +% runtime.state.registers[operands.base]),
+                    });
+                },
+            }
+            try writer.print(", r7 <- pc = {f}", .{Operand(previous_pc)});
+        },
+        .lea => |operands| {
+            const pc_offset = Runtime.signExtend(operands.pc_offset);
+            try writer.print("r{} <- pc:{f} + {f} = {f}", .{
+                operands.dest,
+                Operand(runtime.state.pc),
+                Operand(pc_offset),
+                Operand(runtime.state.pc +% pc_offset),
+            });
+        },
+        .ld => |operands| {
+            const pc_offset = Runtime.signExtend(operands.pc_offset);
+            const value = runtime.state.memory[runtime.state.pc +% pc_offset];
+            try writer.print("r{} <- mem[pc:{f} + {f}] = mem[{f}] = {f}", .{
+                operands.dest,
+                Operand(runtime.state.pc),
+                Operand(pc_offset),
+                Operand(runtime.state.pc +% pc_offset),
+                Operand(value),
+            });
+            try writer.print(", cc <- {b:03}", .{@intFromEnum(Runtime.asConditionCode(value))});
+        },
+        .ldi => |operands| {
+            const pc_offset = Runtime.signExtend(operands.pc_offset);
+            const address = runtime.state.memory[runtime.state.pc +% pc_offset];
+            const value = runtime.state.memory[address];
+            try writer.print("r{} <- mem[mem[pc:{f} + {f}]] = mem[mem[{f}]] = mem[{f}] = {f}", .{
+                operands.dest,
+                Operand(runtime.state.pc),
+                Operand(pc_offset),
+                Operand(runtime.state.pc +% pc_offset),
+                Operand(address),
+                Operand(value),
+            });
+            try writer.print(", cc <- {b:03}", .{@intFromEnum(Runtime.asConditionCode(value))});
+        },
+        .ldr => |operands| {
+            const offset = Runtime.signExtend(operands.offset);
+            const value = runtime.state.memory[runtime.state.registers[operands.base] +% offset];
+            try writer.print("r{} <- mem[r{}:{f} + {f}] = mem[{f}] = {f}", .{
+                operands.dest,
+                operands.base,
+                Operand(runtime.state.registers[operands.base]),
+                Operand(offset),
+                Operand(runtime.state.registers[operands.base] +% offset),
+                Operand(value),
+            });
+            try writer.print(", cc <- {b:03}", .{@intFromEnum(Runtime.asConditionCode(value))});
+        },
+        .st => |operands| {
+            const pc_offset = Runtime.signExtend(operands.pc_offset);
+            const value = runtime.state.registers[operands.src];
+            try writer.print("mem[pc:{f} + {f}] = mem[{f}] <- r{} = {f}", .{
+                Operand(runtime.state.pc),
+                Operand(pc_offset),
+                Operand(runtime.state.pc +% pc_offset),
+                operands.src,
+                Operand(value),
+            });
+        },
+        .sti => |operands| {
+            const pc_offset = Runtime.signExtend(operands.pc_offset);
+            const address = runtime.state.memory[runtime.state.pc +% pc_offset];
+            const value = runtime.state.registers[operands.src];
+            try writer.print("mem[mem[pc:{f} + {f}]] = mem[mem[{f}]] = mem[{f}] <- r{} = {f}", .{
+                Operand(runtime.state.pc),
+                Operand(pc_offset),
+                Operand(runtime.state.pc +% pc_offset),
+                Operand(address),
+                operands.src,
+                Operand(value),
+            });
+        },
+        .str => |operands| {
+            const offset = Runtime.signExtend(operands.offset);
+            const value = runtime.state.registers[operands.src];
+            try writer.print("mem[r{}:{f} + {f}] = mem[{f}] <- r{} = {f}", .{
+                operands.base,
+                Operand(runtime.state.registers[operands.base]),
+                Operand(offset),
+                Operand(runtime.state.registers[operands.base] +% offset),
+                operands.src,
+                Operand(value),
+            });
+        },
+        .trap => |operands| {
+            try writer.print("trap x{x:02}", .{operands.vect});
+        },
+        .rti => {
+            try writer.print("unsupported rti", .{});
+        },
+        .reserved => {
+            try writer.print("unpermitted reserved opcode", .{});
+        },
+    }
 }

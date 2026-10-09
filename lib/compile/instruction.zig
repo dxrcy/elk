@@ -64,17 +64,8 @@ pub const Instruction = union(enum) {
     trap: struct {
         vect: Operand.TrapVect,
     },
-    push: struct {
-        src: Operand.Register,
-    },
-    pop: struct {
-        dest: Operand.Register,
-    },
-    call: struct {
-        dest: Operand.PcOffset(10),
-    },
-    rets: struct {},
     rti: struct {},
+    // Reserved instruction (0xD) should be unrepresentable here.
 
     pub fn encode(instruction: Instruction) u16 {
         switch (instruction) {
@@ -172,24 +163,6 @@ pub const Instruction = union(enum) {
                 raw |= operands.vect.value.bits();
                 return raw;
             },
-            .push => |operands| {
-                var raw: u16 = 0xd400;
-                raw |= operands.src.value.bits() << 6;
-                return raw;
-            },
-            .pop => |operands| {
-                var raw: u16 = 0xd000;
-                raw |= operands.dest.value.bits() << 6;
-                return raw;
-            },
-            .call => |operands| {
-                var raw: u16 = 0xdc00;
-                raw |= operands.dest.value.bits();
-                return raw;
-            },
-            .rets => {
-                return 0xd800;
-            },
             .rti => {
                 return 0x8000;
             },
@@ -209,9 +182,6 @@ pub const Instruction = union(enum) {
             .ldr,
             .str,
             .trap,
-            .push,
-            .pop,
-            .rets,
             .rti,
             => null,
             .br => |operands| operands.dest.value == .resolved,
@@ -221,7 +191,6 @@ pub const Instruction = union(enum) {
             .ldi => |operands| operands.src.value == .resolved,
             .st => |operands| operands.dest.value == .resolved,
             .sti => |operands| operands.dest.value == .resolved,
-            .call => |operands| operands.dest.value == .resolved,
         };
     }
 };

@@ -19,6 +19,7 @@ pub const writeSpanContext = Ctx.writeSpanContext;
 writer: *Io.Writer,
 use_color: bool,
 
+// TODO: Use default value for `use_color`
 pub fn new(writer: *Io.Writer, use_color: bool) FancySink {
     return .{ .writer = writer, .use_color = use_color };
 }
@@ -251,6 +252,10 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
                     null,
             );
         },
+        .packed_string_directive => |info| {
+            try ctx.writeTitle("Use of non-standard 'packed string' directive", .{});
+            try ctx.deepen().writeSourceNote("Directive", .{}, info.directive);
+        },
 
         .existing_label_left => |info| {
             try ctx.writeTitle("Multiple labels cannot be declared on the same line", .{});
@@ -410,10 +415,6 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
             try ctx.deepen().writeSourceNote("String", .{}, info.string);
         },
 
-        .stack_instruction => |info| {
-            try ctx.writeTitle("Use of non-standard stack instruction `{t}`", .{info.kind});
-            try ctx.deepen().writeSourceNote("Instruction is an ISA extension", .{}, info.mnemonic);
-        },
         .literal_pc_offset => |info| {
             try ctx.writeTitle("Address operand is a literal offset", .{});
             try ctx.deepen().writeSourceNote("Integer", .{}, info.integer);
@@ -436,7 +437,7 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
                 error.IncorrectPadding => "The instruction format contains invalid values for padding bits",
                 error.UnhandledTrap => "No trap routine is defined for the trap vector",
                 error.UnsupportedRti => "The RTI instruction is not supported by this implementation",
-                error.UnpermittedOpcode => "The executed instruction is not supported in this mode",
+                error.UnpermittedOpcode => "The executed instruction (opcode 0xD) is reserved and not supported",
                 error.UnpermittedMemoryAccess => "The emulator tried to access supervisor-only memory while in user mode",
                 error.TrapFailed => "The trap routine failed due to an internal problem",
                 error.InstructionLimitReached => "The emulator executed too many instructions",

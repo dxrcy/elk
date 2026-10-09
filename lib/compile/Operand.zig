@@ -59,7 +59,7 @@ pub const value = struct {
 
     pub fn PcOffset(comptime size: u4) type {
         switch (size) {
-            9, 10, 11 => {},
+            9, 11 => {},
             else => comptime unreachable,
         }
         return union(enum) {

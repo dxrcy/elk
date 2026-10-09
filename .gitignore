@@ -14,3 +14,7 @@
 **/*.an.txt
 **/*.an.json
 
+
+# Nix
+result
+result-*

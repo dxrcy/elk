@@ -28,7 +28,7 @@ const Opcode = enum(u4) {
     str = 0x7,
     trap = 0xf,
     rti = 0x8,
-    pop_push_rets_call = 0xd,
+    reserved = 0xd,
 };
 
 const bitmasks = struct {
@@ -37,7 +37,6 @@ const bitmasks = struct {
     pub const flag = struct {
         pub const add_and: Bitmask = .new(.unsigned, 5, 5, 1);
         pub const jsr_jsrr: Bitmask = .new(.unsigned, 11, 11, 1);
-        pub const pop_push_rets_call: Bitmask = .new(.unsigned, 10, 11, 2);
     };
 
     pub const padding = struct {
@@ -49,9 +48,6 @@ const bitmasks = struct {
         pub const jsrr_low: Bitmask = .new(.unsigned, 0, 5, 6);
         pub const rti: Bitmask = .new(.unsigned, 0, 11, 12);
         pub const trap: Bitmask = .new(.unsigned, 8, 11, 4);
-        pub const pop_push_high: Bitmask = .new(.unsigned, 9, 9, 1);
-        pub const pop_push_low: Bitmask = .new(.unsigned, 0, 5, 6);
-        pub const rets_low: Bitmask = .new(.unsigned, 0, 9, 10);
     };
 
     pub const operand = struct {
@@ -62,7 +58,6 @@ const bitmasks = struct {
         pub const trap_vect: Bitmask = .new(.unsigned, 0, 7, 8);
         pub const offset_6: Bitmask = .new(.signed, 0, 5, 6);
         pub const pc_offset_9: Bitmask = .new(.signed, 0, 8, 9);
-        pub const pc_offset_10: Bitmask = .new(.signed, 0, 9, 10);
         pub const pc_offset_11: Bitmask = .new(.signed, 0, 10, 11);
         pub const condition_mask: Bitmask = .new(.unsigned, 9, 11, 3);
     };
@@ -109,18 +104,7 @@ pub const Instruction = union(enum) {
         vect: u8,
     },
     rti,
-    pop_push_rets_call: union(enum) {
-        pop: struct {
-            dest: Register,
-        },
-        push: struct {
-            src: Register,
-        },
-        rets: void,
-        call: struct {
-            pc_offset: i10,
-        },
-    },
+    reserved,
 
     const AddAndOperands = struct {
         dest: Register,
@@ -291,40 +275,9 @@ pub const Instruction = union(enum) {
                 return .rti;
             },
 
-            .pop_push_rets_call => {
-                switch (bitmasks.flag.pop_push_rets_call.apply(word)) {
-                    0b00 => { // POP
-                        if (bitmasks.padding.pop_push_high.apply(word) != 0 or
-                            bitmasks.padding.pop_push_low.apply(word) != 0)
-                            return error.IncorrectPadding;
-                        const dest = bitmasks.operand.reg_mid.apply(word);
-                        return .{ .pop_push_rets_call = .{
-                            .pop = .{ .dest = dest },
-                        } };
-                    },
-                    0b01 => { // PUSH
-                        if (bitmasks.padding.pop_push_high.apply(word) != 0 or
-                            bitmasks.padding.pop_push_low.apply(word) != 0)
-                            return error.IncorrectPadding;
-                        const src = bitmasks.operand.reg_mid.apply(word);
-                        return .{ .pop_push_rets_call = .{
-                            .push = .{ .src = src },
-                        } };
-                    },
-                    0b10 => { // RETS
-                        if (bitmasks.padding.rets_low.apply(word) != 0)
-                            return error.IncorrectPadding;
-                        return .{
-                            .pop_push_rets_call = .rets,
-                        };
-                    },
-                    0b11 => { // CALL
-                        const pc_offset = bitmasks.operand.pc_offset_10.apply(word);
-                        return .{ .pop_push_rets_call = .{
-                            .call = .{ .pc_offset = pc_offset },
-                        } };
-                    },
-                }
+            .reserved => {
+                // Don't check padding :)
+                return .reserved;
             },
         }
     }
@@ -404,19 +357,9 @@ pub const Instruction = union(enum) {
                 try writer.print(" rti", .{});
             },
 
-            .pop_push_rets_call => |variant| switch (variant) {
-                .pop => |operands| {
-                    try writer.print(" pop r{}", .{operands.dest});
-                },
-                .push => |operands| {
-                    try writer.print("push r{}", .{operands.src});
-                },
-                .rets => {
-                    try writer.print("rets", .{});
-                },
-                .call => |operands| {
-                    try writer.print("call {f}", .{Operand(operands.pc_offset)});
-                },
+            .reserved => {
+                // This should be something more obvious
+                try writer.print("(rs)", .{});
             },
         }
     }
