@@ -1,14 +1,15 @@
-const CollectSink = @This();
+const Collect = @This();
 
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const elk = @import("../root.zig");
+const elk = @import("../../root.zig");
 const Source = elk.Source;
 const reporting = elk.reporting;
-const Sink = @import("Sink.zig");
-const diagnostic = @import("diagnostic.zig");
+const diagnostic = @import("../diagnostic.zig");
 const Diagnostic = diagnostic.Diagnostic;
+
+const Sink = @import("Sink.zig");
 
 inner: Sink,
 entries: std.ArrayList(Entry),
@@ -22,7 +23,7 @@ const Entry = struct {
     source: ?Source,
 };
 
-pub fn init(gpa: Allocator, inner: Sink) CollectSink {
+pub fn init(gpa: Allocator, inner: Sink) Collect {
     return .{
         .inner = inner,
         .entries = .empty,
@@ -30,17 +31,17 @@ pub fn init(gpa: Allocator, inner: Sink) CollectSink {
     };
 }
 
-pub fn deinit(sink: *CollectSink) void {
+pub fn deinit(sink: *Collect) void {
     sink.entries.deinit(sink.gpa);
 }
 
-pub fn interface(sink: *CollectSink) Sink {
+pub fn interface(sink: *Collect) Sink {
     return .{
         .ptr = sink,
         .vtable = &.{
-            .sendDiagnostic = CollectSink.sendDiagnostic,
-            .flush = CollectSink.flush,
-            .sendSummary = CollectSink.sendSummary,
+            .sendDiagnostic = Collect.sendDiagnostic,
+            .flush = Collect.flush,
+            .sendSummary = Collect.sendSummary,
         },
     };
 }
@@ -52,7 +53,7 @@ pub fn sendDiagnostic(
     verbosity: reporting.Options.Verbosity,
     source: ?Source,
 ) error{WriteFailed}!void {
-    const sink: *CollectSink = @ptrCast(@alignCast(ptr));
+    const sink: *Collect = @ptrCast(@alignCast(ptr));
 
     sink.entries.append(sink.gpa, .{
         .diag = diag,
@@ -64,7 +65,7 @@ pub fn sendDiagnostic(
 }
 
 pub fn flush(ptr: *anyopaque) error{WriteFailed}!void {
-    const sink: *CollectSink = @ptrCast(@alignCast(ptr));
+    const sink: *Collect = @ptrCast(@alignCast(ptr));
 
     // Stable
     std.mem.sort(Entry, sink.entries.items, {}, lessThanEntry);
@@ -80,7 +81,7 @@ pub fn sendSummary(
     count: *const std.EnumArray(reporting.Level, usize),
     verbosity: reporting.Options.Verbosity,
 ) error{WriteFailed}!void {
-    const sink: *CollectSink = @ptrCast(@alignCast(ptr));
+    const sink: *Collect = @ptrCast(@alignCast(ptr));
 
     try flush(sink);
     try sink.inner.sendSummary(count, verbosity);

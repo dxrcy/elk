@@ -3,14 +3,14 @@ const Sink = @This();
 const std = @import("std");
 const Io = std.Io;
 
-const elk = @import("../root.zig");
+const elk = @import("../../root.zig");
 const Source = elk.Source;
 const reporting = elk.reporting;
-const Ctx = @import("Ctx.zig");
-const Diagnostic = @import("diagnostic.zig").Diagnostic;
+const Ctx = @import("../Ctx.zig");
+const Diagnostic = @import("../diagnostic.zig").Diagnostic;
 
-pub const Fancy = @import("FancySink.zig");
-pub const Collect = @import("CollectSink.zig");
+pub const Fancy = @import("Fancy.zig");
+pub const Collect = @import("Collect.zig");
 
 ptr: *anyopaque,
 vtable: *const VTable,

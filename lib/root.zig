@@ -13,10 +13,11 @@ pub const Analytics = @import("emulate/Analytics.zig");
 
 test {
     const refAllDecls = @import("std").testing.refAllDecls;
-    refAllDecls(@import("reporting/Sink.zig"));
+    refAllDecls(@import("reporting/sink/Sink.zig"));
+    refAllDecls(@import("reporting/sink/Collect.zig"));
+    refAllDecls(@import("reporting/sink/Fancy.zig"));
     refAllDecls(@import("reporting/reporting.zig"));
     refAllDecls(@import("reporting/Ctx.zig"));
-    refAllDecls(@import("reporting/FancySink.zig"));
     refAllDecls(@import("reporting/diagnostic.zig"));
     refAllDecls(@import("root.zig"));
     refAllDecls(@import("compile/Operand.zig"));

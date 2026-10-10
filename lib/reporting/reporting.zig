@@ -8,7 +8,7 @@ const Source = elk.Source;
 const Policies = elk.Policies;
 const Token = @import("../compile/parse/Token.zig");
 
-pub const Sink = @import("Sink.zig");
+pub const Sink = @import("sink/Sink.zig");
 
 // TODO: Move or remove
 pub const Primary = Reporter(@import("diagnostic.zig").Diagnostic);
