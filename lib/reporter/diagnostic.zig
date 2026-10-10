@@ -10,40 +10,6 @@ const Token = @import("../compile/parse/Token.zig");
 const Radix = @import("../compile/parse/integers.zig").Form.Radix;
 const DebuggerCommand = @import("../emulate/debugger/Command.zig");
 
-pub const TokenKinds = struct {
-    kinds: []const Kind,
-
-    const Kind = std.meta.Tag(Token.Value);
-
-    pub fn format(self: *const @This(), writer: *std.Io.Writer) !void {
-        for (self.kinds, 0..) |kind, i| {
-            if (i > 0) {
-                if (i + 1 >= self.kinds.len)
-                    try writer.print(", or ", .{})
-                else
-                    try writer.print(", ", .{});
-            }
-
-            try writer.print("{s}", .{name(kind)});
-        }
-    }
-
-    pub fn name(kind: Kind) []const u8 {
-        return switch (kind) {
-            .newline => "newline",
-            .comma => "comma `,`",
-            .colon => "colon `:`",
-            .directive => "directive",
-            .mnemonic => "instruction mnemonic",
-            .trap_alias => "trap alias",
-            .label => "label",
-            .register => "register",
-            .integer => "integer literal",
-            .string => "string literal",
-        };
-    }
-};
-
 fn strictnessResponse(options: Reporter.Options) Reporter.Response {
     return switch (options.strictness) {
         .strict => .major,
@@ -64,6 +30,40 @@ fn policyResponse(
 }
 
 pub const Diagnostic = union(enum) {
+    pub const TokenKinds = struct {
+        kinds: []const Kind,
+
+        const Kind = std.meta.Tag(Token.Value);
+
+        pub fn format(self: *const @This(), writer: *std.Io.Writer) !void {
+            for (self.kinds, 0..) |kind, i| {
+                if (i > 0) {
+                    if (i + 1 >= self.kinds.len)
+                        try writer.print(", or ", .{})
+                    else
+                        try writer.print(", ", .{});
+                }
+
+                try writer.print("{s}", .{name(kind)});
+            }
+        }
+
+        pub fn name(kind: Kind) []const u8 {
+            return switch (kind) {
+                .newline => "newline",
+                .comma => "comma `,`",
+                .colon => "colon `:`",
+                .directive => "directive",
+                .mnemonic => "instruction mnemonic",
+                .trap_alias => "trap alias",
+                .label => "label",
+                .register => "register",
+                .integer => "integer literal",
+                .string => "string literal",
+            };
+        }
+    };
+
     pub const NearestSpan = union(enum) {
         none,
         case_insensitive: Span,

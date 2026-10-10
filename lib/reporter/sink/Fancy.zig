@@ -7,9 +7,9 @@ const elk = @import("../../root.zig");
 const Source = elk.Source;
 const Parser = elk.Parser;
 const Reporter = elk.Reporter;
+const TokenKinds = Reporter.Diagnostic.TokenKinds;
 const DebuggerCommand = @import("../../emulate/debugger/Command.zig");
 const Ctx = @import("../Ctx.zig");
-const TokenKinds = @import("../diagnostic.zig").TokenKinds;
 
 const Sink = @import("Sink.zig");
 
