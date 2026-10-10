@@ -4,7 +4,7 @@ const assert = std.debug.assert;
 const elk = @import("root.zig");
 const Span = elk.Span;
 const Source = elk.Source;
-const Reporter = elk.reporting.Primary;
+const Reporter = elk.Reporter;
 const Air = elk.Air;
 const Operand = elk.Air.Instruction.Operand;
 

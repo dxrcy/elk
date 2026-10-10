@@ -31,8 +31,8 @@ const info = struct {
 
 operation: Operation,
 policies: elk.Policies,
-strictness: elk.reporting.Options.Strictness,
-verbosity: elk.reporting.Options.Verbosity,
+strictness: elk.Reporter.Options.Strictness,
+verbosity: elk.Reporter.Options.Verbosity,
 use_color: Condition,
 use_decoration: Condition,
 

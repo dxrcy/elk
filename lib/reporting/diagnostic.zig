@@ -3,10 +3,7 @@ const std = @import("std");
 const elk = @import("../root.zig");
 const Span = elk.Span;
 const Source = elk.Source;
-const reporting = elk.reporting;
-const Options = reporting.Options;
-const Level = reporting.Level;
-const Response = reporting.Response;
+const Reporter = elk.Reporter;
 const Policies = elk.Policies;
 const Exception = elk.Runtime.Exception;
 const Token = @import("../compile/parse/Token.zig");
@@ -47,7 +44,7 @@ pub const TokenKinds = struct {
     }
 };
 
-fn strictnessResponse(options: Options) Response {
+fn strictnessResponse(options: Reporter.Options) Reporter.Response {
     return switch (options.strictness) {
         .strict => .major,
         .normal => .minor,
@@ -56,10 +53,10 @@ fn strictnessResponse(options: Options) Response {
 }
 
 fn policyResponse(
-    options: Options,
+    options: Reporter.Options,
     comptime category: std.meta.FieldEnum(Policies),
     comptime name: std.meta.FieldEnum(@FieldType(Policies, @tagName(category))),
-) Response {
+) Reporter.Response {
     const policy = @field(@field(options.policies, @tagName(category)), @tagName(name));
     if (policy == .permit)
         return .pass;
@@ -188,7 +185,7 @@ pub const Diagnostic = union(enum) {
     // Shared
     symbol_not_found: struct { symbol: Span },
 
-    pub fn getResponse(diag: Diagnostic, options: Options) Response {
+    pub fn getResponse(diag: Diagnostic, options: Reporter.Options) Reporter.Response {
         return switch (diag) {
             .invalid_source_byte,
             .output_not_in_memory,

@@ -6,12 +6,10 @@ const Io = std.Io;
 const elk = @import("../../root.zig");
 const Source = elk.Source;
 const Parser = elk.Parser;
-const reporting = elk.reporting;
+const Reporter = elk.Reporter;
 const DebuggerCommand = @import("../../emulate/debugger/Command.zig");
 const Ctx = @import("../Ctx.zig");
-const diagnostic = @import("../diagnostic.zig");
-const Diagnostic = diagnostic.Diagnostic;
-const TokenKinds = diagnostic.TokenKinds;
+const TokenKinds = @import("../diagnostic.zig").TokenKinds;
 
 const Sink = @import("Sink.zig");
 
@@ -38,9 +36,9 @@ pub fn interface(sink: *Fancy) Sink {
 
 pub fn sendDiagnostic(
     ptr: *anyopaque,
-    diag: Diagnostic,
-    level: reporting.Level,
-    verbosity: reporting.Options.Verbosity,
+    diag: Reporter.Diagnostic,
+    level: Reporter.Level,
+    verbosity: Reporter.Options.Verbosity,
     source: ?Source,
 ) error{WriteFailed}!void {
     const sink: *Fancy = @ptrCast(@alignCast(ptr));
@@ -62,8 +60,8 @@ pub fn flush(_: *anyopaque) error{WriteFailed}!void {}
 
 pub fn sendSummary(
     ptr: *anyopaque,
-    count: *const std.EnumArray(reporting.Level, usize),
-    verbosity: reporting.Options.Verbosity,
+    count: *const std.EnumArray(Reporter.Level, usize),
+    verbosity: Reporter.Options.Verbosity,
 ) error{WriteFailed}!void {
     const sink: *Fancy = @ptrCast(@alignCast(ptr));
 
@@ -105,7 +103,7 @@ pub fn sendSummary(
     try sink.writer.flush();
 }
 
-fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
+fn writeDiagnostic(ctx: Ctx, diag: Reporter.Diagnostic) error{WriteFailed}!void {
     switch (diag) {
         .invalid_source_byte => |info| {
             try ctx.writeTitle("Assembly file contains invalid bytes", .{});

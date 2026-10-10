@@ -10,7 +10,7 @@ air: elk.Air,
 source: elk.Source,
 traps: *const elk.Traps,
 patch_symbols: ?[]const struct { []const u8, u16 },
-reporter: *elk.reporting.Primary,
+reporter: *elk.Reporter,
 gpa: Allocator,
 io: Io,
 

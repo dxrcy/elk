@@ -1,3 +1,5 @@
+const Self = @This();
+
 const std = @import("std");
 const Io = std.Io;
 const assert = std.debug.assert;
@@ -9,9 +11,12 @@ const Policies = elk.Policies;
 const Token = @import("../compile/parse/Token.zig");
 
 pub const Sink = @import("sink/Sink.zig");
+pub const Diagnostic = @import("diagnostic.zig").Diagnostic;
 
-// TODO: Move or remove
-pub const Primary = Reporter(@import("diagnostic.zig").Diagnostic);
+sink: Sink,
+count: std.EnumArray(Level, usize),
+options: Options,
+source: ?Source,
 
 pub const Level = enum(u2) {
     info = 1,
@@ -81,92 +86,78 @@ pub const Response = enum {
     }
 };
 
-pub fn Reporter(comptime Diag: type) type {
-    assert(@typeInfo(Diag).@"union".tag_type != null);
-
-    return struct {
-        const Self = @This();
-        pub const Diagnostic = Diag;
-
-        sink: Sink,
-        count: std.EnumArray(Level, usize),
-        options: Options,
-        source: ?Source,
-
-        pub fn new(sink: Sink) Self {
-            return .{
-                .sink = sink,
-                .count = .initFill(0),
-                .options = .{},
-                .source = null,
-            };
-        }
-
-        fn writeFailed() noreturn {
-            std.debug.panic("failed to write to reporter", .{});
-        }
-
-        pub fn report(
-            reporter: *Self,
-            comptime tag: std.meta.Tag(Diag),
-            info: @FieldType(Diag, @tagName(tag)),
-        ) Response {
-            return reporter.reportInner(@unionInit(Diag, @tagName(tag), info)) catch
-                writeFailed();
-        }
-
-        fn reportInner(reporter: *Self, diag: Diag) error{WriteFailed}!Response {
-            const response: Response = diag.getResponse(reporter.options);
-
-            const level: Level = switch (response) {
-                .fatal, .major => .err,
-                .minor => .warn,
-                .info => .info,
-                .pass => return .pass,
-            };
-
-            reporter.count.getPtr(level).* += 1;
-
-            try reporter.sink.sendDiagnostic(
-                diag,
-                level,
-                reporter.options.verbosity,
-                reporter.source,
-            );
-
-            assert(response != .pass);
-            return response;
-        }
-
-        pub fn flush(reporter: *Self) void {
-            reporter.sink.flush() catch
-                writeFailed();
-        }
-
-        pub fn summarize(reporter: *Self) void {
-            reporter.sink.sendSummary(
-                &reporter.count,
-                reporter.options.verbosity,
-            ) catch
-                writeFailed();
-        }
-
-        pub fn getLevel(reporter: *const Self) ?Level {
-            if (reporter.count.get(.err) > 0)
-                return .err;
-            if (reporter.count.get(.warn) > 0)
-                return .warn;
-            return null;
-        }
-
-        pub fn isLevelAtMost(reporter: *const Self, max: Level) bool {
-            const level = reporter.getLevel() orelse
-                return true;
-            return level.order(max).compare(.lte);
-        }
-
-        pub fn clear(reporter: *Self) void {
-            reporter.count = .initFill(0);
-        }
+pub fn new(sink: Sink) Self {
+    return .{
+        .sink = sink,
+        .count = .initFill(0),
+        .options = .{},
+        .source = null,
     };
+}
+
+fn writeFailed() noreturn {
+    std.debug.panic("failed to write to reporter", .{});
+}
+
+pub fn report(
+    reporter: *Self,
+    comptime tag: std.meta.Tag(Diagnostic),
+    info: @FieldType(Diagnostic, @tagName(tag)),
+) Response {
+    return reporter.reportInner(@unionInit(Diagnostic, @tagName(tag), info)) catch
+        writeFailed();
+}
+
+fn reportInner(reporter: *Self, diag: Diagnostic) error{WriteFailed}!Response {
+    const response: Response = diag.getResponse(reporter.options);
+
+    const level: Level = switch (response) {
+        .fatal, .major => .err,
+        .minor => .warn,
+        .info => .info,
+        .pass => return .pass,
+    };
+
+    reporter.count.getPtr(level).* += 1;
+
+    try reporter.sink.sendDiagnostic(
+        diag,
+        level,
+        reporter.options.verbosity,
+        reporter.source,
+    );
+
+    assert(response != .pass);
+    return response;
+}
+
+pub fn flush(reporter: *Self) void {
+    reporter.sink.flush() catch
+        writeFailed();
+}
+
+pub fn summarize(reporter: *Self) void {
+    reporter.sink.sendSummary(
+        &reporter.count,
+        reporter.options.verbosity,
+    ) catch
+        writeFailed();
+}
+
+pub fn getLevel(reporter: *const Self) ?Level {
+    if (reporter.count.get(.err) > 0)
+        return .err;
+    if (reporter.count.get(.warn) > 0)
+        return .warn;
+    return null;
+}
+
+pub fn isLevelAtMost(reporter: *const Self, max: Level) bool {
+    const level = reporter.getLevel() orelse
+        return true;
+    return level.order(max).compare(.lte);
+}
+
+pub fn clear(reporter: *Self) void {
+    reporter.count = .initFill(0);
 }

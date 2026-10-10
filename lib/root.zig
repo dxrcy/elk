@@ -1,6 +1,6 @@
 pub const Span = @import("compile/Span.zig");
 pub const Source = @import("compile/Source.zig");
-pub const reporting = @import("reporting/reporting.zig");
+pub const Reporter = @import("reporting/reporting.zig");
 pub const Policies = @import("policies.zig").Policies;
 pub const Provider = @import("provider.zig").Provider;
 pub const Traps = @import("Traps.zig");

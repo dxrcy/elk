@@ -26,11 +26,11 @@ pub fn mainInner(init: std.process.Init) !u8 {
     const reporter_buffer_size = 1024;
     var reporter_buffer: [reporter_buffer_size]u8 = undefined;
     var reporter_writer = Io.File.stderr().writer(io, &reporter_buffer);
-    var sink = elk.reporting.Sink.Fancy.new(&reporter_writer.interface, stderr_is_tty);
+    var sink = elk.Reporter.Sink.Fancy.new(&reporter_writer.interface, stderr_is_tty);
 
-    var sink_collect = elk.reporting.Sink.Collect.init(gpa, sink.interface());
+    var sink_collect = elk.Reporter.Sink.Collect.init(gpa, sink.interface());
     defer sink_collect.deinit();
-    var reporter = elk.reporting.Primary.new(sink_collect.interface());
+    var reporter = elk.Reporter.new(sink_collect.interface());
     defer reporter.flush(); // Should already be flushed by now, but just in case
 
     const args_allocator = init.arena.allocator();
@@ -410,7 +410,7 @@ fn emulate(
     debug_opt: ?Cli.Operation.Debug,
     traps: *const elk.Traps,
     policies: elk.Policies,
-    reporter: *elk.reporting.Primary,
+    reporter: *elk.Reporter,
     use_color: bool,
     use_decoration: bool,
     assembler: ?*elk.Assembler,
@@ -551,7 +551,7 @@ fn createDebugger(
     runtime_source: RuntimeSource,
     debug: Cli.Operation.Debug,
     traps: *const elk.Traps,
-    reporter: *elk.reporting.Primary,
+    reporter: *elk.Reporter,
     use_color: bool,
     use_decoration: bool,
     assembler: ?*elk.Assembler,

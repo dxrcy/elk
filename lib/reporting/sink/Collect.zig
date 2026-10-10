@@ -5,9 +5,7 @@ const Allocator = std.mem.Allocator;
 
 const elk = @import("../../root.zig");
 const Source = elk.Source;
-const reporting = elk.reporting;
-const diagnostic = @import("../diagnostic.zig");
-const Diagnostic = diagnostic.Diagnostic;
+const Reporter = elk.Reporter;
 
 const Sink = @import("Sink.zig");
 
@@ -17,9 +15,9 @@ gpa: Allocator,
 
 // TODO: Rename
 const Entry = struct {
-    diag: Diagnostic,
-    level: reporting.Level,
-    verbosity: reporting.Options.Verbosity,
+    diag: Reporter.Diagnostic,
+    level: Reporter.Level,
+    verbosity: Reporter.Options.Verbosity,
     source: ?Source,
 };
 
@@ -48,9 +46,9 @@ pub fn interface(sink: *Collect) Sink {
 
 pub fn sendDiagnostic(
     ptr: *anyopaque,
-    diag: Diagnostic,
-    level: reporting.Level,
-    verbosity: reporting.Options.Verbosity,
+    diag: Reporter.Diagnostic,
+    level: Reporter.Level,
+    verbosity: Reporter.Options.Verbosity,
     source: ?Source,
 ) error{WriteFailed}!void {
     const sink: *Collect = @ptrCast(@alignCast(ptr));
@@ -78,8 +76,8 @@ pub fn flush(ptr: *anyopaque) error{WriteFailed}!void {
 
 pub fn sendSummary(
     ptr: *anyopaque,
-    count: *const std.EnumArray(reporting.Level, usize),
-    verbosity: reporting.Options.Verbosity,
+    count: *const std.EnumArray(Reporter.Level, usize),
+    verbosity: Reporter.Options.Verbosity,
 ) error{WriteFailed}!void {
     const sink: *Collect = @ptrCast(@alignCast(ptr));
 
