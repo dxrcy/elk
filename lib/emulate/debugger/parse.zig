@@ -260,7 +260,9 @@ const Parser = struct {
 
     fn nextMemoryLocation(parser: *Parser) error{Reported}!Spanned(Command.Location.Memory) {
         const argument = parser.next() catch |err| switch (err) {
-            error.Eof => try parser.reporter.report(.debugger_unexpected_eol, .{ .eol = .endOf(parser.source) }).abort(),
+            error.Eof => try parser.reporter.report(.debugger_unexpected_eol, .{
+                .eol = .endOf(parser.source),
+            }).abort(),
         };
 
         if (parsing.tryRegister(argument.view(parser.source))) |_| {

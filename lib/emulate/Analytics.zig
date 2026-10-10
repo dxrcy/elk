@@ -539,7 +539,8 @@ pub const json = struct {
 
                 var key_buffer: [4]u8 = undefined;
                 try stringify.objectField(
-                    std.fmt.bufPrint(&key_buffer, "x{x:0>2}", .{@as(u8, @intCast(vect))}) catch unreachable,
+                    std.fmt.bufPrint(&key_buffer, "x{x:0>2}", .{@as(u8, @intCast(vect))}) catch
+                        unreachable,
                 );
                 try stringify.write(trap);
             }
@@ -590,7 +591,11 @@ pub const json = struct {
         try writer.writeByte('\n');
     }
 
-    fn writeCounts(arena: Allocator, stringify: *std.json.Stringify, map: Map(u16, usize)) Error!void {
+    fn writeCounts(
+        arena: Allocator,
+        stringify: *std.json.Stringify,
+        map: Map(u16, usize),
+    ) Error!void {
         const addresses = try arena.alloc(u16, map.count());
         defer arena.free(addresses);
 

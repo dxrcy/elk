@@ -334,19 +334,31 @@ pub const Instruction = union(enum) {
             },
 
             .lea, .ld, .ldi => |operands, opcode| {
-                try writer.print("{t:4} r{} {f}", .{ opcode, operands.dest, Operand(operands.pc_offset) });
+                try writer.print(
+                    "{t:4} r{} {f}",
+                    .{ opcode, operands.dest, Operand(operands.pc_offset) },
+                );
             },
 
             .ldr => |operands| {
-                try writer.print(" ldr r{} r{} {f}", .{ operands.dest, operands.base, Operand(operands.offset) });
+                try writer.print(
+                    " ldr r{} r{} {f}",
+                    .{ operands.dest, operands.base, Operand(operands.offset) },
+                );
             },
 
             .st, .sti => |operands, opcode| {
-                try writer.print("{t:4} r{} {f}", .{ opcode, operands.src, Operand(operands.pc_offset) });
+                try writer.print(
+                    "{t:4} r{} {f}",
+                    .{ opcode, operands.src, Operand(operands.pc_offset) },
+                );
             },
 
             .str => |operands| {
-                try writer.print(" str r{} r{} {f}", .{ operands.src, operands.base, Operand(operands.offset) });
+                try writer.print(
+                    " str r{} r{} {f}",
+                    .{ operands.src, operands.base, Operand(operands.offset) },
+                );
             },
 
             .trap => |operands| {

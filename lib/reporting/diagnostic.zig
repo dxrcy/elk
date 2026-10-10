@@ -91,7 +91,15 @@ pub const Diagnostic = union(enum) {
     too_many_arguments: struct { extra: Span, expected_count: usize, actual_count: usize },
     missing_operand_comma: struct { position: Span },
     whitespace_comma: struct { comma: Span },
-    unconventional_case: struct { token: Span, kind: enum { directive, mnemonic, trap_alias, label, register, integer_prefix, integer_digits } },
+    unconventional_case: struct { token: Span, kind: enum {
+        directive,
+        mnemonic,
+        trap_alias,
+        label,
+        register,
+        integer_prefix,
+        integer_digits,
+    } },
 
     // Directives
     unsupported_directive: struct { directive: Span },
@@ -121,12 +129,22 @@ pub const Diagnostic = union(enum) {
     nonstandard_integer_radix: struct { integer: Span, radix: Radix },
     implicit_integer_radix: struct { integer: Span },
     nonstandard_integer_form: struct { integer: Span, reason: enum { delimiter } },
-    undesirable_integer_form: struct { integer: Span, reason: enum { leading_zero, pre_radix_sign, post_radix_sign } },
+    undesirable_integer_form: struct { integer: Span, reason: enum {
+        leading_zero,
+        pre_radix_sign,
+        post_radix_sign,
+    } },
     character_integer: struct { integer: Span },
 
     // Integer bounds
     integer_too_large: struct { integer: Span, type_info: std.builtin.Type.Int },
-    offset_too_large: struct { definition: ?Span, reference: Span, offset: i17, bits: u16, definition_source: Source },
+    offset_too_large: struct {
+        definition: ?Span,
+        reference: Span,
+        offset: i17,
+        bits: u16,
+        definition_source: Source,
+    },
     unexpected_negative_integer: struct { integer: Span },
 
     // Strings
@@ -152,7 +170,11 @@ pub const Diagnostic = union(enum) {
     debugger_address_not_in_assembly: struct { value: u16, max: u16 },
     debugger_address_not_user_memory: struct { address: Span, value: u16, max: u16 },
     // This is simply case-insensitive match, not for edit distance
-    debugger_label_partial_match: struct { reference: Span, nearest: Span, definition_source: Source },
+    debugger_label_partial_match: struct {
+        reference: Span,
+        nearest: Span,
+        definition_source: Source,
+    },
     debugger_no_space: struct {},
     // TODO: Add `expected` field (different type than `TokenKinds`), AND ELSEWHERE
     debugger_invalid_argument_kind: struct { found: Span },
@@ -206,13 +228,21 @@ pub const Diagnostic = union(enum) {
             .existing_label_above => policyResponse(options, .extension, .multiple_labels),
             .label_too_long => policyResponse(options, .extension, .longer_labels),
             .label_colon => policyResponse(options, .extension, .label_definition_colons),
-            .nonstandard_integer_radix => policyResponse(options, .extension, .more_integer_radixes),
+            .nonstandard_integer_radix => policyResponse(
+                options,
+                .extension,
+                .more_integer_radixes,
+            ),
             .implicit_integer_radix,
             .nonstandard_integer_form,
             => policyResponse(options, .extension, .more_integer_forms),
             .multiline_string => policyResponse(options, .extension, .multiline_strings),
             .character_integer => policyResponse(options, .extension, .character_literals),
-            .packed_string_directive => policyResponse(options, .extension, .packed_string_directives),
+            .packed_string_directive => policyResponse(
+                options,
+                .extension,
+                .packed_string_directives,
+            ),
 
             .literal_pc_offset => policyResponse(options, .smell, .pc_offset_literals),
             .explicit_trap_vect => policyResponse(options, .smell, .explicit_trap_instructions),
@@ -229,7 +259,11 @@ pub const Diagnostic = union(enum) {
                 .register => policyResponse(options, .case, .registers),
                 .integer_prefix, .integer_digits => policyResponse(options, .case, .integers),
             },
-            .undesirable_integer_form => policyResponse(options, .style, .undesirable_integer_forms),
+            .undesirable_integer_form => policyResponse(
+                options,
+                .style,
+                .undesirable_integer_forms,
+            ),
             .line_too_long => policyResponse(options, .style, .line_too_long),
 
             .emulate_exception => .fatal,

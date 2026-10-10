@@ -109,7 +109,12 @@ pub const Provider = union(enum) {
                 std.log.err("label operand cannot be resolved", .{});
                 return error.Reported;
             },
-            .assembly => |assembly| try resolveAssemblyAbsolute(operand, assembly, source, reporter),
+            .assembly => |assembly| try resolveAssemblyAbsolute(
+                operand,
+                assembly,
+                source,
+                reporter,
+            ),
             .symbols => |symbols| try resolveSymbolAbsolute(operand, symbols, source, reporter),
         };
     }

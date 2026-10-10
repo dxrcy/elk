@@ -228,7 +228,8 @@ pub fn findLabel(
     return .none;
 }
 
-/// `case_insensitive` mode asserts that no case-sensitive match exists (caller should first try `exact`).
+/// `case_insensitive` mode asserts that no case-sensitive match exists (caller should first try
+/// `exact`).
 fn findLabelCase(
     air: *const Air,
     comptime mode: enum { exact, case_insensitive },

@@ -176,7 +176,13 @@ pub fn mainInner(init: std.process.Init) !u8 {
 
             switch (operation.paths) {
                 .single => |single| {
-                    try assembleFile(io, &assembler, single.input, single.output, operation.options);
+                    try assembleFile(
+                        io,
+                        &assembler,
+                        single.input,
+                        single.output,
+                        operation.options,
+                    );
                 },
                 .many => |many| {
                     var error_count: usize = 0;

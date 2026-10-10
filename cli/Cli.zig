@@ -405,7 +405,11 @@ pub fn parse(
 }
 
 fn checkDependencies(options: *const zilc.Options(template)) !void {
-    try zilc.checkGroup(.operation, enum { assemble, emulate, check, clean, format, lsp }, &options.flags);
+    try zilc.checkGroup(
+        .operation,
+        enum { assemble, emulate, check, clean, format, lsp },
+        &options.flags,
+    );
     try zilc.checkGroup(.export_mode, enum { export_symbols, export_listing }, &options.flags);
     try zilc.checkGroup(.verbosity, enum { strict, relaxed }, &options.flags);
 
@@ -414,22 +418,47 @@ fn checkDependencies(options: *const zilc.Options(template)) !void {
     try zilc.checkDependencies(.output, enum { assemble, format }, enum {}, &options.flags);
     try zilc.checkDependencies(.export_symbols, enum { assemble }, enum {}, &options.flags);
     try zilc.checkDependencies(.export_listing, enum { assemble }, enum {}, &options.flags);
-    try zilc.checkDependencies(.trap_aliases, enum { assemble, check, format }, enum {}, &options.flags);
+    try zilc.checkDependencies(
+        .trap_aliases,
+        enum { assemble, check, format },
+        enum {},
+        &options.flags,
+    );
     try zilc.checkDependencies(.debug, enum {}, non_emulate, &options.flags);
     try zilc.checkDependencies(.random_init, enum {}, non_emulate, &options.flags);
     try zilc.checkDependencies(.instruction_limit, enum {}, non_emulate, &options.flags);
     try zilc.checkDependencies(.analytics, enum {}, non_emulate, &options.flags);
-    try zilc.checkDependencies(.input_partial, enum { debug }, enum { input_full }, &options.flags);
-    try zilc.checkDependencies(.input_full, enum { debug }, enum { input_partial }, &options.flags);
+    try zilc.checkDependencies(
+        .input_partial,
+        enum { debug },
+        enum { input_full },
+        &options.flags,
+    );
+    try zilc.checkDependencies(
+        .input_full,
+        enum { debug },
+        enum { input_partial },
+        &options.flags,
+    );
     try zilc.checkDependencies(.history_file, enum { debug }, enum {}, &options.flags);
     try zilc.checkDependencies(.import_symbols, enum { emulate }, enum {}, &options.flags);
 
     if (options.flags.emulate) {
-        try zilc.checkDependencies(.patch_symbols, enum { import_symbols }, enum {}, &options.flags);
+        try zilc.checkDependencies(
+            .patch_symbols,
+            enum { import_symbols },
+            enum {},
+            &options.flags,
+        );
     } else if (options.flags.assemble) {
         //
     } else {
-        try zilc.checkDependencies(.patch_symbols, enum {}, enum { check, clean, format, lsp }, &options.flags);
+        try zilc.checkDependencies(
+            .patch_symbols,
+            enum {},
+            enum { check, clean, format, lsp },
+            &options.flags,
+        );
     }
 }
 

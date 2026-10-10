@@ -109,7 +109,10 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
         .invalid_source_byte => |info| {
             try ctx.writeTitle("Assembly file contains invalid bytes", .{});
             try ctx.deepen().writeSourceNote("Byte", .{}, .{ .offset = info.byte, .len = 1 });
-            try ctx.deepen().writeNote("Assembly file must only contain printable ASCII characters", .{});
+            try ctx.deepen().writeNote(
+                "Assembly file must only contain printable ASCII characters",
+                .{},
+            );
             try ctx.deepen().writeNote("The assembler cannot read object files", .{});
         },
         .output_not_in_memory => |info| {
@@ -124,7 +127,8 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
             try ctx.writeTitle("Assembled file would contain data outside of user memory", .{});
             try ctx.deepen().writeSourceNote("Line", .{}, info.statement);
             try ctx.deepen().writeNote(
-                "Object files cannot be loaded which contain words outside of user memory: [x{:04}, x{:04}]",
+                "Object files cannot be loaded which contain words outside of user memory:" ++
+                    " [x{:04}, x{:04}]",
                 .{ elk.Runtime.user_memory_start, elk.Runtime.user_memory_end },
             );
         },
@@ -132,7 +136,8 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
             try ctx.writeTitle("Origin is declared as outside of user memory", .{});
             try ctx.deepen().writeSourceNote("Line", .{}, info.statement);
             try ctx.deepen().writeNote(
-                "Object files cannot be loaded which contain words outside of user memory: [x{:04}, x{:04}]",
+                "Object files cannot be loaded which contain words outside of user memory:" ++
+                    " [x{:04}, x{:04}]",
                 .{ elk.Runtime.user_memory_start, elk.Runtime.user_memory_end },
             );
         },
@@ -176,7 +181,10 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
         .whitespace_comma => |info| {
             try ctx.writeTitle("Unexpected comma `,`", .{});
             try ctx.deepen().writeSourceNote("Comma", .{}, info.comma);
-            try ctx.deepen().writeNote("Commas should only appear between instruction operands", .{});
+            try ctx.deepen().writeNote(
+                "Commas should only appear between instruction operands",
+                .{},
+            );
         },
         .unconventional_case => |info| switch (info.kind) {
             .mnemonic => {
@@ -260,18 +268,30 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
         .existing_label_left => |info| {
             try ctx.writeTitle("Multiple labels cannot be declared on the same line", .{});
             try ctx.deepen().writeSourceNote("First label declared here", .{}, info.existing);
-            try ctx.deepen().writeSourceNote("Another label declared on the same line", .{}, info.new);
+            try ctx.deepen().writeSourceNote(
+                "Another label declared on the same line",
+                .{},
+                info.new,
+            );
         },
         .existing_label_above => |info| {
             try ctx.writeTitle("Line is annotated with multiple labels", .{});
             try ctx.deepen().writeSourceNote("First label declared here", .{}, info.existing);
-            try ctx.deepen().writeSourceNote("Another label declared in the same position", .{}, info.new);
+            try ctx.deepen().writeSourceNote(
+                "Another label declared in the same position",
+                .{},
+                info.new,
+            );
         },
         .invalid_label_target => |info| {
             try ctx.writeTitle("Label is useless in this position", .{});
             try ctx.deepen().writeSourceNote("Label declared here", .{}, info.label);
             if (info.target) |target|
-                try ctx.deepen().writeSourceNote("Token cannot be annotated with label", .{}, target)
+                try ctx.deepen().writeSourceNote(
+                    "Token cannot be annotated with label",
+                    .{},
+                    target,
+                )
             else
                 try ctx.deepen().writeSourceNote(
                     "Label is not followed by any token",
@@ -316,12 +336,18 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
                 .offset = info.label.offset + Parser.max_label_length,
                 .len = info.label.len - Parser.max_label_length,
             });
-            try ctx.deepen().writeNote("Labels must not be longer than {} characters", .{Parser.max_label_length});
+            try ctx.deepen().writeNote(
+                "Labels must not be longer than {} characters",
+                .{Parser.max_label_length},
+            );
         },
         .breakpoint_label => |info| {
             try ctx.writeTitle("Label declares a breakpoint", .{});
             try ctx.deepen().writeSourceNote("Label", .{}, info.label);
-            try ctx.deepen().writeNote("Labels beginning with `__` cause a breakpoint to be created at that address", .{});
+            try ctx.deepen().writeNote(
+                "Labels beginning with `__` cause a breakpoint to be created at that address",
+                .{},
+            );
         },
 
         .malformed_integer => |info| {
@@ -342,7 +368,10 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
         .invalid_digit => |info| {
             try ctx.writeTitle("Invalid digit in integer argument", .{});
             try ctx.deepen().writeSourceNote("Argument", .{}, info.integer);
-            try ctx.deepen().writeNote("Integer token contains a character which is not valid in the base", .{});
+            try ctx.deepen().writeNote(
+                "Integer token contains a character which is not valid in the base",
+                .{},
+            );
         },
         .unexpected_delimiter => |info| {
             try ctx.writeTitle("Unexpected digit delimiter in integer argument", .{});
@@ -371,7 +400,8 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
             try ctx.deepen().writeNote("{s}", .{switch (info.reason) {
                 .leading_zero => "Leading zero should not appear before base specifier",
                 .pre_radix_sign => "Sign character should appear after decimal base specifier",
-                .post_radix_sign => "Sign character should appear before non-decimal base specifier",
+                .post_radix_sign => "Sign character should appear before non-decimal base" ++
+                    " specifier",
             }});
         },
         .character_integer => |info| {
@@ -382,9 +412,16 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
         .integer_too_large => |info| {
             try ctx.writeTitle("Integer argument is too large", .{});
             try ctx.deepen().writeSourceNote("Argument", .{}, info.integer);
-            try ctx.deepen().writeNote("Value cannot be represented in {} bits", .{info.type_info.bits});
+            try ctx.deepen().writeNote(
+                "Value cannot be represented in {} bits",
+                .{info.type_info.bits},
+            );
             if (info.type_info.signedness == .signed) {
-                try ctx.deepen().writeNote("Since the argument is a signed integer, the highest bit is reserved as the sign bit", .{});
+                try ctx.deepen().writeNote(
+                    "Since the argument is a signed integer, the highest bit is reserved as the" ++
+                        " sign bit",
+                    .{},
+                );
             }
         },
         .offset_too_large => |info| {
@@ -393,7 +430,10 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
                 try ctx.deepen().writeSourceNote("Label declared here", .{}, definition);
             try ctx.deepen().withSource(info.definition_source)
                 .writeSourceNote("Label used here", .{}, info.reference);
-            try ctx.deepen().writeNote("Address offset of {} words cannot be represented in {} bits", .{ info.offset, info.bits });
+            try ctx.deepen().writeNote(
+                "Address offset of {} words cannot be represented in {} bits",
+                .{ info.offset, info.bits },
+            );
         },
         .unexpected_negative_integer => |info| {
             try ctx.writeTitle("Integer argument cannot be negative", .{});
@@ -418,7 +458,10 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
         .literal_pc_offset => |info| {
             try ctx.writeTitle("Address operand is a literal offset", .{});
             try ctx.deepen().writeSourceNote("Integer", .{}, info.integer);
-            try ctx.deepen().writeNote("PC-offset operand should be a label reference, instead of hardcoded offset value", .{});
+            try ctx.deepen().writeNote(
+                "PC-offset operand should be a label reference, instead of hardcoded offset value",
+                .{},
+            );
         },
         .explicit_trap_vect => |info| {
             try ctx.writeTitle("Use of trap instruction with explicit vector operand", .{});
@@ -434,11 +477,15 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
         .emulate_exception => |info| {
             try ctx.writeTitle("Runtime exception: {t}", .{info.code});
             try ctx.deepen().writeNote("{s}", .{switch (info.code) {
-                error.IncorrectPadding => "The instruction format contains invalid values for padding bits",
+                error.IncorrectPadding => "The instruction format contains invalid values for" ++
+                    " padding bits",
                 error.UnhandledTrap => "No trap routine is defined for the trap vector",
-                error.UnsupportedRti => "The RTI instruction is not supported by this implementation",
-                error.UnpermittedOpcode => "The executed instruction (opcode 0xD) is reserved and not supported",
-                error.UnpermittedMemoryAccess => "The emulator tried to access supervisor-only memory while in user mode",
+                error.UnsupportedRti => "The RTI instruction is not supported by this" ++
+                    " implementation",
+                error.UnpermittedOpcode => "The executed instruction (opcode 0xD) is reserved" ++
+                    " and not supported",
+                error.UnpermittedMemoryAccess => "The emulator tried to access supervisor-only" ++
+                    " memory while in user mode",
                 error.TrapFailed => "The trap routine failed due to an internal problem",
                 error.InstructionLimitReached => "The emulator executed too many instructions",
             }});
@@ -463,10 +510,16 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
             try ctx.writeTitle("Command requires access to assembly or symbol table", .{});
             try ctx.deepen().writeSourceNote("Command", .{}, info.command);
             try ctx.deepen().writeNote("Debugger does not have access to original assembly", .{});
-            try ctx.deepen().writeNote("Debugger does not have access to imported symbol table", .{});
+            try ctx.deepen().writeNote(
+                "Debugger does not have access to imported symbol table",
+                .{},
+            );
         },
         .debugger_address_not_in_assembly => |info| {
-            try ctx.writeTitle("Address x{X:04} is not contained in assembly source", .{info.value});
+            try ctx.writeTitle(
+                "Address x{X:04} is not contained in assembly source",
+                .{info.value},
+            );
             try ctx.deepen().writeNote("Largest address in assembly is x{X:04}", .{info.max});
         },
         .debugger_address_not_user_memory => |info| {
@@ -492,7 +545,10 @@ fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
             try ctx.writeTitle("Invalid command name", .{});
             try ctx.deepen().writeSourceNote("Command", .{}, info.command);
             if (info.nearest) |nearest|
-                try ctx.deepen().writeNote("Did you mean `{s}`?", .{DebuggerCommand.tagString(nearest)});
+                try ctx.deepen().writeNote(
+                    "Did you mean `{s}`?",
+                    .{DebuggerCommand.tagString(nearest)},
+                );
         },
         .debugger_missing_subcommand => |info| {
             try ctx.writeTitle("Missing subcommand for `{s}`", .{info.first});

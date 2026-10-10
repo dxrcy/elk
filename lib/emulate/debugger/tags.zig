@@ -58,14 +58,17 @@ pub const single: SingleMap = .init(.{
     },
     .goto = .{
         .aliases = &.{ "goto", "g" },
-        .suggestions = &.{ "jump", "call", "go", "go-to", "jsr", "jsrr", "br", "brn", "brz", "brp", "brnz", "brnp", "brzp", "brnzp" },
+        .suggestions = &.{
+            "jump", "call", "go",    "go-to", "jsr", "jsrr", "br", "brn", "brz", "brp", "brnz",
+            "brnp", "brzp", "brnzp",
+        },
     },
     .assembly = .{
         .aliases = &.{ "assembly", "a", "asm" },
         .suggestions = &.{ "source", "src", "ass", "inspect" },
     },
     .inspect = .{
-        .aliases = &.{"inspect", "i"},
+        .aliases = &.{ "inspect", "i" },
     },
     .eval = .{
         .aliases = &.{ "eval", "e", "evil", "evaluate" },
@@ -80,7 +83,9 @@ pub const single: SingleMap = .init(.{
     },
     .step_into = .{
         .aliases = &.{ "stepinto", "si" },
-        .suggestions = &.{ "into", "in", "stepin", "step-into", "step-in", "stepi", "step-i", "sin" },
+        .suggestions = &.{
+            "into", "in", "stepin", "step-into", "step-in", "stepi", "step-i", "sin",
+        },
     },
     .step_out = .{
         .aliases = &.{ "stepout", "so" },
@@ -88,7 +93,10 @@ pub const single: SingleMap = .init(.{
     },
     .break_list = .{
         .aliases = &.{ "breaklist", "bl" },
-        .suggestions = &.{ "break-list", "break-ls", "blist", "bls", "bp", "breakpoint", "breakpointlist", "breakpoint-list" },
+        .suggestions = &.{
+            "break-list",      "break-ls", "blist", "bls", "bp", "breakpoint", "breakpointlist",
+            "breakpoint-list",
+        },
     },
     .break_add = .{
         .aliases = &.{ "breakadd", "ba" },
@@ -96,7 +104,9 @@ pub const single: SingleMap = .init(.{
     },
     .break_remove = .{
         .aliases = &.{ "breakremove", "br" },
-        .suggestions = &.{ "break-remove", "break-rm", "bremove", "brm", "breakpointremove", "breakpoint-remove" },
+        .suggestions = &.{
+            "break-remove", "break-rm", "bremove", "brm", "breakpointremove", "breakpoint-remove",
+        },
     },
 });
 

@@ -265,7 +265,10 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?enum { @"continue", @"br
     if (debugger.isAtBreakpoint(runtime)) {
         try runtime.ensureWriterNewline();
         if (debugger.writer.use_decoration)
-            try debugger.writer.printLine("Currently on breakpoint at x{X:04}.", .{runtime.state.pc})
+            try debugger.writer.printLine(
+                "Currently on breakpoint at x{X:04}.",
+                .{runtime.state.pc},
+            )
         else
             try debugger.writer.printLine("currently breakpoint at x{X:04}", .{runtime.state.pc});
         debugger.state.current_breakpoint = runtime.state.pc;
@@ -407,7 +410,10 @@ fn tryNextAction(debugger: *Debugger, runtime: *Runtime) !?Action {
                 if (debugger.state.instruction_count == 1) "" else "s",
             })
         else
-            try debugger.writer.printLine("executed {} instructions", .{debugger.state.instruction_count});
+            try debugger.writer.printLine(
+                "executed {} instructions",
+                .{debugger.state.instruction_count},
+            );
     }
     if (debugger.state.should_print_pc) {
         if (debugger.writer.use_decoration)
@@ -620,7 +626,11 @@ fn runCommand(
                 false,
             );
 
-            const line = try debugger.getAssemblyLine(assembly.air, address, arguments.location.span);
+            const line = try debugger.getAssemblyLine(
+                assembly.air,
+                address,
+                arguments.location.span,
+            );
 
             if (debugger.writer.use_decoration)
                 try debugger.writer.printLine("Next instruction, at x{X:04}:", .{address})
@@ -760,7 +770,10 @@ fn runCommand(
                     try debugger.writer.printLine("break add x{X:04}", .{address});
             } else {
                 if (debugger.writer.use_decoration)
-                    try debugger.writer.printLine("Breakpoint already exists at x{X:04}.", .{address})
+                    try debugger.writer.printLine(
+                        "Breakpoint already exists at x{X:04}.",
+                        .{address},
+                    )
                 else
                     try debugger.writer.printLine("breakpoint already exists x{X:04}", .{address});
             }
