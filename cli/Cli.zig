@@ -88,12 +88,24 @@ pub const Operation = union(enum) {
         random_init: ?u64,
         analytics: ?Analytics,
         instruction_limit: ?usize,
+        include_supervisor: bool,
     };
 
     pub const Assemble = struct {
         output_mode: OutputMode,
         trap_aliases: ?elk.Traps,
         patch_symbols: ?[]const struct { []const u8, u16 },
+    };
+
+    pub const Debug = struct {
+        input: Input,
+        history_file: ?[]const u8,
+
+        pub const Input = union(enum) {
+            none,
+            partial: []const u8,
+            full: []const u8,
+        };
     };
 
     pub const OutputMode = enum {
@@ -112,17 +124,6 @@ pub const Operation = union(enum) {
                 .listing => "lst",
             };
         }
-    };
-
-    pub const Debug = struct {
-        input: Input,
-        history_file: ?[]const u8,
-
-        pub const Input = union(enum) {
-            none,
-            partial: []const u8,
-            full: []const u8,
-        };
     };
 };
 
@@ -185,6 +186,9 @@ const template = .{
     .analytics = zilc.Flag{
         .long = "analytics",
         .value = .{ .type = Analytics, .parser = Analytics.parse },
+    },
+    .include_supervisor = zilc.Flag{
+        .long = "include-supervisor",
     },
 
     .input_partial = zilc.Flag{
@@ -483,6 +487,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
                 .random_init = options.flags.random_init,
                 .analytics = options.flags.analytics,
                 .instruction_limit = options.flags.instruction_limit,
+                .include_supervisor = options.flags.include_supervisor,
             },
         } };
     }
@@ -550,6 +555,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
                 .random_init = options.flags.random_init,
                 .analytics = options.flags.analytics,
                 .instruction_limit = options.flags.instruction_limit,
+                .include_supervisor = options.flags.include_supervisor,
             },
         } };
     }
@@ -567,6 +573,7 @@ fn parseOperation(gpa: Allocator, options: *const zilc.Options(template)) !Opera
                 .random_init = options.flags.random_init,
                 .analytics = options.flags.analytics,
                 .instruction_limit = options.flags.instruction_limit,
+                .include_supervisor = options.flags.include_supervisor,
             },
         },
     };
