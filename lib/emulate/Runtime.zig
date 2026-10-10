@@ -39,6 +39,7 @@ debugger: ?*Debugger,
 use_decoration: bool,
 instruction_limit: ?usize,
 instruction_count: usize,
+include_supervisor: bool,
 
 reader: *Io.Reader,
 writer: *Io.Writer,
@@ -146,6 +147,7 @@ pub fn init(params: struct {
     random: ?std.Random = null,
     use_decoration: bool = true,
     instruction_limit: ?usize = null,
+    include_supervisor: bool = false,
 }) !Runtime {
     return .{
         .state = try .init(params.gpa, params.random),
@@ -161,6 +163,7 @@ pub fn init(params: struct {
         .tty = .uninit,
         .instruction_limit = params.instruction_limit,
         .instruction_count = 0,
+        .include_supervisor = params.include_supervisor,
     };
 }
 
@@ -358,13 +361,18 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
         },
 
         .trap => |operands| {
-            const callback = runtime.traps.entries[operands.vect].callback orelse
-                // No trap callback declared
-                // Either trap was never registered, or only registered for alias
-                return error.UnhandledTrap;
-            runtime.analytics.startTime(.supervisor);
-            defer runtime.analytics.endTime(.supervisor);
-            try callback.call(.{runtime});
+            if (runtime.include_supervisor) {
+                // TODO:
+                unreachable;
+            } else {
+                const callback = runtime.traps.entries[operands.vect].callback orelse
+                    // No trap callback declared
+                    // Either trap was never registered, or only registered for alias
+                    return error.UnhandledTrap;
+                runtime.analytics.startTime(.supervisor);
+                defer runtime.analytics.endTime(.supervisor);
+                try callback.call(.{runtime});
+            }
         },
 
         .rti => return error.UnsupportedRti,

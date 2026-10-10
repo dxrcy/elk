@@ -457,6 +457,7 @@ fn emulate(
         .random = if (prng_storage) |*prng| prng.random() else null,
         .use_decoration = use_decoration,
         .instruction_limit = options.instruction_limit,
+        .include_supervisor = options.include_supervisor,
     });
     defer runtime.deinit(gpa);
 
