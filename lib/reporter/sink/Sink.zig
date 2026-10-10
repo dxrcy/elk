@@ -3,14 +3,12 @@ const Sink = @This();
 const std = @import("std");
 const Io = std.Io;
 
-const elk = @import("../root.zig");
+const elk = @import("../../root.zig");
 const Source = elk.Source;
-const reporting = elk.reporting;
-const Ctx = @import("Ctx.zig");
-const Diagnostic = @import("diagnostic.zig").Diagnostic;
+const Reporter = elk.Reporter;
 
-pub const Fancy = @import("FancySink.zig");
-pub const Collect = @import("CollectSink.zig");
+pub const Fancy = @import("Fancy.zig");
+pub const Collect = @import("Collect.zig");
 
 ptr: *anyopaque,
 vtable: *const VTable,
@@ -18,9 +16,9 @@ vtable: *const VTable,
 pub const VTable = struct {
     sendDiagnostic: *const fn (
         ptr: *anyopaque,
-        diag: Diagnostic,
-        level: reporting.Level,
-        verbosity: reporting.Options.Verbosity,
+        diag: Reporter.Diagnostic,
+        level: Reporter.Level,
+        verbosity: Reporter.Options.Verbosity,
         source: ?Source,
     ) error{WriteFailed}!void,
 
@@ -28,16 +26,16 @@ pub const VTable = struct {
 
     sendSummary: *const fn (
         ptr: *anyopaque,
-        count: *const std.EnumArray(reporting.Level, usize),
-        verbosity: reporting.Options.Verbosity,
+        count: *const std.EnumArray(Reporter.Level, usize),
+        verbosity: Reporter.Options.Verbosity,
     ) error{WriteFailed}!void,
 };
 
 pub fn sendDiagnostic(
     sink: *Sink,
-    diag: Diagnostic,
-    level: reporting.Level,
-    verbosity: reporting.Options.Verbosity,
+    diag: Reporter.Diagnostic,
+    level: Reporter.Level,
+    verbosity: Reporter.Options.Verbosity,
     source: ?Source,
 ) error{WriteFailed}!void {
     return sink.vtable.sendDiagnostic(sink.ptr, diag, level, verbosity, source);
@@ -49,8 +47,8 @@ pub fn flush(sink: *Sink) error{WriteFailed}!void {
 
 pub fn sendSummary(
     sink: *Sink,
-    count: *const std.EnumArray(reporting.Level, usize),
-    verbosity: reporting.Options.Verbosity,
+    count: *const std.EnumArray(Reporter.Level, usize),
+    verbosity: Reporter.Options.Verbosity,
 ) error{WriteFailed}!void {
     return sink.vtable.sendSummary(sink.ptr, count, verbosity);
 }

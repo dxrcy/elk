@@ -1,18 +1,17 @@
-const FancySink = @This();
+const Fancy = @This();
 
 const std = @import("std");
 const Io = std.Io;
 
-const elk = @import("../root.zig");
+const elk = @import("../../root.zig");
 const Source = elk.Source;
 const Parser = elk.Parser;
-const reporting = elk.reporting;
-const DebuggerCommand = @import("../emulate/debugger/Command.zig");
-const Ctx = @import("Ctx.zig");
+const Reporter = elk.Reporter;
+const TokenKinds = Reporter.Diagnostic.TokenKinds;
+const DebuggerCommand = @import("../../emulate/debugger/Command.zig");
+
 const Sink = @import("Sink.zig");
-const diagnostic = @import("diagnostic.zig");
-const Diagnostic = diagnostic.Diagnostic;
-const TokenKinds = diagnostic.TokenKinds;
+const Ctx = @import("FancyCtx.zig");
 
 pub const writeSpanContext = Ctx.writeSpanContext;
 
@@ -20,29 +19,29 @@ writer: *Io.Writer,
 use_color: bool,
 
 // TODO: Use default value for `use_color`
-pub fn new(writer: *Io.Writer, use_color: bool) FancySink {
+pub fn new(writer: *Io.Writer, use_color: bool) Fancy {
     return .{ .writer = writer, .use_color = use_color };
 }
 
-pub fn interface(sink: *FancySink) Sink {
+pub fn interface(sink: *Fancy) Sink {
     return .{
         .ptr = sink,
         .vtable = &.{
-            .sendDiagnostic = FancySink.sendDiagnostic,
-            .flush = FancySink.flush,
-            .sendSummary = FancySink.sendSummary,
+            .sendDiagnostic = Fancy.sendDiagnostic,
+            .flush = Fancy.flush,
+            .sendSummary = Fancy.sendSummary,
         },
     };
 }
 
 pub fn sendDiagnostic(
     ptr: *anyopaque,
-    diag: Diagnostic,
-    level: reporting.Level,
-    verbosity: reporting.Options.Verbosity,
+    diag: Reporter.Diagnostic,
+    level: Reporter.Level,
+    verbosity: Reporter.Options.Verbosity,
     source: ?Source,
 ) error{WriteFailed}!void {
-    const sink: *FancySink = @ptrCast(@alignCast(ptr));
+    const sink: *Fancy = @ptrCast(@alignCast(ptr));
 
     var ctx_items: usize = 0;
     const ctx: Ctx = .new(
@@ -61,10 +60,10 @@ pub fn flush(_: *anyopaque) error{WriteFailed}!void {}
 
 pub fn sendSummary(
     ptr: *anyopaque,
-    count: *const std.EnumArray(reporting.Level, usize),
-    verbosity: reporting.Options.Verbosity,
+    count: *const std.EnumArray(Reporter.Level, usize),
+    verbosity: Reporter.Options.Verbosity,
 ) error{WriteFailed}!void {
-    const sink: *FancySink = @ptrCast(@alignCast(ptr));
+    const sink: *Fancy = @ptrCast(@alignCast(ptr));
 
     const count_err = count.get(.err);
     const count_warn = count.get(.warn);
@@ -104,7 +103,7 @@ pub fn sendSummary(
     try sink.writer.flush();
 }
 
-fn writeDiagnostic(ctx: Ctx, diag: Diagnostic) error{WriteFailed}!void {
+fn writeDiagnostic(ctx: Ctx, diag: Reporter.Diagnostic) error{WriteFailed}!void {
     switch (diag) {
         .invalid_source_byte => |info| {
             try ctx.writeTitle("Assembly file contains invalid bytes", .{});

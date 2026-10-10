@@ -3,51 +3,14 @@ const std = @import("std");
 const elk = @import("../root.zig");
 const Span = elk.Span;
 const Source = elk.Source;
-const reporting = elk.reporting;
-const Options = reporting.Options;
-const Level = reporting.Level;
-const Response = reporting.Response;
+const Reporter = elk.Reporter;
 const Policies = elk.Policies;
 const Exception = elk.Runtime.Exception;
 const Token = @import("../compile/parse/Token.zig");
 const Radix = @import("../compile/parse/integers.zig").Form.Radix;
 const DebuggerCommand = @import("../emulate/debugger/Command.zig");
 
-pub const TokenKinds = struct {
-    kinds: []const Kind,
-
-    const Kind = std.meta.Tag(Token.Value);
-
-    pub fn format(self: *const @This(), writer: *std.Io.Writer) !void {
-        for (self.kinds, 0..) |kind, i| {
-            if (i > 0) {
-                if (i + 1 >= self.kinds.len)
-                    try writer.print(", or ", .{})
-                else
-                    try writer.print(", ", .{});
-            }
-
-            try writer.print("{s}", .{name(kind)});
-        }
-    }
-
-    pub fn name(kind: Kind) []const u8 {
-        return switch (kind) {
-            .newline => "newline",
-            .comma => "comma `,`",
-            .colon => "colon `:`",
-            .directive => "directive",
-            .mnemonic => "instruction mnemonic",
-            .trap_alias => "trap alias",
-            .label => "label",
-            .register => "register",
-            .integer => "integer literal",
-            .string => "string literal",
-        };
-    }
-};
-
-fn strictnessResponse(options: Options) Response {
+fn strictnessResponse(options: Reporter.Options) Reporter.Response {
     return switch (options.strictness) {
         .strict => .major,
         .normal => .minor,
@@ -56,10 +19,10 @@ fn strictnessResponse(options: Options) Response {
 }
 
 fn policyResponse(
-    options: Options,
+    options: Reporter.Options,
     comptime category: std.meta.FieldEnum(Policies),
     comptime name: std.meta.FieldEnum(@FieldType(Policies, @tagName(category))),
-) Response {
+) Reporter.Response {
     const policy = @field(@field(options.policies, @tagName(category)), @tagName(name));
     if (policy == .permit)
         return .pass;
@@ -67,6 +30,40 @@ fn policyResponse(
 }
 
 pub const Diagnostic = union(enum) {
+    pub const TokenKinds = struct {
+        kinds: []const Kind,
+
+        const Kind = std.meta.Tag(Token.Value);
+
+        pub fn format(self: *const @This(), writer: *std.Io.Writer) !void {
+            for (self.kinds, 0..) |kind, i| {
+                if (i > 0) {
+                    if (i + 1 >= self.kinds.len)
+                        try writer.print(", or ", .{})
+                    else
+                        try writer.print(", ", .{});
+                }
+
+                try writer.print("{s}", .{name(kind)});
+            }
+        }
+
+        pub fn name(kind: Kind) []const u8 {
+            return switch (kind) {
+                .newline => "newline",
+                .comma => "comma `,`",
+                .colon => "colon `:`",
+                .directive => "directive",
+                .mnemonic => "instruction mnemonic",
+                .trap_alias => "trap alias",
+                .label => "label",
+                .register => "register",
+                .integer => "integer literal",
+                .string => "string literal",
+            };
+        }
+    };
+
     pub const NearestSpan = union(enum) {
         none,
         case_insensitive: Span,
@@ -188,7 +185,7 @@ pub const Diagnostic = union(enum) {
     // Shared
     symbol_not_found: struct { symbol: Span },
 
-    pub fn getResponse(diag: Diagnostic, options: Options) Response {
+    pub fn getResponse(diag: Diagnostic, options: Reporter.Options) Reporter.Response {
         return switch (diag) {
             .invalid_source_byte,
             .output_not_in_memory,
@@ -211,9 +208,25 @@ pub const Diagnostic = union(enum) {
             .unexpected_negative_integer,
             .unmatched_quote,
             .symbol_not_found,
+            .emulate_exception,
+            .debugger_requires_assembler,
+            .debugger_requires_file,
+            .debugger_requires_assembly,
+            .debugger_requires_symbols,
+            .debugger_address_not_in_assembly,
+            .debugger_address_not_user_memory,
+            .debugger_no_space,
+            .debugger_invalid_argument_kind,
+            .debugger_invalid_command,
+            .debugger_missing_subcommand,
+            .debugger_unexpected_eol,
+            .debugger_expected_eol,
+            .debugger_integer_too_small,
             => .fatal,
 
-            .existing_label_left => .major,
+            .existing_label_left,
+            .debugger_label_partial_match,
+            => .minor,
 
             .breakpoint_label => .info,
 
@@ -265,24 +278,6 @@ pub const Diagnostic = union(enum) {
                 .undesirable_integer_forms,
             ),
             .line_too_long => policyResponse(options, .style, .line_too_long),
-
-            .emulate_exception => .fatal,
-
-            // TODO: Merge appropriate branches
-            .debugger_requires_assembler => .fatal,
-            .debugger_requires_file => .fatal,
-            .debugger_requires_assembly => .fatal,
-            .debugger_requires_symbols => .fatal,
-            .debugger_address_not_in_assembly => .fatal,
-            .debugger_address_not_user_memory => .fatal,
-            .debugger_label_partial_match => .minor,
-            .debugger_no_space => .fatal,
-            .debugger_invalid_argument_kind => .fatal,
-            .debugger_invalid_command => .fatal,
-            .debugger_missing_subcommand => .fatal,
-            .debugger_unexpected_eol => .fatal,
-            .debugger_expected_eol => .fatal,
-            .debugger_integer_too_small => .fatal,
         };
     }
 

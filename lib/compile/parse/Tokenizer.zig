@@ -5,7 +5,7 @@ const assert = std.debug.assert;
 
 const elk = @import("../../root.zig");
 const Span = elk.Span;
-const Reporter = elk.reporting.Primary;
+const Reporter = elk.Reporter;
 const Operand = elk.Air.Instruction.Operand;
 const Lexer = @import("Lexer.zig");
 const Token = @import("Token.zig");

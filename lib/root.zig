@@ -1,6 +1,6 @@
 pub const Span = @import("compile/Span.zig");
 pub const Source = @import("compile/Source.zig");
-pub const reporting = @import("reporting/reporting.zig");
+pub const Reporter = @import("reporter/Reporter.zig");
 pub const Policies = @import("policies.zig").Policies;
 pub const Provider = @import("provider.zig").Provider;
 pub const Traps = @import("Traps.zig");
@@ -13,11 +13,6 @@ pub const Analytics = @import("emulate/Analytics.zig");
 
 test {
     const refAllDecls = @import("std").testing.refAllDecls;
-    refAllDecls(@import("reporting/Sink.zig"));
-    refAllDecls(@import("reporting/reporting.zig"));
-    refAllDecls(@import("reporting/Ctx.zig"));
-    refAllDecls(@import("reporting/FancySink.zig"));
-    refAllDecls(@import("reporting/diagnostic.zig"));
     refAllDecls(@import("root.zig"));
     refAllDecls(@import("compile/Operand.zig"));
     refAllDecls(@import("compile/Source.zig"));
@@ -35,6 +30,12 @@ test {
     refAllDecls(@import("provider.zig"));
     refAllDecls(@import("policies.zig"));
     refAllDecls(@import("Traps.zig"));
+    refAllDecls(@import("reporter/sink/Sink.zig"));
+    refAllDecls(@import("reporter/sink/Collect.zig"));
+    refAllDecls(@import("reporter/sink/Fancy.zig"));
+    refAllDecls(@import("reporter/sink/FancyCtx.zig"));
+    refAllDecls(@import("reporter/Reporter.zig"));
+    refAllDecls(@import("reporter/diagnostic.zig"));
     refAllDecls(@import("emulate/decode.zig"));
     refAllDecls(@import("emulate/Tty.zig"));
     refAllDecls(@import("emulate/builtin_traps.zig"));
