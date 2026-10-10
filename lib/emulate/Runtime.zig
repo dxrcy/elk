@@ -66,6 +66,7 @@ pub const State = struct {
     registers: [8]u16,
     pc: u16,
     condition: Condition,
+    privileged: bool,
 
     pub fn init(gpa: Allocator, random: ?std.Random) Allocator.Error!State {
         const memory = try gpa.create([memory_size]u16);
@@ -86,6 +87,7 @@ pub const State = struct {
             .registers = registers,
             .pc = 0x0000,
             .condition = condition,
+            .privileged = false,
         };
     }
 
@@ -96,6 +98,7 @@ pub const State = struct {
             .registers = src.registers,
             .pc = src.pc,
             .condition = src.condition,
+            .privileged = false,
         };
     }
 
@@ -431,7 +434,8 @@ pub fn setMemory(
 }
 
 pub fn checkMemoryAccess(runtime: *const Runtime, address: u16) error{UnpermittedMemoryAccess}!void {
-    if (runtime.policies.extension.supervisor_memory == .permit)
+    if (runtime.policies.extension.supervisor_memory == .permit or
+        runtime.state.privileged)
         return;
     switch (address) {
         user_memory_start...user_memory_end => {},
