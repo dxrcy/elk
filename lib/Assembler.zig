@@ -28,7 +28,7 @@ pub fn assembleFromFile(assembler: *Assembler) !void {
 
     {
         const file = if (assembler.source.path) |path|
-            try Io.Dir.cwd().openFile(assembler.io, path, .{})
+            try Io.Dir.cwd().openFile(assembler.io, path.original, .{})
         else
             Io.File.stdin();
         defer if (assembler.source.path) |_|

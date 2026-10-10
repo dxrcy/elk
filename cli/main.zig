@@ -307,7 +307,7 @@ fn openOutputFile(
     io: Io,
     output: ?Cli.Path,
     output_mode: Cli.Operation.OutputMode,
-    input_path: ?[]const u8,
+    input_path: ?elk.Source.Path,
 ) !?Io.File {
     const out_extension = output_mode.extension() orelse
         return null;
@@ -329,8 +329,8 @@ fn openOutputFile(
             var out_path_buffer: [std.fs.max_path_bytes]u8 = undefined;
             const out_path = replacePathExtension(
                 &out_path_buffer,
-                input_path orelse
-                    unreachable, // Cli parsing should prevent this
+                (input_path orelse unreachable) // Cli parsing should prevent this
+                    .original,
                 out_extension,
             );
             return try Io.Dir.cwd().createFile(io, out_path, .{});
@@ -338,12 +338,15 @@ fn openOutputFile(
     }
 }
 
-fn resolveInputPath(io: Io, buffer: *[std.fs.max_path_bytes]u8, input: Cli.Path) !?[]const u8 {
+fn resolveInputPath(io: Io, buffer: *[std.fs.max_path_bytes]u8, input: Cli.Path) !?elk.Source.Path {
     switch (input) {
         .stdio => return null,
         .regular => |regular| {
             const length = try Io.Dir.cwd().realPathFile(io, regular, buffer);
-            return buffer[0..length];
+            return .{
+                .original = regular,
+                .display = buffer[0..length],
+            };
         },
     }
 }
