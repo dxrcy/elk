@@ -404,7 +404,7 @@ pub fn getMemory(
     address: u16,
     comptime track: Track,
 ) track.ErrorSet(error{UnpermittedMemoryAccess})!u16 {
-    try checkMemoryAccess(address);
+    try runtime.checkMemoryAccess(address);
     if (track == .tracked)
         try runtime.analytics.addMemoryRead(address);
     return runtime.state.memory[address];
@@ -416,13 +416,15 @@ pub fn setMemory(
     value: u16,
     comptime track: Track,
 ) track.ErrorSet(error{UnpermittedMemoryAccess})!void {
-    try checkMemoryAccess(address);
+    try runtime.checkMemoryAccess(address);
     if (track == .tracked)
         try runtime.analytics.addMemoryWrite(address);
     runtime.state.memory[address] = value;
 }
 
-pub fn checkMemoryAccess(address: u16) error{UnpermittedMemoryAccess}!void {
+pub fn checkMemoryAccess(runtime: *const Runtime, address: u16) error{UnpermittedMemoryAccess}!void {
+    if (runtime.policies.extension.supervisor_memory == .permit)
+        return;
     switch (address) {
         user_memory_start...user_memory_end => {},
         else => return error.UnpermittedMemoryAccess,

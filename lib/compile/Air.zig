@@ -93,9 +93,7 @@ pub fn copyToRuntime(air: *const Air, runtime: *elk.Runtime) !void {
     for (air.lines.items, 0..) |line, i| {
         const address: u16 = @intCast(air.origin + i);
         const word = line.statement.encode();
-        // Do not use wrapper method: avoid analytics
-        try elk.Runtime.checkMemoryAccess(address);
-        runtime.state.memory[address] = word;
+        try runtime.setMemory(address, word, .untracked);
     }
     runtime.analytics.setSize(@intCast(air.lines.items.len));
 }
