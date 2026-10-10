@@ -208,9 +208,25 @@ pub const Diagnostic = union(enum) {
             .unexpected_negative_integer,
             .unmatched_quote,
             .symbol_not_found,
+            .emulate_exception,
+            .debugger_requires_assembler,
+            .debugger_requires_file,
+            .debugger_requires_assembly,
+            .debugger_requires_symbols,
+            .debugger_address_not_in_assembly,
+            .debugger_address_not_user_memory,
+            .debugger_no_space,
+            .debugger_invalid_argument_kind,
+            .debugger_invalid_command,
+            .debugger_missing_subcommand,
+            .debugger_unexpected_eol,
+            .debugger_expected_eol,
+            .debugger_integer_too_small,
             => .fatal,
 
-            .existing_label_left => .major,
+            .existing_label_left,
+            .debugger_label_partial_match,
+            => .minor,
 
             .breakpoint_label => .info,
 
@@ -262,24 +278,6 @@ pub const Diagnostic = union(enum) {
                 .undesirable_integer_forms,
             ),
             .line_too_long => policyResponse(options, .style, .line_too_long),
-
-            .emulate_exception => .fatal,
-
-            // TODO: Merge appropriate branches
-            .debugger_requires_assembler => .fatal,
-            .debugger_requires_file => .fatal,
-            .debugger_requires_assembly => .fatal,
-            .debugger_requires_symbols => .fatal,
-            .debugger_address_not_in_assembly => .fatal,
-            .debugger_address_not_user_memory => .fatal,
-            .debugger_label_partial_match => .minor,
-            .debugger_no_space => .fatal,
-            .debugger_invalid_argument_kind => .fatal,
-            .debugger_invalid_command => .fatal,
-            .debugger_missing_subcommand => .fatal,
-            .debugger_unexpected_eol => .fatal,
-            .debugger_expected_eol => .fatal,
-            .debugger_integer_too_small => .fatal,
         };
     }
 
