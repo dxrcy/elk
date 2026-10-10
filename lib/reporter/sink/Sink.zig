@@ -6,7 +6,6 @@ const Io = std.Io;
 const elk = @import("../../root.zig");
 const Source = elk.Source;
 const Reporter = elk.Reporter;
-const Ctx = @import("../Ctx.zig");
 
 pub const Fancy = @import("Fancy.zig");
 pub const Collect = @import("Collect.zig");

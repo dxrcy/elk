@@ -9,9 +9,9 @@ const Parser = elk.Parser;
 const Reporter = elk.Reporter;
 const TokenKinds = Reporter.Diagnostic.TokenKinds;
 const DebuggerCommand = @import("../../emulate/debugger/Command.zig");
-const Ctx = @import("../Ctx.zig");
 
 const Sink = @import("Sink.zig");
+const Ctx = @import("FancyCtx.zig");
 
 pub const writeSpanContext = Ctx.writeSpanContext;
 
