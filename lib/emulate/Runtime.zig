@@ -17,6 +17,8 @@ pub const Instruction = @import("decode.zig").Instruction;
 pub const Analytics = @import("Analytics.zig");
 
 pub const memory_size = 0x1_0000;
+pub const supervisor_memory_start = 0x2000;
+pub const supervisor_memory_end = 0x2FFFF;
 pub const user_memory_start = 0x3000;
 pub const user_memory_end = 0xFDFF;
 const memory_init_user = 0x0000;
@@ -515,7 +517,13 @@ pub fn runInstructionInner(runtime: *Runtime, instruction: Instruction) (Error |
                     switch (err) {
                         error.UnpermittedMemoryAccess => unreachable,
                     };
-                std.debug.print("-> TRAP x{x:02} = x{x:04}\n", .{ operands.vect, trap_address });
+
+                // Trap vector table defines a trap procedure address which is not in supervisor
+                // memory: most likely it is an undefined trap vector pointing to 0x0000.
+                // TODO: There's probably a more appropriate error we can return here
+                if (trap_address < supervisor_memory_start or trap_address > supervisor_memory_end)
+                    return error.UnpermittedMemoryAccess;
+
                 runtime.state.saved_pc = runtime.state.pc;
                 runtime.state.pc = trap_address;
             } else {
