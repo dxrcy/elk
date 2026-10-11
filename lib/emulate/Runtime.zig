@@ -61,12 +61,15 @@ const Track = enum {
     }
 };
 
+// TODO: Make fields reflect ISA better
 pub const State = struct {
     memory: *[memory_size]u16,
     registers: [8]u16,
     pc: u16,
     condition: Condition,
     privileged: bool,
+    // TODO: Push to supervisor stack instead
+    saved_pc: ?u16,
 
     pub fn init(gpa: Allocator, random: ?std.Random) Allocator.Error!State {
         const memory = try gpa.create([memory_size]u16);
@@ -88,6 +91,7 @@ pub const State = struct {
             .pc = 0x0000,
             .condition = condition,
             .privileged = false,
+            .saved_pc = null,
         };
     }
 
@@ -99,6 +103,7 @@ pub const State = struct {
             .pc = src.pc,
             .condition = src.condition,
             .privileged = false,
+            .saved_pc = null,
         };
     }
 
@@ -365,8 +370,14 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
 
         .trap => |operands| {
             if (runtime.include_supervisor) {
-                // TODO:
-                unreachable;
+                runtime.state.privileged = true;
+                const trap_address = runtime.getMemory(operands.vect, .untracked) catch |err|
+                    switch (err) {
+                        error.UnpermittedMemoryAccess => unreachable,
+                    };
+                std.debug.print("-> TRAP x{x:02} = x{x:04}\n", .{ operands.vect, trap_address });
+                runtime.state.saved_pc = runtime.state.pc;
+                runtime.state.pc = trap_address;
             } else {
                 const callback = runtime.traps.entries[operands.vect].callback orelse
                     // No trap callback declared
@@ -378,7 +389,14 @@ pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || err
             }
         },
 
-        .rti => return error.UnsupportedRti,
+        .rti => {
+            if (!runtime.include_supervisor or !runtime.state.privileged)
+                // TODO: Replace with ACV
+                return error.UnsupportedRti;
+            const saved_pc = runtime.state.saved_pc orelse unreachable;
+            runtime.state.pc = saved_pc;
+        },
+
         .reserved => return error.UnpermittedOpcode,
     }
 }
