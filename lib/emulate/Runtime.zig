@@ -144,7 +144,7 @@ pub const State = struct {
         const traps = [_]Trap{
             // getc
             .{ 0x20, 0x0200, &.{
-                0x8000,
+                0xD000,
             } },
             // out
             .{
@@ -176,11 +176,11 @@ pub const State = struct {
             },
             // in
             .{ 0x23, 0x0800, &.{
-                0x8000,
+                0xD000,
             } },
             // putsp
             .{ 0x24, 0x0A00, &.{
-                0x8000,
+                0xD000,
             } },
             // halt
             .{
@@ -192,14 +192,6 @@ pub const State = struct {
                     address_mcr, // AddrMcr
                 },
             },
-            // putn
-            .{ 0x26, 0x0E00, &.{
-                0x8000,
-            } },
-            // reg
-            .{ 0x27, 0x1000, &.{
-                0x8000,
-            } },
         };
 
         for (traps) |trap| {
