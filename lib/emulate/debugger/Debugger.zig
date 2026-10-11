@@ -24,7 +24,6 @@ state: struct {
     status: Status = .get_action,
     instruction_count: usize = 0,
     should_print_pc: bool = true,
-    halt_address: ?u16 = null,
     current_breakpoint: ?u16 = null,
 },
 
@@ -230,8 +229,6 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?enum { @"continue", @"br
 
     if (!debugger.canProceed(runtime))
         debugger.state.should_print_pc = false;
-    if (!debugger.isHalted(runtime))
-        debugger.state.halt_address = null;
 
     switch (try debugger.nextAction(runtime)) {
         .proceed => {},
@@ -241,7 +238,7 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?enum { @"continue", @"br
                 try debugger.writer.printLine("Continuing execution without debugger...", .{})
             else
                 try debugger.writer.printLine("quit", .{});
-            return if (debugger.isHalted(runtime)) .@"break" else .@"continue";
+            return if (runtime.isHalted()) .@"break" else .@"continue";
         },
         .stop_runtime => {
             if (debugger.writer.use_decoration)
@@ -252,7 +249,7 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?enum { @"continue", @"br
         },
     }
 
-    if (debugger.isHalted(runtime)) {
+    if (runtime.isHalted()) {
         try runtime.ensureWriterNewline();
         if (debugger.writer.use_decoration)
             try debugger.writer.printLine("Currently halted at x{X:04}.", .{runtime.state.pc})
@@ -304,26 +301,20 @@ pub fn catchEvent(
         },
     }
 
-    try debugger.triggerHalt(runtime, event == error.Halt);
+    try debugger.triggerHalt(runtime);
 }
 
-fn triggerHalt(debugger: *Debugger, runtime: *Runtime, permanent: bool) error{WriteFailed}!void {
+fn triggerHalt(debugger: *Debugger, runtime: *Runtime) error{WriteFailed}!void {
     try runtime.ensureWriterNewline();
     if (debugger.writer.use_decoration)
         try debugger.writer.printLine("Program halted at x{X:04}.", .{runtime.state.pc})
     else
         try debugger.writer.printLine("halted at x{X:04}", .{runtime.state.pc});
     debugger.state.status = .get_action;
-    if (permanent)
-        debugger.state.halt_address = runtime.state.pc;
 }
 
 fn canProceed(debugger: *const Debugger, runtime: *const Runtime) bool {
-    return !debugger.isHalted(runtime) and !debugger.isAtBreakpoint(runtime);
-}
-
-fn isHalted(debugger: *const Debugger, runtime: *const Runtime) bool {
-    return debugger.state.halt_address == runtime.state.pc;
+    return !runtime.isHalted() and !debugger.isAtBreakpoint(runtime);
 }
 
 fn isAtBreakpoint(debugger: *const Debugger, runtime: *const Runtime) bool {
@@ -496,6 +487,7 @@ fn runCommand(
             debugger.provider.assembly.source.text = assembler.source.text;
             try assembler.air.copyToRuntime(runtime);
             try debugger.initState(assembler.gpa, runtime);
+            runtime.unhalt();
 
             if (debugger.writer.use_decoration)
                 try debugger.writer.printLine("Reassembled program from input file.", .{})
@@ -975,7 +967,7 @@ fn evalCommand(
         => |err2| return err2,
 
         error.Halt => {
-            try debugger.triggerHalt(runtime, true);
+            try debugger.triggerHalt(runtime);
         },
 
         else => |err2| try debugger.reporter.report(.emulate_exception, .{

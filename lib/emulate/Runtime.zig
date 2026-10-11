@@ -335,7 +335,6 @@ pub fn halt(runtime: *Runtime) void {
     runtime.halted = true;
 }
 
-// TODO: Use in debugger too
 pub fn unhalt(runtime: *Runtime) void {
     if (runtime.include_supervisor) {
         runtime.state.memory[address_mcr] |= mcr_running_mask;
