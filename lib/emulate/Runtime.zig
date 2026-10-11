@@ -319,7 +319,7 @@ pub fn run(runtime: *Runtime) Error!void {
                     }
                 }
                 switch (event) {
-                    error.Halt => break,
+                    error.Halted => break,
                     else => |exception| return exception,
                 }
             },
@@ -351,10 +351,9 @@ pub fn isHalted(runtime: *const Runtime) bool {
     return runtime.halted;
 }
 
-// TODO: Change `Halt` to `Halted`
-fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
+fn runNextInstruction(runtime: *Runtime) (Error || error{Halted})!void {
     if (runtime.isHalted())
-        return error.Halt;
+        return error.Halted;
 
     // Track execution before fetching, this is more helpful.
     try runtime.analytics.addMemoryExecute(runtime.state.pc);
@@ -368,9 +367,9 @@ fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
     try runtime.runInstruction(instruction);
 }
 
-pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || error{Halt})!void {
+pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || error{Halted})!void {
     if (runtime.isHalted())
-        return error.Halt;
+        return error.Halted;
 
     if (runtime.hooks.pre_execute) |pre_execute|
         try pre_execute.call(.{ runtime, instruction });

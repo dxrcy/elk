@@ -282,7 +282,7 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?enum { @"continue", @"br
 
 pub fn catchEvent(
     debugger: *Debugger,
-    event: (Runtime.Exception || error{Halt}),
+    event: (Runtime.Exception || error{Halted}),
     runtime: *Runtime,
 ) error{WriteFailed}!void {
     assert(debugger.state.status != .inactive);
@@ -292,7 +292,7 @@ pub fn catchEvent(
     runtime.state.pc -|= 1;
 
     switch (event) {
-        error.Halt => {},
+        error.Halted => {},
         else => |exception| {
             debugger.reporter.report(.emulate_exception, .{
                 .code = exception,
@@ -966,7 +966,7 @@ fn evalCommand(
         error.TermiosFailed,
         => |err2| return err2,
 
-        error.Halt => {
+        error.Halted => {
             try debugger.triggerHalt(runtime);
         },
 
