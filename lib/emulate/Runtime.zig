@@ -71,7 +71,11 @@ pub const State = struct {
     // TODO: Push to supervisor stack instead
     saved_pc: ?u16,
 
-    pub fn init(gpa: Allocator, random: ?std.Random) Allocator.Error!State {
+    pub fn init(
+        gpa: Allocator,
+        random: ?std.Random,
+        include_supervisor: bool,
+    ) Allocator.Error!State {
         const memory = try gpa.create([memory_size]u16);
 
         if (random) |rand| {
@@ -80,6 +84,9 @@ pub const State = struct {
             @memset(memory[0..memory_size], memory_init_privileged);
             @memset(memory[user_memory_start .. user_memory_end + 1], memory_init_user);
         }
+
+        if (include_supervisor)
+            loadSupervisor(memory);
 
         // Hack for `Random.array` until #36929 is merged into stdlib
         const registers: [8]u16 = if (random) |rand| @bitCast(rand.array(u8, 2 * 8)) else @splat(0);
@@ -109,6 +116,19 @@ pub const State = struct {
 
     pub fn deinit(state: State, gpa: Allocator) void {
         defer gpa.destroy(state.memory);
+    }
+
+    fn loadSupervisor(memory: *[memory_size]u16) void {
+        const Trap = struct { u8, u16, []const u16 };
+        const traps = [_]Trap{
+        };
+
+        for (traps) |trap| {
+            const vect, const address, const program = trap;
+            memory[vect] = address;
+            for (program, 0..) |word, i|
+                memory[address + i] = word;
+        }
     }
 };
 
@@ -158,7 +178,7 @@ pub fn init(params: struct {
     include_supervisor: bool = false,
 }) !Runtime {
     return .{
-        .state = try .init(params.gpa, params.random),
+        .state = try .init(params.gpa, params.random, params.include_supervisor),
         .traps = params.traps,
         .analytics = .init(params.io, params.gpa),
         .hooks = params.hooks,
