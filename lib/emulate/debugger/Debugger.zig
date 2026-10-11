@@ -230,6 +230,9 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?enum { @"continue", @"br
     if (!debugger.canProceed(runtime))
         debugger.state.should_print_pc = false;
 
+    if (runtime.isHalted())
+        debugger.state.status = .get_action;
+
     switch (try debugger.nextAction(runtime)) {
         .proceed => {},
         .disable_debugger => {
@@ -250,12 +253,6 @@ pub fn invoke(debugger: *Debugger, runtime: *Runtime) !?enum { @"continue", @"br
     }
 
     if (runtime.isHalted()) {
-        try runtime.ensureWriterNewline();
-        if (debugger.writer.use_decoration)
-            try debugger.writer.printLine("Currently halted at x{X:04}.", .{runtime.state.pc})
-        else
-            try debugger.writer.printLine("currently halted at x{X:04}", .{runtime.state.pc});
-        debugger.state.status = .get_action;
         return .@"continue";
     }
 
@@ -406,7 +403,13 @@ fn tryNextAction(debugger: *Debugger, runtime: *Runtime) !?Action {
                 .{debugger.state.instruction_count},
             );
     }
-    if (debugger.state.should_print_pc) {
+
+    if (runtime.isHalted()) {
+        if (debugger.writer.use_decoration)
+            try debugger.writer.printLine("Currently halted at x{X:04}.", .{runtime.state.pc})
+        else
+            try debugger.writer.printLine("currently halted at x{X:04}", .{runtime.state.pc});
+    } else if (debugger.state.should_print_pc) {
         if (debugger.writer.use_decoration)
             try debugger.writer.printLine("Program counter is at x{X:04}.", .{
                 runtime.state.pc,
