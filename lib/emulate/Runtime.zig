@@ -22,6 +22,8 @@ pub const user_memory_end = 0xFDFF;
 const memory_init_user = 0x0000;
 const memory_init_privileged = 0xdead;
 
+const address_mcr = 0xFFFE;
+
 // Avoid directly read OR modify **memory or general-purpose registers** *from within runtime base*
 // (ie. from within this file).
 // ALWAYS use helpers such as `runtime.setMemory`, and pass `.untracked` to opt-out of analytics.
@@ -145,9 +147,15 @@ pub const State = struct {
                 0x8000,
             } },
             // halt
-            .{ 0x25, 0x0C00, &.{
-                0x8000,
-            } },
+            .{
+                0x25, 0x0C00,
+                &.{
+                    // Set MCR to x0000
+                    0x5000, // and r0, r0, #0
+                    0xB000, // sti r0, AddrMcr
+                    address_mcr, // AddrMcr
+                },
+            },
             // putn
             .{ 0x26, 0x0E00, &.{
                 0x8000,
@@ -164,6 +172,8 @@ pub const State = struct {
             for (program, 0..) |word, i|
                 memory[address + i] = word;
         }
+
+        memory[address_mcr] = 0xFFFF;
     }
 };
 
@@ -314,6 +324,10 @@ pub fn run(runtime: *Runtime) Error!void {
 }
 
 fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
+    if (runtime.include_supervisor and
+        runtime.state.memory[address_mcr] & 0x8000 == 0)
+        return error.Halt;
+
     // Track execution before fetching, this is more helpful.
     try runtime.analytics.addMemoryExecute(runtime.state.pc);
     const word = try runtime.getMemory(runtime.state.pc, .untracked);
