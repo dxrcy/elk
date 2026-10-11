@@ -5,8 +5,8 @@ const elk = @import("../root.zig");
 const Traps = elk.Traps;
 const Runtime = elk.Runtime;
 
-pub fn halt(_: *Runtime) Traps.Result {
-    return error.Halt;
+pub fn halt(runtime: *Runtime) Traps.Result {
+    runtime.halt();
 }
 
 pub fn getc(runtime: *Runtime) Traps.Result {
@@ -37,7 +37,7 @@ fn readChar(runtime: *Runtime, comptime vect: enum { in, getc }) Traps.Result {
 
     const char = runtime.readByte() catch |err| switch (err) {
         error.EndOfStream => std.ascii.control_code.eot,
-        error.EndOfText => return error.Halt,
+        error.EndOfText => return runtime.halt(),
         else => |e| return e,
     };
 

@@ -23,6 +23,7 @@ const memory_init_user = 0x0000;
 const memory_init_privileged = 0xdead;
 
 const address_mcr = 0xFFFE;
+const mcr_running_mask: u16 = 0x8000;
 
 // Avoid directly read OR modify **memory or general-purpose registers** *from within runtime base*
 // (ie. from within this file).
@@ -42,6 +43,8 @@ use_decoration: bool,
 instruction_limit: ?usize,
 instruction_count: usize,
 include_supervisor: bool,
+/// Must only be used if `include_supervisor` is false.
+halted: bool,
 
 reader: *Io.Reader,
 writer: *Io.Writer,
@@ -237,6 +240,7 @@ pub fn init(params: struct {
         .instruction_limit = params.instruction_limit,
         .instruction_count = 0,
         .include_supervisor = params.include_supervisor,
+        .halted = false,
     };
 }
 
@@ -323,9 +327,34 @@ pub fn run(runtime: *Runtime) Error!void {
     }
 }
 
+pub fn halt(runtime: *Runtime) void {
+    if (runtime.include_supervisor) {
+        runtime.state.memory[address_mcr] &= ~mcr_running_mask;
+        return;
+    }
+    runtime.halted = true;
+}
+
+// TODO: Use in debugger too
+pub fn unhalt(runtime: *Runtime) void {
+    if (runtime.include_supervisor) {
+        runtime.state.memory[address_mcr] |= mcr_running_mask;
+        return;
+    }
+    runtime.halted = false;
+}
+
+pub fn isHalted(runtime: *const Runtime) bool {
+    if (runtime.include_supervisor) {
+        assert(!runtime.halted);
+        return runtime.state.memory[address_mcr] & mcr_running_mask == 0;
+    }
+    return runtime.halted;
+}
+
+// TODO: Change `Halt` to `Halted`
 fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
-    if (runtime.include_supervisor and
-        runtime.state.memory[address_mcr] & 0x8000 == 0)
+    if (runtime.isHalted())
         return error.Halt;
 
     // Track execution before fetching, this is more helpful.
@@ -341,6 +370,9 @@ fn runNextInstruction(runtime: *Runtime) (Error || error{Halt})!void {
 }
 
 pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || error{Halt})!void {
+    if (runtime.isHalted())
+        return error.Halt;
+
     if (runtime.hooks.pre_execute) |pre_execute|
         try pre_execute.call(.{ runtime, instruction });
 

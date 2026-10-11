@@ -13,7 +13,7 @@ entries: [1 << 8]Entry,
 
 pub const Error =
     Runtime.HostError ||
-    error{ TrapFailed, Halt };
+    error{TrapFailed};
 
 pub const Result = Error!void;
 
