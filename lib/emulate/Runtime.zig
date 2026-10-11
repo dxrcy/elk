@@ -119,8 +119,43 @@ pub const State = struct {
     }
 
     fn loadSupervisor(memory: *[memory_size]u16) void {
+        // TODO: Obviously, find a better way to define trap programs
+        // Can use build system to compile .asm files as .obj files, and use @embedFile
+
         const Trap = struct { u8, u16, []const u16 };
         const traps = [_]Trap{
+            // getc
+            .{ 0x20, 0x0200, &.{
+                0x8000,
+            } },
+            // out
+            .{ 0x21, 0x0400, &.{
+                0x8000,
+            } },
+            // puts
+            .{ 0x22, 0x0600, &.{
+                0x8000,
+            } },
+            // in
+            .{ 0x23, 0x0800, &.{
+                0x8000,
+            } },
+            // putsp
+            .{ 0x24, 0x0A00, &.{
+                0x8000,
+            } },
+            // halt
+            .{ 0x25, 0x0C00, &.{
+                0x8000,
+            } },
+            // putn
+            .{ 0x26, 0x0E00, &.{
+                0x8000,
+            } },
+            // reg
+            .{ 0x27, 0x1000, &.{
+                0x8000,
+            } },
         };
 
         for (traps) |trap| {
