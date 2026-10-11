@@ -22,8 +22,11 @@ pub const user_memory_end = 0xFDFF;
 const memory_init_user = 0x0000;
 const memory_init_privileged = 0xdead;
 
+// TODO: Rename these
+const address_dsr = 0xFE04;
+const address_ddr = 0xFE06;
 const address_mcr = 0xFFFE;
-const mcr_running_mask: u16 = 0x8000;
+const mask_status_bit: u16 = 0x8000;
 
 // Avoid directly read OR modify **memory or general-purpose registers** *from within runtime base*
 // (ie. from within this file).
@@ -32,6 +35,7 @@ const mcr_running_mask: u16 = 0x8000;
 // These values may be read/modified OUTSIDE of runtime base (eg. by debugger or runtime callsite),
 // and for other uses (such as `printRegisters`), since analytics should not track this.
 // Note that this requirement does NOT (currently) include PC or condition code.
+// TODO: Add note about mmio
 state: State,
 
 traps: *const Traps,
@@ -72,6 +76,7 @@ pub const State = struct {
     registers: [8]u16,
     pc: u16,
     condition: Condition,
+    // TODO: Use device register (in memory)
     privileged: bool,
     // TODO: Push to supervisor stack instead
     saved_pc: ?u16,
@@ -176,7 +181,9 @@ pub const State = struct {
                 memory[address + i] = word;
         }
 
-        memory[address_mcr] = 0xFFFF;
+        memory[address_dsr] = 0x0000;
+        memory[address_ddr] = 0x0000;
+        memory[address_mcr] |= mask_status_bit;
     }
 };
 
@@ -329,7 +336,7 @@ pub fn run(runtime: *Runtime) Error!void {
 
 pub fn halt(runtime: *Runtime) void {
     if (runtime.include_supervisor) {
-        runtime.state.memory[address_mcr] &= ~mcr_running_mask;
+        runtime.state.memory[address_mcr] &= ~mask_status_bit;
         return;
     }
     runtime.halted = true;
@@ -337,7 +344,7 @@ pub fn halt(runtime: *Runtime) void {
 
 pub fn unhalt(runtime: *Runtime) void {
     if (runtime.include_supervisor) {
-        runtime.state.memory[address_mcr] |= mcr_running_mask;
+        runtime.state.memory[address_mcr] |= mask_status_bit;
         return;
     }
     runtime.halted = false;
@@ -346,7 +353,7 @@ pub fn unhalt(runtime: *Runtime) void {
 pub fn isHalted(runtime: *const Runtime) bool {
     if (runtime.include_supervisor) {
         assert(!runtime.halted);
-        return runtime.state.memory[address_mcr] & mcr_running_mask == 0;
+        return runtime.state.memory[address_mcr] & mask_status_bit == 0;
     }
     return runtime.halted;
 }
@@ -368,6 +375,20 @@ fn runNextInstruction(runtime: *Runtime) (Error || error{Halted})!void {
 }
 
 pub fn runInstruction(runtime: *Runtime, instruction: Instruction) (Error || error{Halted})!void {
+    try runtime.runInstructionInner(instruction);
+
+    if (!runtime.include_supervisor)
+        return;
+
+    if (runtime.state.memory[address_dsr] & mask_status_bit != 0) {
+        runtime.state.memory[address_dsr] &= ~mask_status_bit;
+        const word: u8 = @truncate(runtime.state.memory[address_ddr]);
+        try runtime.writeChar(word);
+        try runtime.writer.flush();
+    }
+}
+
+pub fn runInstructionInner(runtime: *Runtime, instruction: Instruction) (Error || error{Halted})!void {
     if (runtime.isHalted())
         return error.Halted;
 
@@ -538,6 +559,7 @@ pub fn getMemory(
     return runtime.state.memory[address];
 }
 
+// TODO: Add note about mmio
 pub fn setMemory(
     runtime: *Runtime,
     address: u16,
@@ -545,9 +567,16 @@ pub fn setMemory(
     comptime track: Track,
 ) track.ErrorSet(error{UnpermittedMemoryAccess})!void {
     try runtime.checkMemoryAccess(address);
+
     if (track == .tracked)
         try runtime.analytics.addMemoryWrite(address);
     runtime.state.memory[address] = value;
+
+    if (address == address_ddr) {
+        if (track == .tracked)
+            try runtime.analytics.addMemoryWrite(address_dsr);
+        runtime.state.memory[address_dsr] |= mask_status_bit;
+    }
 }
 
 pub fn checkMemoryAccess(runtime: *const Runtime, address: u16) error{UnpermittedMemoryAccess}!void {
