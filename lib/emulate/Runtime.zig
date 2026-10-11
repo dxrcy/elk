@@ -139,13 +139,33 @@ pub const State = struct {
                 0x8000,
             } },
             // out
-            .{ 0x21, 0x0400, &.{
-                0x8000,
-            } },
+            .{
+                0x21, 0x0400,
+                // TODO: Spin waiting for DSR
+                &.{
+                    // ldi r1, AddrDsr
+                    // and r1, r1, MaskStatus
+                    0xB001, // sti r0, AddrDdr
+                    0x8000, // rti
+                    // address_dsr, // AddrDsr
+                    address_ddr, // AddrDdr
+                    mask_status_bit, // MaskStatus
+                },
+            },
             // puts
-            .{ 0x22, 0x0600, &.{
-                0x8000,
-            } },
+            .{
+                0x22, 0x0600,
+                // TODO: Spin waiting for DSR
+                &.{
+                    0x6200, // Loop ldr r1, r0, #0
+                    0x0403, //      brz End
+                    0xB203, //      sti r1, AddrDdr
+                    0x1021, //      add r0, r0, #1
+                    0x0FFB, //      br Loop
+                    0x8000, // End  rti
+                    address_ddr, // AddrDdr
+                },
+            },
             // in
             .{ 0x23, 0x0800, &.{
                 0x8000,
