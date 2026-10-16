@@ -178,12 +178,14 @@ pub fn writeSpanContext(
     span: Span,
     config: struct {
         indent: usize = 0,
+        indent_width: usize = 4,
         max_context: usize = 1,
         max_line_width: usize = 80,
         use_color: bool,
     },
     source: Source,
 ) error{WriteFailed}!void {
+
     const lines = span.getSurroundingLines(config.max_context, source.text);
     var iter = std.mem.splitScalar(u8, lines.view(source), '\n');
     while (iter.next()) |line_string_full| {
@@ -209,6 +211,7 @@ pub fn writeSpanContext(
         {
             var was_in_span = false;
             var was_non_valid = false;
+            var indent_mod: usize = 0;
 
             for (line_string, 0..) |char, i| {
                 const index = line.offset + i;
@@ -220,17 +223,23 @@ pub fn writeSpanContext(
                     else if (!in_span and was_in_span)
                         try writer.print("\x1b[2m", .{});
 
-                const non_valid = Token.isValidChar(char);
+                const non_valid = !Token.isValidChar(char);
                 if (config.use_color)
-                    if (!non_valid and was_non_valid)
+                    if (non_valid and was_non_valid)
                         try writer.print("\x1b[31m", .{})
-                    else if (non_valid and !was_non_valid)
+                    else if (!non_valid and !was_non_valid)
                         try writer.print("\x1b[39m", .{});
 
-                if (non_valid)
-                    try writer.print("{c}", .{char})
-                else
+                if (non_valid) {
                     try writer.print("?", .{});
+                } else if (char == '\t') {
+                    for (0..(config.indent_width - indent_mod)) |_|
+                        try writer.print(" ", .{});
+                    indent_mod = 0;
+                } else {
+                    try writer.print("{c}", .{char});
+                    indent_mod = (indent_mod + 1) % config.indent_width;
+                }
 
                 was_in_span = in_span;
                 was_non_valid = non_valid;
