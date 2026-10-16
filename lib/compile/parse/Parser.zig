@@ -534,14 +534,15 @@ fn parseInstructionOperands(
             const Operands = @FieldType(Instruction, @tagName(regular));
             var operands: Operands = undefined;
 
-            const fields = @typeInfo(Operands).@"struct".fields;
+            const fields = @typeInfo(Operands).@"struct".field_names;
             inline for (fields, 0..) |field, i| {
+                const Field = @typeInfo(Operands).@"struct".field_types[i];
                 const operand = try parser.tokenizer.expectArgument(.{
-                    .type = .{ .operand = @FieldType(field.type, "value") },
+                    .type = .{ .operand = @FieldType(Field, "value") },
                     .expected_count = fields.len,
                     .current_count = i,
                 });
-                @field(operands, field.name) = operand;
+                @field(operands, field) = operand;
 
                 if (i + 1 < fields.len) {
                     if (try parser.tokenizer.nextMatching(.comma) == null and

@@ -73,7 +73,7 @@ fn nextAny(tokenizer: *Tokenizer) error{ Reported, Eof }!Token {
     tokenizer.peeked = null;
     return tokenizer.parseToken(span) catch |err| {
         switch (err) {
-            inline error.InvalidLabel,
+            error.InvalidLabel,
             error.InvalidDirective,
             error.InvalidToken,
             => |err2| {
@@ -83,7 +83,6 @@ fn nextAny(tokenizer: *Tokenizer) error{ Reported, Eof }!Token {
                         error.InvalidLabel => .label,
                         error.InvalidDirective => .directive,
                         error.InvalidToken => null,
-                        else => comptime unreachable,
                     },
                 }).abort();
             },

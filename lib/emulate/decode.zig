@@ -6,10 +6,10 @@ const Bitmask = @import("Bitmask.zig");
 
 comptime {
     for (
-        @typeInfo(Opcode).@"enum".fields,
-        @typeInfo(Instruction).@"union".fields,
+        @typeInfo(Opcode).@"enum".field_names,
+        @typeInfo(Instruction).@"union".field_names,
     ) |opcode, instruction|
-        assert(std.mem.eql(u8, opcode.name, instruction.name));
+        assert(std.mem.eql(u8, opcode, instruction));
 }
 
 const Opcode = enum(u4) {

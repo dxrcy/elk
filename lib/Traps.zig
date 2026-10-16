@@ -73,11 +73,11 @@ pub fn registerSets(comptime enums: []const type) Traps {
     comptime {
         var traps: Traps = .{ .entries = @splat(.unset) };
         for (enums) |Enum| {
-            for (@typeInfo(Enum).@"enum".fields) |field| {
-                const vect = field.value;
+            for (@typeInfo(Enum).@"enum".field_names, 0..) |field, i| {
+                const vect = @typeInfo(Enum).@"enum".field_values[i];
                 const entry: Entry = .{
-                    .alias = field.name,
-                    .callback = .withoutData(@field(builtin_traps, field.name)),
+                    .alias = field,
+                    .callback = .withoutData(@field(builtin_traps, field)),
                 };
                 traps.register(vect, entry);
             }

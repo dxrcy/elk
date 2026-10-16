@@ -648,7 +648,7 @@ fn getHistoryPath(environ_map: *const EnvironMap, buffer: []u8) ![]const u8 {
 }
 
 fn openHistoryFile(io: Io, path: []const u8) !Io.File {
-    const flags: Io.File.CreateFlags = .{
+    const flags: Io.Dir.CreateFileOptions = .{
         .read = true,
         .truncate = false,
     };

@@ -222,7 +222,7 @@ test getContainingLines {
 
     for (cases) |case| {
         const input, const input_string, const expected_string = case;
-        log.info("-" ** 50, .{});
+        log.info(&@as([50]u8, @splat('-')), .{});
         log.info("INPUT:   \t\"{s}\"", .{input_string});
         log.info("INPUT:   \t{}", .{input});
         log.info("EXPECTED:\t\"{s}\"", .{expected_string});

@@ -79,17 +79,20 @@ pub const Policies = packed struct {
 
     fn fillFields(comptime T: type, comptime value: Policy) T {
         var filled: T = undefined;
-        for (@typeInfo(T).@"struct".fields) |field|
-            @field(filled, field.name) = value;
+        for (@typeInfo(T).@"struct".field_names) |field|
+            @field(filled, field) = value;
         return filled;
     }
 
     pub fn get(policies: *const Policies, category: []const u8, item: []const u8) ?Policy {
-        inline for (@typeInfo(Policies).@"struct".fields) |category_field| {
-            if (std.mem.eql(u8, category_field.name, category)) {
-                inline for (@typeInfo(category_field.type).@"struct".fields) |item_field| {
-                    if (std.mem.eql(u8, item_field.name, item)) {
-                        return @field(@field(policies, category_field.name), item_field.name);
+        inline for (
+            @typeInfo(Policies).@"struct".field_names,
+            @typeInfo(Policies).@"struct".field_types,
+        ) |category_field, CategoryField| {
+            if (std.mem.eql(u8, category_field, category)) {
+                inline for (@typeInfo(CategoryField).@"struct".field_names) |item_field| {
+                    if (std.mem.eql(u8, item_field, item)) {
+                        return @field(@field(policies, category_field), item_field);
                     }
                 }
             }
@@ -98,11 +101,14 @@ pub const Policies = packed struct {
     }
 
     pub fn set(policies: *Policies, category: []const u8, item: []const u8, policy: Policy) bool {
-        inline for (@typeInfo(Policies).@"struct".fields) |category_field| {
-            if (std.mem.eql(u8, category_field.name, category)) {
-                inline for (@typeInfo(category_field.type).@"struct".fields) |item_field| {
-                    if (std.mem.eql(u8, item_field.name, item)) {
-                        @field(@field(policies, category_field.name), item_field.name) = policy;
+        inline for (
+            @typeInfo(Policies).@"struct".field_names,
+            @typeInfo(Policies).@"struct".field_types,
+        ) |category_field, CategoryField| {
+            if (std.mem.eql(u8, category_field, category)) {
+                inline for (@typeInfo(CategoryField).@"struct".field_names) |item_field| {
+                    if (std.mem.eql(u8, item_field, item)) {
+                        @field(@field(policies, category_field), item_field) = policy;
                         return true;
                     }
                 }
@@ -112,10 +118,13 @@ pub const Policies = packed struct {
     }
 
     pub fn setCategory(policies: *Policies, category: []const u8, policy: Policy) bool {
-        inline for (@typeInfo(Policies).@"struct".fields) |category_field| {
-            if (std.mem.eql(u8, category_field.name, category)) {
-                inline for (@typeInfo(category_field.type).@"struct".fields) |item_field| {
-                    @field(@field(policies, category_field.name), item_field.name) = policy;
+        inline for (
+            @typeInfo(Policies).@"struct".field_names,
+            @typeInfo(Policies).@"struct".field_types,
+        ) |category_field, CategoryField| {
+            if (std.mem.eql(u8, category_field, category)) {
+                inline for (@typeInfo(CategoryField).@"struct".field_names) |item_field| {
+                    @field(@field(policies, category_field), item_field) = policy;
                 }
                 return true;
             }
@@ -125,12 +134,15 @@ pub const Policies = packed struct {
 
     pub fn unionWith(lhs: Policies, rhs: Policies) Policies {
         var result: Policies = .none;
-        inline for (@typeInfo(Policies).@"struct".fields) |category| {
-            inline for (@typeInfo(category.type).@"struct".fields) |item| {
-                const lhs_item = lhs.get(category.name, item.name) orelse unreachable;
-                const rhs_item = rhs.get(category.name, item.name) orelse unreachable;
+        inline for (
+            @typeInfo(Policies).@"struct".field_names,
+            @typeInfo(Policies).@"struct".field_types,
+        ) |category_field, CategoryField| {
+            inline for (@typeInfo(CategoryField).@"struct".field_names) |item| {
+                const lhs_item = lhs.get(category_field, item) orelse unreachable;
+                const rhs_item = rhs.get(category_field, item) orelse unreachable;
                 if (lhs_item == .permit or rhs_item == .permit)
-                    assert(result.set(category.name, item.name, .permit) == true);
+                    assert(result.set(category_field, item, .permit) == true);
             }
         }
         return result;
@@ -172,9 +184,9 @@ pub const Policies = packed struct {
     }
 
     fn resolvePredef(name: []const u8) ?Policies {
-        inline for (@typeInfo(predefs).@"struct".decls) |predef| {
-            if (std.mem.eql(u8, predef.name, name))
-                return @field(predefs, predef.name);
+        inline for (@typeInfo(predefs).@"struct".decl_names) |predef| {
+            if (std.mem.eql(u8, predef, name))
+                return @field(predefs, predef);
         }
         return null;
     }

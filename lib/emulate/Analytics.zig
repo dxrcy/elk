@@ -264,42 +264,42 @@ const Data = struct {
 
         {
             var count: usize = 0;
-            inline for (std.meta.fields(@TypeOf(data.instructions.regular))) |field|
-                count += @field(data.instructions.regular, field.name);
-            inline for (std.meta.fields(@TypeOf(data.instructions.br))) |field|
-                count += @field(data.instructions.br, field.name);
+            inline for (@typeInfo(@TypeOf(data.instructions.regular)).@"struct".field_names) |field|
+                count += @field(data.instructions.regular, field);
+            inline for (@typeInfo(@TypeOf(data.instructions.br)).@"struct".field_names) |field|
+                count += @field(data.instructions.br, field);
             try writer.print(
                 "{s}instruction.....{}\n",
                 .{ c_vr, count },
             );
         }
-        inline for (std.meta.fields(@TypeOf(data.instructions.regular))) |field| {
-            const count = @field(data.instructions.regular, field.name);
+        inline for (@typeInfo(@TypeOf(data.instructions.regular)).@"struct".field_names) |field| {
+            const count = @field(data.instructions.regular, field);
             if (count > 0)
                 try writer.print(
                     "{s}{s}{s:.<12}{}\n",
-                    .{ c_v, c_vr, field.name, count },
+                    .{ c_v, c_vr, field, count },
                 );
         }
 
         {
             var count: usize = 0;
-            inline for (std.meta.fields(@TypeOf(data.instructions.br))) |field|
-                count += @field(data.instructions.br, field.name);
+            inline for (@typeInfo(@TypeOf(data.instructions.br)).@"struct".field_names) |field|
+                count += @field(data.instructions.br, field);
             try writer.print(
                 "{s}{s}br..........{}\n",
                 .{ c_v, c_vr, count },
             );
         }
-        inline for (std.meta.fields(@TypeOf(data.instructions.br)), 0..) |field, i| {
-            const count = @field(data.instructions.br, field.name);
+        inline for (@typeInfo(@TypeOf(data.instructions.br)).@"struct".field_names, 0..) |field, i| {
+            const count = @field(data.instructions.br, field);
             if (count > 0)
                 try writer.print("{s}{s}{s}{s:.<8}{}\n", .{
                     c_v,
                     c_v,
-                    if (i + 1 >= std.meta.fields(@TypeOf(data.instructions.br)).len) c_r else c_vr,
-                    field.name,
-                    @field(data.instructions.br, field.name),
+                    if (i + 1 >= @typeInfo(@TypeOf(data.instructions.br)).@"struct".field_names.len) c_r else c_vr,
+                    field,
+                    @field(data.instructions.br, field),
                 });
         }
 

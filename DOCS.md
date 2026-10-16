@@ -535,10 +535,10 @@ install <filename> ~/.local/bin/elk
 
 ## Install from source
 
-> Requires [Zig 0.16.x](https://ziglang.org/download/#release-0.16.0).
+> Requires [Zig 0.17.x](https://ziglang.org/download/#release-0.17.0).
 
-**1. Make sure Zig 0.16.x is installed:**
-[available here](https://ziglang.org/download/#release-0.16.0).
+**1. Make sure Zig 0.17.x is installed:**
+[available here](https://ziglang.org/download/#release-0.17.0).
 
 **2. Download source code:**
 ```sh

@@ -58,7 +58,7 @@ fn incrementItemCount(ctx: *const Ctx) void {
 
 fn writeDepth(ctx: Ctx) error{WriteFailed}!void {
     for (0..ctx.depth) |_|
-        try ctx.writer.print(" " ** indent_width, .{});
+        try ctx.writer.print(&@as([indent_width]u8, @splat(' ')), .{});
 }
 
 pub fn writeTitle(
