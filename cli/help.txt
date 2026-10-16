@@ -46,7 +46,8 @@ OPTIONS:
             PATCHES is a comma-separated list of label-value pairs, eg. 'Height=5,Char=x30'
         --random-init <SEED>
             Fill memory, registers, and condition codes with pseudo-random bits
-            generated from SEED, instead of zeros, to simulate undefined memory.
+                generated from SEED, instead of zeros, to simulate undefined memory.
+            If SEED is 0, a random seed is used.
         --analytics <FILE>
             Write execution analytics to FILE after emulation.
             The format is inferred from the file extension: .txt or .json.

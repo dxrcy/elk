@@ -442,7 +442,14 @@ fn emulate(
     defer if (debugger_opt) |*debugger| debugger.deinit(gpa);
 
     var prng_storage: ?std.Random.DefaultPrng = null;
-    if (options.random_init) |seed| {
+    if (options.random_init) |seed_opt| {
+        const seed = if (seed_opt != 0)
+            seed_opt
+        else blk: {
+            var seed: u64 = undefined;
+            try io.randomSecure(std.mem.asBytes(&seed));
+            break :blk seed;
+        };
         prng_storage = std.Random.DefaultPrng.init(seed);
     }
 
