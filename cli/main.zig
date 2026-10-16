@@ -384,14 +384,6 @@ fn readSymbolTable(
     }
 }
 
-fn replacePathExtension(buffer: []u8, path: []const u8, extension: []const u8) []u8 {
-    const index = std.mem.findScalarLast(u8, path, '.') orelse 0;
-    @memcpy(buffer[0..index], path[0..index]);
-    buffer[index] = '.';
-    @memcpy(buffer[index + 1 ..][0..extension.len], extension);
-    return buffer[0 .. index + 1 + extension.len];
-}
-
 const RuntimeSource = union(enum) {
     object: struct {
         file: Io.File,
@@ -696,4 +688,43 @@ fn cleanFile(io: Io, input: []const u8) !usize {
         count += 1;
     }
     return count;
+}
+
+fn replacePathExtension(buffer: []u8, path: []const u8, extension: []const u8) []u8 {
+    assert(extension.len > 0);
+    if (path.len == 0) {
+        @memcpy(buffer[0..extension.len], extension);
+        return buffer[0..extension.len];
+    }
+    const index = std.mem.findScalarLast(u8, path, '.') orelse path.len;
+    @memcpy(buffer[0..index], path[0..index]);
+    buffer[index] = '.';
+    @memcpy(buffer[index + 1 ..][0..extension.len], extension);
+    return buffer[0 .. index + 1 + extension.len];
+}
+
+test replacePathExtension {
+    const expect = std.testing.expect;
+
+    const cases = [_]struct{ []const u8, []const u8 }{
+        .{ "", "obj" },
+        .{ ".", ".obj" },
+        .{ "hw.asm", "hw.obj" },
+        .{ "hw.foo", "hw.obj" },
+        .{ "hw.foo.bar.baz", "hw.foo.bar.obj" },
+        .{ "hw", "hw.obj" },
+        .{ "hw.", "hw.obj" },
+        .{ "hw..", "hw..obj" },
+        .{ "hw...asm", "hw...obj" },
+        .{ ".asm", ".obj" },
+        .{ "foo/bar.baz/hw.asm", "foo/bar.baz/hw.obj" },
+    };
+
+    for (cases) |case| {
+        const input, const expected = case;
+        var buffer: [std.fs.max_path_bytes]u8 = undefined;
+        const actual = replacePathExtension(&buffer, input, "obj");
+        std.log.debug("[{s}] [{s}] [{s}]", .{ input, expected, actual });
+        try expect(std.mem.eql(u8, expected, actual));
+    }
 }
