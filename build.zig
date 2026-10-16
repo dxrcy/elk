@@ -1,57 +1,52 @@
 const std = @import("std");
 
-pub fn build(b: *std.Build) void {
+pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const lib_mod = b.addModule("elk", .{
+    // Local modules
+    const mod_lib = b.addModule("elk", .{
         .root_source_file = b.path("lib/root.zig"),
         .target = target,
         .optimize = optimize,
     });
-
-    const exe_mod = b.createModule(.{
+    const mod_cli= b.createModule(.{
         .root_source_file = b.path("cli/main.zig"),
         .target = target,
         .optimize = optimize,
     });
-
-    const build_zon_mod = b.createModule(.{
+    const mod_build_zon = b.createModule(.{
         .root_source_file = b.path("build.zig.zon"),
     });
 
-    const zilc_dep = b.lazyDependency("zilc", .{}) orelse
-        return;
-    const zilc_mod = zilc_dep.module("zilc");
+    // Fetched modules
+    const mod_zilc = (try b.dependencyLazy("zilc", .{})).module("zilc");
 
-    exe_mod.addImport("elk", lib_mod);
-    exe_mod.addImport("build_zon", build_zon_mod);
-    exe_mod.addImport("zilc", zilc_mod);
+    mod_cli.addImport("elk", mod_lib);
+    mod_cli.addImport("zilc", mod_zilc);
+    mod_cli.addImport("build_zon", mod_build_zon);
 
-    const exe = b.addExecutable(.{
-        .name = "elk",
-        .root_module = exe_mod,
-    });
-    b.installArtifact(exe);
+    { // zig build run
+        const exe_cli = b.addExecutable(.{ .name = "elk", .root_module = mod_cli });
+        b.installArtifact(exe_cli);
+        const cmd_run = b.addRunArtifact(exe_cli);
+        cmd_run.addPassthruArgs();
+        b.step("run", "Run the application").dependOn(&cmd_run.step);
+    }
 
-    const run_cmd = b.addRunArtifact(exe);
-    run_cmd.addPassthruArgs();
-    const run_step = b.step("run", "Run the application");
-    run_step.dependOn(&run_cmd.step);
+    { // zig build test
+        const step_test= b.step("test", "Run unit tests");
+        step_test.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = mod_lib })).step);
+        step_test.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = mod_cli })).step);
+    }
 
-    const test_step = b.step("test", "Run unit tests");
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = lib_mod })).step);
-    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = exe_mod })).step);
-
-    const docs_step = b.step("docs", "Build docs");
-    const docs_obj = b.addObject(.{
-        .name = "elk",
-        .root_module = lib_mod,
-    });
-    const docs = docs_obj.getEmittedDocs();
-    docs_step.dependOn(&b.addInstallDirectory(.{
-        .source_dir = docs,
-        .install_dir = .prefix,
-        .install_subdir = "docs",
-    }).step);
+    { // zig build docs
+        const step_docs = b.step("docs", "Build docs");
+        const obj_lib = b.addObject(.{ .name = "elk", .root_module = mod_lib });
+        step_docs.dependOn(&b.addInstallDirectory(.{
+            .source_dir = obj_lib.getEmittedDocs(),
+            .install_dir = .prefix,
+            .install_subdir = "docs",
+        }).step);
+    }
 }
