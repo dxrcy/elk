@@ -51,16 +51,16 @@ pub fn addSymbols(analytics: *Analytics, provider: Provider) error{OutOfMemory}!
         .none => {},
         .assembly => |assembly| {
             for (assembly.air.labels.items) |label|
-                try analytics.data.symbols.putNoClobber(
+                _ = try analytics.data.symbols.getOrPutValue(
                     label.index + assembly.air.origin,
-                    label.span.view(assembly.source), // FIXME: UAF possibility???
+                    label.span.view(assembly.source),
                 );
         },
         .symbols => |symbols| {
             for (symbols.items) |symbol|
-                try analytics.data.symbols.putNoClobber(
+                _ = try analytics.data.symbols.getOrPutValue(
                     symbol.address,
-                    symbol.name, // FIXME: UAF possibility???
+                    symbol.name,
                 );
         },
     }
@@ -162,6 +162,7 @@ const Data = struct {
 
     time: std.EnumArray(Time, Io.Duration),
     size: u16,
+    /// If an address has multiple labels, only the FIRST instance is tracked.
     symbols: Map(u16, []const u8),
     instructions: Instructions,
     registers: struct {
