@@ -224,9 +224,8 @@ pub const Diagnostic = union(enum) {
             .debugger_integer_too_small,
             => .fatal,
 
-            .existing_label_left,
-            .debugger_label_partial_match,
-            => .minor,
+            .existing_label_left => .major,
+            .debugger_label_partial_match => .minor,
 
             .breakpoint_label => .info,
 
