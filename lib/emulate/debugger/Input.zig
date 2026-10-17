@@ -101,10 +101,10 @@ pub fn readLine(
 
     const trimmed = std.mem.trim(u8, line, &std.ascii.whitespace);
     if (trimmed.len > 0) {
-        try input.editor.history.push(trimmed);
-        input.writeHistory(trimmed) catch |err| {
-            std.log.err("history write failed: {t}", .{err});
-        };
+        if (try input.editor.history.push(trimmed))
+            input.writeHistory(trimmed) catch |err| {
+                std.log.err("history write failed: {t}", .{err});
+            };
     }
 
     return line;

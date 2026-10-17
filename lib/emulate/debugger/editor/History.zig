@@ -30,17 +30,18 @@ pub fn length(history: *const History) usize {
     return std.mem.countScalar(u8, history.store.items, '\n');
 }
 
-pub fn push(history: *History, line: []const u8) Allocator.Error!void {
+/// Returns `true` if line was pushed.
+/// New line will not be pushed if it is a duplicate of the latest line.
+pub fn push(history: *History, line: []const u8) Allocator.Error!bool {
     const trimmed = std.mem.trim(u8, line, &std.ascii.whitespace);
     assert(trimmed.len == line.len);
     assert(trimmed.len > 0);
     if (history.store.items.len > 0)
         assert(history.store.items[history.store.items.len - 1] == '\n');
 
-    // Don't push sequential duplicates
     if (history.store.items.len > 0) {
         if (std.mem.eql(u8, line, history.getLast(0)))
-            return;
+            return false;
     }
 
     history.store.ensureUnusedCapacity(history.gpa, line.len + 1) catch
@@ -48,6 +49,7 @@ pub fn push(history: *History, line: []const u8) Allocator.Error!void {
 
     history.store.appendSliceAssumeCapacity(line);
     history.store.appendAssumeCapacity('\n');
+    return true;
 }
 
 fn shiftToEnsureUnusedCapacity(history: *History, additional_count: usize) Allocator.Error!void {
