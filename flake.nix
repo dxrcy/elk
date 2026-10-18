@@ -24,7 +24,7 @@
       packages = forAllSystems (system:
         let
           pkgs = import nixpkgs { inherit system; };
-          zig = pkgs.zig_0_16;
+          zig = pkgs.zig_0_17;
           zigDeps = pkgs.callPackage ./build.zig.zon.nix { };
         in
         {
@@ -75,7 +75,7 @@
         {
           default = pkgs.mkShellNoCC {
             packages = [
-              pkgs.zig_0_16
+              pkgs.zig_0_17
               pkgs.zls
               zon2nix.packages.${system}.zon2nix
             ];
