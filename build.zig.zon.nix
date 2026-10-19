@@ -39,11 +39,11 @@ let
 
   # Every package, by the hash Zig knows it by, as Nix fetches it.
   packages = {
-    "zilc-0.1.3-a-peQchmAAAHR7fhkYuc9-ZRO393kW-8vcwaQxZ_q5OL" = fetchZigGit {
+    "zilc-0.1.3-a-peQQ9oAAA5IycY4QhEj5gTHGznO1X0LxQsegL9gocu" = fetchZigGit {
       name = "zilc";
       url = "https://codeberg.org/dxrcy/zilc";
-      rev = "081fd02e4eff498f315b90b2f7516b38062cd7e1";
-      hash = "sha256-W/K2RbH5lGkpd/kJ7IbUaq3OyULgnWQqfXj4VD0hC3Q=";
+      rev = "14a3f04bcfc5637851cf414efad9e0f42513c910";
+      hash = "sha256-Xz2/SYdpKtRIIpCaWronZTkCDMoP3leiXuMOSYjj6aY=";
     };
   };
 
